@@ -1,6 +1,6 @@
 # dotns-sdk
 
-This repository is the home for DotNS client tooling. The goal is to make DotNS interactions reproducible, auditable, and consistent across environments and languages.
+This repository is the home for dotns developer CLIent tooling. The goal is to make DotNS interactions reproducible, auditable, and consistent across environments and languages.
 
 **DotNS** refers to the protocol. Repository, package, and binary names use lowercase (for example `dotns-sdk`, `@dotns/*`).
 
