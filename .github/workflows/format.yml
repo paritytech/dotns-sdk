@@ -28,18 +28,32 @@ jobs:
       - name: Run format
         id: format
         continue-on-error: true
-        run: bun run format
+        shell: bash
         working-directory: packages/cli
+        run: |
+          set -o pipefail
+          bun run format 2>&1 | tee "$GITHUB_WORKSPACE/format-output.txt"
+
+      - name: Upload format output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: format-output
+          path: format-output.txt
+          retention-days: 7
 
       - name: Process results
         id: result
+        shell: bash
         run: |
-          if [ "${{ steps.format.outcome }}" == "success" ]; then
-            echo "status=Passed" >> $GITHUB_OUTPUT
-            echo "details=" >> $GITHUB_OUTPUT
+          set -euo pipefail
+          if [ "${{ steps.format.outcome }}" = "success" ]; then
+            echo "status=Passed" >> "$GITHUB_OUTPUT"
+            echo "details=Format passed" >> "$GITHUB_OUTPUT"
           else
-            echo "status=Failed" >> $GITHUB_OUTPUT
-            echo "details=Formatting issues found" >> $GITHUB_OUTPUT
+            FILES=$(grep -c "^\[warn\]" format-output.txt 2>/dev/null || echo "0")
+            echo "status=Failed" >> "$GITHUB_OUTPUT"
+            echo "details=${FILES} files need formatting" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Update PR comment
@@ -52,6 +66,8 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
+            const fs = require("fs");
+
             const marker = "<!-- ci-summary -->";
             const detailsMarker = "<!-- details-section -->";
             const section = process.env.SECTION;
@@ -61,6 +77,22 @@ jobs:
 
             const { owner, repo } = context.repo;
             const issue_number = context.payload.pull_request.number;
+
+            let output = "";
+            try {
+              output = fs.readFileSync("format-output.txt", "utf8");
+            } catch (_) {
+              output = "(format-output.txt not found)";
+            }
+
+            const MAX_CHARS = 60000;
+            if (output.length > MAX_CHARS) {
+              output = [
+                "(truncated; showing last " + MAX_CHARS + " chars)",
+                "",
+                output.slice(-MAX_CHARS),
+              ].join("\n");
+            }
 
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner, repo, issue_number, per_page: 100,
@@ -95,10 +127,25 @@ jobs:
               }
             }
 
-            rows[section] = status;
+            const resultText = status === "Passed" ? "Passed" : "Failed";
+            rows[section] = status === "Passed" ? resultText : `[${resultText}](${runUrl}) - ${details}`;
 
-            if (status === "Failed" && details) {
-              existingDetails[section] = `<details>\n<summary><strong>${section}</strong></summary>\n\n${details}\n\n[View run](${runUrl})\n\n</details>`;
+            if (status === "Failed") {
+              const detailsBlock = [
+                `<details>`,
+                `<summary><strong>${section}</strong> - ${resultText}</summary>`,
+                "",
+                details || "",
+                "",
+                `[View run](${runUrl})`,
+                "",
+                "```text",
+                output,
+                "```",
+                "</details>",
+              ].join("\n").replace(/\n\n\n+/g, "\n\n");
+
+              existingDetails[section] = detailsBlock;
             } else {
               delete existingDetails[section];
             }

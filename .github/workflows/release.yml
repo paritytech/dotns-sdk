@@ -197,11 +197,22 @@ jobs:
                 "PR artifacts require download via GitHub CLI (no direct install URL):",
                 "```bash",
                 `gh run download ${runId} -n cli-preview-${version} -R ${repoFull}`,
+                "```",
                 "",
-                `bun add -g ./dotns-cli-${version}.tgz`,
-                "# or",
+                "Then install:",
+                "```bash",
+                "# npm (recommended, works everywhere)",
                 `npm install -g ./dotns-cli-${version}.tgz`,
                 "",
+                "# bun (requires absolute path)",
+                "# macOS/Linux:",
+                `bun add -g "$(pwd)/dotns-cli-${version}.tgz"`,
+                "# Windows PowerShell:",
+                `# bun add -g "$PWD\\dotns-cli-${version}.tgz"`,
+                "```",
+                "",
+                "Verify:",
+                "```bash",
                 "dotns --version",
                 "```"
               ].join("\n");
@@ -270,13 +281,26 @@ jobs:
 
           cat > release-body.md <<EOF
           ## Installation
+
+          Download the release:
           \`\`\`bash
           gh release download ${TAG} -p "*.tgz" -R ${REPO}
+          \`\`\`
 
-          bun add -g ./dotns-cli-${VERSION}.tgz
-          # or
+          Install:
+          \`\`\`bash
+          # npm (recommended, works everywhere)
           npm install -g ./dotns-cli-${VERSION}.tgz
 
+          # bun (requires absolute path)
+          # macOS/Linux:
+          bun add -g "\$(pwd)/dotns-cli-${VERSION}.tgz"
+          # Windows PowerShell:
+          # bun add -g "\$PWD\\dotns-cli-${VERSION}.tgz"
+          \`\`\`
+
+          Verify:
+          \`\`\`bash
           dotns --version
           \`\`\`
           EOF
