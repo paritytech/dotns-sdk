@@ -12,7 +12,7 @@
     "format": "bunx prettier --check .",
     "format:fix": "bunx prettier --write \"**/*.{js,ts,json,md}\" \"!abis/**\"",
     "typecheck": "bunx tsc --noEmit",
-    "build": "bun build src/cli/index.ts --outfile dist/cli.tmp.js --target node --format esm --packages external && echo '#!/usr/bin/env node' | cat - dist/cli.tmp.js > dist/cli.js && rm dist/cli.tmp.js && chmod +x dist/cli.js",
+    "build": "bun build src/cli/index.ts --outfile dist/cli.tmp.js --target node --format esm && echo '#!/usr/bin/env node' | cat - dist/cli.tmp.js > dist/cli.js && rm dist/cli.tmp.js && chmod +x dist/cli.js",
     "prepublishOnly": "bun run build",
     "postinstall": "bun run ./installIPFS.ts || true; bunx papi generate"
   },
