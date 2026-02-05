@@ -10,6 +10,7 @@ import { addAuthOptions } from "./authOptions";
 import type { CommandOptions } from "../../types/types";
 import { ProofOfPersonhoodStatus } from "../../types/types";
 import { prepareReadOnlyContext } from "./lookup";
+import type { Address } from "viem";
 
 export type PopInfoResult = {
   substrate: string;
@@ -42,7 +43,7 @@ async function readPopInfo(options: CommandOptions): Promise<PopInfoResult> {
   const status = await getUserProofOfPersonhoodStatus(
     context.clientWrapper!,
     context.account.address,
-    context.evmAddress!,
+    context.evmAddress as Address,
   );
 
   return {
