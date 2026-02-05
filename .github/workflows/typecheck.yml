@@ -31,7 +31,14 @@ jobs:
           set -euo pipefail
           bun install --frozen-lockfile
           for pkg in packages/*; do
-            [ -f "$pkg/package.json" ] && bun install --cwd "$pkg"
+            [ -f "$pkg/package.json" ] || continue
+            grep -q '"file:' "$pkg/package.json" || continue
+            grep -oP '"[^"]+": "file:\K[^"]+' "$pkg/package.json" | while read -r dep; do
+              name=$(jq -r .name "$pkg/$dep/package.json")
+              scope_dir="$pkg/node_modules/$(dirname "$name")"
+              mkdir -p "$scope_dir"
+              ln -sfn "$(cd "$pkg/$dep" && pwd)" "$pkg/node_modules/$name"
+            done
           done
 
       - name: Run typecheck
