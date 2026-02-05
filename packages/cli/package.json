@@ -14,7 +14,7 @@
     "typecheck": "bunx tsc --noEmit",
     "build": "bunx tsc -p tsconfig.build.json && chmod +x dist/src/cli/index.js",
     "prepublishOnly": "bun run build",
-    "postinstall": "bun run ./installIPFS.ts || true"
+    "postinstall": "bun run ./installIPFS.ts || true; bunx papi generate"
   },
   "engines": {
     "bun": ">=1.2.6"
