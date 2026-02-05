@@ -14,6 +14,27 @@ export const DEFAULT_BULLETIN_RPC = "wss://bulletin.dotspark.app";
 export const DEFAULT_CHUNK_SIZE_BYTES = 4 * 1024 * 1024;
 export const MAX_SINGLE_UPLOAD_SIZE_BYTES = 8 * 1024 * 1024;
 
+export const DOT_NODE: Hex = "0x3fce7d1364a893e213bc4212792b517ffc88f5b13b86c8ef9c8d390c3a1370ce";
+
+export const DECIMALS = 12n;
+
+export const NATIVE_TO_ETH_RATIO = 1_000_000n;
+
+export const DEFAULT_MNEMONIC =
+  "bottom drive obey lake curtain smoke basket hold race lonely fit walk";
+
+export const OPERATION_TIMEOUT_MILLISECONDS = 300_000;
+
+export const DOTNS_REGISTRAR_CONTROLLER_ABI = DotnsRegistrarController.abi as Abi;
+export const DOTNS_REGISTRY_ABI = DotnsRegistry.abi as Abi;
+export const DOTNS_REGISTRAR_ABI = DotnsRegistrar.abi as Abi;
+export const DOTNS_REVERSE_RESOLVER_ABI = DotnsReverseResolver.abi as Abi;
+export const DOTNS_CONTENT_RESOLVER_ABI = DotnsContentResolver.abi as Abi;
+export const DOTNS_RESOLVER_ABI = DotnsResolver.abi as Abi;
+export const POP_RULES_ABI = PopRules.abi as Abi;
+export const STORE_FACTORY_ABI = StoreFactory.abi as Abi;
+export const STORE_ABI = Store.abi as Abi;
+
 export const RPC_ENDPOINTS = [
   //"wss://sys.ibp.network/asset-hub-paseo",
   "wss://asset-hub-paseo-rpc.n.dwellir.com",
@@ -41,24 +62,3 @@ export const CONTRACTS = {
   /** Proof of Personhood RULES - verifies eligibility and pricing */
   DOTNS_RULES: "0x4e8920B1E69d0cEA9b23CBFC87A17Ee6fE02d2d3" as Address,
 } as const satisfies Record<string, Address>;
-
-export const DOT_NODE: Hex = "0x3fce7d1364a893e213bc4212792b517ffc88f5b13b86c8ef9c8d390c3a1370ce";
-
-export const DECIMALS = 12n;
-
-export const NATIVE_TO_ETH_RATIO = 1_000_000n;
-
-export const DEFAULT_MNEMONIC =
-  "bottom drive obey lake curtain smoke basket hold race lonely fit walk";
-
-export const OPERATION_TIMEOUT_MILLISECONDS = 300_000;
-
-export const DOTNS_REGISTRAR_CONTROLLER_ABI = DotnsRegistrarController.abi as Abi;
-export const DOTNS_REGISTRY_ABI = DotnsRegistry.abi as Abi;
-export const DOTNS_REGISTRAR_ABI = DotnsRegistrar.abi as Abi;
-export const DOTNS_REVERSE_RESOLVER_ABI = DotnsReverseResolver.abi as Abi;
-export const DOTNS_CONTENT_RESOLVER_ABI = DotnsContentResolver.abi as Abi;
-export const DOTNS_RESOLVER_ABI = DotnsResolver.abi as Abi;
-export const POP_RULES_ABI = PopRules.abi as Abi;
-export const STORE_FACTORY_ABI = StoreFactory.abi as Abi;
-export const STORE_ABI = Store.abi as Abi;
