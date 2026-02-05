@@ -27,6 +27,16 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # Hard fail early with a useful message if the CLI-scoped .papi folder
+      # is missing in the checkout (prevents confusing TS2307 later).
+      - name: Assert CLI descriptors exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d packages/cli/.papi/descriptors
+          test -f packages/cli/.papi/descriptors/package.json
+          echo "Found packages/cli/.papi/descriptors"
+
       - name: Extract version
         id: version
         shell: bash
@@ -53,7 +63,10 @@ jobs:
         id: build
         continue-on-error: true
         working-directory: packages/cli
-        run: bun run build
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun run build
 
       - name: Prepare package
         if: steps.build.outcome == 'success'
@@ -155,7 +168,8 @@ jobs:
               }
             }
 
-            rows[section] = status;
+            const icon = status === "Passed" ? ":white_check_mark:" : ":x:";
+            rows[section] = `${icon} ${status}`;
 
             if (status === "Passed") {
               const installInstructions = [
