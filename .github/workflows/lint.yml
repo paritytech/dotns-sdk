@@ -43,9 +43,6 @@ jobs:
             ERRORS=$(grep -c " error " packages/cli/lint-output.txt 2>/dev/null || echo "0")
             WARNINGS=$(grep -c " warning " packages/cli/lint-output.txt 2>/dev/null || echo "0")
             echo "status=Failed" >> $GITHUB_OUTPUT
-            
-            # Extract first 10 errors for details
-            DETAILS=$(grep -E "^\s+\d+:\d+\s+error" packages/cli/lint-output.txt 2>/dev/null | head -10 | sed 's/|/-/g' | tr '\n' '\\n' || echo "")
             echo "details=${ERRORS} errors, ${WARNINGS} warnings" >> $GITHUB_OUTPUT
           fi
 
@@ -60,6 +57,7 @@ jobs:
         with:
           script: |
             const marker = "<!-- ci-summary -->";
+            const detailsMarker = "<!-- details-section -->";
             const section = process.env.SECTION;
             const status = process.env.STATUS;
             const details = process.env.DETAILS;
@@ -77,24 +75,39 @@ jobs:
             );
 
             let rows = {};
+            let existingDetails = {};
+
             if (existing?.body) {
-              const lines = existing.body.split('\n');
+              const parts = existing.body.split(detailsMarker);
+              const tableSection = parts[0] || "";
+
+              const lines = tableSection.split("\n");
               for (const line of lines) {
                 const match = line.match(/^\| ([^|]+) \| ([^|]+) \|$/);
                 if (match) {
                   const name = match[1].trim();
-                  if (name && name !== 'Check' && !name.startsWith(':')) {
+                  if (name && name !== "Check" && !name.startsWith(":")) {
                     rows[name] = match[2].trim();
                   }
                 }
               }
+
+              const detailsRegex = /<details>\s*<summary><strong>([^<]+)<\/strong><\/summary>([\s\S]*?)<\/details>/g;
+              let detailMatch;
+              while ((detailMatch = detailsRegex.exec(existing.body)) !== null) {
+                existingDetails[detailMatch[1].trim()] = detailMatch[0];
+              }
             }
 
-            const icon = status === 'Passed' ? ':white_check_mark:' : ':x:';
-            const result = details ? `${icon} [${status}](${runUrl}) - ${details}` : `${icon} [${status}](${runUrl})`;
-            rows[section] = result;
+            rows[section] = status;
 
-            const order = ['Lint', 'Format', 'Typecheck', 'Build', 'PR Title', 'Labels'];
+            if (status === "Failed" && details) {
+              existingDetails[section] = `<details>\n<summary><strong>${section}</strong></summary>\n\n${details}\n\n[View run](${runUrl})\n\n</details>`;
+            } else {
+              delete existingDetails[section];
+            }
+
+            const order = ["Lint", "Format", "Typecheck", "Build", "Release", "PR Title", "Labels"];
             const sortedKeys = Object.keys(rows).sort((a, b) => {
               const ai = order.indexOf(a), bi = order.indexOf(b);
               return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
@@ -105,7 +118,17 @@ jobs:
               table += `| ${key} | ${rows[key]} |\n`;
             }
 
-            const body = `${marker}\n## CI Summary\n\n${table}`;
+            const detailsOrder = ["Lint", "Format", "Typecheck", "Build", "Release", "PR Title", "Labels"];
+            const sortedDetails = Object.keys(existingDetails).sort((a, b) => {
+              const ai = detailsOrder.indexOf(a), bi = detailsOrder.indexOf(b);
+              return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+            });
+
+            let body = `${marker}\n## CI Summary\n\n${table}`;
+
+            if (sortedDetails.length > 0) {
+              body += `\n${detailsMarker}\n\n---\n\n${sortedDetails.map(k => existingDetails[k]).join("\n\n")}`;
+            }
 
             if (existing) {
               await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
