@@ -5,7 +5,7 @@ import { expect } from "bun:test";
 import fs from "node:fs/promises";
 
 import { attachAuthCommands } from "../../src/cli/commands/auth";
-import { attachRegisterCommand } from "../../src/cli/commands/register-command";
+import { attachRegisterCommand } from "../../src/cli/commands/registerCommand";
 import { pathExists, readKeystoreFile } from "../../src/cli/keystore/file";
 import { decryptKeystorePayload } from "../../src/cli/keystore/crypto";
 import { attachLookupCommands } from "../../src/cli/commands/lookup";

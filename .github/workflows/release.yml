@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  release:
+    types: [created]
+  pull_request:
+    branches: [main]
+    paths:
+      - "packages/cli/**"
+      - ".github/workflows/release.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.6"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Extract version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            VERSION="0.0.0-pr.${{ github.event.pull_request.number }}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build CLI
+        working-directory: packages/cli
+        run: bun run build
+
+      - name: Prepare package
+        working-directory: packages/cli
+        run: |
+          npm version ${{ steps.version.outputs.version }} --no-git-tag-version --allow-same-version
+          jq 'del(.private)' package.json > package.json.tmp && mv package.json.tmp package.json
+
+      - name: Pack
+        working-directory: packages/cli
+        run: npm pack
+
+      - name: Upload artifact (PR only)
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-preview-${{ steps.version.outputs.version }}
+          path: packages/cli/*.tgz
+          retention-days: 7
+
+      - name: Attach to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: packages/cli/*.tgz

@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import { attachAuthCommands } from "./auth";
-import { attachRegisterCommand } from "./register-command";
+import { attachRegisterCommand } from "./registerCommand";
 import { attachLookupCommands } from "./lookup";
 import { attachContentCommands } from "./content";
 import { attachPopCommands } from "./pop";

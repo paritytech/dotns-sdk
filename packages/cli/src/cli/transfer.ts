@@ -1,14 +1,14 @@
 import chalk from "chalk";
 import ora from "ora";
 import { checksumAddress, isAddress, zeroAddress, type Address } from "viem";
-import { ReviveClientWrapper } from "../client/polkadot-client";
+import { ReviveClientWrapper } from "../client/polkadotClient";
 import { CONTRACTS, DOTNS_REGISTRAR_ABI } from "../utils/constants";
 import { validateDomainLabel } from "../utils/validation";
 import {
   computeDomainTokenId,
   performContractCall,
   submitContractTransaction,
-} from "../utils/contract-interactions";
+} from "../utils/contractInteractions";
 
 function toChecksummed(a: Address): Address {
   return checksumAddress(a) as Address;
@@ -51,26 +51,16 @@ export async function resolveTransferRecipient(
 
   const label = asDotLabel(input);
   if (isLabelLike(label)) {
-    const spinner = ora(
-      `Resolving ${chalk.cyan(label + ".dot")} to owner address`,
-    ).start();
+    const spinner = ora(`Resolving ${chalk.cyan(label + ".dot")} to owner address`).start();
 
-    const ownerAddress = await ownerOfLabel(
-      clientWrapper,
-      originSubstrateAddress,
-      label,
-    );
+    const ownerAddress = await ownerOfLabel(clientWrapper, originSubstrateAddress, label);
 
     if (ownerAddress === zeroAddress) {
-      spinner.fail(
-        `No owner found for ${chalk.cyan(label + ".dot")} (unregistered)`,
-      );
+      spinner.fail(`No owner found for ${chalk.cyan(label + ".dot")} (unregistered)`);
       throw new Error(`Domain ${label}.dot has no owner`);
     }
 
-    spinner.succeed(
-      `${chalk.cyan(label + ".dot")} → ${chalk.white(toChecksummed(ownerAddress))}`,
-    );
+    spinner.succeed(`${chalk.cyan(label + ".dot")} → ${chalk.white(toChecksummed(ownerAddress))}`);
     return toChecksummed(ownerAddress);
   }
 
@@ -97,15 +87,9 @@ export async function transferDomain(
 
   spinner.start(`Checking owner of ${chalk.cyan(normLabel + ".dot")}`);
   const tokenId = computeDomainTokenId(normLabel);
-  const currentOwner = await ownerOfLabel(
-    clientWrapper,
-    originSubstrateAddress,
-    normLabel,
-  );
+  const currentOwner = await ownerOfLabel(clientWrapper, originSubstrateAddress, normLabel);
   const currentOwnerC = toChecksummed(currentOwner);
-  spinner.succeed(
-    `Owner: ${chalk.cyan(normLabel + ".dot")} → ${chalk.white(currentOwnerC)}`,
-  );
+  spinner.succeed(`Owner: ${chalk.cyan(normLabel + ".dot")} → ${chalk.white(currentOwnerC)}`);
 
   const fromC = toChecksummed(fromAddress);
   const toC = toChecksummed(toAddress);
@@ -122,9 +106,7 @@ export async function transferDomain(
     throw new Error(`Cannot transfer: ${normLabel}.dot owned by ${currentOwnerC}`);
   }
 
-  spinner.start(
-    `Submitting transfer ${chalk.cyan(normLabel + ".dot")} → ${chalk.green(toC)}`,
-  );
+  spinner.start(`Submitting transfer ${chalk.cyan(normLabel + ".dot")} → ${chalk.green(toC)}`);
 
   const transactionHash = await submitContractTransaction(
     clientWrapper,

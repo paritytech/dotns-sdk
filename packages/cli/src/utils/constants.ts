@@ -9,9 +9,14 @@ import PopRules from "../../abis/PopRules.json" assert { type: "json" };
 import StoreFactory from "../../abis/StoreFactory.json" assert { type: "json" };
 import Store from "../../abis/Store.json" assert { type: "json" };
 
+export const PREVIEW_BASE_URL = "http://dotns.paseo.li/#/preview";
+export const DEFAULT_BULLETIN_RPC = "wss://bulletin.dotspark.app";
+export const DEFAULT_CHUNK_SIZE_BYTES = 4 * 1024 * 1024;
+export const MAX_SINGLE_UPLOAD_SIZE_BYTES = 8 * 1024 * 1024;
+
 export const RPC_ENDPOINTS = [
   //"wss://sys.ibp.network/asset-hub-paseo",
-  "wss://asset-hub-paseo-rpc.n.dwellir.com"
+  "wss://asset-hub-paseo-rpc.n.dwellir.com",
 ] as const;
 
 export const CONTRACTS = {
@@ -37,8 +42,7 @@ export const CONTRACTS = {
   DOTNS_RULES: "0x4e8920B1E69d0cEA9b23CBFC87A17Ee6fE02d2d3" as Address,
 } as const satisfies Record<string, Address>;
 
-export const DOT_NODE: Hex =
-  "0x3fce7d1364a893e213bc4212792b517ffc88f5b13b86c8ef9c8d390c3a1370ce";
+export const DOT_NODE: Hex = "0x3fce7d1364a893e213bc4212792b517ffc88f5b13b86c8ef9c8d390c3a1370ce";
 
 export const DECIMALS = 12n;
 

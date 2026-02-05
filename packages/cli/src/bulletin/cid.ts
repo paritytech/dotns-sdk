@@ -1,65 +1,69 @@
+import { CID } from "multiformats/cid";
+import { create as createMultihashDigest } from "multiformats/hashes/digest";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { blake2b } from "@noble/hashes/blake2.js";
-import { Buffer } from "buffer";
+import { base32 } from "multiformats/bases/base32";
+import { base58btc } from "multiformats/bases/base58";
 
-export const CID_CONFIG = {
-  version: 1,
-  codecRaw: 0x55,
-  codecDagPb: 0x70,
-  hashCodeBlake2b256: 0xb220,
-  hashCodeSha2_256: 0x12,
-  hashLength: 32,
+export const CODEC = {
+  RAW: 0x55,
+  DAG_PB: 0x70,
 } as const;
 
-export type HashingEnum =
-  | { type: "Blake2b256"; value: undefined }
-  | { type: "Sha2_256"; value: undefined }
-  | { type: "Keccak256"; value: undefined };
+export const HASH = {
+  SHA2_256: 0x12,
+  BLAKE2B_256: 0xb220,
+  KECCAK_256: 0x1b,
+} as const;
 
-export function toHashingEnum(mhCode: number): HashingEnum {
-  switch (mhCode) {
-    case CID_CONFIG.hashCodeBlake2b256:
-      return { type: "Blake2b256", value: undefined };
-    case CID_CONFIG.hashCodeSha2_256:
-      return { type: "Sha2_256", value: undefined };
-    case 0x1b:
-      return { type: "Keccak256", value: undefined };
+export const HASH_LENGTH = 32;
+
+export function computeHash(data: Uint8Array, hashCode: number): Uint8Array {
+  switch (hashCode) {
+    case HASH.SHA2_256:
+      return sha256(data);
+    case HASH.BLAKE2B_256:
+      return blake2b(data, { dkLen: HASH_LENGTH });
     default:
-      throw new Error(`Unhandled multihash code: ${mhCode}`);
+      throw new Error(`Unsupported hash code: 0x${hashCode.toString(16)}`);
   }
 }
 
-export async function createCidFromData(params: {
-  data: Uint8Array;
-  codec: number;
-  hashCode: number;
-}): Promise<string> {
-  const { CID } = await import("multiformats/cid");
-  const { create: createMultihash } = await import("multiformats/hashes/digest");
-
-  const { data, codec, hashCode } = params;
-
-  let hash: Uint8Array;
-  if (hashCode === CID_CONFIG.hashCodeBlake2b256) {
-    hash = blake2b(data, { dkLen: CID_CONFIG.hashLength });
-  } else if (hashCode === CID_CONFIG.hashCodeSha2_256) {
-    hash = sha256(data);
-  } else {
-    throw new Error(`Unsupported hash code: 0x${hashCode.toString(16)}`);
-  }
-
-  const digest = createMultihash(hashCode, hash);
-  return CID.createV1(codec, digest).toString();
+export function createRawCid(data: Uint8Array, hashCode: number = HASH.SHA2_256): CID {
+  const hash = computeHash(data, hashCode);
+  const multihash = createMultihashDigest(hashCode, hash);
+  return CID.createV1(CODEC.RAW, multihash);
 }
 
-export async function encodeIpfsContenthash(cidString: string): Promise<string> {
-  const { CID } = await import("multiformats/cid");
-  const cid = CID.parse(cidString);
+export function createDagPbCid(data: Uint8Array, hashCode: number = HASH.SHA2_256): CID {
+  const hash = computeHash(data, hashCode);
+  const multihash = createMultihashDigest(hashCode, hash);
+  return CID.createV1(CODEC.DAG_PB, multihash);
+}
 
-  const contenthash = new Uint8Array(cid.bytes.length + 2);
-  contenthash[0] = 0xe3;
-  contenthash[1] = 0x01;
-  contenthash.set(cid.bytes, 2);
+export function parseCid(cidString: string): CID {
+  const decoder = cidString.startsWith("Qm") ? base58btc : base32;
+  return CID.parse(cidString, decoder);
+}
 
-  return `0x${Buffer.from(contenthash).toString("hex")}`;
+export function encodeIpfsContenthash(cidString: string): string {
+  const cid = parseCid(cidString);
+  const contenthashBytes = new Uint8Array(cid.bytes.length + 2);
+  contenthashBytes[0] = 0xe3;
+  contenthashBytes[1] = 0x01;
+  contenthashBytes.set(cid.bytes, 2);
+  return Buffer.from(contenthashBytes).toString("hex");
+}
+
+export function decodeIpfsContenthash(contenthashHex: string): string | null {
+  const hexString = contenthashHex.startsWith("0x") ? contenthashHex.slice(2) : contenthashHex;
+  const bytes = Buffer.from(hexString, "hex");
+
+  if (bytes.length < 4 || bytes[0] !== 0xe3) {
+    return null;
+  }
+
+  const cidBytes = bytes.slice(2);
+  const cid = CID.decode(cidBytes);
+  return cid.toString();
 }

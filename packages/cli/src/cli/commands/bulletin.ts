@@ -6,7 +6,7 @@ import {
   uploadSingleBlock,
   uploadChunkedBlocks,
   storeDirectory,
-  generateAndDisplayContenthash,
+  generateContenthash,
   ensureAccountAuthorized,
   authorizeAccount,
 } from "../../commands/bulletin";
@@ -19,12 +19,14 @@ import {
   formatRecordTimestamp,
   getPreviewUrl,
 } from "../../bulletin/cidHistory";
-import { addAuthOptions } from "./auth-options";
+import { addAuthOptions } from "./authOptions";
 import { prepareContext } from "../context";
+import {
+  DEFAULT_BULLETIN_RPC,
+  DEFAULT_CHUNK_SIZE_BYTES,
+  MAX_SINGLE_UPLOAD_SIZE_BYTES,
+} from "../../utils/constants";
 
-export const DEFAULT_BULLETIN_RPC = "wss://bulletin.dotspark.app";
-export const DEFAULT_CHUNK_SIZE_BYTES = 4 * 1024 * 1024;
-export const MAX_SINGLE_UPLOAD_SIZE_BYTES = 8 * 1024 * 1024;
 const DEFAULT_AUTH_TRANSACTIONS = 1000000;
 const DEFAULT_AUTH_BYTES = BigInt(1099511627776);
 
@@ -72,7 +74,11 @@ export function attachBulletinCommands(root: Command): void {
     .command("authorize <address>")
     .description("Authorize an account to use TransactionStorage (requires sudo)")
     .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint", DEFAULT_BULLETIN_RPC)
-    .option("--transactions <count>", "Number of transactions to authorize", String(DEFAULT_AUTH_TRANSACTIONS))
+    .option(
+      "--transactions <count>",
+      "Number of transactions to authorize",
+      String(DEFAULT_AUTH_TRANSACTIONS),
+    )
     .option("--bytes <count>", "Number of bytes to authorize", String(DEFAULT_AUTH_BYTES));
 
   addAuthOptions(authorizeCommand).action(
@@ -116,7 +122,9 @@ export function attachBulletinCommands(root: Command): void {
           console.error(chalk.red("\n✗ Authorization failed - insufficient privileges"));
           console.error(chalk.yellow("  The signer does not have sudo privileges."));
           console.error(chalk.gray("  Use a sudo account like //Alice:\n"));
-          console.error(chalk.gray(`    dotns bulletin authorize ${targetAddress} --key-uri //Alice\n`));
+          console.error(
+            chalk.gray(`    dotns bulletin authorize ${targetAddress} --key-uri //Alice\n`),
+          );
           process.exit(1);
         }
 
@@ -130,13 +138,23 @@ export function attachBulletinCommands(root: Command): void {
     .command("upload <path>")
     .description("Upload a file or directory to Bulletin and print the resulting CID")
     .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint", DEFAULT_BULLETIN_RPC)
-    .option("--chunk-size <bytes>", "Chunk size for large uploads", String(DEFAULT_CHUNK_SIZE_BYTES))
+    .option(
+      "--chunk-size <bytes>",
+      "Chunk size for large uploads",
+      String(DEFAULT_CHUNK_SIZE_BYTES),
+    )
     .option("--force-chunked", "Force chunked upload (DAG-PB)", false)
+    .option("--parallel", "Upload directory blocks in parallel (faster)", false)
+    .option("--concurrency <n>", "Number of parallel uploads (default: 5)", "5")
     .option("--print-contenthash", "Also print 0x-prefixed IPFS contenthash for the CID", false)
     .option("--no-history", "Do not save upload to history", false);
 
   addAuthOptions(uploadCommand).action(
-    async (inputPath: string, options: BulletinUploadOptions & { history?: boolean }, command: Command) => {
+    async (
+      inputPath: string,
+      options: BulletinUploadOptions & { history?: boolean },
+      command: Command,
+    ) => {
       try {
         const mergedOptions = getMergedOptions(command, options);
 
@@ -147,7 +165,12 @@ export function attachBulletinCommands(root: Command): void {
         const { bytes, isDirectory, resolvedPath } = await validateAndReadPath(inputPath);
 
         const bulletinRpc = String(mergedOptions.bulletinRpc || DEFAULT_BULLETIN_RPC);
-        const chunkSizeBytes = Math.max(1, Number(mergedOptions.chunkSize || DEFAULT_CHUNK_SIZE_BYTES));
+        const chunkSizeBytes = Math.max(
+          1,
+          Number(mergedOptions.chunkSize || DEFAULT_CHUNK_SIZE_BYTES),
+        );
+        const parallel = Boolean(mergedOptions.parallel);
+        const concurrency = Math.max(1, Number(mergedOptions.concurrency || 5));
 
         const context = await prepareContext({ ...mergedOptions, useBulletin: true });
         await ensureAccountAuthorized(bulletinRpc, context.signer, context.substrateAddress);
@@ -157,48 +180,62 @@ export function attachBulletinCommands(root: Command): void {
         console.log(chalk.gray("  rpc:      ") + chalk.white(bulletinRpc));
 
         let cid: string;
-        let ipfsCid: string | undefined;
+        let ipfsCid: string;
         let uploadSize: number;
 
         if (isDirectory) {
-          console.log(chalk.gray("  mode:     ") + chalk.white("directory (car)"));
-          const result = await storeDirectory(bulletinRpc, context.signer, resolvedPath, chunkSizeBytes);
+          const mode = parallel ? `directory (parallel, ${concurrency}x)` : "directory";
+          console.log(chalk.gray("  mode:     ") + chalk.white(mode));
+          const result = await storeDirectory(bulletinRpc, context.signer, resolvedPath, {
+            parallel,
+            concurrency,
+            accountAddress: context.substrateAddress,
+          });
           cid = result.storageCid;
           ipfsCid = result.ipfsCid;
           uploadSize = 0;
         } else if (mergedOptions.forceChunked || bytes.length > MAX_SINGLE_UPLOAD_SIZE_BYTES) {
           console.log(chalk.gray("  size:     ") + chalk.white(`${bytes.length} bytes`));
           console.log(chalk.gray("  mode:     ") + chalk.white("chunked (dag-pb)"));
-          cid = await uploadChunkedBlocks(bulletinRpc, context.signer, bytes, chunkSizeBytes);
+          const result = await uploadChunkedBlocks(
+            bulletinRpc,
+            context.signer,
+            bytes,
+            chunkSizeBytes,
+          );
+          cid = result;
+          ipfsCid = result;
           uploadSize = bytes.length;
         } else {
           console.log(chalk.gray("  size:     ") + chalk.white(`${bytes.length} bytes`));
           console.log(chalk.gray("  mode:     ") + chalk.white("single"));
-          cid = await uploadSingleBlock(bulletinRpc, context.signer, bytes);
+          const result = await uploadSingleBlock(bulletinRpc, context.signer, bytes);
+          cid = result;
+          ipfsCid = result;
           uploadSize = bytes.length;
         }
 
-        console.log(chalk.gray("\n  cid:      ") + chalk.cyan(cid));
-        if (ipfsCid) {
-          console.log(chalk.gray("  ipfs:     ") + chalk.cyan(ipfsCid));
-        }
+        console.log(chalk.gray("\n  cid:      ") + chalk.cyan(ipfsCid));
 
-        const previewUrl = getPreviewUrl({ cid, ipfsCid, path: resolvedPath, type: isDirectory ? "directory" : "file", size: uploadSize, timestamp: "" });
+        const previewUrl = getPreviewUrl({
+          cid,
+          ipfsCid,
+          path: resolvedPath,
+          type: isDirectory ? "directory" : "file",
+          size: uploadSize,
+          timestamp: "",
+        });
         console.log(chalk.gray("  preview:  ") + chalk.blue(previewUrl));
-
         if (mergedOptions.printContenthash) {
-          await generateAndDisplayContenthash(cid);
+          await generateContenthash(cid);
         }
-
-        if (options.history !== false) {
-          await addUploadRecord({
-            cid,
-            ipfsCid,
-            path: resolvedPath,
-            type: isDirectory ? "directory" : "file",
-            size: uploadSize,
-          });
-        }
+        await addUploadRecord({
+          cid,
+          ipfsCid,
+          path: resolvedPath,
+          type: isDirectory ? "directory" : "file",
+          size: uploadSize,
+        });
 
         console.log(chalk.green("\n✓ Upload Complete\n"));
         process.exit(0);

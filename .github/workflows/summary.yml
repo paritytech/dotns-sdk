@@ -1,0 +1,111 @@
+name: Summary
+
+on:
+  workflow_run:
+    workflows: [Lint, Format, Typecheck, Build]
+    types: [completed]
+
+permissions:
+  pull-requests: write
+  actions: read
+
+jobs:
+  summary:
+    name: Summary
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.event == 'pull_request'
+    steps:
+      - name: Get PR number
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.workflow_run.pull_requests[0];
+            if (pr) {
+              return pr.number;
+            }
+            return null;
+          result-encoding: string
+
+      - name: Get workflow runs
+        if: steps.pr.outputs.result != 'null'
+        id: runs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const headSha = context.payload.workflow_run.head_sha;
+            const workflows = ['Lint', 'Format', 'Typecheck', 'Build'];
+            const results = {};
+            
+            for (const name of workflows) {
+              const runs = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: `${name.toLowerCase()}.yml`,
+                head_sha: headSha,
+                per_page: 1
+              });
+              
+              if (runs.data.workflow_runs.length > 0) {
+                const run = runs.data.workflow_runs[0];
+                results[name] = {
+                  conclusion: run.conclusion || 'pending',
+                  url: run.html_url
+                };
+              } else {
+                results[name] = { conclusion: 'pending', url: '' };
+              }
+            }
+            
+            return results;
+
+      - name: Post summary
+        if: steps.pr.outputs.result != 'null'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = ${{ steps.pr.outputs.result }};
+            const results = ${{ steps.runs.outputs.result }};
+            
+            const getStatus = (conclusion) => {
+              if (conclusion === 'success') return 'Passed';
+              if (conclusion === 'failure') return 'Failed';
+              if (conclusion === 'pending') return 'Pending';
+              return conclusion;
+            };
+            
+            const body = `## CI Summary
+
+            | Check | Result |
+            |-------|--------|
+            | Lint | ${getStatus(results.Lint?.conclusion)} |
+            | Format | ${getStatus(results.Format?.conclusion)} |
+            | Typecheck | ${getStatus(results.Typecheck?.conclusion)} |
+            | Build | ${getStatus(results.Build?.conclusion)} |
+            `;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            const existing = comments.find(c => 
+              c.user.type === 'Bot' && c.body.includes('## CI Summary')
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: body
+              });
+            }

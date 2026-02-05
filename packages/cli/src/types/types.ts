@@ -1,15 +1,12 @@
 import type { Address, Hex } from "viem";
 import type { StoredAuth } from "../cli/keystore/types";
 import type { Ora } from "ora";
+import type { PolkadotSigner } from "polkadot-api";
 
 export enum ProofOfPersonhoodStatus {
-  /** No verification - base level access only */
   NoStatus = 0,
-  /** Lite verification - access to suffixed names */
   ProofOfPersonhoodLite = 1,
-  /** Full verification - access to all public names */
   ProofOfPersonhoodFull = 2,
-  /** Reserved for governance - controlled names */
   Reserved = 3,
 }
 
@@ -206,6 +203,10 @@ export type BulletinUploadOptions = {
   chunkSize?: string;
   /** Force chunked upload mode (DAG-PB) */
   forceChunked?: boolean;
+  /** Upload directory blocks in parallel (faster but requires nonce management) */
+  parallel?: boolean;
+  /** Number of parallel uploads when --parallel is enabled (default: 5) */
+  concurrency?: string;
   /** Print IPFS contenthash in addition to CID */
   printContenthash?: boolean;
   /** Number of transactions to authorize */
@@ -242,6 +243,20 @@ export type SudoStoreResults = {
   cid: string;
   /** Bulletin storage index if available */
   storedIndex?: string;
+};
+
+export type BulletinStoreResult = {
+  /** Content identifier (CID) for the stored data */
+  cid: string;
+  /** Storage index assigned by TransactionStorage pallet */
+  storedIndex?: string;
+  /** Hash of the block containing the finalized store transaction */
+  blockHash?: string;
+};
+
+export type ChunkedStoreResult = {
+  /** Root CID of the DAG-PB merkle tree linking all chunks */
+  rootCid: string;
 };
 
 export type BalanceStatus = {
@@ -282,4 +297,202 @@ export type PricingAndEligibility = {
   userStatus: ProofOfPersonhoodStatus;
   /** Human-readable explanation from PopRules */
   message: string;
+};
+
+export type AuthorizeAccountOptions = {
+  /** Bulletin WebSocket RPC endpoint URL */
+  rpc: string;
+  /** Signer with sudo privileges for authorization */
+  sudoSigner: PolkadotSigner;
+  /** SS58 address of the account to authorize */
+  targetAddress: string;
+  /** Maximum number of store transactions allowed */
+  transactions?: number;
+  /** Maximum bytes allowed to store */
+  bytes?: bigint;
+};
+
+export type AuthorizeAccountResult = {
+  /** Transaction hash of the authorization extrinsic */
+  txHash: string;
+  /** Hash of the block containing the finalized transaction */
+  blockHash: string;
+};
+
+export type ValidatePathResult = {
+  /** File contents as bytes (empty for directories) */
+  bytes: Uint8Array;
+  /** Whether the path points to a directory */
+  isDirectory: boolean;
+  /** Absolute path after resolution */
+  resolvedPath: string;
+};
+
+export type StoreDirectoryResult = {
+  /** CID of the content stored on Bulletin */
+  storageCid: string;
+  /** Original IPFS CID of the merkleized directory structure */
+  ipfsCid: string;
+};
+
+export type StoreDirectoryOptions = {
+  /** SS58 address for nonce management in parallel mode */
+  accountAddress?: string;
+  /** Enable parallel block uploads with nonce pre-assignment */
+  parallel?: boolean;
+  /** Maximum concurrent upload operations */
+  concurrency?: number;
+  /** Gateway URL for content resolution verification */
+  verificationGateway?: string;
+};
+
+export type UploadRecord = {
+  /** Content identifier for the uploaded data */
+  cid: string;
+  /** Original IPFS CID for directory uploads */
+  ipfsCid?: string;
+  /** Local filesystem path that was uploaded */
+  path: string;
+  /** Whether upload was a single file or directory */
+  type: "file" | "directory";
+  /** Size of uploaded content in bytes */
+  size: number;
+  /** ISO timestamp when upload completed */
+  timestamp: string;
+};
+
+export type SingleStorageParams = {
+  /** Bulletin RPC endpoint URL */
+  rpc: string;
+  /** Signer for authorizing the storage transaction */
+  signer: PolkadotSigner;
+  /** Data bytes to be stored */
+  data: Uint8Array;
+};
+
+export type StoreChunkedParams = {
+  /** Bulletin RPC endpoint URL */
+  rpc: string;
+  /** Signer for authorizing the storage transaction */
+  signer: PolkadotSigner;
+  /** Array of data chunks to be stored */
+  chunks: Uint8Array[];
+};
+
+export type MerkleizedDirectory = {
+  /** Root CID of the merkleized directory (DAG-PB) */
+  rootCid: string;
+  /** CAR file bytes representing the merkleized directory */
+  carFileBytes: Uint8Array;
+};
+
+export type MerkleizeResult = {
+  /** CID of the merkleized content */
+  cid: string;
+};
+
+export type VerificationResult = {
+  /** Content identifier that was verified */
+  cid: string;
+  /** Whether the CID was successfully resolved */
+  resolvable: boolean;
+  /** Gateway URL used for verification */
+  gateway: string;
+  /** HTTP status code from the gateway response */
+  statusCode?: number;
+  /** Error message if resolution failed */
+  errorMessage?: string;
+};
+
+export type BlockVerificationResult = {
+  /** Total number of CIDs verified */
+  totalBlocks: number;
+  /** List of CIDs that were successfully resolved */
+  resolvableBlocks: string[];
+  /** List of CIDs that could not be resolved */
+  missingBlocks: string[];
+  /** Gateway URL used for verification */
+  gateway: string;
+};
+
+export type HashingEnumVariant =
+  | { type: "Sha2_256"; value: undefined }
+  | { type: "Blake2b256"; value: undefined }
+  | { type: "Keccak256"; value: undefined };
+
+export type StoreContentParameters = {
+  /** Bulletin RPC endpoint URL */
+  rpc: string;
+  /** Signer for authorizing the storage transaction */
+  signer: PolkadotSigner;
+  /** Raw bytes of content to store */
+  contentBytes: Uint8Array;
+  /** Pre-computed CID for the content */
+  contentCid: string;
+  /** Codec identifier for CID computation */
+  codecValue: number;
+  /** Hash algorithm code for CID computation */
+  hashCodeValue: number;
+  /** Optional nonce for transaction ordering */
+  nonce?: number;
+  /** Callback for progress updates */
+  onProgress?: (status: string) => void;
+};
+
+export type StoreSingleFileParameters = {
+  /** Bulletin RPC endpoint URL */
+  rpc: string;
+  /** Signer for authorizing the storage transaction */
+  signer: PolkadotSigner;
+  /** Raw bytes of file content to store */
+  contentBytes: Uint8Array;
+  /** Callback for progress updates */
+  onProgress?: (status: string) => void;
+};
+
+export type StoreChunkedFileParameters = {
+  /** Bulletin RPC endpoint URL */
+  rpc: string;
+  /** Signer for authorizing the storage transaction */
+  signer: PolkadotSigner;
+  /** Array of content chunks to store */
+  contentChunks: Uint8Array[];
+  /** Callback for progress updates with chunk position */
+  onProgress?: (currentChunk: number, totalChunks: number, status: string) => void;
+};
+
+export type StoreBlockParameters = {
+  /** Bulletin RPC endpoint URL */
+  rpc: string;
+  /** Signer for authorizing the storage transaction */
+  signer: PolkadotSigner;
+  /** Raw bytes of block content to store */
+  contentBytes: Uint8Array;
+  /** Pre-computed CID for the block */
+  contentCid: string;
+  /** Codec identifier for CID computation */
+  codecValue: number;
+  /** Hash algorithm code for CID computation */
+  hashCodeValue: number;
+  /** Optional nonce for transaction ordering */
+  nonce?: number;
+};
+
+export type StoreParameters = {
+  /** Bulletin RPC endpoint URL */
+  rpcEndpoint: string;
+  /** Signer for authorizing the storage transaction */
+  signer: PolkadotSigner;
+  /** Raw bytes of content to store */
+  contentBytes: Uint8Array;
+  /** Pre-computed CID for the content */
+  contentCid: string;
+  /** Codec identifier for CID computation */
+  codecValue: number;
+  /** Hash algorithm code for CID computation */
+  hashCodeValue: number;
+  /** Optional nonce for transaction ordering */
+  transactionNonce?: number;
+  /** Callback for progress updates */
+  onProgress?: (status: string) => void;
 };

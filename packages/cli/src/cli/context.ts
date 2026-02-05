@@ -5,7 +5,7 @@ import { getPolkadotSigner } from "polkadot-api/signer";
 import { bulletin, paseo } from "@polkadot-api/descriptors";
 import { type Address } from "viem";
 
-import { ReviveClientWrapper, type PolkadotApiClient } from "../client/polkadot-client";
+import { ReviveClientWrapper, type PolkadotApiClient } from "../client/polkadotClient";
 import { parseNativeBalance, formatNativeBalance } from "../utils/formatting";
 
 import { resolveRpc, resolveMinBalancePas, resolveKeystorePath } from "./env";

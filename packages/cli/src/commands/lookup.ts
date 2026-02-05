@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import ora from "ora";
 import { namehash, getAddress, type Address, zeroAddress, checksumAddress } from "viem";
-import type { ReviveClientWrapper } from "../client/polkadot-client";
+import type { ReviveClientWrapper } from "../client/polkadotClient";
 import {
   CONTRACTS,
   DOTNS_REGISTRY_ABI,
@@ -12,7 +12,7 @@ import {
   DOTNS_REGISTRAR_ABI,
 } from "../utils/constants";
 import { stripTrailingDigits } from "../utils/validation";
-import { computeDomainTokenId, performContractCall } from "../utils/contract-interactions";
+import { computeDomainTokenId, performContractCall } from "../utils/contractInteractions";
 import { formatNativeBalance, withTimeout } from "../utils/formatting";
 
 export async function performDomainLookup(

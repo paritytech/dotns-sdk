@@ -6,7 +6,7 @@ import {
 } from "../../commands/register";
 import { parseProofOfPersonhoodStatus } from "../labels";
 import { prepareContext } from "../context";
-import { addAuthOptions } from "./auth-options";
+import { addAuthOptions } from "./authOptions";
 import type { CommandOptions } from "../../types/types";
 import { ProofOfPersonhoodStatus } from "../../types/types";
 import { prepareReadOnlyContext } from "./lookup";

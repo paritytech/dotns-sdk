@@ -1,0 +1,60 @@
+name: Build Issue
+description: Build or installation issue
+labels: ["type: bug", "scope: build"]
+body:
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Checklist
+      options:
+        - label: Using Bun 1.2.6+
+          required: true
+        - label: Tried `bun install --frozen-lockfile`
+          required: true
+
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: Type
+      options:
+        - "Installation"
+        - "Build"
+        - "Runtime"
+        - "Dependencies"
+        - "TypeScript"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      value: |
+        OS: 
+        Bun: 
+        Node: 
+    validations:
+      required: true

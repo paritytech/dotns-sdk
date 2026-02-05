@@ -1,0 +1,54 @@
+name: Format
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: format-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.6"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check formatting
+        id: format
+        run: bun run format
+        working-directory: packages/cli
+        continue-on-error: true
+
+      - name: Auto-fix
+        if: github.event_name == 'pull_request' && steps.format.outcome == 'failure'
+        run: bun run format:fix
+        working-directory: packages/cli
+
+      - name: Commit fixes
+        if: github.event_name == 'pull_request' && steps.format.outcome == 'failure'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: auto-fix format issues"
+          branch: ${{ github.head_ref }}
+
+      - name: Fail if issues remain
+        if: steps.format.outcome == 'failure'
+        run: bun run format
+        working-directory: packages/cli

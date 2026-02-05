@@ -13,7 +13,8 @@
     "format:fix": "bunx prettier --write \"**/*.{js,ts,json,md}\" \"!abis/**\"",
     "typecheck": "bunx tsc --noEmit",
     "build": "bunx tsc && chmod +x dist/cli/index.js",
-    "prepublishOnly": "bun run build"
+    "prepublishOnly": "bun run build",
+    "postinstall": "bun run ./installIPFS.ts || true"
   },
   "engines": {
     "bun": ">=1.2.6"

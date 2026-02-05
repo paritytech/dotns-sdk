@@ -5,6 +5,8 @@ import prettier from "eslint-config-prettier";
 export default [
   {
     ignores: ["**/.papi/**", "**/dist/**", "**/coverage/**", "**/node_modules/**"],
+  },
+  {
     files: ["**/*.ts"],
     languageOptions: {
       parser: tsparser,
@@ -18,9 +20,10 @@ export default [
     },
     rules: {
       ...tseslint.configs.recommended.rules,
-      /// We disable this given the many unknown types from the sdk
+      ...prettier.rules,
+
+      /// Disabled due to extensive unknown types from SDKs
       "@typescript-eslint/no-explicit-any": "off",
     },
   },
-  prettier,
 ];

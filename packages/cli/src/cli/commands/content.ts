@@ -1,8 +1,8 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import type { CommandOptions } from "../../types/types";
-import { viewDomainContentHash, setDomainContentHash } from "../../commands/content-hash";
-import { addAuthOptions } from "./auth-options";
+import { viewDomainContentHash, setDomainContentHash } from "../../commands/contentHash";
+import { addAuthOptions } from "./authOptions";
 import { prepareContext } from "../context";
 import { prepareReadOnlyContext } from "./lookup";
 

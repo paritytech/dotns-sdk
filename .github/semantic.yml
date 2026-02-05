@@ -1,0 +1,27 @@
+{
+  "titleOnly": true,
+  "types": [
+    "feat",
+    "fix",
+    "docs",
+    "style",
+    "refactor",
+    "test",
+    "chore",
+    "ci",
+    "perf",
+    "revert"
+  ],
+  "scopes": [
+    "cli",
+    "bulletin",
+    "auth",
+    "register",
+    "content",
+    "pop",
+    "lookup",
+    "deps",
+    "ci",
+    "release"
+  ]
+}

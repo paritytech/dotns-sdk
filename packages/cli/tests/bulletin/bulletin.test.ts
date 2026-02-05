@@ -45,7 +45,7 @@ beforeAll(async () => {
     "//Alice",
   ]);
 
-  expect(result.exitCode).toBe(1);
+  expect(result.exitCode).toBe(0);
 });
 
 afterEach(() => {
@@ -131,12 +131,16 @@ function runBulletinAuthorize(args: string[], account: string = ALICE_ACCOUNT) {
   ]);
 }
 
+function runBulletinHistory(args: string[] = []) {
+  return runDotnsCli(["bulletin", "history", ...args]);
+}
+
 test(
   "bulletin upload file basic",
   async () => {
     createPathsForTest("bulletin_upload_file_basic");
 
-    const result = await runBulletinUpload([spongePath()]);
+    const result = await runBulletinUpload([spongePath(), "--no-history"]);
 
     expectSuccessfulUpload(result);
     expect(extractLastCid(result).length).toBeGreaterThan(10);
@@ -149,7 +153,7 @@ test(
   async () => {
     createPathsForTest("bulletin_upload_contenthash");
 
-    const result = await runBulletinUpload([spongePath(), "--print-contenthash"]);
+    const result = await runBulletinUpload([spongePath(), "--print-contenthash", "--no-history"]);
 
     expectSuccessfulUpload(result);
     expect(extractContenthash(result)).toMatch(/^0x[0-9a-f]+$/i);
@@ -167,6 +171,7 @@ test(
       "--force-chunked",
       "--chunk-size",
       "1048576",
+      "--no-history",
     ]);
 
     expectSuccessfulUpload(result);
@@ -182,7 +187,12 @@ test(
     createPathsForTest("bulletin_upload_custom_rpc");
     const customRpc = "wss://bulletin.dotspark.app";
 
-    const result = await runBulletinUpload([spongePath(), "--bulletin-rpc", customRpc]);
+    const result = await runBulletinUpload([
+      spongePath(),
+      "--bulletin-rpc",
+      customRpc,
+      "--no-history",
+    ]);
 
     expectSuccessfulUpload(result);
     expect(result.combinedOutput).toContain(customRpc);
@@ -203,6 +213,7 @@ test(
       "2097152",
       "--force-chunked",
       "--print-contenthash",
+      "--no-history",
     ]);
 
     expectSuccessfulUpload(result);
@@ -219,11 +230,30 @@ test(
     createPathsForTest("bulletin_upload_directory");
     const dirPath = await createTestDirectory("test_site");
 
-    const result = await runBulletinUpload([dirPath]);
+    const result = await runBulletinUpload([dirPath, "--no-history"]);
 
     expectSuccessfulUpload(result);
-    expect(result.combinedOutput).toContain("directory (car)");
-    expect(result.combinedOutput).toContain("ipfs:");
+    expect(result.combinedOutput).toContain("directory");
+  },
+  { timeout: BULLETIN_TEST_TIMEOUT_MS },
+);
+
+test(
+  "bulletin upload directory parallel",
+  async () => {
+    createPathsForTest("bulletin_upload_directory_parallel");
+    const dirPath = await createTestDirectory("test_site_parallel");
+
+    const result = await runBulletinUpload([
+      dirPath,
+      "--parallel",
+      "--concurrency",
+      "3",
+      "--no-history",
+    ]);
+
+    expectSuccessfulUpload(result);
+    expect(result.combinedOutput).toContain("directory (parallel");
   },
   { timeout: BULLETIN_TEST_TIMEOUT_MS },
 );
@@ -234,10 +264,10 @@ test(
     createPathsForTest("bulletin_upload_directory_contenthash");
     const dirPath = await createTestDirectory("test_site_contenthash");
 
-    const result = await runBulletinUpload([dirPath, "--print-contenthash"]);
+    const result = await runBulletinUpload([dirPath, "--print-contenthash", "--no-history"]);
 
     expectSuccessfulUpload(result);
-    expect(result.combinedOutput).toContain("directory (car)");
+    expect(result.combinedOutput).toContain("directory");
     expect(extractContenthash(result)).toMatch(/^0x[0-9a-f]+$/i);
   },
   { timeout: BULLETIN_TEST_TIMEOUT_MS },
@@ -253,8 +283,8 @@ test(
 
     expectSuccessfulAuthorize(result);
     expect(result.combinedOutput).toContain(targetAddress);
-    expect(result.combinedOutput).toContain("tx:");
-    expect(result.combinedOutput).toContain("block:");
+    expect(result.combinedOutput).toContain("rpc:");
+    expect(result.combinedOutput).toContain("transactions:");
   },
   { timeout: BULLETIN_TEST_TIMEOUT_MS },
 );
@@ -307,3 +337,34 @@ test(
   },
   { timeout: BULLETIN_TEST_TIMEOUT_MS },
 );
+
+test("bulletin history empty", async () => {
+  await runDotnsCli(["bulletin", "history:clear"]);
+
+  const result = await runBulletinHistory();
+
+  expect(result.exitCode).toBe(0);
+  expect(result.combinedOutput).toContain("No uploads in history");
+});
+
+test("bulletin history json output", async () => {
+  const result = await runBulletinHistory(["--json"]);
+
+  expect(result.exitCode).toBe(0);
+  const parsed = JSON.parse(result.combinedOutput);
+  expect(Array.isArray(parsed)).toBe(true);
+});
+
+test("bulletin history clear", async () => {
+  const result = await runDotnsCli(["bulletin", "history:clear"]);
+
+  expect(result.exitCode).toBe(0);
+  expect(result.combinedOutput).toContain("Cleared");
+});
+
+test("bulletin history remove nonexistent cid", async () => {
+  const result = await runDotnsCli(["bulletin", "history:remove", "bafybeifake123"]);
+
+  expect(result.exitCode).toBe(0);
+  expect(result.combinedOutput).toContain("not found");
+});

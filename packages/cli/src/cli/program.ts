@@ -4,7 +4,7 @@ import { attachBulletinCommands } from "./commands/bulletin";
 import { attachContentCommands } from "./commands/content";
 import { attachLookupCommands } from "./commands/lookup";
 import { attachPopCommands } from "./commands/pop";
-import { attachRegisterCommand } from "./commands/register-command";
+import { attachRegisterCommand } from "./commands/registerCommand";
 import { attachAccountCommands } from "./commands/info";
 
 export function createProgram() {

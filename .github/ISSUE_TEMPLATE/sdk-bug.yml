@@ -1,0 +1,97 @@
+name: SDK Bug
+description: Bug in SDK 
+labels: ["type: bug", "needs-info"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This tracker is for SDK and CLI bugs only.
+        
+        Protocol bugs: https://github.com/paritytech/dotns/issues
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Checklist
+      options:
+        - label: Searched existing issues
+          required: true
+        - label: Read documentation
+          required: true
+        - label: This is SDK/CLI specific
+          required: true
+
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      options:
+        - "@dotns/cli"
+        - "Build/CI"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Area
+      options:
+        - "bulletin"
+        - "registration"
+        - "content hash"
+        - "auth/keystore"
+        - "lookup"
+        - "pop"
+        - "build"
+        - "other"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      placeholder: |
+        1. Run `dotns ...`
+        2. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      value: |
+        OS: 
+        Bun: 
+        Package version: 
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      render: shell

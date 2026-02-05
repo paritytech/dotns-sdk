@@ -1,27 +1,26 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { PREVIEW_BASE_URL } from "../utils/constants";
+import type { UploadRecord } from "../types/types";
 
 const HISTORY_DIR = path.join(os.homedir(), ".dotns");
 const HISTORY_FILE = path.join(HISTORY_DIR, "uploads.json");
 
-export interface UploadRecord {
-  cid: string;
-  ipfsCid?: string;
-  path: string;
-  type: "file" | "directory";
-  size: number;
-  timestamp: string;
-}
-
-/**
- * Formats a date to local time in the format: "dd Month year HH:mm:ss.mmm"
- * Example: "31 January 2025 14:23:45.123"
- */
 export function formatLocalTimestamp(date: Date): string {
   const months = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
   ];
 
   const day = date.getDate();
@@ -61,7 +60,9 @@ export async function writeHistory(records: UploadRecord[]): Promise<void> {
   await fs.writeFile(HISTORY_FILE, JSON.stringify(records, null, 2));
 }
 
-export async function addUploadRecord(record: Omit<UploadRecord, "timestamp">): Promise<UploadRecord> {
+export async function addUploadRecord(
+  record: Omit<UploadRecord, "timestamp">,
+): Promise<UploadRecord> {
   const history = await readHistory();
 
   const fullRecord: UploadRecord = {
@@ -101,20 +102,11 @@ export function getHistoryPath(): string {
   return HISTORY_FILE;
 }
 
-const PREVIEW_BASE_URL = "https://dotnscli.paseo.li/#/preview";
-
-/**
- * Encodes a CID to a URL-safe base64 string for preview URLs.
- */
 function encodeForPreview(cid: string): string {
   const base64 = Buffer.from(cid).toString("base64");
   return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-/**
- * Generates a preview URL for an upload record.
- * Uses ipfsCid for directories (the content root), otherwise the storage cid.
- */
 export function getPreviewUrl(record: UploadRecord): string {
   const cid = record.ipfsCid || record.cid;
   const encoded = encodeForPreview(cid);

@@ -3,7 +3,7 @@ import ora from "ora";
 import crypto from "crypto";
 import { checksumAddress, zeroAddress, type Address, type Hex } from "viem";
 import type { PolkadotSigner } from "polkadot-api";
-import type { ReviveClientWrapper } from "../client/polkadot-client";
+import type { ReviveClientWrapper } from "../client/polkadotClient";
 import {
   ProofOfPersonhoodStatus,
   type CommitmentResults,
@@ -26,7 +26,7 @@ import {
   performContractCall,
   submitContractTransaction,
   computeDomainTokenId,
-} from "../utils/contract-interactions";
+} from "../utils/contractInteractions";
 import { formatWeiAsEther, convertWeiToNative, withTimeout } from "../utils/formatting";
 
 function redactSecret(secret: Hex): string {
@@ -208,9 +208,7 @@ export async function waitForMinimumCommitmentAge(
   const minimumAgeSeconds = typeof minimumAge === "bigint" ? Number(minimumAge) : minimumAge;
   const waitSeconds = minimumAgeSeconds + 6;
 
-  checkSpinner.succeed(
-    `Minimum commitment age: ${chalk.yellow(waitSeconds.toString() + "s")}`,
-  );
+  checkSpinner.succeed(`Minimum commitment age: ${chalk.yellow(waitSeconds.toString() + "s")}`);
 
   const waitSpinner = ora(`Waiting for commitment age (${waitSeconds}s)`).start();
 
@@ -300,7 +298,7 @@ export async function getPriceAndValidateEligibility(
       originSubstrateAddress,
       ownerAddress,
     );
-    console.log("userStatus: ",userStatus,"\nclassificationResult: ",classificationResult);
+    console.log("userStatus: ", userStatus, "\nclassificationResult: ", classificationResult);
     if (requiredStatus === ProofOfPersonhoodStatus.Reserved) {
       spinner.fail("Eligibility failed");
       throw new Error(message);
@@ -342,7 +340,7 @@ export async function getPriceAndValidateEligibility(
           `${classificationResult.priceWei > 0n ? formatWeiAsEther(classificationResult.priceWei) : 0n} PAS`,
         ),
     );
-    
+
     return {
       priceWei: classificationResult.price ?? classificationResult.priceWei,
       requiredStatus,
@@ -370,7 +368,7 @@ export async function finalizeRegularRegistration(
   try {
     const bufferedPaymentWei = (priceWei * 110n) / 100n;
     const bufferedPaymentNative = convertWeiToNative(bufferedPaymentWei);
-    
+
     console.log(chalk.gray("  oracle:    ") + chalk.green(formatWeiAsEther(priceWei) + " PAS"));
     console.log(
       chalk.gray("  paying:    ") + chalk.green(formatWeiAsEther(bufferedPaymentWei) + " PAS"),

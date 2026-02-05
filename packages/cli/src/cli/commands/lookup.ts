@@ -3,7 +3,7 @@ import chalk from "chalk";
 import { createClient } from "polkadot-api";
 import { getWsProvider } from "polkadot-api/ws-provider";
 import { paseo } from "@polkadot-api/descriptors";
-import { ReviveClientWrapper, type PolkadotApiClient } from "../../client/polkadot-client";
+import { ReviveClientWrapper, type PolkadotApiClient } from "../../client/polkadotClient";
 import {
   performDomainLookup,
   listMyRegisteredNames,
@@ -11,7 +11,7 @@ import {
 } from "../../commands/lookup";
 import { resolveRpc } from "../env";
 import { resolveAuthSourceReadOnly, createAccountFromSource } from "../../commands/auth";
-import { addAuthOptions, getAuthOptions } from "./auth-options";
+import { addAuthOptions, getAuthOptions } from "./authOptions";
 import { banner, step } from "../ui";
 
 function createClientWrapper(rpc: string) {
