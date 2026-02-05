@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import ora, { Ora } from "ora";
+import ora, { type Ora } from "ora";
 import { execSync } from "node:child_process";
 import { createWriteStream, existsSync, mkdirSync, chmodSync, unlinkSync } from "node:fs";
 import { join, dirname } from "node:path";

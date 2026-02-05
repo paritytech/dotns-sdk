@@ -12,8 +12,7 @@ jobs:
     name: Title
     runs-on: ubuntu-latest
     steps:
-      - name: Check format
-        uses: amannn/action-semantic-pull-request@v5
+      - uses: amannn/action-semantic-pull-request@v5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -28,17 +27,6 @@ jobs:
             ci
             perf
             revert
-          scopes: |
-            cli
-            bulletin
-            auth
-            register
-            content
-            pop
-            lookup
-            deps
-            ci
-            release
           requireScope: false
           subjectPattern: ^[a-z].+$
 

@@ -5,7 +5,7 @@ import {
   validateAndReadPath,
   uploadSingleBlock,
   uploadChunkedBlocks,
-  generateAndDisplayContenthash,
+  generateContenthash,
   ensureAccountAuthorized,
 } from "../commands/bulletin";
 
@@ -52,7 +52,7 @@ async function main() {
   console.log("\n  cid:      ", cid);
 
   if (printContenthash) {
-    await generateAndDisplayContenthash(cid);
+    generateContenthash(cid);
   }
 
   console.log("\n✓ Upload Complete\n");
