@@ -27,8 +27,6 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      # Hard fail early with a useful message if the CLI-scoped .papi folder
-      # is missing in the checkout (prevents confusing TS2307 later).
       - name: Assert CLI descriptors exist
         shell: bash
         run: |
@@ -59,14 +57,22 @@ jobs:
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
           echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
 
-      - name: Build CLI
+      - name: Build CLI (capture output)
         id: build
         continue-on-error: true
         working-directory: packages/cli
         shell: bash
         run: |
-          set -euo pipefail
-          bun run build
+          set -o pipefail
+          bun run build 2>&1 | tee "$GITHUB_WORKSPACE/release-build-output.txt"
+
+      - name: Upload build output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-build-output
+          path: release-build-output.txt
+          retention-days: 7
 
       - name: Prepare package
         if: steps.build.outcome == 'success'
@@ -103,7 +109,7 @@ jobs:
 
           if [[ "${{ steps.build.outcome }}" == "success" ]]; then
             echo "status=Passed" >> "${GITHUB_OUTPUT}"
-            echo "details=" >> "${GITHUB_OUTPUT}"
+            echo "details=Build succeeded" >> "${GITHUB_OUTPUT}"
           else
             echo "status=Failed" >> "${GITHUB_OUTPUT}"
             echo "details=Package build failed" >> "${GITHUB_OUTPUT}"
@@ -122,6 +128,8 @@ jobs:
           REPO: ${{ github.repository }}
         with:
           script: |
+            const fs = require("fs");
+
             const marker = "<!-- ci-summary -->";
             const detailsMarker = "<!-- details-section -->";
             const section = process.env.SECTION;
@@ -134,6 +142,23 @@ jobs:
 
             const { owner, repo } = context.repo;
             const issue_number = context.payload.pull_request.number;
+
+            // Read build output (truncate to keep comment size safe)
+            let output = "";
+            try {
+              output = fs.readFileSync("release-build-output.txt", "utf8");
+            } catch (_) {
+              output = "(release-build-output.txt not found)";
+            }
+
+            const MAX_CHARS = 60000;
+            if (output.length > MAX_CHARS) {
+              output = [
+                "(truncated; showing last " + MAX_CHARS + " chars)",
+                "",
+                output.slice(-MAX_CHARS),
+              ].join("\n");
+            }
 
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner, repo, issue_number, per_page: 100,
@@ -169,7 +194,7 @@ jobs:
             }
 
             const icon = status === "Passed" ? ":white_check_mark:" : ":x:";
-            rows[section] = `${icon} ${status}`;
+            rows[section] = `${icon} [${status}](${runUrl})`;
 
             if (status === "Passed") {
               const installInstructions = [
@@ -185,9 +210,34 @@ jobs:
                 "dotns --version",
                 "```"
               ].join("\n");
-              existingDetails[section] = `<details>\n<summary><strong>${section}</strong></summary>\n\n${installInstructions}\n\n</details>`;
+
+              existingDetails[section] = [
+                `<details>`,
+                `<summary><strong>${section}</strong> - ${icon} ${status}</summary>`,
+                "",
+                installInstructions,
+                "",
+                "[Build output]",
+                "",
+                "```text",
+                output,
+                "```",
+                "</details>",
+              ].join("\n");
             } else {
-              existingDetails[section] = `<details>\n<summary><strong>${section}</strong></summary>\n\n${details}\n\n[View run](${runUrl})\n\n</details>`;
+              existingDetails[section] = [
+                `<details>`,
+                `<summary><strong>${section}</strong> - ${icon} ${status}</summary>`,
+                "",
+                details || "Failed",
+                "",
+                `[View run](${runUrl})`,
+                "",
+                "```text",
+                output,
+                "```",
+                "</details>",
+              ].join("\n");
             }
 
             const order = ["Lint", "Format", "Typecheck", "Build", "Release", "PR Title", "Labels"];

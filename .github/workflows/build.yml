@@ -87,7 +87,6 @@ jobs:
             const { owner, repo } = context.repo;
             const issue_number = context.payload.pull_request.number;
 
-            // Read build output (truncate to keep comment size safe)
             let output = "";
             try {
               output = fs.readFileSync("build-output.txt", "utf8");
@@ -95,8 +94,7 @@ jobs:
               output = "(build-output.txt not found)";
             }
 
-            // Keep the last N characters so we don't exceed GitHub comment limits
-            const MAX_CHARS = 60000; // conservative; GitHub max is higher, but other sections may exist
+            const MAX_CHARS = 60000;
             if (output.length > MAX_CHARS) {
               output = [
                 "(truncated; showing last " + MAX_CHARS + " chars)",
@@ -138,14 +136,13 @@ jobs:
               }
             }
 
-            const icon = status === "Passed" ? ":white_check_mark:" : ":x:";
-            rows[section] = `${icon} ${status}`;
+            const resultText = status === "Passed" ? "Passed" : "Failed";
+            rows[section] = resultText;
 
-            // Always attach build output for this section (success or failure)
             const summaryLine = details ? details : "";
             const detailsBlock = [
               `<details>`,
-              `<summary><strong>${section}</strong> - ${icon} ${status}</summary>`,
+              `<summary><strong>${section}</strong> - ${resultText}</summary>`,
               "",
               summaryLine ? summaryLine : "",
               summaryLine ? "" : "",

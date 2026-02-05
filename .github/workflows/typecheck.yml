@@ -20,37 +20,52 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.6"
+
       - run: bun install --frozen-lockfile
 
       - name: Run typecheck
         id: typecheck
         continue-on-error: true
-        run: |
-          bun run typecheck 2>&1 | tee typecheck-output.txt
         working-directory: packages/cli
+        shell: bash
+        run: |
+          set -o pipefail
+          bun run typecheck 2>&1 | tee "$GITHUB_WORKSPACE/typecheck-output.txt"
+
+      - name: Upload typecheck output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: typecheck-output
+          path: typecheck-output.txt
+          retention-days: 7
 
       - name: Process results
         id: result
+        shell: bash
         run: |
-          if [ "${{ steps.typecheck.outcome }}" == "success" ]; then
-            echo "status=Passed" >> $GITHUB_OUTPUT
-            echo "details=" >> $GITHUB_OUTPUT
-            echo "errors=" >> $GITHUB_OUTPUT
-          else
-            ERRORS=$(grep -c "error TS" packages/cli/typecheck-output.txt 2>/dev/null || echo "0")
-            echo "status=Failed" >> $GITHUB_OUTPUT
-            echo "details=${ERRORS} type errors" >> $GITHUB_OUTPUT
-            
-            # Extract first 15 errors
-            ERROR_LIST=$(grep "error TS" packages/cli/typecheck-output.txt 2>/dev/null | head -15 | sed 's/|/-/g' || echo "")
-            EOF_MARKER=$(openssl rand -hex 8)
-            echo "errors<<${EOF_MARKER}" >> $GITHUB_OUTPUT
-            echo "${ERROR_LIST}" >> $GITHUB_OUTPUT
-            echo "${EOF_MARKER}" >> $GITHUB_OUTPUT
+          set -euo pipefail
+
+          if [ "${{ steps.typecheck.outcome }}" = "success" ]; then
+            echo "status=Passed" >> "$GITHUB_OUTPUT"
+            echo "details=Typecheck succeeded" >> "$GITHUB_OUTPUT"
+            echo "errors=" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+
+          ERRORS_COUNT="$(grep -c "error TS" typecheck-output.txt 2>/dev/null || echo "0")"
+          echo "status=Failed" >> "$GITHUB_OUTPUT"
+          echo "details=${ERRORS_COUNT} type errors" >> "$GITHUB_OUTPUT"
+
+          ERROR_LIST="$(grep "error TS" typecheck-output.txt 2>/dev/null | head -15 | sed 's/|/-/g' || true)"
+          EOF_MARKER="$(openssl rand -hex 8)"
+          echo "errors<<${EOF_MARKER}" >> "$GITHUB_OUTPUT"
+          echo "${ERROR_LIST}" >> "$GITHUB_OUTPUT"
+          echo "${EOF_MARKER}" >> "$GITHUB_OUTPUT"
 
       - name: Update PR comment
         if: github.event_name == 'pull_request'
@@ -68,7 +83,7 @@ jobs:
             const section = process.env.SECTION;
             const status = process.env.STATUS;
             const details = process.env.DETAILS;
-            const errors = process.env.ERRORS;
+            const errors = process.env.ERRORS || "";
             const runUrl = process.env.RUN_URL;
 
             const { owner, repo } = context.repo;
@@ -84,22 +99,22 @@ jobs:
 
             let rows = {};
             let existingDetails = {};
-            
+
             if (existing?.body) {
               const parts = existing.body.split(detailsMarker);
-              const tableSection = parts[0] || '';
-              
-              const lines = tableSection.split('\n');
+              const tableSection = parts[0] || "";
+
+              const lines = tableSection.split("\n");
               for (const line of lines) {
                 const match = line.match(/^\| ([^|]+) \| ([^|]+) \|$/);
                 if (match) {
                   const name = match[1].trim();
-                  if (name && name !== 'Check' && !name.startsWith(':')) {
+                  if (name && name !== "Check" && !name.startsWith(":")) {
                     rows[name] = match[2].trim();
                   }
                 }
               }
-              
+
               const detailsRegex = /<details>\s*<summary><strong>([^<]+)<\/strong><\/summary>([\s\S]*?)<\/details>/g;
               let detailMatch;
               while ((detailMatch = detailsRegex.exec(existing.body)) !== null) {
@@ -107,18 +122,28 @@ jobs:
               }
             }
 
-            const icon = status === 'Passed' ? ':white_check_mark:' : ':x:';
-            const result = details ? `${icon} [${status}](${runUrl}) - ${details}` : `${icon} [${status}](${runUrl})`;
-            rows[section] = result;
+            const resultText = status === "Passed" ? "Passed" : "Failed";
+            rows[section] = details ? `[${resultText}](${runUrl}) - ${details}` : `[${resultText}](${runUrl})`;
 
-            if (status === 'Failed' && errors) {
-              const errorLines = errors.split('\n').filter(l => l.trim()).map(l => `\`${l.trim()}\``).join('\n');
-              existingDetails[section] = `<details>\n<summary><strong>${section}</strong></summary>\n\n${errorLines}\n\n[View full log](${runUrl})\n\n</details>`;
+            if (status === "Failed" && errors.trim()) {
+              const errorLines = errors
+                .split("\n")
+                .map(l => l.trim())
+                .filter(Boolean)
+                .map(l => `\`${l}\``)
+                .join("\n");
+
+              existingDetails[section] =
+                `<details>\n` +
+                `<summary><strong>${section}</strong> - ${resultText}</summary>\n\n` +
+                `${errorLines}\n\n` +
+                `[View run](${runUrl})\n\n` +
+                `</details>`;
             } else {
               delete existingDetails[section];
             }
 
-            const order = ['Lint', 'Format', 'Typecheck', 'Build', 'PR Title', 'Labels'];
+            const order = ["Lint", "Format", "Typecheck", "Build", "Release", "PR Title", "Labels"];
             const sortedKeys = Object.keys(rows).sort((a, b) => {
               const ai = order.indexOf(a), bi = order.indexOf(b);
               return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
@@ -129,16 +154,16 @@ jobs:
               table += `| ${key} | ${rows[key]} |\n`;
             }
 
-            const detailsOrder = ['Typecheck', 'Build', 'Lint'];
+            const detailsOrder = ["Lint", "Format", "Typecheck", "Build", "Release", "PR Title", "Labels"];
             const sortedDetails = Object.keys(existingDetails).sort((a, b) => {
               const ai = detailsOrder.indexOf(a), bi = detailsOrder.indexOf(b);
               return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
             });
 
             let body = `${marker}\n## CI Summary\n\n${table}`;
-            
+
             if (sortedDetails.length > 0) {
-              body += `\n${detailsMarker}\n\n---\n\n${sortedDetails.map(k => existingDetails[k]).join('\n\n')}`;
+              body += `\n${detailsMarker}\n\n---\n\n${sortedDetails.map(k => existingDetails[k]).join("\n\n")}`;
             }
 
             if (existing) {
