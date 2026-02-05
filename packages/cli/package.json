@@ -1,0 +1,56 @@
+{
+  "name": "@dotns/cli",
+  "module": "index.ts",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "packageManager": "bun@1.2.6",
+  "scripts": {
+    "dev": "bun run src/cli/index.ts",
+    "lint": "bunx eslint .",
+    "lint:fix": "bunx eslint . --fix",
+    "format": "bunx prettier --check .",
+    "format:fix": "bunx prettier --write \"**/*.{js,ts,json,md}\" \"!abis/**\"",
+    "typecheck": "bunx tsc --noEmit",
+    "build": "bun build src/cli/index.ts --outfile dist/cli.tmp.js --target node --format esm && echo '#!/usr/bin/env node' | cat - dist/cli.tmp.js > dist/cli.js && rm dist/cli.tmp.js && chmod +x dist/cli.js",
+    "prepublishOnly": "bun run build",
+    "postinstall": "bun run ./installIPFS.ts || true; bunx papi generate"
+  },
+  "engines": {
+    "bun": ">=1.2.6"
+  },
+  "bin": {
+    "dotns": "./dist/cli.js"
+  },
+  "exports": {
+    ".": "./dist/cli.js"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.6",
+    "@types/ora": "^3.2.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^9.0.0",
+    "prettier": "^3.3.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@ipld/car": "^5.4.2",
+    "@ipld/dag-pb": "^4.1.5",
+    "@noble/hashes": "^2.0.1",
+    "@polkadot-api/descriptors": "file:.papi/descriptors",
+    "@polkadot-labs/hdkd": "^0.0.26",
+    "@polkadot-labs/hdkd-helpers": "^0.0.27",
+    "@polkadot/keyring": "^14.0.1",
+    "@polkadot/util-crypto": "^14.0.1",
+    "chalk": "^5.6.2",
+    "commander": "^14.0.2",
+    "ipfs-unixfs": "^12.0.0",
+    "ipfs-unixfs-importer": "^16.0.2",
+    "multiformats": "^13.4.2",
+    "ora": "^9.0.0",
+    "polkadot-api": "^1.23.1",
+    "viem": "^2.43.1"
+  }
+}

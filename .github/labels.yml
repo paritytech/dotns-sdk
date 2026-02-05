@@ -1,0 +1,127 @@
+- name: "type: bug"
+  color: "d73a4a"
+  description: "Bug"
+
+- name: "type: feature"
+  color: "a2eeef"
+  description: "Feature request"
+
+- name: "type: enhancement"
+  color: "84b6eb"
+  description: "Enhancement"
+
+- name: "type: docs"
+  color: "0075ca"
+  description: "Documentation"
+
+- name: "type: chore"
+  color: "fef2c0"
+  description: "Maintenance"
+
+- name: "type: refactor"
+  color: "d4c5f9"
+  description: "Refactor"
+
+- name: "type: test"
+  color: "bfd4f2"
+  description: "Tests"
+
+- name: "type: security"
+  color: "ee0701"
+  description: "Security"
+
+- name: "pkg: cli"
+  color: "c5def5"
+  description: "@dotns/cli"
+
+- name: "P0"
+  color: "b60205"
+  description: "Critical priority"
+
+- name: "P1"
+  color: "d93f0b"
+  description: "High priority"
+
+- name: "P2"
+  color: "fbca04"
+  description: "Normal priority"
+
+- name: "blocked"
+  color: "d73a4a"
+  description: "Blocked"
+
+- name: "in-progress"
+  color: "fbca04"
+  description: "In progress"
+
+- name: "needs-review"
+  color: "0e8a16"
+  description: "Needs review"
+
+- name: "needs-info"
+  color: "d876e3"
+  description: "Needs information"
+
+- name: "wontfix"
+  color: "ffffff"
+  description: "Will not fix"
+
+- name: "duplicate"
+  color: "cfd3d7"
+  description: "Duplicate"
+
+- name: "scope: bulletin"
+  color: "1d76db"
+  description: "Bulletin storage"
+
+- name: "scope: registration"
+  color: "1d76db"
+  description: "Registration"
+
+- name: "scope: resolver"
+  color: "1d76db"
+  description: "Resolution"
+
+- name: "scope: contenthash"
+  color: "1d76db"
+  description: "Content hash"
+
+- name: "scope: auth"
+  color: "1d76db"
+  description: "Authentication"
+
+- name: "scope: pop"
+  color: "1d76db"
+  description: "Proof of Personhood"
+
+- name: "effort: small"
+  color: "c2e0c6"
+  description: "Small"
+
+- name: "effort: medium"
+  color: "fef2c0"
+  description: "Medium"
+
+- name: "effort: large"
+  color: "f9d0c4"
+  description: "Large"
+
+- name: "good first issue"
+  color: "7057ff"
+  description: "Good for newcomers"
+
+- name: "help wanted"
+  color: "008672"
+  description: "Help wanted"
+
+- name: "breaking"
+  color: "b60205"
+  description: "Breaking change"
+
+- name: "dependencies"
+  color: "0366d6"
+  description: "Dependencies"
+
+- name: "upstream"
+  color: "e99695"
+  description: "Related to paritytech/dotns"

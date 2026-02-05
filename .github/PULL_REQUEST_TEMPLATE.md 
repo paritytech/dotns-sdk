@@ -1,0 +1,49 @@
+## Description
+
+## Type
+
+- [ ] Bug fix
+- [ ] Feature
+- [ ] Breaking change
+- [ ] Documentation
+- [ ] Chore
+
+## Package
+
+- [ ] `@dotns/cli`
+- [ ] Root/monorepo
+- [ ] Documentation
+
+## Related Issues
+
+Fixes #
+
+## Checklist
+
+### Code
+
+- [ ] Follows project style
+- [ ] `bun run lint` passes
+- [ ] `bun run format` passes
+- [ ] `bun run typecheck` passes
+
+### Documentation
+
+- [ ] README updated if needed
+- [ ] Types updated if needed
+
+### Breaking Changes
+
+- [ ] No breaking changes
+- [ ] Breaking changes documented below
+
+**Breaking changes:**
+
+## Testing
+
+How to test:
+
+1. 
+2. 
+
+## Notes

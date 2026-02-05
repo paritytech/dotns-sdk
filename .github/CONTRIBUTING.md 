@@ -1,0 +1,56 @@
+# Contributing
+
+## Where to Contribute
+
+| Type | Repository |
+|------|------------|
+| Protocol | [paritytech/dotns](https://github.com/paritytech/dotns) |
+| SDK/CLI | This repository |
+
+## Setup
+```bash
+git clone https://github.com/parity/dotns-sdk.git
+cd dotns-sdk
+bun install
+cd packages/cli && bun run build
+```
+
+## Development
+```bash
+bun run dev <command>    # Run without building
+bun run typecheck        # Type check
+bun run lint             # Lint
+bun run format           # Format check
+```
+
+## Commits
+
+Follow [Conventional Commits](https://www.conventionalcommits.org/):
+```
+<type>(<scope>): <description>
+```
+
+Types: feat, fix, docs, style, refactor, test, chore
+
+Scopes: cli, bulletin, auth, register, deps, ci
+
+Examples:
+```
+feat(cli): add parallel upload
+fix(bulletin): resolve CID mismatch
+docs(cli): update examples
+chore(deps): bump polkadot-api
+```
+
+## Pull Requests
+
+1. Create branch from `main`
+2. Make changes
+3. Run `bun run typecheck && bun run lint`
+4. Open PR with clear description
+
+## Code Style
+
+- Run `bun run lint:fix` and `bun run format:fix` before committing
+- Add JSDoc for public APIs
+- Follow existing conventions

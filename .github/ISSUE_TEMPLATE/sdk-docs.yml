@@ -1,0 +1,49 @@
+name: Documentation
+description: Documentation issue
+labels: ["type: docs"]
+body:
+  - type: dropdown
+    id: doc-type
+    attributes:
+      label: Type
+      options:
+        - "README"
+        - "Code comments"
+        - "CLI help"
+        - "Examples"
+        - "Types"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: Issue
+      options:
+        - "Missing"
+        - "Incorrect"
+        - "Unclear"
+        - "Outdated"
+        - "Typo"
+    validations:
+      required: true
+
+  - type: textarea
+    id: location
+    attributes:
+      label: Location
+      placeholder: "README.md line 45"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggestion

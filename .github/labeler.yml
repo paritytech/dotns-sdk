@@ -1,0 +1,41 @@
+"pkg: cli":
+  - changed-files:
+      - any-glob-to-any-file: "packages/cli/**"
+
+"scope: bulletin":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "packages/cli/src/**/bulletin/**"
+          - "packages/cli/src/commands/bulletin.ts"
+
+"scope: auth":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "packages/cli/src/**/auth/**"
+          - "packages/cli/src/**/keystore/**"
+
+"scope: registration":
+  - changed-files:
+      - any-glob-to-any-file: "packages/cli/src/**/register/**"
+
+"scope: contenthash":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "packages/cli/src/**/content/**"
+          - "packages/cli/src/**/cid/**"
+
+"type: docs":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.md"
+          - "docs/**"
+
+"type: test":
+  - changed-files:
+      - any-glob-to-any-file: "packages/cli/tests/**"
+
+"dependencies":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/package.json"
+          - "**/bun.lockb"

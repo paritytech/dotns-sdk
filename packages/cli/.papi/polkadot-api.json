@@ -1,0 +1,18 @@
+{
+  "version": 0,
+  "descriptorPath": ".papi/descriptors",
+  "entries": {
+    "paseo": {
+      "wsUrl": "wss://testnet-passet-hub.polkadot.io",
+      "metadata": ".papi/metadata/paseo.scale",
+      "genesis": "0xfd974cf9eaf028f5e44b9fdd1949ab039c6cf9cc54449b0b60d71b042e79aeb6",
+      "codeHash": "0xedc99e025ff3d49960fb34d8005e91f555638f4e7f997b602507946876c12f50"
+    },
+    "bulletin": {
+      "wsUrl": "wss://bulletin.dotspark.app",
+      "metadata": ".papi/metadata/bulletin.scale",
+      "genesis": "0x1c9c9b663a6de42d1579dff051567f4133897518023d9c4a2c778da4ea513657",
+      "codeHash": "0x70c974df89d1a642a5b067094dfa16383b54a8ed37eee7867ec4f2a44f15df4d"
+    }
+  }
+}

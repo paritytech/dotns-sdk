@@ -1,0 +1,205 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.6"
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun install --frozen-lockfile
+          for pkg in packages/*; do
+            [ -f "$pkg/package.json" ] || continue
+            grep -q '"file:' "$pkg/package.json" || continue
+            grep -oP '"[^"]+": "file:\K[^"]+' "$pkg/package.json" | while read -r dep; do
+              name=$(jq -r .name "$pkg/$dep/package.json")
+              scope_dir="$pkg/node_modules/$(dirname "$name")"
+              mkdir -p "$scope_dir"
+              ln -sfn "$(cd "$pkg/$dep" && pwd)" "$pkg/node_modules/$name"
+            done
+          done
+
+      - name: Run build
+        id: build
+        continue-on-error: true
+        working-directory: packages/cli
+        shell: bash
+        run: |
+          set -o pipefail
+          bun run build 2>&1 | tee "$GITHUB_WORKSPACE/build-output.txt"
+
+      - name: Process results
+        id: result
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.build.outcome }}" = "success" ]; then
+            echo "status=Passed" >> "$GITHUB_OUTPUT"
+            echo "details=" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=Failed" >> "$GITHUB_OUTPUT"
+            echo "details=Build failed" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload build output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: build-output.txt
+          retention-days: 7
+
+      - name: Upload artifacts
+        if: steps.build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-dist
+          path: packages/cli/dist
+          retention-days: 7
+
+      - name: Update PR comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        env:
+          SECTION: Build
+          STATUS: ${{ steps.result.outputs.status }}
+          DETAILS: ${{ steps.result.outputs.details }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const fs = require("fs");
+
+            const marker = "<!-- ci-summary -->";
+            const detailsMarker = "<!-- details-section -->";
+            const section = process.env.SECTION;
+            const status = process.env.STATUS;
+            const details = process.env.DETAILS;
+            const runUrl = process.env.RUN_URL;
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+
+            let output = "";
+            try {
+              output = fs.readFileSync("build-output.txt", "utf8");
+            } catch (_) {
+              output = "(build-output.txt not found)";
+            }
+
+            const MAX_CHARS = 60000;
+            if (output.length > MAX_CHARS) {
+              output = [
+                "(truncated; showing last " + MAX_CHARS + " chars)",
+                "",
+                output.slice(-MAX_CHARS),
+              ].join("\n");
+            }
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number, per_page: 100,
+            });
+
+            const existing = comments.find(c =>
+              c.user?.login === "github-actions[bot]" && c.body?.includes(marker)
+            );
+
+            let rows = {};
+            let existingDetails = {};
+
+            if (existing?.body) {
+              const parts = existing.body.split(detailsMarker);
+              const tableSection = parts[0] || "";
+
+              const lines = tableSection.split("\n");
+              for (const line of lines) {
+                const match = line.match(/^\| ([^|]+) \| ([^|]+) \|$/);
+                if (match) {
+                  const name = match[1].trim();
+                  if (name && name !== "Check" && !name.startsWith(":")) {
+                    rows[name] = match[2].trim();
+                  }
+                }
+              }
+
+              const detailsRegex = /<details>\s*<summary><strong>([^<]+)<\/strong>.*?<\/summary>([\s\S]*?)<\/details>/g;
+              let detailMatch;
+              while ((detailMatch = detailsRegex.exec(existing.body)) !== null) {
+                existingDetails[detailMatch[1].trim()] = detailMatch[0];
+              }
+            }
+
+            const resultText = status === "Passed" ? "Passed" : "Failed";
+            rows[section] = status === "Passed" ? resultText : `[${resultText}](${runUrl}) - ${details}`;
+
+            if (status === "Failed") {
+              existingDetails[section] = [
+                `<details>`,
+                `<summary><strong>${section}</strong> - ${resultText}</summary>`,
+                "",
+                details || "Failed",
+                "",
+                `[View run](${runUrl})`,
+                "",
+                "```text",
+                output,
+                "```",
+                "</details>",
+              ].join("\n");
+            } else {
+              delete existingDetails[section];
+            }
+
+            const order = ["Lint", "Format", "Typecheck", "Build", "Release", "PR Title", "Labels"];
+            const sortedKeys = Object.keys(rows).sort((a, b) => {
+              const ai = order.indexOf(a), bi = order.indexOf(b);
+              return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+            });
+
+            let table = `| Check | Result |\n|:------|:-------|\n`;
+            for (const key of sortedKeys) {
+              table += `| ${key} | ${rows[key]} |\n`;
+            }
+
+            const detailsOrder = ["Lint", "Format", "Typecheck", "Build", "Release", "PR Title", "Labels"];
+            const sortedDetails = Object.keys(existingDetails).sort((a, b) => {
+              const ai = detailsOrder.indexOf(a), bi = detailsOrder.indexOf(b);
+              return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+            });
+
+            let body = `${marker}\n## CI Summary\n\n${table}`;
+
+            if (sortedDetails.length > 0) {
+              body += `\n${detailsMarker}\n\n---\n\n${sortedDetails.map(k => existingDetails[k]).join("\n\n")}`;
+            }
+
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+      - name: Fail if build failed
+        if: steps.build.outcome == 'failure'
+        run: exit 1
