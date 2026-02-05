@@ -10,27 +10,111 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.6"
+      - run: bun install --frozen-lockfile
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Build CLI
-        run: bun run build
+      - name: Run build
+        id: build
+        continue-on-error: true
+        run: |
+          bun run build 2>&1 | tee build-output.txt
         working-directory: packages/cli
 
+      - name: Process results
+        id: result
+        run: |
+          if [ "${{ steps.build.outcome }}" == "success" ]; then
+            echo "status=Passed" >> $GITHUB_OUTPUT
+            echo "details=Build successful" >> $GITHUB_OUTPUT
+          else
+            echo "status=Failed" >> $GITHUB_OUTPUT
+            echo "details=Build failed" >> $GITHUB_OUTPUT
+          fi
+
       - name: Upload artifacts
+        if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: cli-dist
           path: packages/cli/dist
           retention-days: 7
+
+      - name: Update PR comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        env:
+          SECTION: Build
+          STATUS: ${{ steps.result.outputs.status }}
+          DETAILS: ${{ steps.result.outputs.details }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const marker = "<!-- ci-summary -->";
+            const section = process.env.SECTION;
+            const status = process.env.STATUS;
+            const details = process.env.DETAILS;
+            const runUrl = process.env.RUN_URL;
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number, per_page: 100,
+            });
+
+            const existing = comments.find(c =>
+              c.user?.login === "github-actions[bot]" && c.body?.includes(marker)
+            );
+
+            let rows = {};
+            if (existing?.body) {
+              const lines = existing.body.split('\n');
+              for (const line of lines) {
+                const match = line.match(/^\| ([^|]+) \| ([^|]+) \|$/);
+                if (match) {
+                  const name = match[1].trim();
+                  if (name && name !== 'Check' && !name.startsWith(':')) {
+                    rows[name] = match[2].trim();
+                  }
+                }
+              }
+            }
+
+            const icon = status === 'Passed' ? ':white_check_mark:' : ':x:';
+            const result = details ? `${icon} [${status}](${runUrl}) - ${details}` : `${icon} [${status}](${runUrl})`;
+            rows[section] = result;
+
+            const order = ['Lint', 'Format', 'Typecheck', 'Build', 'PR Title', 'Labels'];
+            const sortedKeys = Object.keys(rows).sort((a, b) => {
+              const ai = order.indexOf(a), bi = order.indexOf(b);
+              return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+            });
+
+            let table = `| Check | Result |\n|:------|:-------|\n`;
+            for (const key of sortedKeys) {
+              table += `| ${key} | ${rows[key]} |\n`;
+            }
+
+            const body = `${marker}\n## CI Summary\n\n${table}`;
+
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+      - name: Fail if build failed
+        if: steps.build.outcome == 'failure'
+        run: exit 1

@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   build:
@@ -28,38 +29,217 @@ jobs:
 
       - name: Extract version
         id: version
+        shell: bash
         run: |
+          set -euo pipefail
+
           if [[ "${{ github.event_name }}" == "release" ]]; then
-            VERSION="${GITHUB_REF#refs/tags/v}"
+            # Prefer the actual release tag name. Falls back to ref if needed.
+            ref="${{ github.event.release.tag_name }}"
+            if [[ -z "${ref}" ]]; then
+              ref="${GITHUB_REF_NAME}"
+            fi
+
+            VERSION="${ref#v}"
+            TAG="v${VERSION}"
           else
             VERSION="0.0.0-pr.${{ github.event.pull_request.number }}"
+            TAG=""
           fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
 
       - name: Build CLI
+        id: build
+        continue-on-error: true
         working-directory: packages/cli
         run: bun run build
 
       - name: Prepare package
+        if: steps.build.outcome == 'success'
         working-directory: packages/cli
+        shell: bash
         run: |
-          npm version ${{ steps.version.outputs.version }} --no-git-tag-version --allow-same-version
-          jq 'del(.private)' package.json > package.json.tmp && mv package.json.tmp package.json
+          set -euo pipefail
+
+          npm version "${{ steps.version.outputs.version }}" \
+            --no-git-tag-version \
+            --allow-same-version
+
+          jq 'del(.private)' package.json > package.json.tmp
+          mv package.json.tmp package.json
 
       - name: Pack
+        if: steps.build.outcome == 'success'
         working-directory: packages/cli
         run: npm pack
 
-      - name: Upload artifact (PR only)
-        if: github.event_name == 'pull_request'
+      - name: Upload artifact
+        if: github.event_name == 'pull_request' && steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: cli-preview-${{ steps.version.outputs.version }}
           path: packages/cli/*.tgz
           retention-days: 7
 
+      - name: Process results
+        id: result
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ steps.build.outcome }}" == "success" ]]; then
+            echo "status=Passed" >> "${GITHUB_OUTPUT}"
+            echo "details=Package built successfully" >> "${GITHUB_OUTPUT}"
+          else
+            echo "status=Failed" >> "${GITHUB_OUTPUT}"
+            echo "details=Package build failed" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Update PR comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        env:
+          SECTION: Release
+          STATUS: ${{ steps.result.outputs.status }}
+          DETAILS: ${{ steps.result.outputs.details }}
+          VERSION: ${{ steps.version.outputs.version }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RUN_ID: ${{ github.run_id }}
+          REPO: ${{ github.repository }}
+        with:
+          script: |
+            const marker = "<!-- ci-summary -->";
+            const detailsMarker = "<!-- details-section -->";
+            const section = process.env.SECTION;
+            const status = process.env.STATUS;
+            const details = process.env.DETAILS;
+            const version = process.env.VERSION;
+            const runUrl = process.env.RUN_URL;
+            const runId = process.env.RUN_ID;
+            const repoFull = process.env.REPO;
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number, per_page: 100,
+            });
+
+            const existing = comments.find(c =>
+              c.user?.login === "github-actions[bot]" && c.body?.includes(marker)
+            );
+
+            let rows = {};
+            let existingDetails = {};
+
+            if (existing?.body) {
+              const parts = existing.body.split(detailsMarker);
+              const tableSection = parts[0] || "";
+
+              const lines = tableSection.split("\n");
+              for (const line of lines) {
+                const match = line.match(/^\| ([^|]+) \| ([^|]+) \|$/);
+                if (match) {
+                  const name = match[1].trim();
+                  if (name && name !== "Check" && !name.startsWith(":")) {
+                    rows[name] = match[2].trim();
+                  }
+                }
+              }
+
+              const detailsRegex = /<details>\s*<summary><strong>([^<]+)<\/strong><\/summary>([\s\S]*?)<\/details>/g;
+              let detailMatch;
+              while ((detailMatch = detailsRegex.exec(existing.body)) !== null) {
+                existingDetails[detailMatch[1].trim()] = detailMatch[0];
+              }
+            }
+
+            const icon = status === "Passed" ? ":white_check_mark:" : ":x:";
+            const result = `${icon} [${status}](${runUrl}) - ${details}`;
+            rows[section] = result;
+
+            if (status === "Passed") {
+              const installInstructions = [
+                "**Test this PR:**",
+                "",
+                "```bash",
+                `gh run download ${runId} -n cli-preview-${version} -R ${repoFull}`,
+                "",
+                `bun add -g ./dotns-cli-${version}.tgz`,
+                "# or",
+                `npm install -g ./dotns-cli-${version}.tgz`,
+                "",
+                "dotns --version",
+                "```"
+              ].join("\n");
+              existingDetails[section] = `<details>\n<summary><strong>${section}</strong></summary>\n\n${installInstructions}\n</details>`;
+            } else {
+              delete existingDetails[section];
+            }
+
+            const order = ["Lint", "Format", "Typecheck", "Build", "Release", "PR Title", "Labels"];
+            const sortedKeys = Object.keys(rows).sort((a, b) => {
+              const ai = order.indexOf(a), bi = order.indexOf(b);
+              return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+            });
+
+            let table = `| Check | Result |\n|:------|:-------|\n`;
+            for (const key of sortedKeys) {
+              table += `| ${key} | ${rows[key]} |\n`;
+            }
+
+            const detailsOrder = ["Typecheck", "Build", "Release", "Lint"];
+            const sortedDetails = Object.keys(existingDetails).sort((a, b) => {
+              const ai = detailsOrder.indexOf(a), bi = detailsOrder.indexOf(b);
+              return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+            });
+
+            let body = `${marker}\n## CI Summary\n\n${table}`;
+
+            if (sortedDetails.length > 0) {
+              body += `\n${detailsMarker}\n\n---\n\n${sortedDetails.map(k => existingDetails[k]).join("\n\n")}`;
+            }
+
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+      - name: Create release body
+        if: github.event_name == 'release' && steps.build.outcome == 'success'
+        id: release_body
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="${{ steps.version.outputs.tag }}"
+          REPO="${{ github.repository }}"
+
+          cat > release-body.md <<EOF
+          ## Installation
+          \`\`\`bash
+          gh release download ${TAG} -p "*.tgz" -R ${REPO}
+
+          bun add -g ./dotns-cli-${VERSION}.tgz
+          # or
+          npm install -g ./dotns-cli-${VERSION}.tgz
+
+          dotns --version
+          \`\`\`
+          EOF
+
       - name: Attach to release
-        if: github.event_name == 'release'
+        if: github.event_name == 'release' && steps.build.outcome == 'success'
         uses: softprops/action-gh-release@v2
         with:
           files: packages/cli/*.tgz
+          append_body: true
+          body_path: release-body.md
+
+      - name: Fail if build failed
+        if: steps.build.outcome == 'failure'
+        run: exit 1

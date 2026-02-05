@@ -1,4 +1,4 @@
-name: Labels
+name: Labels Sync
 
 on:
   push:
@@ -6,12 +6,13 @@ on:
     paths: [.github/labels.yml]
   workflow_dispatch:
 
+permissions:
+  issues: write
+
 jobs:
   sync:
     name: Sync
     runs-on: ubuntu-latest
-    permissions:
-      issues: write
     steps:
       - uses: actions/checkout@v4
       - uses: EndBug/label-sync@v2
