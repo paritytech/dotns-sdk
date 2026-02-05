@@ -57,7 +57,7 @@ jobs:
           set -euo pipefail
           if [ "${{ steps.build.outcome }}" = "success" ]; then
             echo "status=Passed" >> "$GITHUB_OUTPUT"
-            echo "details=Build succeeded" >> "$GITHUB_OUTPUT"
+            echo "details=" >> "$GITHUB_OUTPUT"
           else
             echo "status=Failed" >> "$GITHUB_OUTPUT"
             echo "details=Build failed" >> "$GITHUB_OUTPUT"
@@ -151,23 +151,25 @@ jobs:
             }
 
             const resultText = status === "Passed" ? "Passed" : "Failed";
-            rows[section] = `[${resultText}](${runUrl})`;
+            rows[section] = status === "Passed" ? resultText : `[${resultText}](${runUrl}) - ${details}`;
 
-            const detailsBlock = [
-              `<details>`,
-              `<summary><strong>${section}</strong> - ${resultText}</summary>`,
-              "",
-              details || "",
-              "",
-              `[View run](${runUrl})`,
-              "",
-              "```text",
-              output,
-              "```",
-              "</details>",
-            ].join("\n").replace(/\n\n\n+/g, "\n\n");
-
-            existingDetails[section] = detailsBlock;
+            if (status === "Failed") {
+              existingDetails[section] = [
+                `<details>`,
+                `<summary><strong>${section}</strong> - ${resultText}</summary>`,
+                "",
+                details || "Failed",
+                "",
+                `[View run](${runUrl})`,
+                "",
+                "```text",
+                output,
+                "```",
+                "</details>",
+              ].join("\n");
+            } else {
+              delete existingDetails[section];
+            }
 
             const order = ["Lint", "Format", "Typecheck", "Build", "Release", "PR Title", "Labels"];
             const sortedKeys = Object.keys(rows).sort((a, b) => {

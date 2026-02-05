@@ -210,7 +210,7 @@ jobs:
                 "",
                 "Verify:",
                 "```bash",
-                "dotns --version",
+                "dotns --help",
                 "```"
               ].join("\n");
 
@@ -295,7 +295,7 @@ jobs:
 
           Verify:
           \`\`\`bash
-          dotns --version
+          dotns --help
           \`\`\`
           EOF
 
