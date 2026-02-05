@@ -2,6 +2,7 @@ import type { Address, Hex } from "viem";
 import type { StoredAuth } from "../cli/keystore/types";
 import type { Ora } from "ora";
 import type { PolkadotSigner } from "polkadot-api";
+import type { ReviveClientWrapper } from "../client/polkadotClient";
 
 export enum ProofOfPersonhoodStatus {
   NoStatus = 0,
@@ -495,4 +496,52 @@ export type StoreParameters = {
   transactionNonce?: number;
   /** Callback for progress updates */
   onProgress?: (status: string) => void;
+};
+
+export type AuthSource = {
+  /** BIP-39 mnemonic phrase used to derive the signing key. */
+  mnemonic?: string;
+  /** Substrate secret URI (SURI) used to derive/load a signing key (e.g. "//Alice"). */
+  keyUri?: string;
+  /** Filesystem path to the encrypted keystore file or directory. */
+  keystorePath?: string;
+  /** Keystore account selector (e.g. profile name or address) to load/unlock. */
+  account?: string;
+  /** Password used to unlock/decrypt the keystore or SURI, when required. */
+  password?: string;
+};
+
+export type LookupActionOptions = CommandOptions &
+  AuthSource & {
+    /** Domain label to lookup (commander option passthrough). */
+    name?: string;
+    /** Internal: resolved label provided positionally. */
+    __positionalLabel?: string;
+  };
+
+export type ReadOnlyContextAccount = {
+  /** Substrate SS58 address used for lookups. */
+  address: string;
+};
+
+export type ReadOnlyContext = {
+  /** Typed chain client wrapper used for queries. */
+  clientWrapper: ReviveClientWrapper;
+  /** Minimal account object containing only an address for lookups. */
+  account: ReadOnlyContextAccount;
+  /** RPC endpoint used to connect to the chain. */
+  rpc: string;
+  /** EVM address corresponding to the Substrate address, when resolvable. */
+  evmAddress: string;
+};
+
+export type ResolvedReadOnlyAuth = {
+  /** Secret source used to derive the signing key (mnemonic or SURI). */
+  source: string;
+  /** True when `source` is a key URI (SURI), false when it is a mnemonic. */
+  isKeyUri: boolean;
+  /** Human-readable origin of the resolved auth source. */
+  resolvedFrom: "cli" | "env" | "keystore" | "default";
+  /** Account selector associated with the resolved auth source. */
+  account: string;
 };

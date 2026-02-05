@@ -4,12 +4,34 @@ A command-line tool for registering and managing `.dot` domains on Polkadot.
 
 ## Installation
 
-```bash
-# From GitHub release
-bun add -g https://github.com/parity/dotns-sdk/releases/download/v0.1.0/dotns-cli-0.1.0.tgz
+Install directly from the latest release:
 
-# Or with npm
-npm install -g https://github.com/parity/dotns-sdk/releases/download/v0.1.0/dotns-cli-0.1.0.tgz
+```bash
+npm install -g https://github.com/paritytech/dotns-sdk/releases/latest/download/dotns-cli.tgz
+```
+
+Or download and install manually:
+
+```bash
+gh release download -p "*.tgz" -R paritytech/dotns-sdk
+npm install -g ./dotns-cli-<version>.tgz
+```
+
+<details>
+<summary>Other package managers</summary>
+
+| Package Manager   | Command                                       |
+| :---------------- | :-------------------------------------------- |
+| yarn              | `yarn global add ./dotns-cli-<version>.tgz`   |
+| bun (macOS/Linux) | `bun add -g "$(pwd)/dotns-cli-<version>.tgz"` |
+| bun (Windows)     | `bun add -g "$PWD\dotns-cli-<version>.tgz"`   |
+
+</details>
+
+Verify:
+
+```bash
+dotns --version
 ```
 
 ## Quick Start

@@ -298,7 +298,6 @@ export async function getPriceAndValidateEligibility(
       originSubstrateAddress,
       ownerAddress,
     );
-    console.log("userStatus: ", userStatus, "\nclassificationResult: ", classificationResult);
     if (requiredStatus === ProofOfPersonhoodStatus.Reserved) {
       spinner.fail("Eligibility failed");
       throw new Error(message);

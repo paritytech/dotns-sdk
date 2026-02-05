@@ -9,7 +9,7 @@ import { getPasswordForDecrypt } from "../cli/io";
 import { pathExists, readKeystoreFile } from "../cli/keystore/file";
 import { decryptKeystorePayload } from "../cli/keystore/crypto";
 import { normalizeAccountName } from "../cli/keystore/payload";
-import type { ResolvedAuthSource, AccountKeystorePayload } from "../types/types";
+import type { ResolvedAuthSource, AccountKeystorePayload, AuthSource } from "../types/types";
 
 export async function createAccountFromSource(source: string, isKeyUri: boolean) {
   await cryptoWaitReady();
@@ -42,13 +42,7 @@ export async function resolveAuthSourceReadOnly(): Promise<ResolvedAuthSource> {
   };
 }
 
-export async function resolveAuthSource(opts: {
-  mnemonic?: string;
-  keyUri?: string;
-  keystorePath?: string;
-  account?: string;
-  password?: string;
-}): Promise<ResolvedAuthSource> {
+export async function resolveAuthSource(opts: AuthSource): Promise<ResolvedAuthSource> {
   const accountName = normalizeAccountName(opts.account);
 
   if (opts.mnemonic) {
