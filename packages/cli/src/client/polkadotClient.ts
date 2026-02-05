@@ -222,17 +222,20 @@ export class ReviveClientWrapper {
     }
   }
 
-  async ensureAccountMapped(substrateAddress: string, signer: PolkadotSigner): Promise<void> {
+  async ensureAccountMapped(
+    substrateAddress: string,
+    signer: PolkadotSigner,
+  ): Promise<boolean | undefined> {
     if (isAddress(substrateAddress)) {
       throw new Error("ensureAccountMapped requires SS58 Substrate address, not EVM H160 address");
     }
 
-    if (this.mappedAccounts.has(substrateAddress)) return;
+    if (this.mappedAccounts.has(substrateAddress)) return true;
 
     const isMapped = await this.checkIfAccountMapped(substrateAddress);
     if (isMapped) {
       this.mappedAccounts.add(substrateAddress);
-      return;
+      return isMapped;
     }
 
     const mappingExtrinsic = this.client.tx.Revive.map_account();
@@ -244,7 +247,7 @@ export class ReviveClientWrapper {
       const errorMessage = error?.message || String(error);
       if (errorMessage.includes("AccountAlreadyMapped")) {
         this.mappedAccounts.add(substrateAddress);
-        return;
+        return true;
       }
       throw error;
     }

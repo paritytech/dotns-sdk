@@ -5,10 +5,10 @@ import { getWsProvider } from "polkadot-api/ws-provider";
 import { paseo } from "@polkadot-api/descriptors";
 import { ReviveClientWrapper, type PolkadotApiClient } from "../../client/polkadotClient";
 import type { AccountInfoOptions, CommandOptions } from "../../types/types";
-import { displayAccountInformation } from "../context";
+import { displayAccountInformation, prepareContext } from "../context";
 import { addAuthOptions } from "./authOptions";
 import { resolveRpc, resolveKeystorePath } from "../env";
-import { resolveAuthSource, createAccountFromSource } from "../../commands/auth";
+import { resolveAuthSource } from "../../commands/auth";
 import { banner, step } from "../ui";
 
 function getMergedOptions<T>(command: Command | undefined, fallback: T): CommandOptions & T {
@@ -64,22 +64,69 @@ export function attachAccountCommands(root: Command) {
         }),
       );
 
-      const account = await step("Loading keypair", async () =>
-        createAccountFromSource(auth.source, auth.isKeyUri),
-      );
-
-      const substrateAddress = account.address;
+      const context = await prepareContext(mergedOptions);
 
       const evmAddress = await step("Resolving EVM address", async () =>
-        clientWrapper.getEvmAddress(substrateAddress),
+        clientWrapper.getEvmAddress(context.substrateAddress),
       );
 
       console.log(chalk.gray("\n  Auth:      ") + chalk.white(auth.resolvedFrom));
       console.log(chalk.gray("  Account:   ") + chalk.white(auth.account));
 
-      await displayAccountInformation(client as PolkadotApiClient, evmAddress, substrateAddress);
+      await displayAccountInformation(
+        client as PolkadotApiClient,
+        evmAddress,
+        context.substrateAddress,
+      );
 
       console.log(chalk.green("\n✓ Complete\n"));
+      process.exit(0);
+    } catch (error) {
+      console.error(
+        chalk.red(`\n✗ Error: ${error instanceof Error ? error.message : String(error)}\n`),
+      );
+      process.exit(1);
+    }
+  });
+
+  const mapCommand = accountCommand
+    .command("map")
+    .description("Map Substrate account to EVM address");
+
+  addAuthOptions(mapCommand).action(async (options: AccountInfoOptions, command: Command) => {
+    try {
+      const mergedOptions = getMergedOptions(command, options);
+
+      const rpc = resolveRpc(mergedOptions.rpc);
+      banner();
+
+      const client = await step(`Connecting RPC ${rpc}`, async () =>
+        createClient(getWsProvider(rpc)).getTypedApi(paseo),
+      );
+
+      const clientWrapper = new ReviveClientWrapper(client as PolkadotApiClient);
+
+      const context = await prepareContext(mergedOptions);
+
+      console.log(chalk.blue("\n▶ Account Mapping"));
+      console.log(chalk.gray("  Substrate: ") + chalk.white(context.substrateAddress));
+
+      const isMapped = await step("Mapping account", async () =>
+        clientWrapper.ensureAccountMapped(context.substrateAddress, context.signer),
+      );
+
+      const evmAddress = await step("Resolving EVM address", async () =>
+        clientWrapper.getEvmAddress(context.substrateAddress),
+      );
+
+      console.log(chalk.gray("\n  EVM:       ") + chalk.cyan(evmAddress));
+
+      if (isMapped) {
+        console.log(chalk.yellow("\n⚠ Account already mapped\n"));
+      } else {
+        console.log(chalk.green("\n✓ Account Mapped\n"));
+      }
+
       process.exit(0);
     } catch (error) {
       console.error(
