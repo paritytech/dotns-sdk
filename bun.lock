@@ -14,7 +14,7 @@
       "name": "@dotns/cli",
       "version": "0.1.0",
       "bin": {
-        "dotns": "./dist/cli/index.js",
+        "dotns": "./dist/src/cli/index.js",
       },
       "dependencies": {
         "@ipld/car": "^5.4.2",
