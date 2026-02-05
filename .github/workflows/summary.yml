@@ -1,3 +1,4 @@
+# .github/workflows/summary.yml
 name: Summary
 
 on:
@@ -8,7 +9,6 @@ on:
 permissions:
   pull-requests: write
   actions: read
-  checks: read
 
 jobs:
   summary:
@@ -16,15 +16,41 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.workflow_run.event == 'pull_request'
     steps:
-      - name: Get PR number
+      - name: Find PR
         id: pr
         uses: actions/github-script@v7
         with:
           script: |
+            // Try workflow_run payload first
             const prs = context.payload.workflow_run.pull_requests;
             if (prs && prs.length > 0) {
               return prs[0].number;
             }
+            
+            // Fallback: search for PR by head SHA
+            const headSha = context.payload.workflow_run.head_sha;
+            const headBranch = context.payload.workflow_run.head_branch;
+            
+            const { data: pullRequests } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              head: `${context.repo.owner}:${headBranch}`
+            });
+            
+            const pr = pullRequests.find(p => p.head.sha === headSha);
+            if (pr) {
+              return pr.number;
+            }
+            
+            // Last resort: search all open PRs
+            for (const pr of pullRequests) {
+              if (pr.head.ref === headBranch) {
+                return pr.number;
+              }
+            }
+            
+            console.log('Could not find PR for SHA:', headSha);
             return null;
           result-encoding: string
 
@@ -35,77 +61,92 @@ jobs:
           script: |
             const prNumber = parseInt('${{ steps.pr.outputs.result }}');
             const headSha = context.payload.workflow_run.head_sha;
-            const workflows = ['Lint', 'Format', 'Typecheck', 'Build'];
+            const workflows = ['lint', 'format', 'typecheck', 'build'];
             const results = {};
 
             for (const name of workflows) {
               try {
-                const runs = await github.rest.actions.listWorkflowRuns({
+                const { data: runs } = await github.rest.actions.listWorkflowRuns({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  workflow_id: `${name.toLowerCase()}.yml`,
+                  workflow_id: `${name}.yml`,
                   head_sha: headSha,
                   per_page: 1
                 });
 
-                if (runs.data.workflow_runs.length > 0) {
-                  const run = runs.data.workflow_runs[0];
-                  results[name] = run.conclusion || run.status;
+                if (runs.workflow_runs.length > 0) {
+                  const run = runs.workflow_runs[0];
+                  results[name] = {
+                    conclusion: run.conclusion || run.status,
+                    url: run.html_url
+                  };
                 } else {
-                  results[name] = 'pending';
+                  results[name] = { conclusion: 'pending', url: '' };
                 }
               } catch (e) {
-                results[name] = 'unknown';
+                console.log(`Error fetching ${name}:`, e.message);
+                results[name] = { conclusion: 'unknown', url: '' };
               }
             }
 
-            const getStatus = (result) => {
-              if (result === 'success') return 'Passed';
-              if (result === 'failure') return 'Failed';
-              if (result === 'pending' || result === 'in_progress' || result === 'queued') return 'Pending';
-              if (result === 'skipped') return 'Skipped';
-              if (result === 'cancelled') return 'Cancelled';
-              return result || 'Unknown';
+            const getIcon = (conclusion) => {
+              if (conclusion === 'success') return ':white_check_mark:';
+              if (conclusion === 'failure') return ':x:';
+              if (conclusion === 'pending' || conclusion === 'in_progress' || conclusion === 'queued') return ':hourglass:';
+              if (conclusion === 'skipped') return ':fast_forward:';
+              if (conclusion === 'cancelled') return ':stop_sign:';
+              return ':grey_question:';
             };
 
-            const allDone = Object.values(results).every(r => 
-              r === 'success' || r === 'failure' || r === 'skipped' || r === 'cancelled'
-            );
+            const getStatus = (result) => {
+              const icon = getIcon(result.conclusion);
+              const text = result.conclusion === 'success' ? 'Passed' :
+                          result.conclusion === 'failure' ? 'Failed' :
+                          result.conclusion === 'pending' ? 'Pending' :
+                          result.conclusion === 'in_progress' ? 'Running' :
+                          result.conclusion || 'Unknown';
+              return result.url ? `${icon} [${text}](${result.url})` : `${icon} ${text}`;
+            };
 
             const body = `## CI Summary
 
             | Check | Result |
             |-------|--------|
-            | Lint | ${getStatus(results.Lint)} |
-            | Format | ${getStatus(results.Format)} |
-            | Typecheck | ${getStatus(results.Typecheck)} |
-            | Build | ${getStatus(results.Build)} |
-
-            ${allDone ? '' : '_Some checks still running..._'}
+            | Lint | ${getStatus(results.lint)} |
+            | Format | ${getStatus(results.format)} |
+            | Typecheck | ${getStatus(results.typecheck)} |
+            | Build | ${getStatus(results.build)} |
             `;
 
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber,
-            });
-
-            const existing = comments.find(c => 
-              c.user.type === 'Bot' && c.body.includes('## CI Summary')
-            );
-
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body: body
-              });
-            } else {
-              await github.rest.issues.createComment({
+            try {
+              const { data: comments } = await github.rest.issues.listComments({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: prNumber,
-                body: body
               });
+
+              const existing = comments.find(c => 
+                c.user.type === 'Bot' && c.body.includes('## CI Summary')
+              );
+
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existing.id,
+                  body: body
+                });
+                console.log('Updated existing comment');
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  body: body
+                });
+                console.log('Created new comment');
+              }
+            } catch (e) {
+              console.log('Error posting comment:', e.message);
+              core.setFailed(e.message);
             }
