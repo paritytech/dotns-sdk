@@ -5,6 +5,9 @@
   "type": "module",
   "private": true,
   "packageManager": "bun@1.2.6",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "bun run src/cli/index.ts",
     "lint": "bunx eslint .",
