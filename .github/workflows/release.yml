@@ -194,6 +194,7 @@ jobs:
               const installInstructions = [
                 "Test this PR:",
                 "",
+                "PR artifacts require download via GitHub CLI (no direct install URL):",
                 "```bash",
                 `gh run download ${runId} -n cli-preview-${version} -R ${repoFull}`,
                 "",
@@ -211,11 +212,6 @@ jobs:
                 "",
                 installInstructions,
                 "",
-                "Build output:",
-                "",
-                "```text",
-                output,
-                "```",
                 "</details>",
               ].join("\n");
             } else {
