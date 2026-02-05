@@ -25,7 +25,10 @@ jobs:
         with:
           bun-version: "1.2.6"
 
-      - run: bun install --frozen-lockfile
+      - name: Install dependencies
+        run: |
+          bun install --frozen-lockfile
+          for pkg in packages/*/; do bun install --frozen-lockfile --cwd "$pkg"; done
 
       - name: Run build
         id: build

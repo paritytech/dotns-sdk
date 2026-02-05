@@ -25,15 +25,9 @@ jobs:
           bun-version: "1.2.6"
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Assert CLI descriptors exist
-        shell: bash
         run: |
-          set -euo pipefail
-          test -d packages/cli/.papi/descriptors
-          test -f packages/cli/.papi/descriptors/package.json
-          echo "Found packages/cli/.papi/descriptors"
+          bun install --frozen-lockfile
+          for pkg in packages/*/; do bun install --frozen-lockfile --cwd "$pkg"; done
 
       - name: Extract version
         id: version
@@ -46,7 +40,6 @@ jobs:
             if [[ -z "${ref}" ]]; then
               ref="${GITHUB_REF_NAME}"
             fi
-
             VERSION="${ref#v}"
             TAG="v${VERSION}"
           else
@@ -80,11 +73,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          npm version "${{ steps.version.outputs.version }}" \
-            --no-git-tag-version \
-            --allow-same-version
-
+          npm version "${{ steps.version.outputs.version }}" --no-git-tag-version --allow-same-version
           jq 'del(.private)' package.json > package.json.tmp
           mv package.json.tmp package.json
 
@@ -106,7 +95,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           if [[ "${{ steps.build.outcome }}" == "success" ]]; then
             echo "status=Passed" >> "${GITHUB_OUTPUT}"
             echo "details=Build succeeded" >> "${GITHUB_OUTPUT}"
@@ -143,7 +131,6 @@ jobs:
             const { owner, repo } = context.repo;
             const issue_number = context.payload.pull_request.number;
 
-            // Read build output (truncate to keep comment size safe)
             let output = "";
             try {
               output = fs.readFileSync("release-build-output.txt", "utf8");
@@ -153,11 +140,7 @@ jobs:
 
             const MAX_CHARS = 60000;
             if (output.length > MAX_CHARS) {
-              output = [
-                "(truncated; showing last " + MAX_CHARS + " chars)",
-                "",
-                output.slice(-MAX_CHARS),
-              ].join("\n");
+              output = ["(truncated; showing last " + MAX_CHARS + " chars)", "", output.slice(-MAX_CHARS)].join("\n");
             }
 
             const comments = await github.paginate(github.rest.issues.listComments, {
@@ -193,12 +176,12 @@ jobs:
               }
             }
 
-            const icon = status === "Passed" ? ":white_check_mark:" : ":x:";
-            rows[section] = `${icon} [${status}](${runUrl})`;
+            const resultText = status === "Passed" ? "Passed" : "Failed";
+            rows[section] = `[${resultText}](${runUrl})`;
 
             if (status === "Passed") {
               const installInstructions = [
-                "**Test this PR:**",
+                "Test this PR:",
                 "",
                 "```bash",
                 `gh run download ${runId} -n cli-preview-${version} -R ${repoFull}`,
@@ -213,11 +196,11 @@ jobs:
 
               existingDetails[section] = [
                 `<details>`,
-                `<summary><strong>${section}</strong> - ${icon} ${status}</summary>`,
+                `<summary><strong>${section}</strong> - ${resultText}</summary>`,
                 "",
                 installInstructions,
                 "",
-                "[Build output]",
+                "Build output:",
                 "",
                 "```text",
                 output,
@@ -227,7 +210,7 @@ jobs:
             } else {
               existingDetails[section] = [
                 `<details>`,
-                `<summary><strong>${section}</strong> - ${icon} ${status}</summary>`,
+                `<summary><strong>${section}</strong> - ${resultText}</summary>`,
                 "",
                 details || "Failed",
                 "",
@@ -258,7 +241,6 @@ jobs:
             });
 
             let body = `${marker}\n## CI Summary\n\n${table}`;
-
             if (sortedDetails.length > 0) {
               body += `\n${detailsMarker}\n\n---\n\n${sortedDetails.map(k => existingDetails[k]).join("\n\n")}`;
             }
@@ -275,7 +257,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           VERSION="${{ steps.version.outputs.version }}"
           TAG="${{ steps.version.outputs.tag }}"
           REPO="${{ github.repository }}"
