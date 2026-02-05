@@ -192,24 +192,21 @@ jobs:
 
             if (status === "Passed") {
               const installInstructions = [
-                "Test this PR:",
+                "**Test this PR**",
                 "",
-                "PR artifacts require download via GitHub CLI (no direct install URL):",
+                "Download artifact (GitHub CLI required):",
                 "```bash",
                 `gh run download ${runId} -n cli-preview-${version} -R ${repoFull}`,
                 "```",
                 "",
-                "Then install:",
-                "```bash",
-                "# npm (recommended, works everywhere)",
-                `npm install -g ./dotns-cli-${version}.tgz`,
+                "Install globally:",
                 "",
-                "# bun (requires absolute path)",
-                "# macOS/Linux:",
-                `bun add -g "$(pwd)/dotns-cli-${version}.tgz"`,
-                "# Windows PowerShell:",
-                `# bun add -g "$PWD\\dotns-cli-${version}.tgz"`,
-                "```",
+                "| Package Manager | Command |",
+                "|:----------------|:--------|",
+                `| npm | \`npm install -g ./dotns-cli-${version}.tgz\` |`,
+                `| yarn | \`yarn global add ./dotns-cli-${version}.tgz\` |`,
+                `| bun (macOS/Linux) | \`bun add -g "$(pwd)/dotns-cli-${version}.tgz"\` |`,
+                `| bun (Windows) | \`bun add -g "$PWD\\dotns-cli-${version}.tgz"\` |`,
                 "",
                 "Verify:",
                 "```bash",
@@ -282,22 +279,19 @@ jobs:
           cat > release-body.md <<EOF
           ## Installation
 
-          Download the release:
+          Download:
           \`\`\`bash
           gh release download ${TAG} -p "*.tgz" -R ${REPO}
           \`\`\`
 
           Install:
-          \`\`\`bash
-          # npm (recommended, works everywhere)
-          npm install -g ./dotns-cli-${VERSION}.tgz
 
-          # bun (requires absolute path)
-          # macOS/Linux:
-          bun add -g "\$(pwd)/dotns-cli-${VERSION}.tgz"
-          # Windows PowerShell:
-          # bun add -g "\$PWD\\dotns-cli-${VERSION}.tgz"
-          \`\`\`
+          | Package Manager | Command |
+          |:----------------|:--------|
+          | npm | \`npm install -g ./dotns-cli-${VERSION}.tgz\` |
+          | yarn | \`yarn global add ./dotns-cli-${VERSION}.tgz\` |
+          | bun (macOS/Linux) | \`bun add -g "\$(pwd)/dotns-cli-${VERSION}.tgz"\` |
+          | bun (Windows) | \`bun add -g "\$PWD\\dotns-cli-${VERSION}.tgz"\` |
 
           Verify:
           \`\`\`bash
