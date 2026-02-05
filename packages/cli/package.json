@@ -12,7 +12,7 @@
     "format": "bunx prettier --check .",
     "format:fix": "bunx prettier --write \"**/*.{js,ts,json,md}\" \"!abis/**\"",
     "typecheck": "bunx tsc --noEmit",
-    "build": "bunx tsc && chmod +x dist/cli/index.js",
+    "build": "bunx tsc -p tsconfig.build.json && chmod +x dist/src/cli/index.js",
     "prepublishOnly": "bun run build",
     "postinstall": "bun run ./installIPFS.ts || true"
   },
@@ -20,10 +20,10 @@
     "bun": ">=1.2.6"
   },
   "bin": {
-    "dotns": "./dist/cli/index.js"
+    "dotns": "./dist/src/cli/index.js"
   },
   "exports": {
-    ".": "./dist/cli/index.js"
+    ".": "./dist/src/cli/index.js"
   },
   "devDependencies": {
     "@types/bun": "^1.2.6",

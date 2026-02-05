@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+
+    "outDir": "dist",
+    "rootDir": ".",
+
+    "allowImportingTsExtensions": false
+  },
+  "include": ["src/**/*.ts", "installIPFS.ts"]
+}
