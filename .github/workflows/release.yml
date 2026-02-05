@@ -173,7 +173,7 @@ jobs:
                 }
               }
 
-              const detailsRegex = /<details>\s*<summary><strong>([^<]+)<\/strong><\/summary>([\s\S]*?)<\/details>/g;
+              const detailsRegex = /<details>\s*<summary><strong>([^<]+)<\/strong>.*?<\/summary>([\s\S]*?)<\/details>/g;
               let detailMatch;
               while ((detailMatch = detailsRegex.exec(existing.body)) !== null) {
                 existingDetails[detailMatch[1].trim()] = detailMatch[0];
