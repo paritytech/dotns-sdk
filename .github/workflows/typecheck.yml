@@ -26,9 +26,13 @@ jobs:
           bun-version: "1.2.6"
 
       - name: Install dependencies
+        shell: bash
         run: |
+          set -euo pipefail
           bun install --frozen-lockfile
-          for pkg in packages/*/; do bun install --frozen-lockfile --cwd "$pkg"; done
+          for pkg in packages/*; do
+            [ -f "$pkg/package.json" ] && bun install --cwd "$pkg"
+          done
 
       - name: Run typecheck
         id: typecheck
@@ -81,6 +85,8 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
+            const fs = require("fs");
+
             const marker = "<!-- ci-summary -->";
             const detailsMarker = "<!-- details-section -->";
             const section = process.env.SECTION;
@@ -91,6 +97,22 @@ jobs:
 
             const { owner, repo } = context.repo;
             const issue_number = context.payload.pull_request.number;
+
+            let output = "";
+            try {
+              output = fs.readFileSync("typecheck-output.txt", "utf8");
+            } catch (_) {
+              output = "(typecheck-output.txt not found)";
+            }
+
+            const MAX_CHARS = 60000;
+            if (output.length > MAX_CHARS) {
+              output = [
+                "(truncated; showing last " + MAX_CHARS + " chars)",
+                "",
+                output.slice(-MAX_CHARS),
+              ].join("\n");
+            }
 
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner, repo, issue_number, per_page: 100,
@@ -128,23 +150,21 @@ jobs:
             const resultText = status === "Passed" ? "Passed" : "Failed";
             rows[section] = details ? `[${resultText}](${runUrl}) - ${details}` : `[${resultText}](${runUrl})`;
 
-            if (status === "Failed" && errors.trim()) {
-              const errorLines = errors
-                .split("\n")
-                .map(l => l.trim())
-                .filter(Boolean)
-                .map(l => `\`${l}\``)
-                .join("\n");
+            const detailsBlock = [
+              `<details>`,
+              `<summary><strong>${section}</strong> - ${resultText}</summary>`,
+              "",
+              details || "",
+              "",
+              `[View run](${runUrl})`,
+              "",
+              "```text",
+              output,
+              "```",
+              "</details>",
+            ].join("\n").replace(/\n\n\n+/g, "\n\n");
 
-              existingDetails[section] =
-                `<details>\n` +
-                `<summary><strong>${section}</strong> - ${resultText}</summary>\n\n` +
-                `${errorLines}\n\n` +
-                `[View run](${runUrl})\n\n` +
-                `</details>`;
-            } else {
-              delete existingDetails[section];
-            }
+            existingDetails[section] = detailsBlock;
 
             const order = ["Lint", "Format", "Typecheck", "Build", "Release", "PR Title", "Labels"];
             const sortedKeys = Object.keys(rows).sort((a, b) => {

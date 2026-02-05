@@ -25,11 +25,13 @@ jobs:
           bun-version: "1.2.6"
 
       - name: Install dependencies
+        shell: bash
         run: |
+          set -euo pipefail
           bun install --frozen-lockfile
           for pkg in packages/*; do
-            [ -f "$pkg/package.json" ] && bun install --frozen-lockfile --cwd "$pkg"
-            done
+            [ -f "$pkg/package.json" ] && bun install --cwd "$pkg"
+          done
 
       - name: Extract version
         id: version
