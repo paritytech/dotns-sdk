@@ -80,13 +80,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "${{ steps.validate.outcome }}" == "success" ]]; then
-            echo "status=Passed" >> "${GITHUB_OUTPUT}"
-            echo "details=Site validated" >> "${GITHUB_OUTPUT}"
+          if [[ "$VALIDATE_OUTCOME" == "success" ]]; then
+            echo "status=Passed" >> "$GITHUB_OUTPUT"
+            echo "details=Site validated" >> "$GITHUB_OUTPUT"
           else
-            echo "status=Failed" >> "${GITHUB_OUTPUT}"
-            echo "details=Site validation failed" >> "${GITHUB_OUTPUT}"
+            echo "status=Failed" >> "$GITHUB_OUTPUT"
+            echo "details=Site validation failed" >> "$GITHUB_OUTPUT"
           fi
+        env:
+          VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
 
       - name: Fail if validation failed
         if: steps.validate.outcome == 'failure'
@@ -126,6 +128,7 @@ jobs:
           DEPLOY_CID: ${{ needs.deploy.outputs.cid }}
           DEPLOY_FQDN: ${{ needs.deploy.outputs.fqdn }}
           DEPLOY_URL: ${{ needs.deploy.outputs.url }}
+          DEPLOY_CACHE_HIT: ${{ needs.deploy.outputs.cache-hit }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
@@ -140,10 +143,10 @@ jobs:
             const cid = process.env.DEPLOY_CID;
             const fqdn = process.env.DEPLOY_FQDN;
             const url = process.env.DEPLOY_URL;
+            const cacheHit = process.env.DEPLOY_CACHE_HIT === "true";
             const runUrl = process.env.RUN_URL;
 
             const passed = buildStatus === "Passed" && deployResult === "success";
-            const status = passed ? "Passed" : "Failed";
 
             const { owner, repo } = context.repo;
             const issue_number = context.payload.pull_request.number;
@@ -197,6 +200,8 @@ jobs:
             rows[section] = `[${resultText}](${runUrl})`;
 
             if (passed && cid && fqdn) {
+              const cidDisplay = cacheHit ? `\`${cid}\` (cached)` : `\`${cid}\``;
+
               existingDetails[section] = [
                 `<details>`,
                 `<summary><strong>${section}</strong> - ${resultText}</summary>`,
@@ -204,7 +209,7 @@ jobs:
                 `| Property | Value |`,
                 `|----------|-------|`,
                 `| Domain | \`${fqdn}\` |`,
-                `| CID | \`${cid}\` |`,
+                `| CID | ${cidDisplay} |`,
                 `| URL | [${url}](${url}) |`,
                 "",
                 `[View run](${runUrl})`,

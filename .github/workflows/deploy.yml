@@ -2,6 +2,10 @@
 # It uploads the build artifact to Bulletin, optionally registers a base domain
 # or preview subname, sets the contenthash, and outputs the resulting CID/URL.
 #
+# The workflow is structured as discrete stages so that a failure at any point
+# (e.g. contenthash update) does not force earlier stages (e.g. upload) to re-run.
+# A content-addressable cache skips the upload entirely when the build hasn't changed.
+#
 # Modes:
 #   preview    — registers a subname (e.g. pr42.mysite.dot) under the base domain
 #   production — deploys directly to the base domain (e.g. mysite.dot)
@@ -59,6 +63,24 @@ on:
         type: string
         default: 'v0.1.0'
 
+      skip-cache:
+        description: 'Skip deployment cache and force re-upload'
+        required: false
+        type: boolean
+        default: false
+
+      max-retries:
+        description: 'Max retry attempts per step for transient RPC failures'
+        required: false
+        type: number
+        default: 3
+
+      retry-delay:
+        description: 'Seconds to wait between retries'
+        required: false
+        type: number
+        default: 15
+
     secrets:
       mnemonic:
         description: 'BIP39 mnemonic phrase'
@@ -71,6 +93,8 @@ on:
         value: ${{ jobs.deploy.outputs.fqdn }}
       url:
         value: ${{ jobs.deploy.outputs.url }}
+      cache-hit:
+        value: ${{ jobs.deploy.outputs.cache-hit }}
 
 jobs:
   deploy:
@@ -80,8 +104,11 @@ jobs:
       cid: ${{ steps.final.outputs.cid }}
       fqdn: ${{ steps.final.outputs.fqdn }}
       url: ${{ steps.final.outputs.url }}
+      cache-hit: ${{ steps.cache.outputs.cache-hit }}
 
     steps:
+      # ── Stage 1: Environment ───────────────────────────────────────
+
       - name: Resolve authentication
         id: auth
         run: |
@@ -139,6 +166,8 @@ jobs:
           CLI_VERSION: ${{ inputs.cli-version }}
           GITHUB_REPOSITORY: ${{ github.repository }}
 
+      # ── Stage 2: Resolve target ────────────────────────────────────
+
       - name: Resolve target
         id: target
         run: |
@@ -170,46 +199,161 @@ jobs:
           HEAD_REF: ${{ github.head_ref }}
           COMMIT_SHA: ${{ github.sha }}
 
-      - name: Register base domain
-        if: inputs.register-base
-        run: dotns register domain --name "$BASENAME"
-        continue-on-error: true
-        env:
-          BASENAME: ${{ inputs.basename }}
+      # ── Stage 3: Upload (with content-addressable cache) ───────────
+
+      - name: Compute build hash
+        id: hash
+        run: |
+          HASH=$(find build -type f -exec sha256sum {} \; | sort | sha256sum | cut -d' ' -f1)
+          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+          echo "Build hash: $HASH"
+
+      - name: Check deployment cache
+        id: cache
+        if: inputs.skip-cache != true
+        uses: actions/cache@v4
+        with:
+          path: .deploy-cache
+          key: deploy-${{ steps.hash.outputs.hash }}
+
+      - name: Load cached CID
+        id: cached
+        if: steps.cache.outputs.cache-hit == 'true'
+        run: |
+          CID=$(cat .deploy-cache/cid)
+          echo "cid=$CID" >> "$GITHUB_OUTPUT"
+          echo "::notice::Cache hit — reusing CID: $CID"
 
       - name: Upload to Bulletin
         id: upload
+        if: steps.cache.outputs.cache-hit != 'true'
         run: |
           ARGS=(./build --json)
           [[ -n "$BULLETIN_RPC" ]] && ARGS+=(--bulletin-rpc "$BULLETIN_RPC")
 
-          RESULT=$(dotns bulletin upload "${ARGS[@]}")
-          echo "cid=$(echo "$RESULT" | jq -r '.cid')" >> "$GITHUB_OUTPUT"
-          echo "contenthash=$(echo "$RESULT" | jq -r '.contenthash')" >> "$GITHUB_OUTPUT"
+          for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
+            echo "Upload attempt $ATTEMPT/$MAX_RETRIES"
+
+            if RESULT=$(dotns bulletin upload "${ARGS[@]}" 2>&1); then
+              CID=$(echo "$RESULT" | jq -r '.cid')
+              CONTENTHASH=$(echo "$RESULT" | jq -r '.contenthash')
+
+              if [[ -n "$CID" && "$CID" != "null" ]]; then
+                echo "cid=$CID" >> "$GITHUB_OUTPUT"
+                echo "contenthash=$CONTENTHASH" >> "$GITHUB_OUTPUT"
+                echo "::notice::Uploaded CID: $CID"
+                exit 0
+              fi
+            fi
+
+            echo "::warning::Upload attempt $ATTEMPT failed"
+            [[ "$ATTEMPT" -lt "$MAX_RETRIES" ]] && sleep "$RETRY_DELAY"
+          done
+
+          echo "::error::Upload failed after $MAX_RETRIES attempts"
+          exit 1
         env:
           BULLETIN_RPC: ${{ inputs.bulletin-rpc }}
+          MAX_RETRIES: ${{ inputs.max-retries }}
+          RETRY_DELAY: ${{ inputs.retry-delay }}
+
+      - name: Save CID to cache
+        if: steps.cache.outputs.cache-hit != 'true' && steps.upload.outputs.cid != ''
+        run: |
+          mkdir -p .deploy-cache
+          echo "$CID" > .deploy-cache/cid
+        env:
+          CID: ${{ steps.upload.outputs.cid }}
+
+      - name: Resolve CID
+        id: cid
+        run: |
+          CID="${CACHED_CID:-$UPLOAD_CID}"
+
+          if [[ -z "$CID" ]]; then
+            echo "::error::No CID available from cache or upload"
+            exit 1
+          fi
+
+          echo "cid=$CID" >> "$GITHUB_OUTPUT"
+        env:
+          CACHED_CID: ${{ steps.cached.outputs.cid }}
+          UPLOAD_CID: ${{ steps.upload.outputs.cid }}
+
+      # ── Stage 4: Register (if needed) ──────────────────────────────
+
+      - name: Register base domain
+        if: inputs.register-base
+        run: |
+          for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
+            echo "Register base attempt $ATTEMPT/$MAX_RETRIES"
+
+            if dotns register domain --name "$BASENAME" 2>&1; then
+              exit 0
+            fi
+
+            echo "::warning::Register base attempt $ATTEMPT failed"
+            [[ "$ATTEMPT" -lt "$MAX_RETRIES" ]] && sleep "$RETRY_DELAY"
+          done
+
+          # Non-fatal: domain may already exist
+          echo "::warning::Base domain registration failed — may already exist"
+        env:
+          BASENAME: ${{ inputs.basename }}
+          MAX_RETRIES: ${{ inputs.max-retries }}
+          RETRY_DELAY: ${{ inputs.retry-delay }}
 
       - name: Register subname
         if: inputs.mode == 'preview'
         run: |
-          dotns register subname \
-            --name "$SUBNAME" \
-            --parent "$BASENAME"
-        continue-on-error: true
+          for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
+            echo "Register subname attempt $ATTEMPT/$MAX_RETRIES"
+
+            if dotns register subname --name "$SUBNAME" --parent "$BASENAME" 2>&1; then
+              exit 0
+            fi
+
+            echo "::warning::Register subname attempt $ATTEMPT failed"
+            [[ "$ATTEMPT" -lt "$MAX_RETRIES" ]] && sleep "$RETRY_DELAY"
+          done
+
+          # Non-fatal: subname may already exist from a previous PR push
+          echo "::warning::Subname registration failed — may already exist"
         env:
           SUBNAME: ${{ steps.target.outputs.subname }}
           BASENAME: ${{ inputs.basename }}
+          MAX_RETRIES: ${{ inputs.max-retries }}
+          RETRY_DELAY: ${{ inputs.retry-delay }}
+
+      # ── Stage 5: Set contenthash ───────────────────────────────────
 
       - name: Set contenthash
         run: |
           ARGS=("$DOMAIN" "$CID")
           [[ -n "$RPC" ]] && ARGS+=(--rpc "$RPC")
 
-          dotns content set "${ARGS[@]}"
+          for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
+            echo "Contenthash attempt $ATTEMPT/$MAX_RETRIES"
+
+            if dotns content set "${ARGS[@]}" 2>&1; then
+              echo "::notice::Contenthash set for $DOMAIN"
+              exit 0
+            fi
+
+            echo "::warning::Contenthash attempt $ATTEMPT failed"
+            [[ "$ATTEMPT" -lt "$MAX_RETRIES" ]] && sleep "$RETRY_DELAY"
+          done
+
+          echo "::error::Failed to set contenthash after $MAX_RETRIES attempts"
+          exit 1
         env:
           DOMAIN: ${{ steps.target.outputs.domain }}
-          CID: ${{ steps.upload.outputs.cid }}
+          CID: ${{ steps.cid.outputs.cid }}
           RPC: ${{ inputs.rpc }}
+          MAX_RETRIES: ${{ inputs.max-retries }}
+          RETRY_DELAY: ${{ inputs.retry-delay }}
+
+      # ── Stage 6: Outputs ───────────────────────────────────────────
 
       - name: Set outputs
         id: final
@@ -218,12 +362,17 @@ jobs:
           echo "fqdn=$FQDN" >> "$GITHUB_OUTPUT"
           echo "url=https://${DOMAIN}.paseo.li" >> "$GITHUB_OUTPUT"
         env:
-          CID: ${{ steps.upload.outputs.cid }}
+          CID: ${{ steps.cid.outputs.cid }}
           FQDN: ${{ steps.target.outputs.fqdn }}
           DOMAIN: ${{ steps.target.outputs.domain }}
 
       - name: Summary
         run: |
+          CACHE_NOTE=""
+          if [[ "$CACHE_HIT" == "true" ]]; then
+            CACHE_NOTE=" (cached)"
+          fi
+
           cat >> "$GITHUB_STEP_SUMMARY" <<EOF
           ## Deployment Complete
 
@@ -231,7 +380,7 @@ jobs:
           |----------|-------|
           | Mode | \`${MODE}\` |
           | Domain | \`${FQDN}\` |
-          | CID | \`${CID}\` |
+          | CID | \`${CID}\`${CACHE_NOTE} |
           | URL | [${URL}](${URL}) |
           | Auth | ${AUTH_METHOD} |
           EOF
@@ -241,3 +390,4 @@ jobs:
           CID: ${{ steps.final.outputs.cid }}
           URL: ${{ steps.final.outputs.url }}
           AUTH_METHOD: ${{ steps.auth.outputs.method }}
+          CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}

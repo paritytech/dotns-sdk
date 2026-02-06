@@ -1,3 +1,4 @@
+# Deploy the site to a DotNS base domain on every push to main.
 name: Deploy
 
 on:
