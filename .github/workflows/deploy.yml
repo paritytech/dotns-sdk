@@ -1,3 +1,10 @@
+# Reusable workflow that deploys a static site to Polkadot via the DotNS CLI.
+# It uploads the build artifact to Bulletin, optionally registers a base domain
+# or preview subname, sets the contenthash, and outputs the resulting CID/URL.
+#
+# Modes:
+#   preview    — registers a subname (e.g. pr42.mysite.dot) under the base domain
+#   production — deploys directly to the base domain (e.g. mysite.dot)
 name: Deploy on Polkadot
 
 on:
@@ -93,9 +100,11 @@ jobs:
           fi
 
           if [[ -n "$INPUT_MNEMONIC" ]]; then
+            echo "::add-mask::$INPUT_MNEMONIC"
             echo "DOTNS_MNEMONIC=$INPUT_MNEMONIC" >> "$GITHUB_ENV"
             echo "method=mnemonic" >> "$GITHUB_OUTPUT"
           elif [[ -n "$INPUT_KEY_URI" ]]; then
+            echo "::add-mask::$INPUT_KEY_URI"
             echo "DOTNS_KEY_URI=$INPUT_KEY_URI" >> "$GITHUB_ENV"
             echo "method=key-uri" >> "$GITHUB_OUTPUT"
           fi
@@ -123,81 +132,112 @@ jobs:
 
       - name: Install CLI
         run: |
-          gh release download ${{ inputs.cli-version }} -p "*.tgz" -R ${{ github.repository }}
+          gh release download "$CLI_VERSION" -p "*.tgz" -R "$GITHUB_REPOSITORY"
           npm install -g ./dotns-cli-*.tgz
         env:
           GH_TOKEN: ${{ github.token }}
+          CLI_VERSION: ${{ inputs.cli-version }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
 
       - name: Resolve target
         id: target
         run: |
-          if [[ "${{ inputs.mode }}" == "production" ]]; then
-            echo "domain=${{ inputs.basename }}" >> "$GITHUB_OUTPUT"
-            echo "fqdn=${{ inputs.basename }}.dot" >> "$GITHUB_OUTPUT"
+          if [[ "$MODE" == "production" ]]; then
+            echo "domain=$BASENAME" >> "$GITHUB_OUTPUT"
+            echo "fqdn=${BASENAME}.dot" >> "$GITHUB_OUTPUT"
           else
-            case "${{ inputs.subname-format }}" in
+            case "$SUBNAME_FORMAT" in
               pr-number)
-                SUBNAME="pr${{ github.event.pull_request.number }}"
+                SUBNAME="pr${PR_NUMBER}"
                 ;;
               branch)
-                SUBNAME=$(echo "${{ github.head_ref }}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | cut -c1-20 | sed 's/-$//')
+                SUBNAME=$(echo "$HEAD_REF" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | cut -c1-20 | sed 's/-$//')
                 ;;
               sha-short)
-                SUBNAME=$(echo "${{ github.sha }}" | cut -c1-7)
+                SUBNAME=$(echo "$COMMIT_SHA" | cut -c1-7)
                 ;;
             esac
 
             echo "subname=$SUBNAME" >> "$GITHUB_OUTPUT"
-            echo "domain=${SUBNAME}.${{ inputs.basename }}" >> "$GITHUB_OUTPUT"
-            echo "fqdn=${SUBNAME}.${{ inputs.basename }}.dot" >> "$GITHUB_OUTPUT"
+            echo "domain=${SUBNAME}.${BASENAME}" >> "$GITHUB_OUTPUT"
+            echo "fqdn=${SUBNAME}.${BASENAME}.dot" >> "$GITHUB_OUTPUT"
           fi
+        env:
+          MODE: ${{ inputs.mode }}
+          BASENAME: ${{ inputs.basename }}
+          SUBNAME_FORMAT: ${{ inputs.subname-format }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REF: ${{ github.head_ref }}
+          COMMIT_SHA: ${{ github.sha }}
 
       - name: Register base domain
         if: inputs.register-base
-        run: dotns register domain --name ${{ inputs.basename }}
+        run: dotns register domain --name "$BASENAME"
         continue-on-error: true
+        env:
+          BASENAME: ${{ inputs.basename }}
 
       - name: Upload to Bulletin
         id: upload
         run: |
-          ARGS="./build --json"
-          [[ -n "${{ inputs.bulletin-rpc }}" ]] && ARGS="$ARGS --bulletin-rpc ${{ inputs.bulletin-rpc }}"
+          ARGS=(./build --json)
+          [[ -n "$BULLETIN_RPC" ]] && ARGS+=(--bulletin-rpc "$BULLETIN_RPC")
 
-          RESULT=$(dotns bulletin upload $ARGS)
+          RESULT=$(dotns bulletin upload "${ARGS[@]}")
           echo "cid=$(echo "$RESULT" | jq -r '.cid')" >> "$GITHUB_OUTPUT"
           echo "contenthash=$(echo "$RESULT" | jq -r '.contenthash')" >> "$GITHUB_OUTPUT"
+        env:
+          BULLETIN_RPC: ${{ inputs.bulletin-rpc }}
 
       - name: Register subname
         if: inputs.mode == 'preview'
         run: |
           dotns register subname \
-            --name ${{ steps.target.outputs.subname }} \
-            --parent ${{ inputs.basename }}
+            --name "$SUBNAME" \
+            --parent "$BASENAME"
         continue-on-error: true
+        env:
+          SUBNAME: ${{ steps.target.outputs.subname }}
+          BASENAME: ${{ inputs.basename }}
 
       - name: Set contenthash
         run: |
-          ARGS="${{ steps.target.outputs.domain }} ${{ steps.upload.outputs.cid }}"
-          [[ -n "${{ inputs.rpc }}" ]] && ARGS="$ARGS --rpc ${{ inputs.rpc }}"
+          ARGS=("$DOMAIN" "$CID")
+          [[ -n "$RPC" ]] && ARGS+=(--rpc "$RPC")
 
-          dotns content set $ARGS
+          dotns content set "${ARGS[@]}"
+        env:
+          DOMAIN: ${{ steps.target.outputs.domain }}
+          CID: ${{ steps.upload.outputs.cid }}
+          RPC: ${{ inputs.rpc }}
 
       - name: Set outputs
         id: final
         run: |
-          DOMAIN="${{ steps.target.outputs.domain }}"
-          echo "cid=${{ steps.upload.outputs.cid }}" >> "$GITHUB_OUTPUT"
-          echo "fqdn=${{ steps.target.outputs.fqdn }}" >> "$GITHUB_OUTPUT"
+          echo "cid=$CID" >> "$GITHUB_OUTPUT"
+          echo "fqdn=$FQDN" >> "$GITHUB_OUTPUT"
           echo "url=https://${DOMAIN}.paseo.li" >> "$GITHUB_OUTPUT"
+        env:
+          CID: ${{ steps.upload.outputs.cid }}
+          FQDN: ${{ steps.target.outputs.fqdn }}
+          DOMAIN: ${{ steps.target.outputs.domain }}
 
       - name: Summary
         run: |
-          echo "## Deployment Complete" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Mode | \`${{ inputs.mode }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Domain | \`${{ steps.final.outputs.fqdn }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| CID | \`${{ steps.final.outputs.cid }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| URL | [${{ steps.final.outputs.url }}](${{ steps.final.outputs.url }}) |" >> $GITHUB_STEP_SUMMARY
-          echo "| Auth | ${{ steps.auth.outputs.method }} |" >> $GITHUB_STEP_SUMMARY
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## Deployment Complete
+
+          | Property | Value |
+          |----------|-------|
+          | Mode | \`${MODE}\` |
+          | Domain | \`${FQDN}\` |
+          | CID | \`${CID}\` |
+          | URL | [${URL}](${URL}) |
+          | Auth | ${AUTH_METHOD} |
+          EOF
+        env:
+          MODE: ${{ inputs.mode }}
+          FQDN: ${{ steps.final.outputs.fqdn }}
+          CID: ${{ steps.final.outputs.cid }}
+          URL: ${{ steps.final.outputs.url }}
+          AUTH_METHOD: ${{ steps.auth.outputs.method }}

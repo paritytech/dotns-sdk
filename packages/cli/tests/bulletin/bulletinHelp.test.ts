@@ -70,9 +70,7 @@ test("bulletin authorize help shows default values", async () => {
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 
   expect(result.combinedOutput).toContain("wss://bulletin.dotspark.app");
-  expect(result.combinedOutput).toContain(
-    "1HARNESS_HELP_SUCCESS_EXIT_CODEHARNESS_HELP_SUCCESS_EXIT_CODEHARNESS_HELP_SUCCESS_EXIT_CODEHARNESS_HELP_SUCCESS_EXIT_CODEHARNESS_HELP_SUCCESS_EXIT_CODEHARNESS_HELP_SUCCESS_EXIT_CODE",
-  );
+ expect(result.combinedOutput).toContain("1000000");
 });
 
 test("bulletin history help shows options", async () => {

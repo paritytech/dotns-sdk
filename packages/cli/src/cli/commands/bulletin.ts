@@ -65,7 +65,16 @@ function formatBytes(bytes: bigint | number): string {
   return `${value.toFixed(2)} ${units[unitIndex]}`;
 }
 
-async function withSilentConsole<T>(callback: () => Promise<T>): Promise<T> {
+async function withCapturedConsole<T>(callback: () => Promise<T>): Promise<T> {
+  const captured: string[] = [];
+  const capture = (...args: any[]) => {
+    captured.push(args.map(String).join(" "));
+  };
+  const captureWrite = (chunk: any) => {
+    captured.push(String(chunk));
+    return true;
+  };
+
   const saved = {
     log: console.log,
     error: console.error,
@@ -75,18 +84,18 @@ async function withSilentConsole<T>(callback: () => Promise<T>): Promise<T> {
     stderrWrite: process.stderr.write.bind(process.stderr),
   };
 
-  const noop = () => {};
-  const noopWrite = () => true;
-
-  console.log = noop;
-  console.error = noop;
-  console.warn = noop;
-  console.info = noop;
-  process.stdout.write = noopWrite as any;
-  process.stderr.write = noopWrite as any;
+  console.log = capture;
+  console.error = capture;
+  console.warn = capture;
+  console.info = capture;
+  process.stdout.write = captureWrite as any;
+  process.stderr.write = captureWrite as any;
 
   try {
     return await callback();
+  } catch (error) {
+    saved.error("[captured output before failure]\n" + captured.join("\n"));
+    throw error;
   } finally {
     console.log = saved.log;
     console.error = saved.error;
@@ -95,6 +104,11 @@ async function withSilentConsole<T>(callback: () => Promise<T>): Promise<T> {
     process.stdout.write = saved.stdoutWrite;
     process.stderr.write = saved.stderrWrite;
   }
+}
+
+/** Conditionally wraps a callback in captured-console mode when JSON output is active. */
+function maybeQuiet<T>(jsonOutput: boolean, callback: () => Promise<T>): Promise<T> {
+  return jsonOutput ? withCapturedConsole(callback) : callback();
 }
 
 export function attachBulletinCommands(root: Command): void {
@@ -196,9 +210,9 @@ export function attachBulletinCommands(root: Command): void {
           throw new Error("Cannot specify both --mnemonic and --key-uri");
         }
 
-        const { bytes, isDirectory, resolvedPath } = jsonOutput
-          ? await withSilentConsole(() => validateAndReadPath(inputPath))
-          : await validateAndReadPath(inputPath);
+        const { bytes, isDirectory, resolvedPath } = await maybeQuiet(jsonOutput, () =>
+          validateAndReadPath(inputPath),
+        );
 
         const bulletinRpc = String(mergedOptions.bulletinRpc || DEFAULT_BULLETIN_RPC);
         const chunkSizeBytes = Math.max(
@@ -208,17 +222,13 @@ export function attachBulletinCommands(root: Command): void {
         const parallel = Boolean(mergedOptions.parallel);
         const concurrency = Math.max(1, Number(mergedOptions.concurrency || 5));
 
-        const context = jsonOutput
-          ? await withSilentConsole(() => prepareContext({ ...mergedOptions, useBulletin: true }))
-          : await prepareContext({ ...mergedOptions, useBulletin: true });
+        const context = await maybeQuiet(jsonOutput, () =>
+          prepareContext({ ...mergedOptions, useBulletin: true }),
+        );
 
-        if (jsonOutput) {
-          await withSilentConsole(() =>
-            ensureAccountAuthorized(bulletinRpc, context.signer, context.substrateAddress),
-          );
-        } else {
-          await ensureAccountAuthorized(bulletinRpc, context.signer, context.substrateAddress);
-        }
+        await maybeQuiet(jsonOutput, () =>
+          ensureAccountAuthorized(bulletinRpc, context.signer, context.substrateAddress),
+        );
 
         const performUpload = async () => {
           if (isDirectory) {
@@ -247,7 +257,7 @@ export function attachBulletinCommands(root: Command): void {
         let uploadSize: number;
 
         if (jsonOutput) {
-          const uploadResult = await withSilentConsole(performUpload);
+          const uploadResult = await withCapturedConsole(performUpload);
           cid = uploadResult.cid;
           ipfsCid = uploadResult.ipfsCid;
           uploadSize = uploadResult.size;
@@ -407,7 +417,7 @@ export function attachBulletinCommands(root: Command): void {
     .action(async () => {
       try {
         const count = await clearHistory();
-        const historyPath = await getHistoryPath();
+        const historyPath = getHistoryPath();
 
         console.log(chalk.green(`\n✓ Cleared ${count} upload(s) from history`));
         console.log(chalk.gray(`  ${historyPath}\n`));

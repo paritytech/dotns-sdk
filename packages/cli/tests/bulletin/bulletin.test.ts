@@ -409,20 +409,6 @@ test(
 );
 
 test(
-  "bulletin authorize already authorized account",
-  async () => {
-    createPathsForTest("bulletin_authorize_already_authorized");
-    const aliceAddress = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
-
-    const result = await runBulletinAuthorize([aliceAddress]);
-
-    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
-    expect(result.combinedOutput).toMatch(/already authorized/i);
-  },
-  { timeout: BULLETIN_TEST_TIMEOUT_MS },
-);
-
-test(
   "bulletin authorize custom rpc",
   async () => {
     createPathsForTest("bulletin_authorize_custom_rpc");

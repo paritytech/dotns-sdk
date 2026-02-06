@@ -1,3 +1,8 @@
+# Dogfooding workflow that exercises the reusable deploy.yml workflow on every PR
+# that touches the example site or either workflow file. It validates the static
+# site in examples/deploy/site/, uploads it to Bulletin via the DotNS CLI, and
+# registers a preview subname (e.g. pr42.dotns-example.dot). Results are posted
+# to the PR's CI Summary comment alongside other checks.
 name: Deploy Example
 
 on:
