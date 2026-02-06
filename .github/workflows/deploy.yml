@@ -47,10 +47,10 @@ on:
         type: string
 
       cli-version:
-        description: 'CLI version to install'
+        description: 'CLI release tag to install (e.g., v0.1.0)'
         required: false
         type: string
-        default: '0.1.0'
+        default: 'v0.1.0'
 
     secrets:
       mnemonic:
@@ -118,9 +118,10 @@ jobs:
 
       - name: Install CLI
         run: |
-          echo "@dotns:registry=https://npm.pkg.github.com" >> .npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ github.token }}" >> .npmrc
-          npm install -g @dotns/cli@${{ inputs.cli-version }}
+          gh release download ${{ inputs.cli-version }} -p "*.tgz" -R ${{ github.repository }}
+          npm install -g ./dotns-cli-*.tgz
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Resolve target
         id: target

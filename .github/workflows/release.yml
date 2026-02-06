@@ -12,7 +12,6 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  packages: write
 
 jobs:
   build:
@@ -307,14 +306,6 @@ jobs:
           files: packages/cli/*.tgz
           append_body: true
           body_path: release-body.md
-
-      - name: Publish to GitHub Packages
-        if: github.event_name == 'release' && steps.build.outcome == 'success'
-        working-directory: packages/cli
-        run: |
-          echo "@dotns:registry=https://npm.pkg.github.com" >> .npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
-          npm publish *.tgz
 
       - name: Fail if build failed
         if: steps.build.outcome == 'failure'
