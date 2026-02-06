@@ -16,9 +16,6 @@
     "prepublishOnly": "bun run build",
     "prepare": "bun run ./installIPFS.ts || true; bunx papi generate"
   },
-  "files": [
-    "dist/"
-  ],
   "engines": {
     "bun": ">=1.2.6"
   },
