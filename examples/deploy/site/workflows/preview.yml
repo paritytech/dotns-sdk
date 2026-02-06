@@ -1,5 +1,6 @@
 # Deploy a preview subname (e.g. pr42.example.dot) on every PR update.
 # Uses //Alice for testnet authentication, production previews would
+# use a mnemonic secret instead.
 name: Preview
 
 on:

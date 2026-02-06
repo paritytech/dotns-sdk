@@ -3,6 +3,10 @@
 # site in examples/deploy/site/, uploads it to Bulletin via the DotNS CLI, and
 # registers a preview subname (e.g. pr42.dotns-example.dot). Results are posted
 # to the PR's CI Summary comment alongside other checks.
+#
+# The CLI is built from source (build-cli job) because the current release doesnt support --json yet.
+# Once a release is published, replace cli-artifact-name with cli-version and
+# remove the build-cli job.
 name: Deploy Example
 
 on:
@@ -94,13 +98,39 @@ jobs:
         if: steps.validate.outcome == 'failure'
         run: exit 1
 
+  build-cli:
+    name: Build CLI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.6'
+
+      - name: Build and pack
+        run: |
+          cd packages/cli
+          bun install
+          bun run build
+          npm pack
+
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-tgz
+          path: packages/cli/dotns-cli-*.tgz
+          retention-days: 7
+
   deploy:
     name: Deploy Preview
-    needs: build
+    needs: [build, build-cli]
     uses: ./.github/workflows/deploy.yml
     with:
       basename: dotns-example
       artifact-name: example-site
+      cli-artifact-name: cli-tgz
       key-uri: '//Alice'
 
   comment:

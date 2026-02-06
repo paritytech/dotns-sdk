@@ -63,6 +63,11 @@ on:
         type: string
         default: 'v0.1.0'
 
+      cli-artifact-name:
+        description: 'Build artifact containing CLI tgz (overrides cli-version when set)'
+        required: false
+        type: string
+
       skip-cache:
         description: 'Skip deployment cache and force re-upload'
         required: false
@@ -105,9 +110,8 @@ jobs:
       fqdn: ${{ steps.final.outputs.fqdn }}
       url: ${{ steps.final.outputs.url }}
       cache-hit: ${{ steps.cache.outputs.cache-hit }}
-
+      
     steps:
-      # ── Stage 1: Environment ───────────────────────────────────────
 
       - name: Resolve authentication
         id: auth
@@ -151,22 +155,32 @@ jobs:
         with:
           bun-version: '1.2.6'
 
-      - name: Download artifact
+      - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
           name: ${{ inputs.artifact-name }}
           path: build
 
+      - name: Download CLI artifact
+        if: inputs.cli-artifact-name != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.cli-artifact-name }}
+          path: cli-artifact
+
       - name: Install CLI
         run: |
-          gh release download "$CLI_VERSION" -p "*.tgz" -R "$GITHUB_REPOSITORY"
-          npm install -g ./dotns-cli-*.tgz
+          if [[ -n "$CLI_ARTIFACT" ]]; then
+            npm install -g ./cli-artifact/dotns-cli-*.tgz
+          else
+            gh release download "$CLI_VERSION" -p "*.tgz" -R "$GITHUB_REPOSITORY"
+            npm install -g ./dotns-cli-*.tgz
+          fi
         env:
           GH_TOKEN: ${{ github.token }}
           CLI_VERSION: ${{ inputs.cli-version }}
+          CLI_ARTIFACT: ${{ inputs.cli-artifact-name }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-
-      # ── Stage 2: Resolve target ────────────────────────────────────
 
       - name: Resolve target
         id: target
@@ -198,8 +212,6 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_REF: ${{ github.head_ref }}
           COMMIT_SHA: ${{ github.sha }}
-
-      # ── Stage 3: Upload (with content-addressable cache) ───────────
 
       - name: Compute build hash
         id: hash
@@ -280,8 +292,6 @@ jobs:
           CACHED_CID: ${{ steps.cached.outputs.cid }}
           UPLOAD_CID: ${{ steps.upload.outputs.cid }}
 
-      # ── Stage 4: Register (if needed) ──────────────────────────────
-
       - name: Register base domain
         if: inputs.register-base
         run: |
@@ -325,8 +335,6 @@ jobs:
           MAX_RETRIES: ${{ inputs.max-retries }}
           RETRY_DELAY: ${{ inputs.retry-delay }}
 
-      # ── Stage 5: Set contenthash ───────────────────────────────────
-
       - name: Set contenthash
         run: |
           ARGS=("$DOMAIN" "$CID")
@@ -352,8 +360,6 @@ jobs:
           RPC: ${{ inputs.rpc }}
           MAX_RETRIES: ${{ inputs.max-retries }}
           RETRY_DELAY: ${{ inputs.retry-delay }}
-
-      # ── Stage 6: Outputs ───────────────────────────────────────────
 
       - name: Set outputs
         id: final
