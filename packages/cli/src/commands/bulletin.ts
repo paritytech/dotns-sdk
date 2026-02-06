@@ -173,6 +173,43 @@ export async function authorizeAccount(
       throw new Error("Sudo pallet is not available on this chain");
     }
 
+    const existingAuthorization = await checkAuthorization(rpc, targetAddress);
+
+    if (existingAuthorization.authorized) {
+      const existingTransactions = existingAuthorization.transactions ?? 0;
+      const existingBytes = existingAuthorization.bytes ?? BigInt(0);
+
+      if (existingTransactions >= transactions && existingBytes >= bytes) {
+        client.destroy();
+        spinner.warn("Account already authorized");
+        console.log(
+          chalk.gray("  transactions: ") +
+            chalk.white(existingTransactions.toLocaleString()) +
+            chalk.gray(` (requested: ${transactions.toLocaleString()})`),
+        );
+        console.log(
+          chalk.gray("  bytes:        ") +
+            chalk.white(formatBytesAsHumanReadable(existingBytes)) +
+            chalk.gray(` (requested: ${formatBytesAsHumanReadable(bytes)})`),
+        );
+        return { txHash: "", blockHash: "" };
+      }
+
+      spinner.info("Upgrading authorization limits");
+      console.log(
+        chalk.gray("  transactions: ") +
+          chalk.white(
+            `${existingTransactions.toLocaleString()} → ${transactions.toLocaleString()}`,
+          ),
+      );
+      console.log(
+        chalk.gray("  bytes:        ") +
+          chalk.white(
+            `${formatBytesAsHumanReadable(existingBytes)} → ${formatBytesAsHumanReadable(bytes)}`,
+          ),
+      );
+    }
+
     const sudoTransaction = typedApi.tx.Sudo.sudo({
       call: {
         type: "TransactionStorage",
@@ -355,6 +392,8 @@ export async function uploadChunkedBlocks(
   chunkSizeBytes: number,
 ): Promise<string> {
   const contentChunks = splitBytesIntoChunks(fileBytes, chunkSizeBytes);
+  console.log(chalk.gray("  chunks:   ") + chalk.white(contentChunks.length.toString()));
+
   const spinner = ora(`Storing chunks (0/${contentChunks.length})`).start();
 
   try {

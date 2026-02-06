@@ -1,8 +1,9 @@
 import type { Address, Hex } from "viem";
 import type { StoredAuth } from "../cli/keystore/types";
 import type { Ora } from "ora";
-import type { PolkadotSigner } from "polkadot-api";
-import type { ReviveClientWrapper } from "../client/polkadotClient";
+import type { PolkadotSigner, TypedApi } from "polkadot-api";
+import type { ReviveClientWrapper, PolkadotApiClient } from "../client/polkadotClient";
+import type { Bulletin } from "@polkadot-api/descriptors";
 
 export enum ProofOfPersonhoodStatus {
   NoStatus = 0,
@@ -60,6 +61,8 @@ export type ReviveCallResult = {
 export type RegistrationCommandOptions = {
   /** Domain label to register (without .dot) */
   name?: string;
+  /** Parent domain label for subname registration (without .dot) */
+  parent?: string;
   /** Proof of Personhood status requirement */
   status: "none" | "lite" | "full";
   /** Enable reverse record registration */
@@ -214,6 +217,8 @@ export type BulletinUploadOptions = {
   transactions?: string;
   /** Number of bytes to authorize */
   bytes?: string;
+  /**  Output as json */
+  json: boolean;
 };
 
 export type BulletinStoreParams = {
@@ -499,49 +504,113 @@ export type StoreParameters = {
 };
 
 export type AuthSource = {
-  /** BIP-39 mnemonic phrase used to derive the signing key. */
+  /** BIP-39 mnemonic phrase used to derive the signing key */
   mnemonic?: string;
-  /** Substrate secret URI (SURI) used to derive/load a signing key (e.g. "//Alice"). */
+  /** Substrate secret URI (SURI) used to derive/load a signing key (e.g. "//Alice") */
   keyUri?: string;
-  /** Filesystem path to the encrypted keystore file or directory. */
+  /** Filesystem path to the encrypted keystore file or directory */
   keystorePath?: string;
-  /** Keystore account selector (e.g. profile name or address) to load/unlock. */
+  /** Keystore account selector (e.g. profile name or address) to load/unlock */
   account?: string;
-  /** Password used to unlock/decrypt the keystore or SURI, when required. */
+  /** Password used to unlock/decrypt the keystore or SURI, when required */
   password?: string;
 };
 
 export type LookupActionOptions = CommandOptions &
   AuthSource & {
-    /** Domain label to lookup (commander option passthrough). */
+    /** Domain label to lookup (commander option passthrough) */
     name?: string;
-    /** Internal: resolved label provided positionally. */
+    /** Internal: resolved label provided positionally */
     __positionalLabel?: string;
   };
 
 export type ReadOnlyContextAccount = {
-  /** Substrate SS58 address used for lookups. */
+  /** Substrate SS58 address used for lookups */
   address: string;
 };
 
 export type ReadOnlyContext = {
-  /** Typed chain client wrapper used for queries. */
+  /** Typed chain client wrapper used for queries */
   clientWrapper: ReviveClientWrapper;
-  /** Minimal account object containing only an address for lookups. */
+  /** Minimal account object containing only an address for lookups */
   account: ReadOnlyContextAccount;
-  /** RPC endpoint used to connect to the chain. */
+  /** RPC endpoint used to connect to the chain */
   rpc: string;
-  /** EVM address corresponding to the Substrate address, when resolvable. */
+  /** EVM address corresponding to the Substrate address, when resolvable */
   evmAddress: string;
 };
 
 export type ResolvedReadOnlyAuth = {
-  /** Secret source used to derive the signing key (mnemonic or SURI). */
+  /** Secret source used to derive the signing key (mnemonic or SURI) */
   source: string;
-  /** True when `source` is a key URI (SURI), false when it is a mnemonic. */
+  /** True when source is a key URI (SURI), false when it is a mnemonic */
   isKeyUri: boolean;
-  /** Human-readable origin of the resolved auth source. */
+  /** Human-readable origin of the resolved auth source */
   resolvedFrom: "cli" | "env" | "keystore" | "default";
-  /** Account selector associated with the resolved auth source. */
+  /** Account selector associated with the resolved auth source */
   account: string;
 };
+
+export type LoadedAccount = {
+  /** Substrate SS58 address */
+  address: string;
+  /** Public key bytes */
+  publicKey: Uint8Array;
+  /** Signing function */
+  sign: (input: Uint8Array) => Uint8Array;
+};
+
+type BaseChainContext = {
+  /** WebSocket RPC endpoint URL */
+  rpc: string;
+  /** Minimum balance in PAS required for operations */
+  minBalancePas: string;
+  /** Path to keystore directory */
+  keystorePath: string;
+  /** Resolved authentication source */
+  auth: ResolvedAuthSource;
+  /** Loaded account with signing capabilities */
+  account: LoadedAccount;
+  /** Substrate SS58 address */
+  substrateAddress: string;
+  /** Polkadot signer for transaction signing */
+  signer: PolkadotSigner;
+};
+
+export type AssetHubContext = BaseChainContext & {
+  /** Discriminant indicating Asset Hub context */
+  useBulletin: false;
+  /** Typed Polkadot API client */
+  client: PolkadotApiClient;
+  /** Revive client wrapper for EVM contract calls */
+  clientWrapper: ReviveClientWrapper;
+  /** EVM address (H160) mapped from Substrate address */
+  evmAddress: Address;
+};
+
+export type BulletinContext = BaseChainContext & {
+  /** Discriminant indicating Bulletin context */
+  useBulletin: true;
+  /** Typed Polkadot API client */
+  client: PolkadotApiClient | TypedApi<Bulletin>;
+  /** Null - Bulletin has no Revive runtime */
+  clientWrapper: null;
+  /** Null - Bulletin has no EVM address mapping */
+  evmAddress: null;
+};
+
+export type SubnodeRecord = {
+  /** Parent node hash (keccak256 of parent full name) */
+  parentNode: Hex;
+
+  /** Label of the subnode to register (single label, no dots) */
+  subLabel: string;
+
+  /** Human-readable name of the parent node */
+  parentLabel: string;
+
+  /** Address that will own the new subnode */
+  owner: Address;
+};
+
+export type ChainContext = AssetHubContext | BulletinContext;

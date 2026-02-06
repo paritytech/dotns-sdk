@@ -1,70 +1,26 @@
 import chalk from "chalk";
-import ora from "ora";
+import type { Ora } from "ora";
 import { namehash, type Address, type Hex, zeroAddress, checksumAddress } from "viem";
-import { CID } from "multiformats/cid";
-import * as digest from "multiformats/hashes/digest";
-import { sha256 } from "multiformats/hashes/sha2";
+import { decode, encode, getCodec, cidForWeb } from "@ensdomains/content-hash";
 import type { PolkadotSigner } from "polkadot-api";
 import type { ReviveClientWrapper } from "../client/polkadotClient";
 import { CONTRACTS, DOTNS_REGISTRY_ABI, DOTNS_CONTENT_RESOLVER_ABI } from "../utils/constants";
 import { performContractCall, submitContractTransaction } from "../utils/contractInteractions";
 
-const IPFS_NAMESPACE = 0xe3;
-const IPFS_CIDV1_RAW = 0x55;
-
-function hexToBytes(hex: Hex): Uint8Array {
-  const cleanHex = hex.startsWith("0x") ? hex.slice(2) : hex;
-  const bytes = new Uint8Array(cleanHex.length / 2);
-  for (let i = 0; i < bytes.length; i++) {
-    bytes[i] = parseInt(cleanHex.slice(i * 2, i * 2 + 2), 16);
-  }
-  return bytes;
-}
-
-function bytesToHex(bytes: Uint8Array): Hex {
-  return `0x${Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("")}` as Hex;
-}
-
-async function decodeContenthashToCid(contenthash: Hex): Promise<string> {
+function decodeContenthashToCid(contenthash: Hex): string {
   if (contenthash === "0x" || contenthash === "0x0" || contenthash.length < 6) {
     return "No CID set";
   }
 
   try {
-    const contenthashBytes = hexToBytes(contenthash);
-    let cidDataBytes: Uint8Array;
+    const codec = getCodec(contenthash);
 
-    if (contenthashBytes[0] === IPFS_NAMESPACE) {
-      cidDataBytes = contenthashBytes.slice(1);
-    } else {
-      cidDataBytes = contenthashBytes;
+    if (codec !== "ipfs") {
+      return `Unsupported codec: ${codec}`;
     }
 
-    try {
-      const decodedCid = CID.decode(cidDataBytes);
-      return decodedCid.toString();
-    } catch {
-      // Continue to fallback parsing
-    }
-
-    if (cidDataBytes[0] === 0x01 && cidDataBytes[1] === 0x12 && cidDataBytes[2] === 0x20) {
-      const multihashBytes = cidDataBytes.slice(1);
-      const hashBytes = multihashBytes.slice(2);
-      const multihashDigest = digest.create(sha256.code, hashBytes);
-      const reconstructedCid = CID.createV1(IPFS_CIDV1_RAW, multihashDigest);
-      return reconstructedCid.toString();
-    }
-
-    if (cidDataBytes[0] === 0x12 && cidDataBytes[1] === 0x20) {
-      const hashBytes = cidDataBytes.slice(2);
-      const multihashDigest = digest.create(sha256.code, hashBytes);
-      const reconstructedCid = CID.createV0(multihashDigest);
-      return reconstructedCid.toString();
-    }
-
-    return `Unable to decode: ${contenthash}`;
+    const decoded = decode(contenthash);
+    return cidForWeb(decoded);
   } catch (error) {
     console.error("Error decoding contenthash:", error);
     return `Unable to decode: ${contenthash}`;
@@ -73,12 +29,8 @@ async function decodeContenthashToCid(contenthash: Hex): Promise<string> {
 
 function encodeCidToContenthash(cidString: string): Hex {
   try {
-    const cid = CID.parse(cidString);
-    const cidBytes = cid.bytes;
-    const contenthash = new Uint8Array(1 + cidBytes.length);
-    contenthash[0] = IPFS_NAMESPACE;
-    contenthash.set(cidBytes, 1);
-    return bytesToHex(contenthash);
+    const encoded = encode("ipfs", cidString);
+    return `0x${encoded}` as Hex;
   } catch (error) {
     console.error("Error encoding CID to contenthash:", error);
     throw new Error(`Invalid CID: ${cidString}`);
@@ -89,9 +41,10 @@ export async function viewDomainContentHash(
   clientWrapper: ReviveClientWrapper,
   originSubstrateAddress: string,
   label: string,
+  spinner: Ora,
 ): Promise<void> {
   const namehashNode = namehash(`${label}.dot`);
-  const spinner = ora("Querying registry").start();
+  spinner.start("Querying registry");
 
   const recordExists = await performContractCall<boolean>(
     clientWrapper,
@@ -134,7 +87,7 @@ export async function viewDomainContentHash(
     [namehashNode],
   );
 
-  const decodedCid = await decodeContenthashToCid(contentHashBytes);
+  const decodedCid = decodeContenthashToCid(contentHashBytes);
 
   console.log(chalk.gray("  resolver:    ") + chalk.white(CONTRACTS.DOTNS_CONTENT_RESOLVER));
   console.log(chalk.gray("  contenthash: ") + chalk.white(contentHashBytes));
@@ -147,6 +100,7 @@ export async function setDomainContentHash(
   signer: PolkadotSigner,
   label: string,
   contentId: string,
+  spinner: Ora,
 ): Promise<void> {
   const namehashNode = namehash(`${label}.dot`);
 
@@ -205,7 +159,7 @@ export async function setDomainContentHash(
       "contenthash",
       [namehashNode],
     );
-    const currentCid = await decodeContenthashToCid(currentContentHash);
+    const currentCid = decodeContenthashToCid(currentContentHash);
     console.log(chalk.gray("  current: ") + chalk.cyan(currentCid));
   } catch {
     console.log(chalk.gray("  current: ") + chalk.yellow("Not set or error reading"));
@@ -219,7 +173,7 @@ export async function setDomainContentHash(
   console.log(chalk.gray("  cid:      ") + chalk.cyan(contentId));
   console.log(chalk.gray("  bytes:    ") + chalk.white(contentBytes));
 
-  const spinner = ora("Submitting setContenthash").start();
+  spinner.start("Submitting setContenthash");
   const transactionHash = await submitContractTransaction(
     clientWrapper,
     CONTRACTS.DOTNS_CONTENT_RESOLVER,
@@ -244,7 +198,7 @@ export async function setDomainContentHash(
     [namehashNode],
   );
 
-  const updatedCid = await decodeContenthashToCid(updatedContentHash);
+  const updatedCid = decodeContenthashToCid(updatedContentHash);
 
   console.log();
   console.log(chalk.gray("  new: ") + chalk.cyan(updatedCid));

@@ -6,10 +6,12 @@ import { attachLookupCommands } from "./commands/lookup";
 import { attachPopCommands } from "./commands/pop";
 import { attachRegisterCommand } from "./commands/registerCommand";
 import { attachAccountCommands } from "./commands/info";
+import { version } from "../../package.json";
 
 export function createProgram() {
   const program = new Command();
   program.name("dotns").description("dotns developer CLI");
+  program.version(version, "-v, --version");
   attachPopCommands(program);
   attachAuthCommands(program);
   attachRegisterCommand(program);

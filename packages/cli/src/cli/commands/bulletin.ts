@@ -65,6 +65,38 @@ function formatBytes(bytes: bigint | number): string {
   return `${value.toFixed(2)} ${units[unitIndex]}`;
 }
 
+async function withSilentConsole<T>(callback: () => Promise<T>): Promise<T> {
+  const saved = {
+    log: console.log,
+    error: console.error,
+    warn: console.warn,
+    info: console.info,
+    stdoutWrite: process.stdout.write.bind(process.stdout),
+    stderrWrite: process.stderr.write.bind(process.stderr),
+  };
+
+  const noop = () => {};
+  const noopWrite = () => true;
+
+  console.log = noop;
+  console.error = noop;
+  console.warn = noop;
+  console.info = noop;
+  process.stdout.write = noopWrite as any;
+  process.stderr.write = noopWrite as any;
+
+  try {
+    return await callback();
+  } finally {
+    console.log = saved.log;
+    console.error = saved.error;
+    console.warn = saved.warn;
+    console.info = saved.info;
+    process.stdout.write = saved.stdoutWrite;
+    process.stderr.write = saved.stderrWrite;
+  }
+}
+
 export function attachBulletinCommands(root: Command): void {
   const bulletinCommand = root.command("bulletin").description("Bulletin storage utilities");
 
@@ -147,22 +179,26 @@ export function attachBulletinCommands(root: Command): void {
     .option("--parallel", "Upload directory blocks in parallel (faster)", false)
     .option("--concurrency <n>", "Number of parallel uploads (default: 5)", "5")
     .option("--print-contenthash", "Also print 0x-prefixed IPFS contenthash for the CID", false)
+    .option("--json", "Output result as JSON (suppresses all other output)", false)
     .option("--no-history", "Do not save upload to history", false);
 
   addAuthOptions(uploadCommand).action(
     async (
       inputPath: string,
-      options: BulletinUploadOptions & { history?: boolean },
+      options: BulletinUploadOptions & { history?: boolean; json?: boolean },
       command: Command,
     ) => {
       try {
         const mergedOptions = getMergedOptions(command, options);
+        const jsonOutput = Boolean(mergedOptions.json);
 
         if (mergedOptions.mnemonic && mergedOptions.keyUri) {
           throw new Error("Cannot specify both --mnemonic and --key-uri");
         }
 
-        const { bytes, isDirectory, resolvedPath } = await validateAndReadPath(inputPath);
+        const { bytes, isDirectory, resolvedPath } = jsonOutput
+          ? await withSilentConsole(() => validateAndReadPath(inputPath))
+          : await validateAndReadPath(inputPath);
 
         const bulletinRpc = String(mergedOptions.bulletinRpc || DEFAULT_BULLETIN_RPC);
         const chunkSizeBytes = Math.max(
@@ -172,63 +208,106 @@ export function attachBulletinCommands(root: Command): void {
         const parallel = Boolean(mergedOptions.parallel);
         const concurrency = Math.max(1, Number(mergedOptions.concurrency || 5));
 
-        const context = await prepareContext({ ...mergedOptions, useBulletin: true });
-        await ensureAccountAuthorized(bulletinRpc, context.signer, context.substrateAddress);
+        const context = jsonOutput
+          ? await withSilentConsole(() => prepareContext({ ...mergedOptions, useBulletin: true }))
+          : await prepareContext({ ...mergedOptions, useBulletin: true });
 
-        console.log(chalk.blue("\n▶ Bulletin Upload"));
-        console.log(chalk.gray("  path:     ") + chalk.white(resolvedPath));
-        console.log(chalk.gray("  rpc:      ") + chalk.white(bulletinRpc));
+        if (jsonOutput) {
+          await withSilentConsole(() =>
+            ensureAccountAuthorized(bulletinRpc, context.signer, context.substrateAddress),
+          );
+        } else {
+          await ensureAccountAuthorized(bulletinRpc, context.signer, context.substrateAddress);
+        }
+
+        const performUpload = async () => {
+          if (isDirectory) {
+            const result = await storeDirectory(bulletinRpc, context.signer, resolvedPath, {
+              parallel,
+              concurrency,
+              accountAddress: context.substrateAddress,
+            });
+            return { cid: result.storageCid, ipfsCid: result.ipfsCid, size: 0 };
+          } else if (mergedOptions.forceChunked || bytes.length > MAX_SINGLE_UPLOAD_SIZE_BYTES) {
+            const result = await uploadChunkedBlocks(
+              bulletinRpc,
+              context.signer,
+              bytes,
+              chunkSizeBytes,
+            );
+            return { cid: result, ipfsCid: result, size: bytes.length };
+          } else {
+            const result = await uploadSingleBlock(bulletinRpc, context.signer, bytes);
+            return { cid: result, ipfsCid: result, size: bytes.length };
+          }
+        };
 
         let cid: string;
         let ipfsCid: string;
         let uploadSize: number;
 
-        if (isDirectory) {
-          const mode = parallel ? `directory (parallel, ${concurrency}x)` : "directory";
-          console.log(chalk.gray("  mode:     ") + chalk.white(mode));
-          const result = await storeDirectory(bulletinRpc, context.signer, resolvedPath, {
-            parallel,
-            concurrency,
-            accountAddress: context.substrateAddress,
-          });
-          cid = result.storageCid;
-          ipfsCid = result.ipfsCid;
-          uploadSize = 0;
-        } else if (mergedOptions.forceChunked || bytes.length > MAX_SINGLE_UPLOAD_SIZE_BYTES) {
-          console.log(chalk.gray("  size:     ") + chalk.white(`${bytes.length} bytes`));
-          console.log(chalk.gray("  mode:     ") + chalk.white("chunked (dag-pb)"));
-          const result = await uploadChunkedBlocks(
-            bulletinRpc,
-            context.signer,
-            bytes,
-            chunkSizeBytes,
-          );
-          cid = result;
-          ipfsCid = result;
-          uploadSize = bytes.length;
+        if (jsonOutput) {
+          const uploadResult = await withSilentConsole(performUpload);
+          cid = uploadResult.cid;
+          ipfsCid = uploadResult.ipfsCid;
+          uploadSize = uploadResult.size;
         } else {
-          console.log(chalk.gray("  size:     ") + chalk.white(`${bytes.length} bytes`));
-          console.log(chalk.gray("  mode:     ") + chalk.white("single"));
-          const result = await uploadSingleBlock(bulletinRpc, context.signer, bytes);
-          cid = result;
-          ipfsCid = result;
-          uploadSize = bytes.length;
+          console.log(chalk.blue("\n▶ Bulletin Upload"));
+          console.log(chalk.gray("  path:     ") + chalk.white(resolvedPath));
+          console.log(chalk.gray("  rpc:      ") + chalk.white(bulletinRpc));
+
+          if (isDirectory) {
+            const mode = parallel ? `directory (parallel, ${concurrency}x)` : "directory";
+            console.log(chalk.gray("  mode:     ") + chalk.white(mode));
+          } else if (mergedOptions.forceChunked || bytes.length > MAX_SINGLE_UPLOAD_SIZE_BYTES) {
+            console.log(chalk.gray("  size:     ") + chalk.white(`${bytes.length} bytes`));
+            console.log(chalk.gray("  mode:     ") + chalk.white("chunked (dag-pb)"));
+          } else {
+            console.log(chalk.gray("  size:     ") + chalk.white(`${bytes.length} bytes`));
+            console.log(chalk.gray("  mode:     ") + chalk.white("single"));
+          }
+
+          const uploadResult = await performUpload();
+          cid = uploadResult.cid;
+          ipfsCid = uploadResult.ipfsCid;
+          uploadSize = uploadResult.size;
         }
 
-        console.log(chalk.gray("\n  cid:      ") + chalk.cyan(ipfsCid));
+        const contenthash = generateContenthash(cid);
 
-        const previewUrl = getPreviewUrl({
+        const uploadRecord = {
           cid,
           ipfsCid,
           path: resolvedPath,
-          type: isDirectory ? "directory" : "file",
+          type: (isDirectory ? "directory" : "file") as "directory" | "file",
           size: uploadSize,
           timestamp: "",
-        });
-        console.log(chalk.gray("  preview:  ") + chalk.blue(previewUrl));
-        if (mergedOptions.printContenthash) {
-          await generateContenthash(cid);
+        };
+
+        const previewUrl = getPreviewUrl(uploadRecord);
+
+        if (jsonOutput) {
+          console.log(
+            JSON.stringify({
+              cid: ipfsCid,
+              contenthash,
+              preview: previewUrl,
+              path: resolvedPath,
+              type: isDirectory ? "directory" : "file",
+              size: uploadSize,
+            }),
+          );
+        } else {
+          console.log(chalk.gray("\n  cid:         ") + chalk.cyan(ipfsCid));
+          console.log(chalk.gray("  preview:     ") + chalk.blue(previewUrl));
+
+          if (mergedOptions.printContenthash) {
+            console.log(chalk.gray("  contenthash: ") + chalk.white(`0x${contenthash}`));
+          }
+
+          console.log(chalk.green("\n✓ Upload Complete\n"));
         }
+
         await addUploadRecord({
           cid,
           ipfsCid,
@@ -237,12 +316,16 @@ export function attachBulletinCommands(root: Command): void {
           size: uploadSize,
         });
 
-        console.log(chalk.green("\n✓ Upload Complete\n"));
         process.exit(0);
       } catch (error) {
-        console.error(
-          chalk.red(`\n✗ Error: ${error instanceof Error ? error.message : String(error)}\n`),
-        );
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
+        if (Boolean((options as any).json)) {
+          console.error(JSON.stringify({ error: errorMessage }));
+          process.exit(1);
+        }
+
+        console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
         process.exit(1);
       }
     },

@@ -1,0 +1,197 @@
+name: Deploy on Polkadot
+
+on:
+  workflow_call:
+    inputs:
+      basename:
+        description: 'Base domain without .dot'
+        required: true
+        type: string
+
+      mode:
+        description: 'preview (subname deploy) | production (basename deploy)'
+        required: false
+        type: string
+        default: 'preview'
+
+      subname-format:
+        description: 'pr-number | branch | sha-short (ignored in production mode)'
+        required: false
+        type: string
+        default: 'pr-number'
+
+      register-base:
+        description: 'Register base domain if not owned'
+        required: false
+        type: boolean
+        default: false
+
+      artifact-name:
+        description: 'Build artifact to deploy'
+        required: true
+        type: string
+
+      key-uri:
+        description: 'Substrate key URI for dev/test (e.g., //Alice)'
+        required: false
+        type: string
+
+      bulletin-rpc:
+        description: 'Bulletin chain WebSocket RPC endpoint (default: CLI built-in)'
+        required: false
+        type: string
+
+      rpc:
+        description: 'WebSocket RPC endpoint (default: CLI built-in)'
+        required: false
+        type: string
+
+      cli-version:
+        description: 'CLI version to install'
+        required: false
+        type: string
+        default: '0.1.0'
+
+    secrets:
+      mnemonic:
+        description: 'BIP39 mnemonic phrase'
+        required: false
+
+    outputs:
+      cid:
+        value: ${{ jobs.deploy.outputs.cid }}
+      fqdn:
+        value: ${{ jobs.deploy.outputs.fqdn }}
+      url:
+        value: ${{ jobs.deploy.outputs.url }}
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    outputs:
+      cid: ${{ steps.final.outputs.cid }}
+      fqdn: ${{ steps.final.outputs.fqdn }}
+      url: ${{ steps.final.outputs.url }}
+
+    steps:
+      - name: Resolve authentication
+        id: auth
+        run: |
+          AUTH_COUNT=0
+          [[ -n "$INPUT_MNEMONIC" ]] && AUTH_COUNT=$((AUTH_COUNT + 1))
+          [[ -n "$INPUT_KEY_URI" ]] && AUTH_COUNT=$((AUTH_COUNT + 1))
+
+          if [[ $AUTH_COUNT -eq 0 ]]; then
+            echo "::error::No authentication provided. Supply one of: mnemonic or key-uri"
+            exit 1
+          fi
+
+          if [[ $AUTH_COUNT -gt 1 ]]; then
+            echo "::error::Multiple auth methods provided. Supply only one of: mnemonic or key-uri"
+            exit 1
+          fi
+
+          if [[ -n "$INPUT_MNEMONIC" ]]; then
+            echo "DOTNS_MNEMONIC=$INPUT_MNEMONIC" >> "$GITHUB_ENV"
+            echo "method=mnemonic" >> "$GITHUB_OUTPUT"
+          elif [[ -n "$INPUT_KEY_URI" ]]; then
+            echo "DOTNS_KEY_URI=$INPUT_KEY_URI" >> "$GITHUB_ENV"
+            echo "method=key-uri" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "Authentication resolved"
+        env:
+          INPUT_MNEMONIC: ${{ secrets.mnemonic }}
+          INPUT_KEY_URI: ${{ inputs.key-uri }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: build
+
+      - name: Install CLI
+        run: |
+          echo "@dotns:registry=https://npm.pkg.github.com" >> .npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ github.token }}" >> .npmrc
+          npm install -g @dotns/cli@${{ inputs.cli-version }}
+
+      - name: Resolve target
+        id: target
+        run: |
+          if [[ "${{ inputs.mode }}" == "production" ]]; then
+            echo "domain=${{ inputs.basename }}" >> "$GITHUB_OUTPUT"
+            echo "fqdn=${{ inputs.basename }}.dot" >> "$GITHUB_OUTPUT"
+          else
+            case "${{ inputs.subname-format }}" in
+              pr-number)
+                SUBNAME="pr${{ github.event.pull_request.number }}"
+                ;;
+              branch)
+                SUBNAME=$(echo "${{ github.head_ref }}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | cut -c1-20 | sed 's/-$//')
+                ;;
+              sha-short)
+                SUBNAME=$(echo "${{ github.sha }}" | cut -c1-7)
+                ;;
+            esac
+
+            echo "subname=$SUBNAME" >> "$GITHUB_OUTPUT"
+            echo "domain=${SUBNAME}.${{ inputs.basename }}" >> "$GITHUB_OUTPUT"
+            echo "fqdn=${SUBNAME}.${{ inputs.basename }}.dot" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Register base domain
+        if: inputs.register-base
+        run: dotns register domain --name ${{ inputs.basename }}
+        continue-on-error: true
+
+      - name: Upload to Bulletin
+        id: upload
+        run: |
+          ARGS="./build --json"
+          [[ -n "${{ inputs.bulletin-rpc }}" ]] && ARGS="$ARGS --bulletin-rpc ${{ inputs.bulletin-rpc }}"
+
+          RESULT=$(dotns bulletin upload $ARGS)
+          echo "cid=$(echo "$RESULT" | jq -r '.cid')" >> "$GITHUB_OUTPUT"
+          echo "contenthash=$(echo "$RESULT" | jq -r '.contenthash')" >> "$GITHUB_OUTPUT"
+
+      - name: Register subname
+        if: inputs.mode == 'preview'
+        run: |
+          dotns register subname \
+            --name ${{ steps.target.outputs.subname }} \
+            --parent ${{ inputs.basename }}
+        continue-on-error: true
+
+      - name: Set contenthash
+        run: |
+          ARGS="${{ steps.target.outputs.domain }} ${{ steps.upload.outputs.cid }}"
+          [[ -n "${{ inputs.rpc }}" ]] && ARGS="$ARGS --rpc ${{ inputs.rpc }}"
+
+          dotns content set $ARGS
+
+      - name: Set outputs
+        id: final
+        run: |
+          DOMAIN="${{ steps.target.outputs.domain }}"
+          echo "cid=${{ steps.upload.outputs.cid }}" >> "$GITHUB_OUTPUT"
+          echo "fqdn=${{ steps.target.outputs.fqdn }}" >> "$GITHUB_OUTPUT"
+          echo "url=https://${DOMAIN}.paseo.li" >> "$GITHUB_OUTPUT"
+
+      - name: Summary
+        run: |
+          echo "## Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Mode | \`${{ inputs.mode }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Domain | \`${{ steps.final.outputs.fqdn }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| CID | \`${{ steps.final.outputs.cid }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| URL | [${{ steps.final.outputs.url }}](${{ steps.final.outputs.url }}) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Auth | ${{ steps.auth.outputs.method }} |" >> $GITHUB_STEP_SUMMARY

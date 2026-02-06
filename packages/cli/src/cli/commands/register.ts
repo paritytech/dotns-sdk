@@ -9,6 +9,7 @@ import {
   getPriceAndValidateEligibility,
   finalizeRegularRegistration,
   finalizeGovernanceRegistration,
+  registerSubnode,
   verifyDomainOwnership,
   displayDeployedStore,
   setUserProofOfPersonhoodStatus,
@@ -25,7 +26,7 @@ import {
   ProofOfPersonhoodStatus,
 } from "../../types/types";
 import { step } from "../ui";
-import { prepareContext } from "../context";
+import { prepareAssetHubContext } from "../context";
 import { generateRandomLabel, parseProofOfPersonhoodStatus } from "../labels";
 import { resolveTransferRecipient, transferDomain } from "../transfer";
 
@@ -39,6 +40,7 @@ export type RegisterActionOptions = RegistrationCommandOptions & {
   __statusProvided?: boolean;
   transfer?: boolean;
   to?: string;
+  parent?: string;
 };
 
 function resolveTransferDestination(options: Partial<RegisterActionOptions>): string | undefined {
@@ -58,9 +60,29 @@ function resolveTransferDestination(options: Partial<RegisterActionOptions>): st
   return destination;
 }
 
+export function classifyTransferDestination(destination: string): TransferDestinationKind {
+  if (isAddress(destination)) return "evm";
+  if (isValidSubstrateAddress(destination)) return "substrate";
+  return "label";
+}
+
+function isValidTransferDestination(destination: string): boolean {
+  const kind = classifyTransferDestination(destination);
+  if (kind === "evm" || kind === "substrate") return true;
+
+  const domainLabelPattern = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
+  return (
+    domainLabelPattern.test(destination) && destination.length >= 3 && destination.length <= 63
+  );
+}
+
 export async function executeRegistration(options: Partial<RegisterActionOptions> = {}) {
   if (options.mnemonic && options.keyUri) {
     throw new Error("Cannot specify both --mnemonic and --key-uri");
+  }
+
+  if (options.parent) {
+    return executeSubnameRegistration(options);
   }
 
   const transferDestination = resolveTransferDestination(options);
@@ -71,7 +93,7 @@ export async function executeRegistration(options: Partial<RegisterActionOptions
     );
   }
 
-  const context = await prepareContext(options);
+  const context = await prepareAssetHubContext(options);
   const { clientWrapper, substrateAddress, signer, evmAddress } = context;
 
   const statusWasProvided = options.__statusProvided === true;
@@ -98,7 +120,7 @@ export async function executeRegistration(options: Partial<RegisterActionOptions
   );
 
   await step("Ensuring account mapped", async () =>
-    clientWrapper?.ensureAccountMapped(substrateAddress, signer),
+    clientWrapper.ensureAccountMapped(substrateAddress, signer),
   );
 
   if (options.governance) {
@@ -106,7 +128,7 @@ export async function executeRegistration(options: Partial<RegisterActionOptions
       clientWrapper,
       substrateAddress,
       signer,
-      evmAddress!,
+      evmAddress,
       label,
       transferDestination,
     );
@@ -115,7 +137,7 @@ export async function executeRegistration(options: Partial<RegisterActionOptions
       clientWrapper,
       substrateAddress,
       signer,
-      evmAddress!,
+      evmAddress,
       label,
       popStatusConfig,
       options.reverse ?? false,
@@ -129,20 +151,48 @@ export async function executeRegistration(options: Partial<RegisterActionOptions
   console.log(chalk.gray("  Domain: ") + chalk.cyan(label + ".dot"));
 }
 
-export function classifyTransferDestination(destination: string): TransferDestinationKind {
-  if (isAddress(destination)) return "evm";
-  if (isValidSubstrateAddress(destination)) return "substrate";
-  return "label";
-}
+export async function executeSubnameRegistration(
+  options: Partial<RegisterActionOptions>,
+): Promise<void> {
+  if (!options.name) {
+    throw new Error("Missing subname: use --name <sublabel>");
+  }
 
-function isValidTransferDestination(destination: string): boolean {
-  const kind = classifyTransferDestination(destination);
-  if (kind === "evm" || kind === "substrate") return true;
+  if (!options.parent) {
+    throw new Error("Missing parent: use --parent <parentlabel>");
+  }
 
-  const domainLabelPattern = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
-  return (
-    domainLabelPattern.test(destination) && destination.length >= 3 && destination.length <= 63
+  const context = await prepareAssetHubContext(options);
+  const { clientWrapper, substrateAddress, signer, evmAddress } = context;
+
+  const sublabel = options.name;
+  const parentLabel = options.parent;
+  const ownerAddress = (options.owner as Address) ?? evmAddress;
+
+  const fullName = `${sublabel}.${parentLabel}.dot`;
+
+  console.log(chalk.bold("\n▶ Subname Registration\n"));
+  console.log(chalk.gray("  Subname:   ") + chalk.cyan(fullName));
+  console.log(chalk.gray("  Parent:    ") + chalk.white(`${parentLabel}.dot`));
+  console.log(chalk.gray("  Owner:     ") + chalk.white(ownerAddress));
+
+  await step("Ensuring account mapped", async () =>
+    clientWrapper.ensureAccountMapped(substrateAddress, signer),
   );
+
+  await registerSubnode(
+    clientWrapper,
+    substrateAddress,
+    signer,
+    sublabel,
+    parentLabel,
+    ownerAddress,
+  );
+
+  console.log(`\n${chalk.bold.green("═══════════════════════════════════════")}`);
+  console.log(`${chalk.bold.green("         ✓ Subname Registered          ")}`);
+  console.log(`${chalk.bold.green("═══════════════════════════════════════")}\n`);
+  console.log(chalk.gray("  Domain: ") + chalk.cyan(fullName));
 }
 
 async function executeGovernanceRegistration(

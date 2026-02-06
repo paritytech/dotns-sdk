@@ -1,0 +1,254 @@
+name: Deploy Example
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "examples/deploy/**"
+      - ".github/workflows/deploy-example.yml"
+      - ".github/workflows/deploy.yml"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  build:
+    name: Build Example
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.result.outputs.status }}
+      details: ${{ steps.result.outputs.details }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate site
+        id: validate
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          {
+            echo "Validating examples/deploy/site/..."
+
+            if [ ! -d "examples/deploy/site" ]; then
+              echo "ERROR: examples/deploy/site/ directory not found"
+              exit 1
+            fi
+
+            if [ ! -f "examples/deploy/site/index.html" ]; then
+              echo "ERROR: index.html not found"
+              exit 1
+            fi
+
+            FILE_COUNT=$(find examples/deploy/site -type f | wc -l)
+            TOTAL_SIZE=$(du -sh examples/deploy/site | cut -f1)
+
+            echo "Files: $FILE_COUNT"
+            echo "Size: $TOTAL_SIZE"
+            echo ""
+
+            echo "Contents:"
+            find examples/deploy/site -type f | sort
+            echo ""
+
+            echo "Validation passed"
+          } 2>&1 | tee "$GITHUB_WORKSPACE/deploy-example-output.txt"
+
+      - name: Upload build output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-example-output
+          path: deploy-example-output.txt
+          retention-days: 7
+
+      - name: Upload site artifact
+        if: steps.validate.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: example-site
+          path: examples/deploy/site/
+          retention-days: 7
+
+      - name: Process results
+        id: result
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ steps.validate.outcome }}" == "success" ]]; then
+            echo "status=Passed" >> "${GITHUB_OUTPUT}"
+            echo "details=Site validated" >> "${GITHUB_OUTPUT}"
+          else
+            echo "status=Failed" >> "${GITHUB_OUTPUT}"
+            echo "details=Site validation failed" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Fail if validation failed
+        if: steps.validate.outcome == 'failure'
+        run: exit 1
+
+  deploy:
+    name: Deploy Preview
+    needs: build
+    uses: ./.github/workflows/deploy.yml
+    with:
+      basename: dotns-example
+      artifact-name: example-site
+      key-uri: '//Alice'
+
+  comment:
+    name: Update PR Comment
+    needs: [build, deploy]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download build output
+        uses: actions/download-artifact@v4
+        with:
+          name: deploy-example-output
+          path: .
+        continue-on-error: true
+
+      - name: Update PR comment
+        uses: actions/github-script@v7
+        env:
+          SECTION: Deploy Example
+          BUILD_STATUS: ${{ needs.build.outputs.status }}
+          BUILD_DETAILS: ${{ needs.build.outputs.details }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          DEPLOY_CID: ${{ needs.deploy.outputs.cid }}
+          DEPLOY_FQDN: ${{ needs.deploy.outputs.fqdn }}
+          DEPLOY_URL: ${{ needs.deploy.outputs.url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const fs = require("fs");
+
+            const marker = "<!-- ci-summary -->";
+            const detailsMarker = "<!-- details-section -->";
+            const section = process.env.SECTION;
+            const buildStatus = process.env.BUILD_STATUS;
+            const buildDetails = process.env.BUILD_DETAILS;
+            const deployResult = process.env.DEPLOY_RESULT;
+            const cid = process.env.DEPLOY_CID;
+            const fqdn = process.env.DEPLOY_FQDN;
+            const url = process.env.DEPLOY_URL;
+            const runUrl = process.env.RUN_URL;
+
+            const passed = buildStatus === "Passed" && deployResult === "success";
+            const status = passed ? "Passed" : "Failed";
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+
+            let output = "";
+            try {
+              output = fs.readFileSync("deploy-example-output.txt", "utf8");
+            } catch (_) {
+              output = "(deploy-example-output.txt not found)";
+            }
+
+            const MAX_CHARS = 60000;
+            if (output.length > MAX_CHARS) {
+              output = ["(truncated; showing last " + MAX_CHARS + " chars)", "", output.slice(-MAX_CHARS)].join("\n");
+            }
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number, per_page: 100,
+            });
+
+            const existing = comments.find(c =>
+              c.user?.login === "github-actions[bot]" && c.body?.includes(marker)
+            );
+
+            let rows = {};
+            let existingDetails = {};
+
+            if (existing?.body) {
+              const parts = existing.body.split(detailsMarker);
+              const tableSection = parts[0] || "";
+
+              const lines = tableSection.split("\n");
+              for (const line of lines) {
+                const match = line.match(/^\| ([^|]+) \| ([^|]+) \|$/);
+                if (match) {
+                  const name = match[1].trim();
+                  if (name && name !== "Check" && !name.startsWith(":")) {
+                    rows[name] = match[2].trim();
+                  }
+                }
+              }
+
+              const detailsRegex = /<details>\s*<summary><strong>([^<]+)<\/strong>.*?<\/summary>([\s\S]*?)<\/details>/g;
+              let detailMatch;
+              while ((detailMatch = detailsRegex.exec(existing.body)) !== null) {
+                existingDetails[detailMatch[1].trim()] = detailMatch[0];
+              }
+            }
+
+            const resultText = passed ? "Passed" : "Failed";
+            rows[section] = `[${resultText}](${runUrl})`;
+
+            if (passed && cid && fqdn) {
+              existingDetails[section] = [
+                `<details>`,
+                `<summary><strong>${section}</strong> - ${resultText}</summary>`,
+                "",
+                `| Property | Value |`,
+                `|----------|-------|`,
+                `| Domain | \`${fqdn}\` |`,
+                `| CID | \`${cid}\` |`,
+                `| URL | [${url}](${url}) |`,
+                "",
+                `[View run](${runUrl})`,
+                "",
+                "</details>",
+              ].join("\n");
+            } else {
+              const failReason = buildStatus !== "Passed"
+                ? (buildDetails || "Build validation failed")
+                : "Deployment failed";
+
+              existingDetails[section] = [
+                `<details>`,
+                `<summary><strong>${section}</strong> - ${resultText}</summary>`,
+                "",
+                failReason,
+                "",
+                `[View run](${runUrl})`,
+                "",
+                "```text",
+                output,
+                "```",
+                "</details>",
+              ].join("\n");
+            }
+
+            const order = ["Lint", "Format", "Typecheck", "Build", "Release", "Deploy Example", "PR Title", "Labels"];
+            const sortedKeys = Object.keys(rows).sort((a, b) => {
+              const ai = order.indexOf(a), bi = order.indexOf(b);
+              return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+            });
+
+            let table = `| Check | Result |\n|:------|:-------|\n`;
+            for (const key of sortedKeys) {
+              table += `| ${key} | ${rows[key]} |\n`;
+            }
+
+            const sortedDetails = Object.keys(existingDetails).sort((a, b) => {
+              const ai = order.indexOf(a), bi = order.indexOf(b);
+              return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+            });
+
+            let body = `${marker}\n## CI Summary\n\n${table}`;
+            if (sortedDetails.length > 0) {
+              body += `\n${detailsMarker}\n\n---\n\n${sortedDetails.map(k => existingDetails[k]).join("\n\n")}`;
+            }
+
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }

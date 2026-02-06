@@ -1,0 +1,27 @@
+name: Preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site-preview
+          path: site/
+
+  preview:
+    name: Preview
+    needs: build
+    uses: paritytech/dotns-sdk/.github/workflows/deploy.yml@main
+    with:
+      basename: example
+      artifact-name: site-preview
+      subname-format: pr-number
+      key-uri: '//Alice'

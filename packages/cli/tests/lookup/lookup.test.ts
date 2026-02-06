@@ -1,19 +1,27 @@
 import { afterAll, afterEach, expect, test } from "bun:test";
 import {
   createDefaultAccountKeystore,
+  HARNESS_SUCCESS_EXIT_CODE,
   runDotnsCli,
+  TEST_ACCOUNT,
+  TEST_PASSWORD,
+  TEST_TIMEOUT_MS,
   type CliRunResult,
-} from "../_helpers/cli-helpers";
+} from "../_helpers/cliHelpers";
 import {
   cleanupTestFileTemporaryDirectory,
   cleanupTestTemporaryDirectory,
   createKeystorePathsForTest,
-} from "../_helpers/test-paths";
+} from "../_helpers/testPaths";
 import { DEFAULT_MNEMONIC } from "../../src/utils/constants";
 
 const createdTestTemporaryDirectoryPaths: string[] = [];
 let testFileTemporaryRootDirectoryPath: string | undefined;
 let testFileKeystoreDirectoryPath: string | undefined;
+
+const REGISTERED_DOMAIN = "dotnscli";
+const REGISTERED_DOMAIN_WITH_POP = "sphaman12";
+const REGISTERED_TLD = "dotns";
 
 function createPathsForTest(testName: string) {
   const paths = createKeystorePathsForTest(testName);
@@ -46,14 +54,14 @@ afterAll(() => {
 });
 
 function expectSuccessfulLookup(result: CliRunResult, label: string) {
-  expect(result.exitCode).toBe(1);
+  expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
   expect(result.combinedOutput).not.toContain("✗ Error:");
   expect(result.combinedOutput).not.toContain("EISDIR:");
   expect(result.combinedOutput).toContain(label + ".dot");
 }
 
 function expectSuccessfulOwnerLookup(result: CliRunResult, label: string) {
-  expect(result.exitCode).toBe(1);
+  expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
   expect(result.combinedOutput).not.toContain("✗ Error:");
   expect(result.combinedOutput).not.toContain("EISDIR:");
   expect(result.combinedOutput).toContain("Ownership lookup");
@@ -61,14 +69,6 @@ function expectSuccessfulOwnerLookup(result: CliRunResult, label: string) {
   expect(result.combinedOutput).toContain("Registered:");
   expect(result.combinedOutput).toContain("Owner (EVM):");
 }
-
-const LOOKUP_TEST_TIMEOUT_MS = 60_000;
-const TEST_PASSWORD = "test-password";
-const TEST_ACCOUNT = "default";
-
-const REGISTERED_DOMAIN = "dotns";
-const REGISTERED_DOMAIN_WITH_POP = "sphaman12";
-const REGISTERED_TLD = "iwwfy3goc96";
 
 async function ensureDefaultKeystore() {
   if (!testFileKeystoreDirectoryPath) throw new Error("Missing test file keystore directory path");
@@ -87,7 +87,7 @@ test(
     expect(lookupResult.combinedOutput).toContain("Registry");
     expect(lookupResult.combinedOutput).toContain("exists:");
   },
-  { timeout: LOOKUP_TEST_TIMEOUT_MS },
+  { timeout: TEST_TIMEOUT_MS },
 );
 
 test(
@@ -97,7 +97,7 @@ test(
 
     expectSuccessfulLookup(lookupResult, REGISTERED_TLD);
   },
-  { timeout: LOOKUP_TEST_TIMEOUT_MS },
+  { timeout: TEST_TIMEOUT_MS },
 );
 
 test(
@@ -110,7 +110,7 @@ test(
       "0x0000000000000000000000000000000000000000",
     );
   },
-  { timeout: LOOKUP_TEST_TIMEOUT_MS },
+  { timeout: TEST_TIMEOUT_MS },
 );
 
 test(
@@ -120,7 +120,7 @@ test(
 
     expectSuccessfulOwnerLookup(ooResult, REGISTERED_DOMAIN_WITH_POP);
   },
-  { timeout: LOOKUP_TEST_TIMEOUT_MS },
+  { timeout: TEST_TIMEOUT_MS },
 );
 
 test(
@@ -130,12 +130,12 @@ test(
 
     const lookupResult = await runDotnsCli(["lookup", "owner-of", unregisteredLabel]);
 
-    expect(lookupResult.exitCode).toBe(1);
+    expect(lookupResult.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
     expect(lookupResult.combinedOutput).toContain("Registered:");
     expect(lookupResult.combinedOutput).toContain("false");
     expect(lookupResult.combinedOutput).toContain("(none)");
   },
-  { timeout: LOOKUP_TEST_TIMEOUT_MS },
+  { timeout: TEST_TIMEOUT_MS },
 );
 
 test(
@@ -145,7 +145,7 @@ test(
 
     expectSuccessfulLookup(lookupResult, REGISTERED_DOMAIN);
   },
-  { timeout: LOOKUP_TEST_TIMEOUT_MS },
+  { timeout: TEST_TIMEOUT_MS },
 );
 
 test(
@@ -160,10 +160,10 @@ test(
       { DOTNS_KEYSTORE_PATH: keystoreDirectoryPath },
     );
 
-    expect(listResult.exitCode).toBe(1);
+    expect(listResult.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
     expect(listResult.combinedOutput).not.toContain("✗ Error:");
   },
-  { timeout: LOOKUP_TEST_TIMEOUT_MS },
+  { timeout: TEST_TIMEOUT_MS },
 );
 
 test(
@@ -171,10 +171,10 @@ test(
   async () => {
     const listResult = await runDotnsCli(["--mnemonic", DEFAULT_MNEMONIC, "list"]);
 
-    expect(listResult.exitCode).toBe(1);
+    expect(listResult.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
     expect(listResult.combinedOutput).not.toContain("✗ Error:");
   },
-  { timeout: LOOKUP_TEST_TIMEOUT_MS },
+  { timeout: TEST_TIMEOUT_MS },
 );
 
 test(
@@ -182,8 +182,8 @@ test(
   async () => {
     const listResult = await runDotnsCli(["--key-uri", "//Alice", "list"]);
 
-    expect(listResult.exitCode).toBe(1);
+    expect(listResult.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
     expect(listResult.combinedOutput).not.toContain("✗ Error:");
   },
-  { timeout: LOOKUP_TEST_TIMEOUT_MS },
+  { timeout: TEST_TIMEOUT_MS },
 );

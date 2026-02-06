@@ -1,14 +1,18 @@
 import { afterAll, afterEach, expect, test } from "bun:test";
 import {
   createDefaultAccountKeystore,
+  HARNESS_SUCCESS_EXIT_CODE,
   runDotnsCli,
+  TEST_ACCOUNT,
+  TEST_PASSWORD,
+  TEST_TIMEOUT_MS,
   type CliRunResult,
-} from "../_helpers/cli-helpers";
+} from "../_helpers/cliHelpers";
 import {
   cleanupTestFileTemporaryDirectory,
   cleanupTestTemporaryDirectory,
   createKeystorePathsForTest,
-} from "../_helpers/test-paths";
+} from "../_helpers/testPaths";
 import { DEFAULT_MNEMONIC } from "../../src/utils/constants";
 
 const createdTestTemporaryDirectoryPaths: string[] = [];
@@ -48,20 +52,16 @@ afterAll(() => {
 function expectSuccessfulPopSet(result: CliRunResult) {
   expect(result.combinedOutput).not.toContain("✗ Error:");
   expect(result.combinedOutput).toContain("✓ PoP Status Updated");
-  expect(result.exitCode).toBe(1);
+  expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
 }
 
 function expectSuccessfulInfo(result: CliRunResult) {
   expect(result.combinedOutput).not.toContain("✗ Error:");
-  expect(result.combinedOutput).toContain("Account Information");
+  expect(result.combinedOutput).toContain("ProofOfPersonhood Status");
   expect(result.combinedOutput).toContain("substrate:");
   expect(result.combinedOutput).toContain("evm:");
-  expect(result.exitCode).toBe(1);
+  expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
 }
-
-const POP_TEST_TIMEOUT_MS = 60_000;
-const TEST_PASSWORD = "test-password";
-const TEST_ACCOUNT = "default";
 
 async function ensureDefaultKeystore() {
   if (!testFileKeystoreDirectoryPath) throw new Error("Missing test file keystore directory path");
@@ -85,7 +85,7 @@ test(
 
     expectSuccessfulPopSet(result);
   },
-  { timeout: POP_TEST_TIMEOUT_MS },
+  { timeout: TEST_TIMEOUT_MS },
 );
 
 test(
@@ -102,7 +102,7 @@ test(
 
     expectSuccessfulPopSet(result);
   },
-  { timeout: POP_TEST_TIMEOUT_MS },
+  { timeout: TEST_TIMEOUT_MS },
 );
 
 test(
@@ -112,7 +112,7 @@ test(
 
     expectSuccessfulPopSet(result);
   },
-  { timeout: POP_TEST_TIMEOUT_MS },
+  { timeout: TEST_TIMEOUT_MS },
 );
 
 test(
@@ -122,7 +122,7 @@ test(
 
     expectSuccessfulPopSet(result);
   },
-  { timeout: POP_TEST_TIMEOUT_MS },
+  { timeout: TEST_TIMEOUT_MS },
 );
 
 test(
@@ -132,7 +132,7 @@ test(
 
     expectSuccessfulPopSet(result);
   },
-  { timeout: POP_TEST_TIMEOUT_MS },
+  { timeout: TEST_TIMEOUT_MS },
 );
 
 test(
@@ -149,7 +149,7 @@ test(
 
     expectSuccessfulInfo(result);
   },
-  { timeout: POP_TEST_TIMEOUT_MS },
+  { timeout: TEST_TIMEOUT_MS },
 );
 
 test(
@@ -166,7 +166,7 @@ test(
 
     expectSuccessfulInfo(result);
   },
-  { timeout: POP_TEST_TIMEOUT_MS },
+  { timeout: TEST_TIMEOUT_MS },
 );
 
 test(
@@ -176,7 +176,7 @@ test(
 
     expectSuccessfulInfo(result);
   },
-  { timeout: POP_TEST_TIMEOUT_MS },
+  { timeout: TEST_TIMEOUT_MS },
 );
 
 test(
@@ -186,7 +186,7 @@ test(
 
     expectSuccessfulInfo(result);
   },
-  { timeout: POP_TEST_TIMEOUT_MS },
+  { timeout: TEST_TIMEOUT_MS },
 );
 
 test(
@@ -197,7 +197,7 @@ test(
     expect(result.exitCode).toBe(1);
     expect(result.combinedOutput).toContain("error:");
   },
-  { timeout: POP_TEST_TIMEOUT_MS },
+  { timeout: TEST_TIMEOUT_MS },
 );
 
 test(
@@ -208,7 +208,7 @@ test(
     expect(result.exitCode).toBe(1);
     expect(result.combinedOutput).toContain("Error:");
   },
-  { timeout: POP_TEST_TIMEOUT_MS },
+  { timeout: TEST_TIMEOUT_MS },
 );
 
 test(
@@ -225,5 +225,5 @@ test(
 
     expectSuccessfulPopSet(result);
   },
-  { timeout: POP_TEST_TIMEOUT_MS },
+  { timeout: TEST_TIMEOUT_MS },
 );
