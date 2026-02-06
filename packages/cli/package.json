@@ -14,8 +14,11 @@
     "typecheck": "bunx tsc --noEmit",
     "build": "bun build src/cli/index.ts --outfile dist/cli.tmp.js --target node --format esm && echo '#!/usr/bin/env node' | cat - dist/cli.tmp.js > dist/cli.js && rm dist/cli.tmp.js && chmod +x dist/cli.js",
     "prepublishOnly": "bun run build",
-    "postinstall": "bun run ./installIPFS.ts || true; bunx papi generate"
+    "prepare": "bun run ./installIPFS.ts || true; bunx papi generate"
   },
+  "files": [
+    "dist/"
+  ],
   "engines": {
     "bun": ">=1.2.6"
   },
