@@ -59,10 +59,10 @@ async function ensureDefaultKeystore() {
 }
 
 function registerDomain(keystoreDirectoryPath: string, args: string[]): Promise<CliRunResult> {
-  return runDotnsCli(
-    ["register", "domain", "--password", TEST_PASSWORD, "--account", TEST_ACCOUNT, ...args],
-    { DOTNS_KEYSTORE_PATH: keystoreDirectoryPath },
-  );
+  return runDotnsCli(["register", "domain", "--account", TEST_ACCOUNT, ...args], {
+    DOTNS_KEYSTORE_PATH: keystoreDirectoryPath,
+    DOTNS_KEYSTORE_PASSWORD: TEST_PASSWORD,
+  });
 }
 
 function expectSuccessfulRegistration(result: CliRunResult, label: string) {
