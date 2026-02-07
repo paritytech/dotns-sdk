@@ -108,10 +108,10 @@ export type OwnershipLookupOptions = Partial<RegistrationCommandOptions> & {
 
 export type DomainOwnership = {
   /** The label without the .dot */
-  label: string;
+  label?: string;
 
   /** The label with the .dot */
-  domain: string;
+  domain?: string;
 
   /** Whether the domain is currently registered */
   registered: boolean;
@@ -122,6 +122,7 @@ export type DomainOwnership = {
   /** Substrate SS58 address of the domain owner */
   ownerSubstrate: string;
 };
+
 export type AuthType = "mnemonic" | "key-uri" | "unknown";
 
 export type AuthOptionValues = {

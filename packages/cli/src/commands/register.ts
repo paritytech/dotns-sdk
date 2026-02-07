@@ -614,8 +614,8 @@ export async function getDomainOwnershipInfo(
   const ownerSubstrateAddress = await clientWrapper.getSubstrateAddress(ownerEvmAddress);
 
   return {
-    isRegistered: ownerEvmAddress !== zeroAddress,
-    ownerEvmAddress: ownerEvmAddress !== zeroAddress ? ownerEvmAddress : zeroAddress,
-    ownerSubstrateAddress,
+    registered: ownerEvmAddress !== zeroAddress,
+    ownerEvm: ownerEvmAddress !== zeroAddress ? ownerEvmAddress : zeroAddress,
+    ownerSubstrate: ownerSubstrateAddress,
   };
 }
