@@ -14,6 +14,8 @@ import {
   createKeystorePathsForTest,
 } from "../_helpers/testPaths";
 import { DEFAULT_MNEMONIC } from "../../src/utils/constants";
+import { ProofOfPersonhoodStatus } from "../../src/types/types";
+import { generateRandomLabel } from "../../src/cli/labels";
 
 const createdTestTemporaryDirectoryPaths: string[] = [];
 let testFileTemporaryRootDirectoryPath: string | undefined;
@@ -22,6 +24,7 @@ let testFileKeystoreDirectoryPath: string | undefined;
 const REGISTERED_DOMAIN = "dotnscli";
 const REGISTERED_DOMAIN_WITH_POP = "sphaman12";
 const REGISTERED_TLD = "dotns";
+const BOB_SS58 = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty";
 
 function createPathsForTest(testName: string) {
   const paths = createKeystorePathsForTest(testName);
@@ -76,6 +79,27 @@ async function ensureDefaultKeystore() {
   await createDefaultAccountKeystore(testFileKeystoreDirectoryPath, TEST_PASSWORD);
 
   return { keystorePassword: TEST_PASSWORD, keystoreDirectoryPath: testFileKeystoreDirectoryPath };
+}
+
+async function registerFreshDomainForAlice(): Promise<string> {
+  const label = generateRandomLabel(ProofOfPersonhoodStatus.ProofOfPersonhoodFull);
+
+  const result = await runDotnsCli([
+    "register",
+    "domain",
+    "--name",
+    label,
+    "--status",
+    "full",
+    "--key-uri",
+    "//Alice",
+  ]);
+
+  expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+  expect(result.combinedOutput).not.toContain("✗ Error:");
+  expect(result.combinedOutput).toContain("✓ Operation Complete");
+
+  return label;
 }
 
 test(
@@ -187,6 +211,85 @@ test(
     const lookupResult = await runDotnsCli(["lookup", "name", REGISTERED_DOMAIN]);
 
     expectSuccessfulLookup(lookupResult, REGISTERED_DOMAIN);
+  },
+  { timeout: TEST_TIMEOUT_MS },
+);
+
+test(
+  "lookup transfer with substrate destination using positional label",
+  async () => {
+    const label = await registerFreshDomainForAlice();
+
+    const result = await runDotnsCli([
+      "lookup",
+      "transfer",
+      label,
+      "-d",
+      BOB_SS58,
+      "--key-uri",
+      "//Alice",
+    ]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+    expect(result.combinedOutput).not.toContain("✗ Error:");
+    expect(result.combinedOutput).toContain("Transfer");
+    expect(result.combinedOutput).toContain(label + ".dot");
+  },
+  { timeout: TEST_TIMEOUT_MS },
+);
+
+test(
+  "lookup transfer with --name flag falls back to parent option",
+  async () => {
+    const label = await registerFreshDomainForAlice();
+
+    const result = await runDotnsCli([
+      "lookup",
+      "transfer",
+      "--name",
+      label,
+      "-d",
+      BOB_SS58,
+      "--key-uri",
+      "//Alice",
+    ]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+    expect(result.combinedOutput).not.toContain("✗ Error:");
+    expect(result.combinedOutput).toContain("Transfer");
+    expect(result.combinedOutput).toContain(label + ".dot");
+  },
+  { timeout: TEST_TIMEOUT_MS },
+);
+
+test(
+  "lookup transfer --json returns structured result",
+  async () => {
+    const label = await registerFreshDomainForAlice();
+
+    const result = await runDotnsCli([
+      "lookup",
+      "transfer",
+      label,
+      "-d",
+      BOB_SS58,
+      "--key-uri",
+      "//Alice",
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+
+    expect(result.combinedOutput).not.toContain("═══");
+    expect(result.combinedOutput).not.toContain("▶");
+
+    const parsed = JSON.parse(result.combinedOutput.trim());
+
+    expect(parsed.label).toBe(label);
+    expect(parsed.domain).toBe(`${label}.dot`);
+    expect(parsed.destination).toBe(BOB_SS58);
+    expect(parsed.recipient).toBeString();
+    expect(parsed.transferred).toBe(true);
   },
   { timeout: TEST_TIMEOUT_MS },
 );

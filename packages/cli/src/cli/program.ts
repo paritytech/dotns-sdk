@@ -7,6 +7,7 @@ import { attachPopCommands } from "./commands/pop";
 import { attachRegisterCommand } from "./commands/registerCommand";
 import { attachAccountCommands } from "./commands/info";
 import { version } from "../../package.json";
+import { banner } from "./ui";
 
 export function createProgram() {
   const program = new Command();
@@ -19,5 +20,8 @@ export function createProgram() {
   attachContentCommands(program);
   attachBulletinCommands(program);
   attachAccountCommands(program);
+
+  if (!process.argv.includes("--json")) banner();
+
   return program;
 }

@@ -7,7 +7,7 @@ import { type Address } from "viem";
 import { ReviveClientWrapper, type PolkadotApiClient } from "../client/polkadotClient";
 import { parseNativeBalance, formatNativeBalance } from "../utils/formatting";
 import { resolveRpc, resolveMinBalancePas, resolveKeystorePath } from "./env";
-import { banner, step } from "./ui";
+import { step } from "./ui";
 import { resolveAuthSource, createAccountFromSource } from "../commands/auth";
 import type { AssetHubContext, BulletinContext, ChainContext, BalanceStatus } from "../types/types";
 
@@ -52,8 +52,6 @@ export async function prepareAssetHubContext(options: any): Promise<AssetHubCont
   const rpc = resolveRpc(options.rpc);
   const minBalancePas = resolveMinBalancePas(options.minBalance);
   const keystorePath = resolveKeystorePath(options.keystorePath);
-
-  banner();
 
   const client = await step(`Connecting RPC ${rpc}`, async () =>
     createClient(getWsProvider(rpc)).getTypedApi(paseo),
@@ -126,8 +124,6 @@ export async function prepareBulletinContext(options: any): Promise<BulletinCont
   const rpc = resolveRpc(options.bulletinRpc ?? options.rpc);
   const minBalancePas = resolveMinBalancePas(options.minBalance);
   const keystorePath = resolveKeystorePath(options.keystorePath);
-
-  banner();
 
   const client = await step(`Connecting RPC ${rpc}`, async () =>
     createClient(getWsProvider(rpc)).getTypedApi(bulletin),

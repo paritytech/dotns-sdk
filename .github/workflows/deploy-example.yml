@@ -132,7 +132,8 @@ jobs:
       artifact-name: example-site
       register-base: true
       cli-artifact-name: cli-tgz
-      key-uri: '//Alice'
+    secrets:
+      mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
 
   comment:
     name: Update PR Comment

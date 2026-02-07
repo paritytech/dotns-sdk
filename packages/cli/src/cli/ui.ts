@@ -1,9 +1,16 @@
 import chalk from "chalk";
 
-export function banner() {
-  console.log(`\n${chalk.bold.cyan("═══════════════════════════════════════")}`);
-  console.log(`${chalk.bold.cyan("              dotns developer CLI               ")}`);
-  console.log(`${chalk.bold.cyan("═══════════════════════════════════════")}\n`);
+export function banner(): void {
+  const width = 40;
+
+  const line = "═".repeat(width);
+  const title = "dotns developer CLI"
+    .padStart(Math.floor((width + "dotns developer CLI".length) / 2), " ")
+    .padEnd(width, " ");
+
+  console.log(`\n${chalk.bold.cyan(line)}`);
+  console.log(chalk.bold.cyan(title));
+  console.log(`${chalk.bold.cyan(line)}\n`);
 }
 
 export function stepStart(label: string) {

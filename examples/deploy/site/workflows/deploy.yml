@@ -22,8 +22,9 @@ jobs:
     needs: build
     uses: paritytech/dotns-sdk/.github/workflows/deploy.yml@main
     with:
-      basename: example
+      basename: dotns-sdk
       artifact-name: site
+      subname-format: branch
       mode: production
     secrets:
       mnemonic: ${{ secrets.DOTNS_MNEMONIC }}

@@ -66,7 +66,7 @@ export function classifyTransferDestination(destination: string): TransferDestin
   return "label";
 }
 
-function isValidTransferDestination(destination: string): boolean {
+export function isValidTransferDestination(destination: string): boolean {
   const kind = classifyTransferDestination(destination);
   if (kind === "evm" || kind === "substrate") return true;
 

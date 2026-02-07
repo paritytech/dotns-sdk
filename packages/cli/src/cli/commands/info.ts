@@ -9,7 +9,7 @@ import { displayAccountInformation, prepareContext } from "../context";
 import { addAuthOptions } from "./authOptions";
 import { resolveRpc, resolveKeystorePath } from "../env";
 import { resolveAuthSource } from "../../commands/auth";
-import { banner, step } from "../ui";
+import { step } from "../ui";
 
 function getMergedOptions<T>(command: Command | undefined, fallback: T): CommandOptions & T {
   const mergedOptions: any = { ...(fallback ?? {}) };
@@ -45,8 +45,6 @@ export function attachAccountCommands(root: Command) {
 
       const rpc = resolveRpc(mergedOptions.rpc);
       const keystorePath = resolveKeystorePath(mergedOptions.keystorePath);
-
-      banner();
 
       const client = await step(`Connecting RPC ${rpc}`, async () =>
         createClient(getWsProvider(rpc)).getTypedApi(paseo),
@@ -98,7 +96,6 @@ export function attachAccountCommands(root: Command) {
       const mergedOptions = getMergedOptions(command, options);
 
       const rpc = resolveRpc(mergedOptions.rpc);
-      banner();
 
       const client = await step(`Connecting RPC ${rpc}`, async () =>
         createClient(getWsProvider(rpc)).getTypedApi(paseo),
