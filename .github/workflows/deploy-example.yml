@@ -130,6 +130,7 @@ jobs:
     with:
       basename: dotns-example
       artifact-name: example-site
+      register-base: true
       cli-artifact-name: cli-tgz
       key-uri: '//Alice'
 
