@@ -229,6 +229,8 @@ export type BulletinUploadOptions = {
   json: boolean;
   /** Whether to store the current upload to the local history db */
   history: boolean;
+  /**The default sudo key uri */
+  sudoKeyUri: string;
 };
 
 export type BulletinStoreParams = {

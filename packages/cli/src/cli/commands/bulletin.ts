@@ -24,6 +24,7 @@ import { prepareContext } from "../context";
 import {
   DEFAULT_BULLETIN_RPC,
   DEFAULT_CHUNK_SIZE_BYTES,
+  DEFAULT_SUDO_KEY_URI,
   MAX_SINGLE_UPLOAD_SIZE_BYTES,
 } from "../../utils/constants";
 import { getJsonFlag } from "./lookup";
@@ -118,10 +119,9 @@ export function attachBulletinCommands(root: Command): void {
     .option("--json", "Output result as JSON (suppresses all other output)", false);
 
   addAuthOptions(bulletinCommand);
-
   const authorizeCommand = bulletinCommand
-    .command("authorize <address>")
-    .description("Authorize an account to use TransactionStorage (requires sudo)")
+    .command("authorize [address]")
+    .description("Authorize an account for Bulletin TransactionStorage")
     .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint", DEFAULT_BULLETIN_RPC)
     .option(
       "--transactions <count>",
@@ -129,20 +129,33 @@ export function attachBulletinCommands(root: Command): void {
       String(DEFAULT_AUTH_TRANSACTIONS),
     )
     .option("--bytes <count>", "Number of bytes to authorize", String(DEFAULT_AUTH_BYTES))
+    .option("--sudo-key-uri <uri>", "Override the sudo signer key URI", DEFAULT_SUDO_KEY_URI)
     .option("--json", "Output result as JSON (suppresses all other output)", false);
 
   addAuthOptions(authorizeCommand).action(
-    async (targetAddress: string, options: any, command: any) => {
+    async (positionalAddress: string | undefined, options: any, command: any) => {
       try {
         const mergedOptions = getMergedOptions(command, options);
+        const jsonOutput = getJsonFlag(command);
 
         const bulletinRpc = String(mergedOptions.bulletinRpc || DEFAULT_BULLETIN_RPC);
         const transactions = Number(mergedOptions.transactions || DEFAULT_AUTH_TRANSACTIONS);
         const bytes = BigInt(mergedOptions.bytes || DEFAULT_AUTH_BYTES);
+        const sudoKeyUri = String(mergedOptions.sudoKeyUri || DEFAULT_SUDO_KEY_URI);
 
-        const jsonOutput = getJsonFlag(command);
-        const context = await maybeQuiet(jsonOutput, () =>
-          prepareContext({ ...mergedOptions, useBulletin: true }),
+        let targetAddress: string;
+
+        if (positionalAddress) {
+          targetAddress = positionalAddress;
+        } else {
+          const targetContext = await maybeQuiet(jsonOutput, () =>
+            prepareContext({ ...mergedOptions, useBulletin: true }),
+          );
+          targetAddress = targetContext.substrateAddress;
+        }
+
+        const sudoContext = await withCapturedConsole(() =>
+          prepareContext({ keyUri: sudoKeyUri, useBulletin: true }),
         );
 
         if (!jsonOutput) {
@@ -151,13 +164,13 @@ export function attachBulletinCommands(root: Command): void {
           console.log(chalk.gray("  rpc:          ") + chalk.white(bulletinRpc));
           console.log(chalk.gray("  transactions: ") + chalk.white(transactions.toLocaleString()));
           console.log(chalk.gray("  bytes:        ") + chalk.white(formatBytes(bytes)));
-          console.log(chalk.gray("  sudo:         ") + chalk.white(context.substrateAddress));
+          console.log(chalk.gray("  sudo:         ") + chalk.yellow(sudoKeyUri));
         }
 
         await maybeQuiet(jsonOutput, () =>
           authorizeAccount({
             rpc: bulletinRpc,
-            sudoSigner: context.signer,
+            sudoSigner: sudoContext.signer,
             targetAddress,
             transactions,
             bytes,
@@ -195,12 +208,17 @@ export function attachBulletinCommands(root: Command): void {
         }
 
         if (errorMessage.includes("BadOrigin")) {
-          console.error(chalk.red("\n✗ Authorization failed - insufficient privileges"));
-          console.error(chalk.yellow("  The signer does not have sudo privileges."));
-          console.error(chalk.gray("  Use a sudo account like //Alice:\n"));
+          console.error(chalk.red("\n✗ Authorization failed — insufficient privileges"));
           console.error(
-            chalk.gray(`    dotns bulletin authorize ${targetAddress} --key-uri //Alice\n`),
+            chalk.yellow("  The sudo signer does not have sudo privileges on this chain."),
           );
+          console.error(chalk.gray("  Override with --sudo-key-uri if needed.\n"));
+          process.exit(1);
+        }
+
+        if (errorMessage.includes("not applied")) {
+          console.error(chalk.red(`\n✗ ${errorMessage}`));
+          console.error(chalk.gray("  Override with --sudo-key-uri if needed.\n"));
           process.exit(1);
         }
 

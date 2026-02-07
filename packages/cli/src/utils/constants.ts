@@ -13,7 +13,9 @@ export const PREVIEW_BASE_URL = "http://dotns.paseo.li/#/preview";
 export const DEFAULT_BULLETIN_RPC = "wss://bulletin.dotspark.app";
 export const DEFAULT_CHUNK_SIZE_BYTES = 4 * 1024 * 1024;
 export const MAX_SINGLE_UPLOAD_SIZE_BYTES = 8 * 1024 * 1024;
-
+export const DEFAULT_AUTHORIZATION_TRANSACTIONS = 1000000;
+export const DEFAULT_AUTHORIZATION_BYTES = BigInt(1099511627776);
+export const DEFAULT_VERIFICATION_GATEWAY = "https://ipfs.dotspark.app";
 export const DOT_NODE: Hex = "0x3fce7d1364a893e213bc4212792b517ffc88f5b13b86c8ef9c8d390c3a1370ce";
 
 export const DECIMALS = 12n;
@@ -22,6 +24,8 @@ export const NATIVE_TO_ETH_RATIO = 1_000_000n;
 
 export const DEFAULT_MNEMONIC =
   "bottom drive obey lake curtain smoke basket hold race lonely fit walk";
+
+export const DEFAULT_SUDO_KEY_URI = "//Alice";
 
 export const OPERATION_TIMEOUT_MILLISECONDS = 300_000;
 

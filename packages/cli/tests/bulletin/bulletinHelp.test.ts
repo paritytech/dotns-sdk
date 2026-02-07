@@ -52,12 +52,16 @@ test("bulletin authorize help shows all options", async () => {
   const result = await runDotnsCli(["bulletin", "authorize", "--help"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 
-  expect(result.combinedOutput).toContain("Authorize an account to use TransactionStorage");
-  expect(result.combinedOutput).toContain("<address>");
+  expect(result.combinedOutput).toContain("Authorize an account for Bulletin TransactionStorage");
+  expect(result.combinedOutput).toContain("[address]");
   expect(result.combinedOutput).toContain("--bulletin-rpc");
   expect(result.combinedOutput).toContain("--transactions");
   expect(result.combinedOutput).toContain("--bytes");
+  expect(result.combinedOutput).toContain("--sudo-key-uri");
+  expect(result.combinedOutput).toContain("--json");
 
+  // Auth options are available for resolving the target address
+  // from keystore when no positional address is given
   expect(result.combinedOutput).toContain("--keystore-path");
   expect(result.combinedOutput).toContain("--account");
   expect(result.combinedOutput).toContain("--password");
@@ -71,6 +75,7 @@ test("bulletin authorize help shows default values", async () => {
 
   expect(result.combinedOutput).toContain("wss://bulletin.dotspark.app");
   expect(result.combinedOutput).toContain("1000000");
+  expect(result.combinedOutput).toContain("//Alice");
 });
 
 test("bulletin history help shows options", async () => {
@@ -111,7 +116,7 @@ test("bulletin help upload shows upload help", async () => {
 test("bulletin help authorize shows authorize help", async () => {
   const result = await runDotnsCli(["bulletin", "help", "authorize"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
-  expect(result.combinedOutput).toContain("Authorize an account to use TransactionStorage");
+  expect(result.combinedOutput).toContain("Authorize an account for Bulletin TransactionStorage");
 });
 
 test("bulletin list alias works", async () => {

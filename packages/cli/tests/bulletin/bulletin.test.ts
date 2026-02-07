@@ -124,7 +124,11 @@ async function runBulletinUpload(args: string[]) {
   );
 }
 
-async function runBulletinAuthorize(args: string[]) {
+function runBulletinAuthorize(args: string[]) {
+  return runDotnsCli(["bulletin", "authorize", ...args]);
+}
+
+async function runBulletinAuthorizeWithAccount(args: string[] = []) {
   const { keystorePassword, keystoreDirectoryPath } = await ensureDefaultKeystore();
 
   return runDotnsCli(
@@ -230,9 +234,9 @@ test(
 );
 
 test(
-  "bulletin authorize basic",
+  "bulletin authorize with positional address",
   async () => {
-    createPathsForTest("bulletin_authorize_basic");
+    createPathsForTest("bulletin_authorize_positional");
     const targetAddress = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty";
 
     const result = await runBulletinAuthorize([targetAddress]);
@@ -241,6 +245,23 @@ test(
     expect(result.combinedOutput).toContain(targetAddress);
     expect(result.combinedOutput).toContain("rpc:");
     expect(result.combinedOutput).toContain("transactions:");
+    expect(result.combinedOutput).toContain("sudo:");
+    expect(result.combinedOutput).toContain("//Alice");
+  },
+  { timeout: BULLETIN_TEST_TIMEOUT_MS },
+);
+
+test(
+  "bulletin authorize with --account resolves target from keystore",
+  async () => {
+    createPathsForTest("bulletin_authorize_account_flag");
+
+    const result = await runBulletinAuthorizeWithAccount();
+
+    expectSuccessfulAuthorize(result);
+    expect(result.combinedOutput).toContain("target:");
+    expect(result.combinedOutput).toContain("sudo:");
+    expect(result.combinedOutput).toContain("//Alice");
   },
   { timeout: BULLETIN_TEST_TIMEOUT_MS },
 );
