@@ -101,6 +101,9 @@ jobs:
   build-cli:
     name: Build CLI
     runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.result.outputs.status }}
+      details: ${{ steps.result.outputs.details }}
     steps:
       - uses: actions/checkout@v4
 
@@ -110,18 +113,51 @@ jobs:
           bun-version: '1.2.6'
 
       - name: Build and pack
+        id: pack
+        continue-on-error: true
         run: |
-          cd packages/cli
-          bun install
-          bun run build
-          npm pack
+          set -o pipefail
+          {
+            cd packages/cli
+            bun install
+            bun run build
+            npm pack
+          } 2>&1 | tee "$GITHUB_WORKSPACE/build-cli-output.txt"
+
+      - name: Upload build-cli output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-cli-output
+          path: build-cli-output.txt
+          retention-days: 7
 
       - name: Upload CLI artifact
+        if: steps.pack.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: cli-tgz
           path: packages/cli/dotns-cli-*.tgz
           retention-days: 7
+
+      - name: Process results
+        id: result
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$PACK_OUTCOME" == "success" ]]; then
+            echo "status=Passed" >> "$GITHUB_OUTPUT"
+            echo "details=CLI built and packed" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=Failed" >> "$GITHUB_OUTPUT"
+            echo "details=CLI build failed (bun install, build, or npm pack)" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          PACK_OUTCOME: ${{ steps.pack.outcome }}
+
+      - name: Fail if build failed
+        if: steps.pack.outcome == 'failure'
+        run: exit 1
 
   deploy:
     name: Deploy Preview
@@ -137,7 +173,7 @@ jobs:
 
   comment:
     name: Update PR Comment
-    needs: [build, deploy]
+    needs: [build, build-cli, deploy]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -147,7 +183,14 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: deploy-example-output
-          path: .
+          path: artifacts
+        continue-on-error: true
+
+      - name: Download build-cli output
+        uses: actions/download-artifact@v4
+        with:
+          name: build-cli-output
+          path: artifacts
         continue-on-error: true
 
       - name: Update PR comment
@@ -156,6 +199,10 @@ jobs:
           SECTION: Deploy Example
           BUILD_STATUS: ${{ needs.build.outputs.status }}
           BUILD_DETAILS: ${{ needs.build.outputs.details }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          CLI_STATUS: ${{ needs.build-cli.outputs.status }}
+          CLI_DETAILS: ${{ needs.build-cli.outputs.details }}
+          CLI_RESULT: ${{ needs.build-cli.result }}
           DEPLOY_RESULT: ${{ needs.deploy.result }}
           DEPLOY_CID: ${{ needs.deploy.outputs.cid }}
           DEPLOY_FQDN: ${{ needs.deploy.outputs.fqdn }}
@@ -166,34 +213,100 @@ jobs:
           script: |
             const fs = require("fs");
 
+            const MAX_OUTPUT_CHARS = 60000;
+
+            function readArtifact(filename) {
+              try {
+                return fs.readFileSync(`artifacts/${filename}`, "utf8");
+              } catch (_) {
+                return "";
+              }
+            }
+
+            function truncate(text) {
+              if (!text) return "(no output captured)";
+              if (text.length > MAX_OUTPUT_CHARS) {
+                return "(truncated; showing last " + MAX_OUTPUT_CHARS + " chars)\n\n" + text.slice(-MAX_OUTPUT_CHARS);
+              }
+              return text;
+            }
+
             const marker = "<!-- ci-summary -->";
             const detailsMarker = "<!-- details-section -->";
             const section = process.env.SECTION;
+            const runUrl = process.env.RUN_URL;
+
             const buildStatus = process.env.BUILD_STATUS;
             const buildDetails = process.env.BUILD_DETAILS;
+            const buildResult = process.env.BUILD_RESULT;
+
+            const cliStatus = process.env.CLI_STATUS;
+            const cliDetails = process.env.CLI_DETAILS;
+            const cliResult = process.env.CLI_RESULT;
+
             const deployResult = process.env.DEPLOY_RESULT;
             const cid = process.env.DEPLOY_CID;
             const fqdn = process.env.DEPLOY_FQDN;
             const url = process.env.DEPLOY_URL;
             const cacheHit = process.env.DEPLOY_CACHE_HIT === "true";
-            const runUrl = process.env.RUN_URL;
 
-            const passed = buildStatus === "Passed" && deployResult === "success";
+            const buildPassed = buildStatus === "Passed";
+            const cliPassed = cliStatus === "Passed";
+            const deployPassed = deployResult === "success";
+            const allPassed = buildPassed && cliPassed && deployPassed;
+
+            const stages = [];
+
+            stages.push({
+              name: "Site validation",
+              passed: buildPassed,
+              detail: buildPassed
+                ? "Site validated"
+                : (buildDetails || "Validation failed"),
+            });
+
+            stages.push({
+              name: "CLI build",
+              passed: cliPassed,
+              detail: cliPassed
+                ? "CLI built and packed"
+                : cliResult === "skipped"
+                  ? "Skipped"
+                  : (cliDetails || "CLI build failed"),
+            });
+
+            if (deployResult === "skipped") {
+              stages.push({
+                name: "Deploy",
+                passed: false,
+                detail: "Skipped (prerequisite job failed)",
+              });
+            } else {
+              stages.push({
+                name: "Deploy",
+                passed: deployPassed,
+                detail: deployPassed
+                  ? (cacheHit ? "Deployed (cached)" : "Deployed")
+                  : "Deploy workflow failed — see run logs for upload/register/contenthash details",
+              });
+            }
+
+
+            let failOutput = "";
+            const failedStage = stages.find(s => !s.passed);
+
+            if (failedStage) {
+              if (failedStage.name === "Site validation") {
+                failOutput = readArtifact("deploy-example-output.txt");
+              } else if (failedStage.name === "CLI build") {
+                failOutput = readArtifact("build-cli-output.txt");
+              }
+              // Deploy failures don't have a local artifact — the reusable
+              // workflow runs on a separate runner. The run URL links to its logs.
+            }
 
             const { owner, repo } = context.repo;
             const issue_number = context.payload.pull_request.number;
-
-            let output = "";
-            try {
-              output = fs.readFileSync("deploy-example-output.txt", "utf8");
-            } catch (_) {
-              output = "(deploy-example-output.txt not found)";
-            }
-
-            const MAX_CHARS = 60000;
-            if (output.length > MAX_CHARS) {
-              output = ["(truncated; showing last " + MAX_CHARS + " chars)", "", output.slice(-MAX_CHARS)].join("\n");
-            }
 
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner, repo, issue_number, per_page: 100,
@@ -228,15 +341,27 @@ jobs:
               }
             }
 
-            const resultText = passed ? "Passed" : "Failed";
+            const resultText = allPassed ? "Passed" : "Failed";
             rows[section] = `[${resultText}](${runUrl})`;
 
-            if (passed && cid && fqdn) {
+            const stageRows = stages
+              .map(s => `| ${s.passed ? "✓" : "✗"} ${s.name} | ${s.detail} |`)
+              .join("\n");
+
+            const stageTable = [
+              "| Stage | Status |",
+              "|:------|:-------|",
+              stageRows,
+            ].join("\n");
+
+            if (allPassed && cid && fqdn) {
               const cidDisplay = cacheHit ? `\`${cid}\` (cached)` : `\`${cid}\``;
 
               existingDetails[section] = [
                 `<details>`,
-                `<summary><strong>${section}</strong> - ${resultText}</summary>`,
+                `<summary><strong>${section}</strong> — ${resultText}</summary>`,
+                "",
+                stageTable,
                 "",
                 `| Property | Value |`,
                 `|----------|-------|`,
@@ -249,21 +374,25 @@ jobs:
                 "</details>",
               ].join("\n");
             } else {
-              const failReason = buildStatus !== "Passed"
-                ? (buildDetails || "Build validation failed")
-                : "Deployment failed";
+              const headline = failedStage
+                ? `**Failed at: ${failedStage.name}** — ${failedStage.detail}`
+                : "Unknown failure";
+
+              const outputBlock = failOutput
+                ? ["", "```text", truncate(failOutput), "```"].join("\n")
+                : "";
 
               existingDetails[section] = [
                 `<details>`,
-                `<summary><strong>${section}</strong> - ${resultText}</summary>`,
+                `<summary><strong>${section}</strong> — ${resultText}</summary>`,
                 "",
-                failReason,
+                headline,
+                "",
+                stageTable,
                 "",
                 `[View run](${runUrl})`,
+                outputBlock,
                 "",
-                "```text",
-                output,
-                "```",
                 "</details>",
               ].join("\n");
             }
