@@ -101,6 +101,28 @@ test(
 );
 
 test(
+  "lookup name --json returns structured result with no human output",
+  async () => {
+    const result = await runDotnsCli(["lookup", "name", REGISTERED_DOMAIN, "--json"]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+
+    expect(result.combinedOutput).not.toContain("═══");
+    expect(result.combinedOutput).not.toContain("▶");
+    expect(result.combinedOutput).not.toContain("✓");
+
+    const parsed = JSON.parse(result.combinedOutput.trim());
+
+    expect(parsed.domain).toBe(`${REGISTERED_DOMAIN}.dot`);
+    expect(parsed.node).toBeString();
+    expect(parsed.exists).toBeBoolean();
+    expect(parsed.owner).toBeString();
+    expect(parsed.resolver).toBeString();
+  },
+  { timeout: TEST_TIMEOUT_MS },
+);
+
+test(
   "lookup owner-of shows ownership information without auth",
   async () => {
     const ownerOfResult = await runDotnsCli(["lookup", "owner-of", REGISTERED_DOMAIN]);
@@ -134,6 +156,27 @@ test(
     expect(lookupResult.combinedOutput).toContain("Registered:");
     expect(lookupResult.combinedOutput).toContain("false");
     expect(lookupResult.combinedOutput).toContain("(none)");
+  },
+  { timeout: TEST_TIMEOUT_MS },
+);
+
+test(
+  "lookup owner-of --json returns structured result",
+  async () => {
+    const result = await runDotnsCli(["lookup", "owner-of", REGISTERED_DOMAIN, "--json"]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+
+    expect(result.combinedOutput).not.toContain("═══");
+    expect(result.combinedOutput).not.toContain("🔎");
+
+    const parsed = JSON.parse(result.combinedOutput.trim());
+
+    expect(parsed.label).toBe(REGISTERED_DOMAIN);
+    expect(parsed.domain).toBe(`${REGISTERED_DOMAIN}.dot`);
+    expect(parsed.registered).toBeBoolean();
+    expect(parsed.ownerEvm).toBeString();
+    expect(parsed.ownerSubstrate).toBeString();
   },
   { timeout: TEST_TIMEOUT_MS },
 );

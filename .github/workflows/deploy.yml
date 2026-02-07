@@ -5,6 +5,8 @@
 # The workflow is structured as discrete stages so that a failure at any point
 # (e.g. contenthash update) does not force earlier stages (e.g. upload) to re-run.
 # A content-addressable cache skips the upload entirely when the build hasn't changed.
+# Lookup steps check name existence before registration to avoid redundant retries
+# and to fail fast with actionable error messages when prerequisites are missing.
 #
 # Modes:
 #   preview    — registers a subname (e.g. pr42.mysite.dot) under the base domain
@@ -32,7 +34,7 @@ on:
         default: 'pr-number'
 
       register-base:
-        description: 'Register base domain if not owned'
+        description: 'Attempt base domain registration if not already owned'
         required: false
         type: boolean
         default: false
@@ -110,9 +112,8 @@ jobs:
       fqdn: ${{ steps.final.outputs.fqdn }}
       url: ${{ steps.final.outputs.url }}
       cache-hit: ${{ steps.cache.outputs.cache-hit }}
-      
-    steps:
 
+    steps:
       - name: Resolve authentication
         id: auth
         run: |
@@ -292,13 +293,54 @@ jobs:
           CACHED_CID: ${{ steps.cached.outputs.cid }}
           UPLOAD_CID: ${{ steps.upload.outputs.cid }}
 
+      - name: Check base domain existence
+        id: check-base
+        run: |
+          if RESULT=$(dotns lookup name "$BASENAME" --json 2>&1); then
+            EXISTS=$(echo "$RESULT" | jq -r '.exists')
+            OWNER=$(echo "$RESULT" | jq -r '.owner')
+            echo "exists=$EXISTS" >> "$GITHUB_OUTPUT"
+            echo "owner=$OWNER" >> "$GITHUB_OUTPUT"
+
+            if [[ "$EXISTS" == "true" ]]; then
+              echo "::notice::Base domain ${BASENAME}.dot is registered (owner: $OWNER)"
+            fi
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "owner=" >> "$GITHUB_OUTPUT"
+            echo "::warning::Base domain lookup failed — treating as unregistered"
+          fi
+        env:
+          BASENAME: ${{ inputs.basename }}
+
+      - name: Fail if base domain not registered
+        if: steps.check-base.outputs.exists != 'true' && inputs.register-base != true
+        run: |
+          echo "::error::Base domain ${BASENAME}.dot is not registered."
+          echo ""
+          echo "To deploy, the base domain must be registered first."
+          echo "You can register it in one of two ways:"
+          echo ""
+          echo "  1. Visit https://dotns.paseo.li"
+          echo "  2. Use the DotNS CLI:"
+          echo "     dotns register domain --name $BASENAME"
+          echo ""
+          echo "To have this workflow register it automatically, set register-base: true."
+          echo ""
+          echo "If registration requires Proof-of-Personhood, ensure your account has"
+          echo "the correct POP status first. See: dotns pop set --help"
+          exit 1
+        env:
+          BASENAME: ${{ inputs.basename }}
+
       - name: Register base domain
-        if: inputs.register-base
+        if: steps.check-base.outputs.exists != 'true' && inputs.register-base == true
         run: |
           for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
             echo "Register base attempt $ATTEMPT/$MAX_RETRIES"
 
             if dotns register domain --name "$BASENAME" 2>&1; then
+              echo "::notice::Base domain ${BASENAME}.dot registered"
               exit 0
             fi
 
@@ -306,20 +348,55 @@ jobs:
             [[ "$ATTEMPT" -lt "$MAX_RETRIES" ]] && sleep "$RETRY_DELAY"
           done
 
-          # Non-fatal: domain may already exist
-          echo "::warning::Base domain registration failed — may already exist"
+          echo "::error::Base domain registration failed after $MAX_RETRIES attempts."
+          echo ""
+          echo "This usually means the account does not have the required"
+          echo "Proof-of-Personhood status for this name."
+          echo ""
+          echo "To fix this:"
+          echo "  1. Check your POP status:  dotns pop status"
+          echo "  2. Set POP if needed:      dotns pop set --help"
+          echo "  3. Then re-run this workflow."
+          echo ""
+          echo "You can also register manually at https://dotns.paseo.li"
+          exit 1
         env:
           BASENAME: ${{ inputs.basename }}
           MAX_RETRIES: ${{ inputs.max-retries }}
           RETRY_DELAY: ${{ inputs.retry-delay }}
 
-      - name: Register subname
+      - name: Check subname existence
+        id: check-subname
         if: inputs.mode == 'preview'
+        run: |
+          LOOKUP_DOMAIN="${SUBNAME}.${BASENAME}"
+
+          if RESULT=$(dotns lookup name "$LOOKUP_DOMAIN" --json 2>&1); then
+            EXISTS=$(echo "$RESULT" | jq -r '.exists')
+            OWNER=$(echo "$RESULT" | jq -r '.owner')
+            echo "exists=$EXISTS" >> "$GITHUB_OUTPUT"
+            echo "owner=$OWNER" >> "$GITHUB_OUTPUT"
+
+            if [[ "$EXISTS" == "true" ]]; then
+              echo "::notice::Subname ${LOOKUP_DOMAIN}.dot already exists (owner: $OWNER) — skipping registration"
+            fi
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "owner=" >> "$GITHUB_OUTPUT"
+            echo "::warning::Subname lookup failed — will attempt registration"
+          fi
+        env:
+          SUBNAME: ${{ steps.target.outputs.subname }}
+          BASENAME: ${{ inputs.basename }}
+
+      - name: Register subname
+        if: inputs.mode == 'preview' && steps.check-subname.outputs.exists != 'true'
         run: |
           for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
             echo "Register subname attempt $ATTEMPT/$MAX_RETRIES"
 
             if dotns register subname --name "$SUBNAME" --parent "$BASENAME" 2>&1; then
+              echo "::notice::Subname ${SUBNAME}.${BASENAME}.dot registered"
               exit 0
             fi
 
@@ -327,8 +404,20 @@ jobs:
             [[ "$ATTEMPT" -lt "$MAX_RETRIES" ]] && sleep "$RETRY_DELAY"
           done
 
-          # Non-fatal: subname may already exist from a previous PR push
-          echo "::warning::Subname registration failed — may already exist"
+          echo "::error::Subname registration failed after $MAX_RETRIES attempts."
+          echo ""
+          echo "This usually means the authenticated account does not own"
+          echo "the parent domain ${BASENAME}.dot, or the parent's subname"
+          echo "registration hooks rejected the request."
+          echo ""
+          echo "To fix this:"
+          echo "  1. Verify parent domain ownership: dotns lookup name $BASENAME --json"
+          echo "  2. Check the parent allows subname registration"
+          echo "  3. Ensure the workflow's auth account matches the parent owner"
+          echo ""
+          echo "You can also register subnames manually:"
+          echo "  dotns register subname --name $SUBNAME --parent $BASENAME"
+          exit 1
         env:
           SUBNAME: ${{ steps.target.outputs.subname }}
           BASENAME: ${{ inputs.basename }}

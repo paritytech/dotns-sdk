@@ -107,14 +107,21 @@ export type OwnershipLookupOptions = Partial<RegistrationCommandOptions> & {
 };
 
 export type DomainOwnership = {
-  /** Whether the domain is currently registered */
-  isRegistered: boolean;
-  /** EVM address of the domain owner (H160 format) */
-  ownerEvmAddress: Address | null;
-  /** Substrate SS58 address of the domain owner */
-  ownerSubstrateAddress: string | null;
-};
+  /** The label without the .dot */
+  label: string;
 
+  /** The label with the .dot */
+  domain: string;
+
+  /** Whether the domain is currently registered */
+  registered: boolean;
+
+  /** EVM address of the domain owner (H160 format) */
+  ownerEvm: string;
+
+  /** Substrate SS58 address of the domain owner */
+  ownerSubstrate: string;
+};
 export type AuthType = "mnemonic" | "key-uri" | "unknown";
 
 export type AuthOptionValues = {
@@ -219,6 +226,8 @@ export type BulletinUploadOptions = {
   bytes?: string;
   /**  Output as json */
   json: boolean;
+  /** Whether to store the current upload to the local history db */
+  history: boolean;
 };
 
 export type BulletinStoreParams = {
@@ -522,6 +531,8 @@ export type LookupActionOptions = CommandOptions &
     name?: string;
     /** Internal: resolved label provided positionally */
     __positionalLabel?: string;
+    /**  Output as json */
+    json: boolean;
   };
 
 export type ReadOnlyContextAccount = {
@@ -611,6 +622,43 @@ export type SubnodeRecord = {
 
   /** Address that will own the new subnode */
   owner: Address;
+};
+
+export type BaseNameReservation = {
+  /** Base name with trailing digits stripped (e.g. "mysite" from "mysite42"). */
+  baseName: string;
+  /** Whether the base name is currently reserved via the PopRules oracle. */
+  isReserved: boolean;
+  /** EVM address of the reservation holder, or zero address if unreserved. */
+  reservedBy: string;
+  /** ISO 8601 expiration timestamp, or null if the reservation has no expiry. */
+  expires: string | null;
+};
+
+export type DomainLookupResult = {
+  /** Fully qualified domain name including the .dot suffix. */
+  domain: string;
+  /** EIP-137 namehash of the fully qualified domain name. */
+  node: string;
+  /** Whether a record exists in the DotNS registry for this node. */
+  exists: boolean;
+  /** Registry owner of the domain, or zero address if unregistered. */
+  owner: Address;
+  /** Resolver contract set for this domain in the registry. */
+  resolver: Address;
+  /** Owner's deployed Store contract, or null if no store exists. */
+  store: Address | null;
+  /** Address the domain resolves to via the DotnsResolver, or null if unset or using a non-standard resolver. */
+  resolvedAddress: Address | null;
+  /** On-chain balance of the domain owner's substrate account. */
+  ownerBalance: {
+    /** SS58-encoded substrate address derived from the owner's EVM address. */
+    substrate: string;
+    /** Human-readable free balance in native token units. */
+    free: string;
+  } | null;
+  /** PopRules reservation status for the base name, or null if the label has no trailing digits. */
+  baseNameReservation: BaseNameReservation | null;
 };
 
 export type ChainContext = AssetHubContext | BulletinContext;

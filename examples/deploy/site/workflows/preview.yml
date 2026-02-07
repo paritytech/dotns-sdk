@@ -25,5 +25,6 @@ jobs:
     uses: paritytech/dotns-sdk/.github/workflows/deploy.yml@main
     with:
       basename: example
+      register-base: true
       artifact-name: site-preview
       key-uri: '//Alice'

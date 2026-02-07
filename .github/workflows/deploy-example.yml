@@ -4,7 +4,7 @@
 # registers a preview subname (e.g. pr42.dotns-example.dot). Results are posted
 # to the PR's CI Summary comment alongside other checks.
 #
-# The CLI is built from source (build-cli job) because the current release doesnt support --json yet.
+# The CLI is built from source (build-cli job) because no release exists yet.
 # Once a release is published, replace cli-artifact-name with cli-version and
 # remove the build-cli job.
 name: Deploy Example

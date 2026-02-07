@@ -23,10 +23,24 @@ import type {
   LookupActionOptions,
   ResolvedReadOnlyAuth,
 } from "../../types/types";
+import { maybeQuiet } from "./bulletin";
 
 function createClientWrapper(rpc: string) {
   const client = createClient(getWsProvider(rpc)).getTypedApi(paseo);
   return new ReviveClientWrapper(client as PolkadotApiClient);
+}
+
+export function getJsonFlag(command: any): boolean {
+  if (command && typeof (command as any).optsWithGlobals === "function") {
+    const options = (command as any).optsWithGlobals();
+    if (typeof options?.json === "boolean") return options.json;
+  }
+
+  const localOptions =
+    command && typeof command.opts === "function" ? (command.opts() as any) : undefined;
+  if (typeof localOptions?.json === "boolean") return localOptions.json;
+
+  return process.argv.includes("--json");
 }
 
 function hasAnyAuthHint(opts: AuthSource): boolean {
@@ -99,7 +113,8 @@ export function attachLookupCommands(root: Command): void {
   const lookupNameCommand = lookupCommand
     .command("name [label]")
     .description("Lookup comprehensive domain information")
-    .option("-n, --name <label>", "Domain label to lookup (alternative to positional argument)");
+    .option("-n, --name <label>", "Domain label to lookup (alternative to positional argument)")
+    .option("--json", "Output result as JSON (suppresses all other output)", false);
 
   addAuthOptions(lookupNameCommand).action(
     async (positionalLabel: string | undefined, options: any, cmd: any) => {
@@ -111,8 +126,13 @@ export function attachLookupCommands(root: Command): void {
         } as LookupActionOptions;
 
         const label = merged.name || merged.__positionalLabel;
+        const jsonOutput = getJsonFlag(merged);
 
         if (!label) {
+          if (jsonOutput) {
+            console.error(JSON.stringify({ error: "Domain label is required" }));
+            process.exit(1);
+          }
           console.error(chalk.red("\nError: Domain label is required\n"));
           console.log(chalk.gray("Usage: dotns lookup name <label>"));
           console.log(chalk.gray("   or: dotns lookup name --name <label>"));
@@ -120,20 +140,38 @@ export function attachLookupCommands(root: Command): void {
           process.exit(1);
         }
 
-        banner();
+        if (!jsonOutput) {
+          banner();
+        }
 
-        const { clientWrapper, account } = await prepareReadOnlyContext(merged);
+        const { clientWrapper, account } = await maybeQuiet(jsonOutput, () =>
+          prepareReadOnlyContext(merged),
+        );
 
-        console.log(chalk.bold("\n▶ Domain Lookup\n"));
+        if (!jsonOutput) {
+          console.log(chalk.bold("\n▶ Domain Lookup\n"));
+        }
 
-        await performDomainLookup(label, account.address, clientWrapper);
+        const result = await maybeQuiet(jsonOutput, () =>
+          performDomainLookup(label, account.address, clientWrapper),
+        );
 
-        console.log(chalk.green("\n✓ Complete\n"));
+        if (jsonOutput) {
+          console.log(JSON.stringify(result));
+        } else {
+          console.log(chalk.green("\n✓ Complete\n"));
+        }
+
         process.exit(0);
       } catch (error) {
-        console.error(
-          chalk.red(`\n✗ Error: ${error instanceof Error ? error.message : String(error)}\n`),
-        );
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
+        if (Boolean((options as any).json)) {
+          console.error(JSON.stringify({ error: errorMessage }));
+          process.exit(1);
+        }
+
+        console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
         process.exit(1);
       }
     },
@@ -141,25 +179,45 @@ export function attachLookupCommands(root: Command): void {
 
   lookupCommand
     .option("-n, --name <label>", "Domain label to lookup")
+    .option("--json", "Output result as JSON (suppresses all other output)", false)
     .action(async (options: any, cmd: any) => {
       if (options.name) {
         try {
           const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
+          const jsonOutput = getJsonFlag(merged);
 
-          banner();
+          if (!jsonOutput) {
+            banner();
+          }
 
-          const { clientWrapper, account } = await prepareReadOnlyContext(merged);
+          const { clientWrapper, account } = await maybeQuiet(jsonOutput, () =>
+            prepareReadOnlyContext(merged),
+          );
 
-          console.log(chalk.bold("\n▶ Domain Lookup\n"));
+          if (!jsonOutput) {
+            console.log(chalk.bold("\n▶ Domain Lookup\n"));
+          }
 
-          await performDomainLookup(merged.name as string, account.address, clientWrapper);
+          const result = await maybeQuiet(jsonOutput, () =>
+            performDomainLookup(merged.name as string, account.address, clientWrapper),
+          );
 
-          console.log(chalk.green("\n✓ Complete\n"));
+          if (jsonOutput) {
+            console.log(JSON.stringify(result));
+          } else {
+            console.log(chalk.green("\n✓ Complete\n"));
+          }
+
           process.exit(0);
         } catch (error) {
-          console.error(
-            chalk.red(`\n✗ Error: ${error instanceof Error ? error.message : String(error)}\n`),
-          );
+          const errorMessage = error instanceof Error ? error.message : String(error);
+
+          if (Boolean((options as any).json)) {
+            console.error(JSON.stringify({ error: errorMessage }));
+            process.exit(1);
+          }
+
+          console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
           process.exit(1);
         }
       }
@@ -168,26 +226,46 @@ export function attachLookupCommands(root: Command): void {
   const ownerOfCommand = lookupCommand
     .command("owner-of <label>")
     .description("Show whether a name is registered and who owns it")
-    .alias("oo");
+    .alias("oo")
+    .option("--json", "Output result as JSON (suppresses all other output)", false);
 
   addAuthOptions(ownerOfCommand).action(async (label: string, options: any, cmd: any) => {
     try {
       const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
+      const jsonOutput = getJsonFlag(merged);
 
-      banner();
+      if (!jsonOutput) {
+        banner();
+      }
 
-      const { clientWrapper, account } = await prepareReadOnlyContext(merged);
+      const { clientWrapper, account } = await maybeQuiet(jsonOutput, () =>
+        prepareReadOnlyContext(merged),
+      );
 
-      console.log(chalk.bold("\n▶ Ownership Lookup\n"));
+      if (!jsonOutput) {
+        console.log(chalk.bold("\n▶ Ownership Lookup\n"));
+      }
 
-      await performOwnerOfLookup(label, account.address, clientWrapper);
+      const result = await maybeQuiet(jsonOutput, () =>
+        performOwnerOfLookup(label, account.address, clientWrapper),
+      );
 
-      console.log(chalk.green("\n✓ Complete\n"));
+      if (jsonOutput) {
+        console.log(JSON.stringify(result));
+      } else {
+        console.log(chalk.green("\n✓ Complete\n"));
+      }
+
       process.exit(0);
     } catch (error) {
-      console.error(
-        chalk.red(`\n✗ Error: ${error instanceof Error ? error.message : String(error)}\n`),
-      );
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      if (Boolean((options as any).json)) {
+        console.error(JSON.stringify({ error: errorMessage }));
+        process.exit(1);
+      }
+
+      console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
       process.exit(1);
     }
   });
