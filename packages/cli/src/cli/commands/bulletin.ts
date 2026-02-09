@@ -24,8 +24,10 @@ import { prepareContext } from "../context";
 import {
   DEFAULT_BULLETIN_RPC,
   DEFAULT_CHUNK_SIZE_BYTES,
+  DEFAULT_SUDO_KEY_URI,
   MAX_SINGLE_UPLOAD_SIZE_BYTES,
 } from "../../utils/constants";
+import { getJsonFlag } from "./lookup";
 
 const DEFAULT_AUTH_TRANSACTIONS = 1000000;
 const DEFAULT_AUTH_BYTES = BigInt(1099511627776);
@@ -65,53 +67,140 @@ function formatBytes(bytes: bigint | number): string {
   return `${value.toFixed(2)} ${units[unitIndex]}`;
 }
 
+export async function withCapturedConsole<T>(callback: () => Promise<T>): Promise<T> {
+  const captured: string[] = [];
+  const capture = (...args: any[]) => {
+    captured.push(args.map(String).join(" "));
+  };
+  const captureWrite = (chunk: any) => {
+    captured.push(String(chunk));
+    return true;
+  };
+
+  const saved = {
+    log: console.log,
+    error: console.error,
+    warn: console.warn,
+    info: console.info,
+    stdoutWrite: process.stdout.write.bind(process.stdout),
+    stderrWrite: process.stderr.write.bind(process.stderr),
+  };
+
+  console.log = capture;
+  console.error = capture;
+  console.warn = capture;
+  console.info = capture;
+  process.stdout.write = captureWrite as any;
+  process.stderr.write = captureWrite as any;
+
+  try {
+    return await callback();
+  } catch (error) {
+    saved.error("[captured output before failure]\n" + captured.join("\n"));
+    throw error;
+  } finally {
+    console.log = saved.log;
+    console.error = saved.error;
+    console.warn = saved.warn;
+    console.info = saved.info;
+    process.stdout.write = saved.stdoutWrite;
+    process.stderr.write = saved.stderrWrite;
+  }
+}
+
+export function maybeQuiet<T>(jsonOutput: boolean, callback: () => Promise<T>): Promise<T> {
+  return jsonOutput ? withCapturedConsole(callback) : callback();
+}
+
 export function attachBulletinCommands(root: Command): void {
-  const bulletinCommand = root.command("bulletin").description("Bulletin storage utilities");
+  const bulletinCommand = root
+    .command("bulletin")
+    .description("Bulletin storage utilities")
+    .option("--json", "Output result as JSON (suppresses all other output)", false);
 
   addAuthOptions(bulletinCommand);
-
   const authorizeCommand = bulletinCommand
-    .command("authorize <address>")
-    .description("Authorize an account to use TransactionStorage (requires sudo)")
+    .command("authorize [address]")
+    .description("Authorize an account for Bulletin TransactionStorage")
     .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint", DEFAULT_BULLETIN_RPC)
     .option(
       "--transactions <count>",
       "Number of transactions to authorize",
       String(DEFAULT_AUTH_TRANSACTIONS),
     )
-    .option("--bytes <count>", "Number of bytes to authorize", String(DEFAULT_AUTH_BYTES));
+    .option("--bytes <count>", "Number of bytes to authorize", String(DEFAULT_AUTH_BYTES))
+    .option("--sudo-key-uri <uri>", "Override the sudo signer key URI", DEFAULT_SUDO_KEY_URI)
+    .option("--json", "Output result as JSON (suppresses all other output)", false);
 
   addAuthOptions(authorizeCommand).action(
-    async (targetAddress: string, options: any, command: Command) => {
+    async (positionalAddress: string | undefined, options: any, command: any) => {
       try {
         const mergedOptions = getMergedOptions(command, options);
+        const jsonOutput = getJsonFlag(command);
 
         const bulletinRpc = String(mergedOptions.bulletinRpc || DEFAULT_BULLETIN_RPC);
         const transactions = Number(mergedOptions.transactions || DEFAULT_AUTH_TRANSACTIONS);
         const bytes = BigInt(mergedOptions.bytes || DEFAULT_AUTH_BYTES);
+        const sudoKeyUri = String(mergedOptions.sudoKeyUri || DEFAULT_SUDO_KEY_URI);
 
-        const context = await prepareContext({ ...mergedOptions, useBulletin: true });
+        let targetAddress: string;
 
-        console.log(chalk.blue("\n▶ Bulletin Authorize"));
-        console.log(chalk.gray("  target:       ") + chalk.cyan(targetAddress));
-        console.log(chalk.gray("  rpc:          ") + chalk.white(bulletinRpc));
-        console.log(chalk.gray("  transactions: ") + chalk.white(transactions.toLocaleString()));
-        console.log(chalk.gray("  bytes:        ") + chalk.white(formatBytes(bytes)));
-        console.log(chalk.gray("  sudo:         ") + chalk.white(context.substrateAddress));
+        if (positionalAddress) {
+          targetAddress = positionalAddress;
+        } else {
+          const targetContext = await maybeQuiet(jsonOutput, () =>
+            prepareContext({ ...mergedOptions, useBulletin: true }),
+          );
+          targetAddress = targetContext.substrateAddress;
+        }
 
-        await authorizeAccount({
-          rpc: bulletinRpc,
-          sudoSigner: context.signer,
-          targetAddress,
-          transactions,
-          bytes,
-        });
+        const sudoContext = await withCapturedConsole(() =>
+          prepareContext({ keyUri: sudoKeyUri, useBulletin: true }),
+        );
 
-        console.log(chalk.green("\n✓ Authorization Complete"));
-        console.log(chalk.gray("  The account can now upload to Bulletin.\n"));
+        if (!jsonOutput) {
+          console.log(chalk.blue("\n▶ Bulletin Authorize"));
+          console.log(chalk.gray("  target:       ") + chalk.cyan(targetAddress));
+          console.log(chalk.gray("  rpc:          ") + chalk.white(bulletinRpc));
+          console.log(chalk.gray("  transactions: ") + chalk.white(transactions.toLocaleString()));
+          console.log(chalk.gray("  bytes:        ") + chalk.white(formatBytes(bytes)));
+          console.log(chalk.gray("  sudo:         ") + chalk.yellow(sudoKeyUri));
+        }
+
+        await maybeQuiet(jsonOutput, () =>
+          authorizeAccount({
+            rpc: bulletinRpc,
+            sudoSigner: sudoContext.signer,
+            targetAddress,
+            transactions,
+            bytes,
+          }),
+        );
+
+        if (jsonOutput) {
+          console.log(
+            JSON.stringify({
+              ok: true,
+              target: targetAddress,
+              rpc: bulletinRpc,
+              transactions,
+              bytes: bytes.toString(),
+            }),
+          );
+        } else {
+          console.log(chalk.green("\n✓ Authorization Complete"));
+          console.log(chalk.gray("  The account can now upload to Bulletin.\n"));
+        }
+
         process.exit(0);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
+        const jsonOutput = getJsonFlag(command);
+
+        if (jsonOutput) {
+          console.error(JSON.stringify({ error: errorMessage }));
+          process.exit(1);
+        }
 
         if (errorMessage.includes("AlreadyAuthorized")) {
           console.log(chalk.yellow("\n⚠ Account is already authorized\n"));
@@ -119,12 +208,17 @@ export function attachBulletinCommands(root: Command): void {
         }
 
         if (errorMessage.includes("BadOrigin")) {
-          console.error(chalk.red("\n✗ Authorization failed - insufficient privileges"));
-          console.error(chalk.yellow("  The signer does not have sudo privileges."));
-          console.error(chalk.gray("  Use a sudo account like //Alice:\n"));
+          console.error(chalk.red("\n✗ Authorization failed — insufficient privileges"));
           console.error(
-            chalk.gray(`    dotns bulletin authorize ${targetAddress} --key-uri //Alice\n`),
+            chalk.yellow("  The sudo signer does not have sudo privileges on this chain."),
           );
+          console.error(chalk.gray("  Override with --sudo-key-uri if needed.\n"));
+          process.exit(1);
+        }
+
+        if (errorMessage.includes("not applied")) {
+          console.error(chalk.red(`\n✗ ${errorMessage}`));
+          console.error(chalk.gray("  Override with --sudo-key-uri if needed.\n"));
           process.exit(1);
         }
 
@@ -147,22 +241,26 @@ export function attachBulletinCommands(root: Command): void {
     .option("--parallel", "Upload directory blocks in parallel (faster)", false)
     .option("--concurrency <n>", "Number of parallel uploads (default: 5)", "5")
     .option("--print-contenthash", "Also print 0x-prefixed IPFS contenthash for the CID", false)
-    .option("--no-history", "Do not save upload to history", false);
+    .option("--no-history", "Do not save upload to history", true)
+    .option("--json", "Output result as JSON (suppresses all other output)", false);
 
   addAuthOptions(uploadCommand).action(
     async (
       inputPath: string,
       options: BulletinUploadOptions & { history?: boolean },
-      command: Command,
+      command: any,
     ) => {
       try {
         const mergedOptions = getMergedOptions(command, options);
+        const jsonOutput = getJsonFlag(command);
 
         if (mergedOptions.mnemonic && mergedOptions.keyUri) {
           throw new Error("Cannot specify both --mnemonic and --key-uri");
         }
 
-        const { bytes, isDirectory, resolvedPath } = await validateAndReadPath(inputPath);
+        const { bytes, isDirectory, resolvedPath } = await maybeQuiet(jsonOutput, () =>
+          validateAndReadPath(inputPath),
+        );
 
         const bulletinRpc = String(mergedOptions.bulletinRpc || DEFAULT_BULLETIN_RPC);
         const chunkSizeBytes = Math.max(
@@ -172,129 +270,186 @@ export function attachBulletinCommands(root: Command): void {
         const parallel = Boolean(mergedOptions.parallel);
         const concurrency = Math.max(1, Number(mergedOptions.concurrency || 5));
 
-        const context = await prepareContext({ ...mergedOptions, useBulletin: true });
-        await ensureAccountAuthorized(bulletinRpc, context.signer, context.substrateAddress);
+        const context = await maybeQuiet(jsonOutput, () =>
+          prepareContext({ ...mergedOptions, useBulletin: true }),
+        );
 
-        console.log(chalk.blue("\n▶ Bulletin Upload"));
-        console.log(chalk.gray("  path:     ") + chalk.white(resolvedPath));
-        console.log(chalk.gray("  rpc:      ") + chalk.white(bulletinRpc));
+        await maybeQuiet(jsonOutput, () =>
+          ensureAccountAuthorized(bulletinRpc, context.signer, context.substrateAddress),
+        );
+
+        const performUpload = async () => {
+          if (isDirectory) {
+            const result = await storeDirectory(bulletinRpc, context.signer, resolvedPath, {
+              parallel,
+              concurrency,
+              accountAddress: context.substrateAddress,
+            });
+            return { cid: result.storageCid, ipfsCid: result.ipfsCid, size: 0 };
+          }
+
+          if (mergedOptions.forceChunked || bytes.length > MAX_SINGLE_UPLOAD_SIZE_BYTES) {
+            const result = await uploadChunkedBlocks(
+              bulletinRpc,
+              context.signer,
+              bytes,
+              chunkSizeBytes,
+            );
+            return { cid: result, ipfsCid: result, size: bytes.length };
+          }
+
+          const result = await uploadSingleBlock(bulletinRpc, context.signer, bytes);
+          return { cid: result, ipfsCid: result, size: bytes.length };
+        };
 
         let cid: string;
         let ipfsCid: string;
         let uploadSize: number;
 
-        if (isDirectory) {
-          const mode = parallel ? `directory (parallel, ${concurrency}x)` : "directory";
-          console.log(chalk.gray("  mode:     ") + chalk.white(mode));
-          const result = await storeDirectory(bulletinRpc, context.signer, resolvedPath, {
-            parallel,
-            concurrency,
-            accountAddress: context.substrateAddress,
-          });
-          cid = result.storageCid;
-          ipfsCid = result.ipfsCid;
-          uploadSize = 0;
-        } else if (mergedOptions.forceChunked || bytes.length > MAX_SINGLE_UPLOAD_SIZE_BYTES) {
-          console.log(chalk.gray("  size:     ") + chalk.white(`${bytes.length} bytes`));
-          console.log(chalk.gray("  mode:     ") + chalk.white("chunked (dag-pb)"));
-          const result = await uploadChunkedBlocks(
-            bulletinRpc,
-            context.signer,
-            bytes,
-            chunkSizeBytes,
-          );
-          cid = result;
-          ipfsCid = result;
-          uploadSize = bytes.length;
+        if (jsonOutput) {
+          const uploadResult = await withCapturedConsole(performUpload);
+          cid = uploadResult.cid;
+          ipfsCid = uploadResult.ipfsCid;
+          uploadSize = uploadResult.size;
         } else {
-          console.log(chalk.gray("  size:     ") + chalk.white(`${bytes.length} bytes`));
-          console.log(chalk.gray("  mode:     ") + chalk.white("single"));
-          const result = await uploadSingleBlock(bulletinRpc, context.signer, bytes);
-          cid = result;
-          ipfsCid = result;
-          uploadSize = bytes.length;
+          console.log(chalk.blue("\n▶ Bulletin Upload"));
+          console.log(chalk.gray("  path:     ") + chalk.white(resolvedPath));
+          console.log(chalk.gray("  rpc:      ") + chalk.white(bulletinRpc));
+
+          if (isDirectory) {
+            const mode = parallel ? `directory (parallel, ${concurrency}x)` : "directory";
+            console.log(chalk.gray("  mode:     ") + chalk.white(mode));
+          } else if (mergedOptions.forceChunked || bytes.length > MAX_SINGLE_UPLOAD_SIZE_BYTES) {
+            console.log(chalk.gray("  size:     ") + chalk.white(`${bytes.length} bytes`));
+            console.log(chalk.gray("  mode:     ") + chalk.white("chunked (dag-pb)"));
+          } else {
+            console.log(chalk.gray("  size:     ") + chalk.white(`${bytes.length} bytes`));
+            console.log(chalk.gray("  mode:     ") + chalk.white("single"));
+          }
+
+          const uploadResult = await performUpload();
+          cid = uploadResult.cid;
+          ipfsCid = uploadResult.ipfsCid;
+          uploadSize = uploadResult.size;
         }
 
-        console.log(chalk.gray("\n  cid:      ") + chalk.cyan(ipfsCid));
+        const contenthash = generateContenthash(cid);
 
         const previewUrl = getPreviewUrl({
           cid,
           ipfsCid,
           path: resolvedPath,
-          type: isDirectory ? "directory" : "file",
+          type: (isDirectory ? "directory" : "file") as "directory" | "file",
           size: uploadSize,
           timestamp: "",
         });
-        console.log(chalk.gray("  preview:  ") + chalk.blue(previewUrl));
-        if (mergedOptions.printContenthash) {
-          await generateContenthash(cid);
-        }
-        await addUploadRecord({
-          cid,
-          ipfsCid,
-          path: resolvedPath,
-          type: isDirectory ? "directory" : "file",
-          size: uploadSize,
-        });
 
-        console.log(chalk.green("\n✓ Upload Complete\n"));
+        if (jsonOutput) {
+          console.log(
+            JSON.stringify({
+              cid: ipfsCid,
+              contenthash,
+              preview: previewUrl,
+              path: resolvedPath,
+              type: isDirectory ? "directory" : "file",
+              size: uploadSize,
+            }),
+          );
+        } else {
+          console.log(chalk.gray("\n  cid:         ") + chalk.cyan(ipfsCid));
+          console.log(chalk.gray("  preview:     ") + chalk.blue(previewUrl));
+
+          if (mergedOptions.printContenthash) {
+            console.log(chalk.gray("  contenthash: ") + chalk.white(`0x${contenthash}`));
+          }
+
+          console.log(chalk.green("\n✓ Upload Complete\n"));
+        }
+
+        if (mergedOptions.history !== false) {
+          await addUploadRecord({
+            cid,
+            ipfsCid,
+            path: resolvedPath,
+            type: isDirectory ? "directory" : "file",
+            size: uploadSize,
+          });
+        }
+
         process.exit(0);
       } catch (error) {
-        console.error(
-          chalk.red(`\n✗ Error: ${error instanceof Error ? error.message : String(error)}\n`),
-        );
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const jsonOutput = getJsonFlag(command);
+
+        if (jsonOutput) {
+          console.error(JSON.stringify({ error: errorMessage }));
+          process.exit(1);
+        }
+
+        console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
         process.exit(1);
       }
     },
   );
 
-  bulletinCommand
+  const historyCommand = bulletinCommand
     .command("history")
     .alias("list")
     .description("List all uploaded CIDs")
-    .option("--json", "Output as JSON", false)
-    .action(async (options: { json?: boolean }) => {
-      try {
-        const history = await readHistory();
+    .option("--json", "Output result as JSON (suppresses all other output)", false);
 
-        if (options.json) {
-          console.log(JSON.stringify(history, null, 2));
-          process.exit(0);
-        }
+  historyCommand.action(async (_options: any, command: any) => {
+    try {
+      const jsonOutput = getJsonFlag(command);
+      const history = await readHistory();
 
-        if (history.length === 0) {
-          console.log(chalk.yellow("\n  No uploads in history.\n"));
-          console.log(chalk.gray("  Upload files with: dotns bulletin upload <path>\n"));
-          process.exit(0);
-        }
-
-        console.log(chalk.blue("\n▶ Upload History\n"));
-        console.log(chalk.gray(`  ${history.length} upload(s) found\n`));
-
-        history.forEach((record, index) => {
-          const num = (index + 1).toString().padStart(2, " ");
-          console.log(chalk.yellow(`  ${num}.`) + chalk.white(` ${formatRecordTimestamp(record)}`));
-          console.log(chalk.gray("      cid:     ") + chalk.cyan(record.cid));
-          if (record.ipfsCid) {
-            console.log(chalk.gray("      ipfs:    ") + chalk.cyan(record.ipfsCid));
-          }
-          console.log(chalk.gray("      path:    ") + chalk.white(record.path));
-          console.log(chalk.gray("      type:    ") + chalk.white(record.type));
-          if (record.size > 0) {
-            console.log(chalk.gray("      size:    ") + chalk.white(formatBytes(record.size)));
-          }
-          console.log(chalk.gray("      preview: ") + chalk.blue(getPreviewUrl(record)));
-          console.log();
-        });
-
+      if (jsonOutput) {
+        console.log(JSON.stringify(history, null, 2));
         process.exit(0);
-      } catch (error) {
+      }
+
+      if (history.length === 0) {
+        console.log(chalk.yellow("\n  No uploads in history.\n"));
+        console.log(chalk.gray("  Upload files with: dotns bulletin upload <path>\n"));
+        process.exit(0);
+      }
+
+      console.log(chalk.blue("\n▶ Upload History\n"));
+      console.log(chalk.gray(`  ${history.length} upload(s) found\n`));
+
+      history.forEach((record, index) => {
+        const num = (index + 1).toString().padStart(2, " ");
+        console.log(chalk.yellow(`  ${num}.`) + chalk.white(` ${formatRecordTimestamp(record)}`));
+        console.log(chalk.gray("      cid:     ") + chalk.cyan(record.cid));
+        if (record.ipfsCid) {
+          console.log(chalk.gray("      ipfs:    ") + chalk.cyan(record.ipfsCid));
+        }
+        console.log(chalk.gray("      path:    ") + chalk.white(record.path));
+        console.log(chalk.gray("      type:    ") + chalk.white(record.type));
+        if (record.size > 0) {
+          console.log(chalk.gray("      size:    ") + chalk.white(formatBytes(record.size)));
+        }
+        console.log(chalk.gray("      preview: ") + chalk.blue(getPreviewUrl(record)));
+        console.log();
+      });
+
+      process.exit(0);
+    } catch (error) {
+      const jsonOutput = getJsonFlag(command);
+
+      if (jsonOutput) {
         console.error(
-          chalk.red(`\n✗ Error: ${error instanceof Error ? error.message : String(error)}\n`),
+          JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
         );
         process.exit(1);
       }
-    });
+
+      console.error(
+        chalk.red(`\n✗ Error: ${error instanceof Error ? error.message : String(error)}\n`),
+      );
+      process.exit(1);
+    }
+  });
 
   bulletinCommand
     .command("history:remove <cid>")
@@ -324,7 +479,7 @@ export function attachBulletinCommands(root: Command): void {
     .action(async () => {
       try {
         const count = await clearHistory();
-        const historyPath = await getHistoryPath();
+        const historyPath = getHistoryPath();
 
         console.log(chalk.green(`\n✓ Cleared ${count} upload(s) from history`));
         console.log(chalk.gray(`  ${historyPath}\n`));

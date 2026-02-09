@@ -4,14 +4,17 @@ import { generateRandomLabel } from "../../src/cli/labels";
 import {
   createDefaultAccountKeystore,
   generateGovernanceLabel,
+  HARNESS_SUCCESS_EXIT_CODE,
+  TEST_PASSWORD,
+  TEST_ACCOUNT,
   runDotnsCli,
   type CliRunResult,
-} from "../_helpers/cli-helpers";
+} from "../_helpers/cliHelpers";
 import {
   cleanupTestFileTemporaryDirectory,
   cleanupTestTemporaryDirectory,
   createKeystorePathsForTest,
-} from "../_helpers/test-paths";
+} from "../_helpers/testPaths";
 
 const createdTestTemporaryDirectoryPaths: string[] = [];
 let testFileTemporaryRootDirectoryPath: string | undefined;
@@ -47,8 +50,23 @@ afterAll(() => {
   }
 });
 
+async function ensureDefaultKeystore() {
+  if (!testFileKeystoreDirectoryPath) throw new Error("Missing test file keystore directory path");
+
+  await createDefaultAccountKeystore(testFileKeystoreDirectoryPath, TEST_PASSWORD);
+
+  return testFileKeystoreDirectoryPath;
+}
+
+function registerDomain(keystoreDirectoryPath: string, args: string[]): Promise<CliRunResult> {
+  return runDotnsCli(["register", "domain", "--account", TEST_ACCOUNT, ...args], {
+    DOTNS_KEYSTORE_PATH: keystoreDirectoryPath,
+    DOTNS_KEYSTORE_PASSWORD: TEST_PASSWORD,
+  });
+}
+
 function expectSuccessfulRegistration(result: CliRunResult, label: string) {
-  expect(result.exitCode).toBe(1);
+  expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
   expect(result.combinedOutput).not.toContain("✗ Error:");
   expect(result.combinedOutput).not.toContain("EISDIR:");
   expect(result.combinedOutput).toContain("✓ Operation Complete");
@@ -63,29 +81,15 @@ function expectNoPopStatusMutationAttempt(result: CliRunResult) {
 }
 
 const REGISTER_TEST_TIMEOUT_MS = 3 * 60_000;
-const TEST_PASSWORD = "test-password";
-const TEST_ACCOUNT = "default";
-
-async function ensureDefaultKeystore() {
-  if (!testFileKeystoreDirectoryPath) throw new Error("Missing test file keystore directory path");
-
-  await createDefaultAccountKeystore(testFileKeystoreDirectoryPath, TEST_PASSWORD);
-
-  return { keystorePassword: TEST_PASSWORD, keystoreDirectoryPath: testFileKeystoreDirectoryPath };
-}
 
 test(
-  "register base: no status",
+  "register domain: no status",
   async () => {
-    createPathsForTest("register_base_no_status");
-
-    const { keystorePassword, keystoreDirectoryPath } = await ensureDefaultKeystore();
+    createPathsForTest("register_domain_no_status");
+    const keystorePath = await ensureDefaultKeystore();
     const label = generateRandomLabel(ProofOfPersonhoodStatus.NoStatus);
 
-    const registerResult = await runDotnsCli(
-      ["--password", keystorePassword, "register", "--account", TEST_ACCOUNT, "--name", label],
-      { DOTNS_KEYSTORE_PATH: keystoreDirectoryPath },
-    );
+    const registerResult = await registerDomain(keystorePath, ["--name", label]);
 
     expectNoPopStatusMutationAttempt(registerResult);
     expectSuccessfulRegistration(registerResult, label);
@@ -94,27 +98,18 @@ test(
 );
 
 test(
-  "register base: pop lite",
+  "register domain: pop lite",
   async () => {
-    createPathsForTest("register_base_pop_lite");
-
-    const { keystorePassword, keystoreDirectoryPath } = await ensureDefaultKeystore();
+    createPathsForTest("register_domain_pop_lite");
+    const keystorePath = await ensureDefaultKeystore();
     const label = generateRandomLabel(ProofOfPersonhoodStatus.ProofOfPersonhoodLite);
 
-    const registerResult = await runDotnsCli(
-      [
-        "--password",
-        keystorePassword,
-        "register",
-        "--account",
-        TEST_ACCOUNT,
-        "--name",
-        label,
-        "--status",
-        "lite",
-      ],
-      { DOTNS_KEYSTORE_PATH: keystoreDirectoryPath },
-    );
+    const registerResult = await registerDomain(keystorePath, [
+      "--name",
+      label,
+      "--status",
+      "lite",
+    ]);
 
     expectSuccessfulRegistration(registerResult, label);
   },
@@ -122,27 +117,18 @@ test(
 );
 
 test(
-  "register base: pop full",
+  "register domain: pop full",
   async () => {
-    createPathsForTest("register_base_pop_full");
-
-    const { keystorePassword, keystoreDirectoryPath } = await ensureDefaultKeystore();
+    createPathsForTest("register_domain_pop_full");
+    const keystorePath = await ensureDefaultKeystore();
     const label = generateRandomLabel(ProofOfPersonhoodStatus.ProofOfPersonhoodFull);
 
-    const registerResult = await runDotnsCli(
-      [
-        "--password",
-        keystorePassword,
-        "register",
-        "--account",
-        TEST_ACCOUNT,
-        "--name",
-        label,
-        "--status",
-        "full",
-      ],
-      { DOTNS_KEYSTORE_PATH: keystoreDirectoryPath },
-    );
+    const registerResult = await registerDomain(keystorePath, [
+      "--name",
+      label,
+      "--status",
+      "full",
+    ]);
 
     expectSuccessfulRegistration(registerResult, label);
   },
@@ -150,28 +136,19 @@ test(
 );
 
 test(
-  "register for someone else using owner flag",
+  "register domain for someone else using owner flag",
   async () => {
-    createPathsForTest("register_for_someone_else_using_owner");
-
-    const { keystorePassword, keystoreDirectoryPath } = await ensureDefaultKeystore();
+    createPathsForTest("register_domain_for_someone_else_using_owner");
+    const keystorePath = await ensureDefaultKeystore();
     const label = generateRandomLabel(ProofOfPersonhoodStatus.NoStatus);
     const ownerAddress = "0x3Cd0A705a2DC65e5b1E1205896BaA2be8A07c6e0";
 
-    const registerResult = await runDotnsCli(
-      [
-        "--password",
-        keystorePassword,
-        "register",
-        "--account",
-        TEST_ACCOUNT,
-        "--name",
-        label,
-        "--owner",
-        ownerAddress,
-      ],
-      { DOTNS_KEYSTORE_PATH: keystoreDirectoryPath },
-    );
+    const registerResult = await registerDomain(keystorePath, [
+      "--name",
+      label,
+      "--owner",
+      ownerAddress,
+    ]);
 
     expectNoPopStatusMutationAttempt(registerResult);
     expectSuccessfulRegistration(registerResult, label);
@@ -180,28 +157,19 @@ test(
 );
 
 test(
-  "register and transfer",
+  "register domain and transfer",
   async () => {
-    createPathsForTest("register_and_transfer");
-
-    const { keystorePassword, keystoreDirectoryPath } = await ensureDefaultKeystore();
+    createPathsForTest("register_domain_and_transfer");
+    const keystorePath = await ensureDefaultKeystore();
     const label = generateRandomLabel(ProofOfPersonhoodStatus.NoStatus);
 
-    const registerResult = await runDotnsCli(
-      [
-        "--password",
-        keystorePassword,
-        "register",
-        "--account",
-        TEST_ACCOUNT,
-        "--name",
-        label,
-        "--transfer",
-        "--to",
-        "0x3Cd0A705a2DC65e5b1E1205896BaA2be8A07c6e0",
-      ],
-      { DOTNS_KEYSTORE_PATH: keystoreDirectoryPath },
-    );
+    const registerResult = await registerDomain(keystorePath, [
+      "--name",
+      label,
+      "--transfer",
+      "--to",
+      "0x3Cd0A705a2DC65e5b1E1205896BaA2be8A07c6e0",
+    ]);
 
     expectNoPopStatusMutationAttempt(registerResult);
     expectSuccessfulRegistration(registerResult, label);
@@ -210,27 +178,17 @@ test(
 );
 
 test(
-  "register governance name",
+  "register domain governance name",
   async () => {
-    createPathsForTest("register_governance_name");
-
-    const { keystorePassword, keystoreDirectoryPath } = await ensureDefaultKeystore();
-
+    createPathsForTest("register_domain_governance_name");
+    const keystorePath = await ensureDefaultKeystore();
     const governanceLabel = generateGovernanceLabel(5);
 
-    const registerResult = await runDotnsCli(
-      [
-        "--password",
-        keystorePassword,
-        "register",
-        "--account",
-        TEST_ACCOUNT,
-        "--name",
-        governanceLabel,
-        "--governance",
-      ],
-      { DOTNS_KEYSTORE_PATH: keystoreDirectoryPath },
-    );
+    const registerResult = await registerDomain(keystorePath, [
+      "--name",
+      governanceLabel,
+      "--governance",
+    ]);
 
     expectNoPopStatusMutationAttempt(registerResult);
     expectSuccessfulRegistration(registerResult, governanceLabel);
@@ -239,30 +197,20 @@ test(
 );
 
 test(
-  "register governance name and transfer",
+  "register domain governance name and transfer",
   async () => {
-    createPathsForTest("register_governance_name_and_transfer");
-
-    const { keystorePassword, keystoreDirectoryPath } = await ensureDefaultKeystore();
-
+    createPathsForTest("register_domain_governance_name_and_transfer");
+    const keystorePath = await ensureDefaultKeystore();
     const governanceLabel = generateGovernanceLabel(5);
 
-    const registerResult = await runDotnsCli(
-      [
-        "--password",
-        keystorePassword,
-        "register",
-        "--account",
-        TEST_ACCOUNT,
-        "--name",
-        governanceLabel,
-        "--governance",
-        "--transfer",
-        "--to",
-        "0x3Cd0A705a2DC65e5b1E1205896BaA2be8A07c6e0",
-      ],
-      { DOTNS_KEYSTORE_PATH: keystoreDirectoryPath },
-    );
+    const registerResult = await registerDomain(keystorePath, [
+      "--name",
+      governanceLabel,
+      "--governance",
+      "--transfer",
+      "--to",
+      "0x3Cd0A705a2DC65e5b1E1205896BaA2be8A07c6e0",
+    ]);
 
     expectNoPopStatusMutationAttempt(registerResult);
     expectSuccessfulRegistration(registerResult, governanceLabel);
@@ -271,29 +219,20 @@ test(
 );
 
 test(
-  "register governance name for someone else using owner flag",
+  "register domain governance name for someone else using owner flag",
   async () => {
-    createPathsForTest("register_governance_for_someone_else_using_owner");
-
-    const { keystorePassword, keystoreDirectoryPath } = await ensureDefaultKeystore();
+    createPathsForTest("register_domain_governance_for_someone_else_using_owner");
+    const keystorePath = await ensureDefaultKeystore();
     const governanceLabel = generateGovernanceLabel(5);
     const ownerAddress = "0x3Cd0A705a2DC65e5b1E1205896BaA2be8A07c6e0";
 
-    const registerResult = await runDotnsCli(
-      [
-        "--password",
-        keystorePassword,
-        "register",
-        "--account",
-        TEST_ACCOUNT,
-        "--name",
-        governanceLabel,
-        "--governance",
-        "--owner",
-        ownerAddress,
-      ],
-      { DOTNS_KEYSTORE_PATH: keystoreDirectoryPath },
-    );
+    const registerResult = await registerDomain(keystorePath, [
+      "--name",
+      governanceLabel,
+      "--governance",
+      "--owner",
+      ownerAddress,
+    ]);
 
     expectNoPopStatusMutationAttempt(registerResult);
     expectSuccessfulRegistration(registerResult, governanceLabel);
@@ -302,18 +241,13 @@ test(
 );
 
 test(
-  "regression: register must not implicitly set PoP status when --status is omitted",
+  "regression: register domain must not implicitly set PoP status when --status is omitted",
   async () => {
-    createPathsForTest("regression_register_does_not_set_pop");
-
-    const { keystorePassword, keystoreDirectoryPath } = await ensureDefaultKeystore();
-
+    createPathsForTest("regression_register_domain_does_not_set_pop");
+    const keystorePath = await ensureDefaultKeystore();
     const label = generateRandomLabel(ProofOfPersonhoodStatus.NoStatus);
 
-    const registerResult = await runDotnsCli(
-      ["--password", keystorePassword, "register", "--account", TEST_ACCOUNT, "--name", label],
-      { DOTNS_KEYSTORE_PATH: keystoreDirectoryPath },
-    );
+    const registerResult = await registerDomain(keystorePath, ["--name", label]);
 
     expectNoPopStatusMutationAttempt(registerResult);
     expectSuccessfulRegistration(registerResult, label);

@@ -9,6 +9,7 @@ import {
 } from "../utils/contractInteractions";
 import { CONTRACTS, DOTNS_REGISTRAR_ABI } from "../utils/constants";
 import { validateDomainLabel } from "../utils/validation";
+import ora from "ora";
 
 async function resolveRecipient(
   clientWrapper: any,
@@ -46,7 +47,8 @@ async function main() {
 
   // 1) Set content hash
   const cid = process.env.DOTNS_CID ?? "bafybeigdyr...replace_me";
-  await setDomainContentHash(clientWrapper, substrateAddress, signer, `${label}.dot`, cid);
+  const spinner = ora();
+  await setDomainContentHash(clientWrapper, substrateAddress, signer, `${label}.dot`, cid, spinner);
   console.log("Set content hash:", `${label}.dot -> ${cid}`);
 
   // 2) Transfer (optional)

@@ -1,8 +1,9 @@
 import type { Address, Hex } from "viem";
 import type { StoredAuth } from "../cli/keystore/types";
 import type { Ora } from "ora";
-import type { PolkadotSigner } from "polkadot-api";
-import type { ReviveClientWrapper } from "../client/polkadotClient";
+import type { PolkadotSigner, TypedApi } from "polkadot-api";
+import type { ReviveClientWrapper, PolkadotApiClient } from "../client/polkadotClient";
+import type { Bulletin } from "@polkadot-api/descriptors";
 
 export enum ProofOfPersonhoodStatus {
   NoStatus = 0,
@@ -60,6 +61,8 @@ export type ReviveCallResult = {
 export type RegistrationCommandOptions = {
   /** Domain label to register (without .dot) */
   name?: string;
+  /** Parent domain label for subname registration (without .dot) */
+  parent?: string;
   /** Proof of Personhood status requirement */
   status: "none" | "lite" | "full";
   /** Enable reverse record registration */
@@ -104,12 +107,20 @@ export type OwnershipLookupOptions = Partial<RegistrationCommandOptions> & {
 };
 
 export type DomainOwnership = {
+  /** The label without the .dot */
+  label?: string;
+
+  /** The label with the .dot */
+  domain?: string;
+
   /** Whether the domain is currently registered */
-  isRegistered: boolean;
+  registered: boolean;
+
   /** EVM address of the domain owner (H160 format) */
-  ownerEvmAddress: Address | null;
+  ownerEvm: string;
+
   /** Substrate SS58 address of the domain owner */
-  ownerSubstrateAddress: string | null;
+  ownerSubstrate: string;
 };
 
 export type AuthType = "mnemonic" | "key-uri" | "unknown";
@@ -214,6 +225,12 @@ export type BulletinUploadOptions = {
   transactions?: string;
   /** Number of bytes to authorize */
   bytes?: string;
+  /**  Output as json */
+  json: boolean;
+  /** Whether to store the current upload to the local history db */
+  history: boolean;
+  /**The default sudo key uri */
+  sudoKeyUri: string;
 };
 
 export type BulletinStoreParams = {
@@ -499,49 +516,152 @@ export type StoreParameters = {
 };
 
 export type AuthSource = {
-  /** BIP-39 mnemonic phrase used to derive the signing key. */
+  /** BIP-39 mnemonic phrase used to derive the signing key */
   mnemonic?: string;
-  /** Substrate secret URI (SURI) used to derive/load a signing key (e.g. "//Alice"). */
+  /** Substrate secret URI (SURI) used to derive/load a signing key (e.g. "//Alice") */
   keyUri?: string;
-  /** Filesystem path to the encrypted keystore file or directory. */
+  /** Filesystem path to the encrypted keystore file or directory */
   keystorePath?: string;
-  /** Keystore account selector (e.g. profile name or address) to load/unlock. */
+  /** Keystore account selector (e.g. profile name or address) to load/unlock */
   account?: string;
-  /** Password used to unlock/decrypt the keystore or SURI, when required. */
+  /** Password used to unlock/decrypt the keystore or SURI, when required */
   password?: string;
 };
 
 export type LookupActionOptions = CommandOptions &
   AuthSource & {
-    /** Domain label to lookup (commander option passthrough). */
+    /** Domain label to lookup (commander option passthrough) */
     name?: string;
-    /** Internal: resolved label provided positionally. */
+    /** Internal: resolved label provided positionally */
     __positionalLabel?: string;
+    /**  Output as json */
+    json: boolean;
   };
 
 export type ReadOnlyContextAccount = {
-  /** Substrate SS58 address used for lookups. */
+  /** Substrate SS58 address used for lookups */
   address: string;
 };
 
 export type ReadOnlyContext = {
-  /** Typed chain client wrapper used for queries. */
+  /** Typed chain client wrapper used for queries */
   clientWrapper: ReviveClientWrapper;
-  /** Minimal account object containing only an address for lookups. */
+  /** Minimal account object containing only an address for lookups */
   account: ReadOnlyContextAccount;
-  /** RPC endpoint used to connect to the chain. */
+  /** RPC endpoint used to connect to the chain */
   rpc: string;
-  /** EVM address corresponding to the Substrate address, when resolvable. */
+  /** EVM address corresponding to the Substrate address, when resolvable */
   evmAddress: string;
 };
 
 export type ResolvedReadOnlyAuth = {
-  /** Secret source used to derive the signing key (mnemonic or SURI). */
+  /** Secret source used to derive the signing key (mnemonic or SURI) */
   source: string;
-  /** True when `source` is a key URI (SURI), false when it is a mnemonic. */
+  /** True when source is a key URI (SURI), false when it is a mnemonic */
   isKeyUri: boolean;
-  /** Human-readable origin of the resolved auth source. */
+  /** Human-readable origin of the resolved auth source */
   resolvedFrom: "cli" | "env" | "keystore" | "default";
-  /** Account selector associated with the resolved auth source. */
+  /** Account selector associated with the resolved auth source */
   account: string;
 };
+
+export type LoadedAccount = {
+  /** Substrate SS58 address */
+  address: string;
+  /** Public key bytes */
+  publicKey: Uint8Array;
+  /** Signing function */
+  sign: (input: Uint8Array) => Uint8Array;
+};
+
+type BaseChainContext = {
+  /** WebSocket RPC endpoint URL */
+  rpc: string;
+  /** Minimum balance in PAS required for operations */
+  minBalancePas: string;
+  /** Path to keystore directory */
+  keystorePath: string;
+  /** Resolved authentication source */
+  auth: ResolvedAuthSource;
+  /** Loaded account with signing capabilities */
+  account: LoadedAccount;
+  /** Substrate SS58 address */
+  substrateAddress: string;
+  /** Polkadot signer for transaction signing */
+  signer: PolkadotSigner;
+};
+
+export type AssetHubContext = BaseChainContext & {
+  /** Discriminant indicating Asset Hub context */
+  useBulletin: false;
+  /** Typed Polkadot API client */
+  client: PolkadotApiClient;
+  /** Revive client wrapper for EVM contract calls */
+  clientWrapper: ReviveClientWrapper;
+  /** EVM address (H160) mapped from Substrate address */
+  evmAddress: Address;
+};
+
+export type BulletinContext = BaseChainContext & {
+  /** Discriminant indicating Bulletin context */
+  useBulletin: true;
+  /** Typed Polkadot API client */
+  client: PolkadotApiClient | TypedApi<Bulletin>;
+  /** Null - Bulletin has no Revive runtime */
+  clientWrapper: null;
+  /** Null - Bulletin has no EVM address mapping */
+  evmAddress: null;
+};
+
+export type SubnodeRecord = {
+  /** Parent node hash (keccak256 of parent full name) */
+  parentNode: Hex;
+
+  /** Label of the subnode to register (single label, no dots) */
+  subLabel: string;
+
+  /** Human-readable name of the parent node */
+  parentLabel: string;
+
+  /** Address that will own the new subnode */
+  owner: Address;
+};
+
+export type BaseNameReservation = {
+  /** Base name with trailing digits stripped (e.g. "mysite" from "mysite42"). */
+  baseName: string;
+  /** Whether the base name is currently reserved via the PopRules oracle. */
+  isReserved: boolean;
+  /** EVM address of the reservation holder, or zero address if unreserved. */
+  reservedBy: string;
+  /** ISO 8601 expiration timestamp, or null if the reservation has no expiry. */
+  expires: string | null;
+};
+
+export type DomainLookupResult = {
+  /** Fully qualified domain name including the .dot suffix. */
+  domain: string;
+  /** EIP-137 namehash of the fully qualified domain name. */
+  node: string;
+  /** Whether a record exists in the DotNS registry for this node. */
+  exists: boolean;
+  /** Registry owner of the domain, or zero address if unregistered. */
+  owner: Address;
+  /** Resolver contract set for this domain in the registry. */
+  resolver: Address;
+  /** Owner's deployed Store contract, or null if no store exists. */
+  store: Address | null;
+  /** Address the domain resolves to via the DotnsResolver, or null if unset or using a non-standard resolver. */
+  resolvedAddress: Address | null;
+  /** On-chain balance of the domain owner's substrate account. */
+  ownerBalance: {
+    /** SS58-encoded substrate address derived from the owner's EVM address. */
+    substrate: string;
+    /** Human-readable free balance in native token units. */
+    free: string;
+  } | null;
+  /** PopRules reservation status for the base name, or null if the label has no trailing digits. */
+  baseNameReservation: BaseNameReservation | null;
+};
+
+export type ChainContext = AssetHubContext | BulletinContext;

@@ -13,6 +13,15 @@ import { attachBulletinCommands } from "../../src/cli/commands/bulletin";
 import { attachPopCommands } from "../../src/cli/commands/pop";
 import { attachContentCommands } from "../../src/cli/commands/content";
 
+export const HARNESS_SUCCESS_EXIT_CODE = 1;
+export const HARNESS_HELP_SUCCESS_EXIT_CODE = 0;
+export const TEST_PASSWORD = "test-password";
+export const TEST_MNEMONIC =
+  "bottom drive obey lake curtain smoke basket hold race lonely fit walk";
+export const ALICE_KEY_URI = "//Alice";
+export const TEST_ACCOUNT = "default";
+export const TEST_TIMEOUT_MS = 120_000;
+
 export type Output = { exitCode: number; combinedOutput: string };
 export type CliRunResult = {
   exitCode: number;
@@ -80,17 +89,14 @@ export async function runDotnsCli(
   const originalProcessExit = process.exit;
   const originalConsoleLog = console.log;
   const originalConsoleError = console.error;
+  const originalProcessArgv = process.argv;
 
   const standardOutputChunks: string[] = [];
   const standardErrorChunks: string[] = [];
 
   const outputConfiguration = {
-    writeOut: (text: string) => {
-      standardOutputChunks.push(text);
-    },
-    writeErr: (text: string) => {
-      standardErrorChunks.push(text);
-    },
+    writeOut: (text: string) => standardOutputChunks.push(text),
+    writeErr: (text: string) => standardErrorChunks.push(text),
   };
 
   {
@@ -116,32 +122,35 @@ export async function runDotnsCli(
   };
 
   console.log = (...values: any[]) => {
-    standardOutputChunks.push(values.map((value) => String(value)).join(" ") + "\n");
+    standardOutputChunks.push(values.map(String).join(" ") + "\n");
   };
 
   console.error = (...values: any[]) => {
     if (values.length === 1 && String(values[0]).includes("process.exit(0)")) return;
-    standardErrorChunks.push(values.map((value) => String(value)).join(" ") + "\n");
+    standardErrorChunks.push(values.map(String).join(" ") + "\n");
   };
 
   let exitCode = 0;
 
+  // Critical: make argv look like a real invocation for any code reading process.argv
+  const simulatedArgv = ["node", "dotns", ...argumentsList];
+  process.argv = simulatedArgv;
+
   try {
-    await program.parseAsync(argumentsList, { from: "user" });
+    await program.parseAsync(simulatedArgv, { from: "node" });
   } catch (error: any) {
     if (error instanceof ProcessExitError) {
       exitCode = error.exitCode;
     } else if (error instanceof CommanderError) {
-      if (error.cause instanceof ProcessExitError) {
-        exitCode = error.cause.exitCode;
-      } else {
-        exitCode = error.exitCode ?? 1;
-      }
+      if (error.cause instanceof ProcessExitError) exitCode = error.cause.exitCode;
+      else exitCode = error.exitCode ?? 1;
     } else {
       exitCode = 1;
       standardErrorChunks.push(String(error?.message ?? error) + "\n");
     }
   } finally {
+    process.argv = originalProcessArgv;
+
     (process as any).exit = originalProcessExit;
     console.log = originalConsoleLog;
     console.error = originalConsoleError;

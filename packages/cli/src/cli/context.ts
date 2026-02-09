@@ -4,14 +4,12 @@ import { getWsProvider } from "polkadot-api/ws-provider";
 import { getPolkadotSigner } from "polkadot-api/signer";
 import { bulletin, paseo } from "@polkadot-api/descriptors";
 import { type Address } from "viem";
-
 import { ReviveClientWrapper, type PolkadotApiClient } from "../client/polkadotClient";
 import { parseNativeBalance, formatNativeBalance } from "../utils/formatting";
-
 import { resolveRpc, resolveMinBalancePas, resolveKeystorePath } from "./env";
-import { banner, step } from "./ui";
+import { step } from "./ui";
 import { resolveAuthSource, createAccountFromSource } from "../commands/auth";
-import type { BalanceStatus } from "../types/types";
+import type { AssetHubContext, BulletinContext, ChainContext, BalanceStatus } from "../types/types";
 
 export async function getBalanceStatus(
   client: PolkadotApiClient,
@@ -50,16 +48,85 @@ export async function displayAccountInformation(
   );
 }
 
-export async function prepareContext(options: any) {
-  const useBulletin = options.useBulletin ?? false;
+export async function prepareAssetHubContext(options: any): Promise<AssetHubContext> {
+  const rpc = resolveRpc(options.rpc);
+  const minBalancePas = resolveMinBalancePas(options.minBalance);
+  const keystorePath = resolveKeystorePath(options.keystorePath);
+
+  const client = await step(`Connecting RPC ${rpc}`, async () =>
+    createClient(getWsProvider(rpc)).getTypedApi(paseo),
+  );
+
+  const auth = await step("Resolving account", async () =>
+    resolveAuthSource({
+      mnemonic: options.mnemonic,
+      keyUri: options.keyUri,
+      keystorePath,
+      account: options.account,
+      password: options.password,
+    }),
+  );
+
+  const account = await step("Loading keypair", async () =>
+    createAccountFromSource(auth.source, auth.isKeyUri),
+  );
+
+  const substrateAddress = account.address;
+  const signer = getPolkadotSigner(account.publicKey, "Sr25519", async (input) =>
+    account.sign(input),
+  );
+
+  const clientWrapper = new ReviveClientWrapper(client as PolkadotApiClient);
+
+  const evmAddress = await step("Resolving EVM address", async () =>
+    clientWrapper.getEvmAddress(substrateAddress),
+  );
+
+  console.log(chalk.bold("\n📋 Configuration\n"));
+  console.log(chalk.gray("  RPC:       ") + chalk.white(rpc));
+  console.log(chalk.gray("  Chain:     ") + chalk.white("Polkadot Hub TestNet"));
+  console.log(chalk.gray("  Substrate: ") + chalk.white(substrateAddress));
+  console.log(chalk.gray("  EVM:       ") + chalk.white(evmAddress));
+  console.log(chalk.gray("  Auth:      ") + chalk.white(auth.resolvedFrom));
+  console.log(chalk.gray("  Account:   ") + chalk.white(auth.account));
+
+  const balance = await step("Checking balance", async () =>
+    getBalanceStatus(client as PolkadotApiClient, substrateAddress, minBalancePas),
+  );
+
+  if (!balance.ok) {
+    console.log(
+      chalk.yellow(
+        `⚠ Insufficient funds: ${formatNativeBalance(balance.current)} PAS (required: ${formatNativeBalance(balance.required)} PAS)`,
+      ),
+    );
+    throw new Error("Insufficient funds for operation");
+  }
+
+  console.log(`✔ Balance: ${chalk.green(`${formatNativeBalance(balance.current)} PAS`)}`);
+
+  return {
+    useBulletin: false,
+    rpc,
+    minBalancePas,
+    keystorePath,
+    auth,
+    account,
+    substrateAddress,
+    signer,
+    evmAddress,
+    client: client as PolkadotApiClient,
+    clientWrapper,
+  };
+}
+
+export async function prepareBulletinContext(options: any): Promise<BulletinContext> {
   const rpc = resolveRpc(options.bulletinRpc ?? options.rpc);
   const minBalancePas = resolveMinBalancePas(options.minBalance);
   const keystorePath = resolveKeystorePath(options.keystorePath);
 
-  banner();
-
   const client = await step(`Connecting RPC ${rpc}`, async () =>
-    createClient(getWsProvider(rpc)).getTypedApi(useBulletin ? bulletin : paseo),
+    createClient(getWsProvider(rpc)).getTypedApi(bulletin),
   );
 
   const auth = await step("Resolving account", async () =>
@@ -83,54 +150,23 @@ export async function prepareContext(options: any) {
 
   console.log(chalk.bold("\n📋 Configuration\n"));
   console.log(chalk.gray("  RPC:       ") + chalk.white(rpc));
-  console.log(
-    chalk.gray("  Chain:     ") + chalk.white(useBulletin ? "Bulletin" : "Polkadot Hub TestNet"),
-  );
+  console.log(chalk.gray("  Chain:     ") + chalk.white("Bulletin"));
   console.log(chalk.gray("  Substrate: ") + chalk.white(substrateAddress));
   console.log(chalk.gray("  Auth:      ") + chalk.white(auth.resolvedFrom));
   console.log(chalk.gray("  Account:   ") + chalk.white(auth.account));
-  if (auth.isKeyUri) {
-    console.log(chalk.gray("  Keystore:  ") + chalk.white(keystorePath));
-  }
 
-  let evmAddress: Address | null = null;
-  let clientWrapper: ReviveClientWrapper | null = null;
-  if (!useBulletin) {
-    clientWrapper = new ReviveClientWrapper(client as PolkadotApiClient);
-
-    evmAddress = await step("Resolving EVM address", async () =>
-      clientWrapper!.getEvmAddress(substrateAddress),
-    );
-
-    console.log(chalk.gray("  EVM:       ") + chalk.white(evmAddress));
-
-    const balance = await step("Checking balance", async () =>
-      getBalanceStatus(client as PolkadotApiClient, substrateAddress, minBalancePas),
-    );
-
-    if (!balance.ok) {
-      console.log(
-        chalk.yellow(
-          `⚠ Insufficient funds: ${formatNativeBalance(balance.current)} PAS (required: ${formatNativeBalance(balance.required)} PAS)`,
-        ),
-      );
-      throw new Error("Insufficient funds for operation");
+  try {
+    const accountInfo = await (client as any).query.System.Account.getValue(substrateAddress);
+    if (accountInfo?.data?.free !== undefined) {
+      const freeBalance = accountInfo.data.free as bigint;
+      console.log(chalk.gray("  Balance:   ") + chalk.white(formatNativeBalance(freeBalance)));
     }
-
-    console.log(`✔ Balance: ${chalk.green(`${formatNativeBalance(balance.current)} PAS`)}`);
-  } else {
-    try {
-      const accountInfo = await (client as any).query.System.Account.getValue(substrateAddress);
-      if (accountInfo?.data?.free !== undefined) {
-        const freeBalance = accountInfo.data.free as bigint;
-        console.log(chalk.gray("  Balance:   ") + chalk.white(formatNativeBalance(freeBalance)));
-      }
-    } catch {
-      console.log(chalk.gray("  Balance:   ") + chalk.yellow("(unavailable)"));
-    }
+  } catch {
+    console.log(chalk.gray("  Balance:   ") + chalk.yellow("(unavailable)"));
   }
 
   return {
+    useBulletin: true,
     rpc,
     minBalancePas,
     keystorePath,
@@ -138,8 +174,18 @@ export async function prepareContext(options: any) {
     account,
     substrateAddress,
     signer,
-    evmAddress,
-    client,
-    clientWrapper,
+    evmAddress: null,
+    client: client,
+    clientWrapper: null,
   };
+}
+
+export async function prepareContext(options: any): Promise<ChainContext> {
+  const useBulletin = options.useBulletin ?? false;
+
+  if (useBulletin) {
+    return prepareBulletinContext(options);
+  }
+
+  return prepareAssetHubContext(options);
 }

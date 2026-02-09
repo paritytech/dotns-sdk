@@ -22,8 +22,6 @@ function convertHashCodeToEnum(hashCode: number): HashingEnumVariant {
       return { type: "Sha2_256", value: undefined };
     case HASH.BLAKE2B_256:
       return { type: "Blake2b256", value: undefined };
-    case HASH.KECCAK_256:
-      return { type: "Keccak256", value: undefined };
     default:
       throw new Error(`Unsupported hash code: 0x${hashCode.toString(16)}`);
   }

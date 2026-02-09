@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import ora from "ora";
 import crypto from "crypto";
-import { checksumAddress, zeroAddress, type Address, type Hex } from "viem";
+import { checksumAddress, zeroAddress, namehash, type Address, type Hex } from "viem";
 import type { PolkadotSigner } from "polkadot-api";
 import type { ReviveClientWrapper } from "../client/polkadotClient";
 import {
@@ -13,11 +13,13 @@ import {
   type NameClassificationLike,
   type PricingAndEligibility,
   type ReservationInfoLike,
+  type SubnodeRecord,
 } from "../types/types";
 import {
   CONTRACTS,
   DOTNS_REGISTRAR_CONTROLLER_ABI,
   DOTNS_REGISTRAR_ABI,
+  DOTNS_REGISTRY_ABI,
   POP_RULES_ABI,
   STORE_FACTORY_ABI,
 } from "../utils/constants";
@@ -427,6 +429,49 @@ export async function finalizeGovernanceRegistration(
   }
 }
 
+export async function registerSubnode(
+  clientWrapper: ReviveClientWrapper,
+  substrateAddress: string,
+  signer: PolkadotSigner,
+  sublabel: string,
+  parentLabel: string,
+  ownerAddress: Address,
+): Promise<Hex> {
+  const fullName = `${sublabel}.${parentLabel}.dot`;
+  const spinner = ora(`Registering subname ${chalk.cyan(fullName)}`).start();
+
+  try {
+    const parentNode = namehash(`${parentLabel}.dot`);
+
+    const subnodeRecord: SubnodeRecord = {
+      parentNode,
+      subLabel: sublabel,
+      parentLabel: parentLabel,
+      owner: ownerAddress,
+    };
+
+    const transactionHash = await submitContractTransaction(
+      clientWrapper,
+      CONTRACTS.DOTNS_REGISTRY,
+      0n,
+      DOTNS_REGISTRY_ABI,
+      "setSubnodeOwner",
+      [subnodeRecord],
+      substrateAddress,
+      signer,
+      spinner,
+      "Subname registration",
+    );
+
+    console.log(chalk.gray("  tx:        ") + chalk.blue(transactionHash));
+
+    return transactionHash as Hex;
+  } catch (error) {
+    spinner.fail("Subname registration failed");
+    throw error;
+  }
+}
+
 export async function verifyDomainOwnership(
   clientWrapper: ReviveClientWrapper,
   originSubstrateAddress: string,
@@ -569,8 +614,8 @@ export async function getDomainOwnershipInfo(
   const ownerSubstrateAddress = await clientWrapper.getSubstrateAddress(ownerEvmAddress);
 
   return {
-    isRegistered: ownerEvmAddress !== zeroAddress,
-    ownerEvmAddress: ownerEvmAddress !== zeroAddress ? ownerEvmAddress : zeroAddress,
-    ownerSubstrateAddress,
+    registered: ownerEvmAddress !== zeroAddress,
+    ownerEvm: ownerEvmAddress !== zeroAddress ? ownerEvmAddress : zeroAddress,
+    ownerSubstrate: ownerSubstrateAddress,
   };
 }

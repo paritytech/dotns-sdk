@@ -1,55 +1,36 @@
-import { expect } from "bun:test";
-import type { CliRunResult } from "../_helpers/cli-helpers";
+import { expect, test } from "bun:test";
+import { HARNESS_HELP_SUCCESS_EXIT_CODE, runDotnsCli } from "../_helpers/cliHelpers";
 
-export function expectSuccessfulContentView(result: CliRunResult, label: string) {
-  expect(result.exitCode).toBe(0);
-  expect(result.combinedOutput).not.toContain("✗ Error:");
-  expect(result.combinedOutput).toContain("▶ Content View");
-  expect(result.combinedOutput).toContain(label + ".dot");
-  expect(result.combinedOutput).toContain("resolver:");
-  expect(result.combinedOutput).toContain("✓ Complete");
-}
+test("content --help lists subcommands and auth options", async () => {
+  const result = await runDotnsCli(["content", "--help"]);
+  console.log("result: ", result);
+  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
+  expect(result.combinedOutput).toContain("Manage domain content hashes");
+  expect(result.combinedOutput).toContain("view");
+  expect(result.combinedOutput).toContain("set");
+  expect(result.combinedOutput).toContain("--rpc");
+  expect(result.combinedOutput).toContain("--password");
+  expect(result.combinedOutput).toContain("--mnemonic");
+  expect(result.combinedOutput).toContain("--key-uri");
+  expect(result.combinedOutput).toContain("--account");
+});
 
-export function expectSuccessfulContentSet(result: CliRunResult, label: string, cid: string) {
-  expect(result.exitCode).toBe(0);
-  expect(result.combinedOutput).not.toContain("✗ Error:");
-  expect(result.combinedOutput).toContain("▶ Content Set");
-  expect(result.combinedOutput).toContain(label + ".dot");
-  expect(result.combinedOutput).toContain(cid);
-  expect(result.combinedOutput).toContain("✓ Complete");
-}
+test("content view --help shows name argument and options", async () => {
+  const result = await runDotnsCli(["content", "view", "--help"]);
 
-export function expectContentViewRegistryInfo(result: CliRunResult) {
-  expect(result.combinedOutput).toContain("registry:");
-  expect(result.combinedOutput).toContain("exists:");
-  expect(result.combinedOutput).toContain("owner:");
-}
+  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
+  expect(result.combinedOutput).toContain("View domain content hash");
+  expect(result.combinedOutput).toContain("<name>");
+  expect(result.combinedOutput).toContain("--rpc");
+});
 
-export function expectContentViewContentHash(result: CliRunResult) {
-  expect(result.combinedOutput).toContain("contenthash:");
-  expect(result.combinedOutput).toContain("cid:");
-}
+test("content set --help shows name and cid arguments", async () => {
+  const result = await runDotnsCli(["content", "set", "--help"]);
 
-export function expectContentSetOwnershipInfo(result: CliRunResult) {
-  expect(result.combinedOutput).toContain("exists:");
-  expect(result.combinedOutput).toContain("owner:");
-  expect(result.combinedOutput).toContain("caller:");
-}
-
-export function expectDomainNotRegistered(result: CliRunResult) {
-  expect(result.combinedOutput).toContain("Domain is not registered");
-}
-
-export function expectNotOwnerRejection(result: CliRunResult) {
-  expect(result.combinedOutput).toContain("You do not own this domain");
-}
-
-export function expectAuthenticationRequired(result: CliRunResult) {
-  expect(result.exitCode).toBe(1);
-  expect(result.combinedOutput).toContain("Error");
-}
-
-export function expectCannotSpecifyBothAuthMethods(result: CliRunResult) {
-  expect(result.exitCode).toBe(1);
-  expect(result.combinedOutput).toContain("Cannot specify both");
-}
+  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
+  expect(result.combinedOutput).toContain("Set domain content hash");
+  expect(result.combinedOutput).toContain("<name>");
+  expect(result.combinedOutput).toContain("<cid>");
+  expect(result.combinedOutput).toContain("--mnemonic");
+  expect(result.combinedOutput).toContain("--key-uri");
+});

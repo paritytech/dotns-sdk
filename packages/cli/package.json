@@ -17,7 +17,7 @@
     "typecheck": "bunx tsc --noEmit",
     "build": "bun build src/cli/index.ts --outfile dist/cli.tmp.js --target node --format esm && echo '#!/usr/bin/env node' | cat - dist/cli.tmp.js > dist/cli.js && rm dist/cli.tmp.js && chmod +x dist/cli.js",
     "prepublishOnly": "bun run build",
-    "postinstall": "bun run ./installIPFS.ts || true; bunx papi generate"
+    "prepare": "bun run ./installIPFS.ts || true; bunx papi generate"
   },
   "engines": {
     "bun": ">=1.2.6"
@@ -39,6 +39,7 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
+    "@ensdomains/content-hash": "^3.0.0",
     "@ipld/car": "^5.4.2",
     "@ipld/dag-pb": "^4.1.5",
     "@noble/hashes": "^2.0.1",

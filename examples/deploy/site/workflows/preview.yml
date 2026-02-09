@@ -1,0 +1,30 @@
+# Deploy a preview subname (e.g. pr42.example.dot) on every PR update.
+# Uses //Alice for testnet authentication, production previews would
+# use a mnemonic secret instead.
+name: Preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site-preview
+          path: site/
+
+  preview:
+    name: Preview
+    needs: build
+    uses: paritytech/dotns-sdk/.github/workflows/deploy.yml@main
+    with:
+      basename: example
+      register-base: true
+      artifact-name: site-preview
+      key-uri: '//Alice'

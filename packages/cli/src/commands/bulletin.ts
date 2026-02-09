@@ -31,10 +31,11 @@ import type {
   StoreDirectoryOptions,
   StoreDirectoryResult,
 } from "../types/types";
-
-const DEFAULT_AUTHORIZATION_TRANSACTIONS = 1000000;
-const DEFAULT_AUTHORIZATION_BYTES = BigInt(1099511627776);
-const DEFAULT_VERIFICATION_GATEWAY = "https://ipfs.dotspark.app";
+import {
+  DEFAULT_AUTHORIZATION_TRANSACTIONS,
+  DEFAULT_AUTHORIZATION_BYTES,
+  DEFAULT_VERIFICATION_GATEWAY,
+} from "../utils/constants";
 
 type MerkleizedBlock = {
   cid: CID;
@@ -173,6 +174,43 @@ export async function authorizeAccount(
       throw new Error("Sudo pallet is not available on this chain");
     }
 
+    const existingAuthorization = await checkAuthorization(rpc, targetAddress);
+
+    if (existingAuthorization.authorized) {
+      const existingTransactions = existingAuthorization.transactions ?? 0;
+      const existingBytes = existingAuthorization.bytes ?? BigInt(0);
+
+      if (existingTransactions >= transactions && existingBytes >= bytes) {
+        client.destroy();
+        spinner.warn("Account already authorized");
+        console.log(
+          chalk.gray("  transactions: ") +
+            chalk.white(existingTransactions.toLocaleString()) +
+            chalk.gray(` (requested: ${transactions.toLocaleString()})`),
+        );
+        console.log(
+          chalk.gray("  bytes:        ") +
+            chalk.white(formatBytesAsHumanReadable(existingBytes)) +
+            chalk.gray(` (requested: ${formatBytesAsHumanReadable(bytes)})`),
+        );
+        return { txHash: "", blockHash: "" };
+      }
+
+      spinner.info("Upgrading authorization limits");
+      console.log(
+        chalk.gray("  transactions: ") +
+          chalk.white(
+            `${existingTransactions.toLocaleString()} → ${transactions.toLocaleString()}`,
+          ),
+      );
+      console.log(
+        chalk.gray("  bytes:        ") +
+          chalk.white(
+            `${formatBytesAsHumanReadable(existingBytes)} → ${formatBytesAsHumanReadable(bytes)}`,
+          ),
+      );
+    }
+
     const sudoTransaction = typedApi.tx.Sudo.sudo({
       call: {
         type: "TransactionStorage",
@@ -196,32 +234,50 @@ export async function authorizeAccount(
               break;
             case "txBestBlocksState":
               if (event.found) {
-                spinner.text = "Authorization: included";
-                subscription.unsubscribe();
-                client?.destroy();
-                spinner.succeed("Account authorized");
-                console.log(chalk.gray("  target:       ") + chalk.cyan(targetAddress));
-                console.log(
-                  chalk.gray("  transactions: ") + chalk.white(transactions.toLocaleString()),
-                );
-                console.log(
-                  chalk.gray("  bytes:        ") + chalk.white(formatBytesAsHumanReadable(bytes)),
-                );
-                resolve({ txHash, blockHash: event.block.hash });
+                spinner.text = "Authorization: included, awaiting finalization";
               }
               break;
             case "finalized":
-              if (event.ok) {
-                subscription.unsubscribe();
-                client?.destroy();
-                spinner.succeed("Account authorized");
-                resolve({ txHash, blockHash: event.block.hash });
-              } else {
-                subscription.unsubscribe();
-                client?.destroy();
-                spinner.fail("Authorization failed");
-                reject(new Error("Authorization transaction failed"));
+              subscription.unsubscribe();
+              client?.destroy();
+
+              if (!event.ok) {
+                spinner.fail("Authorization transaction failed on-chain");
+                reject(new Error("Authorization transaction was rejected by the chain"));
+                return;
               }
+
+              checkAuthorization(rpc, targetAddress)
+                .then((verification) => {
+                  if (
+                    verification.authorized &&
+                    (verification.transactions ?? 0) >= transactions &&
+                    (verification.bytes ?? BigInt(0)) >= bytes
+                  ) {
+                    spinner.succeed("Account authorized");
+                    console.log(chalk.gray("  target:       ") + chalk.cyan(targetAddress));
+                    console.log(
+                      chalk.gray("  transactions: ") + chalk.white(transactions.toLocaleString()),
+                    );
+                    console.log(
+                      chalk.gray("  bytes:        ") +
+                        chalk.white(formatBytesAsHumanReadable(bytes)),
+                    );
+                    resolve({ txHash, blockHash: event.block.hash });
+                  } else {
+                    spinner.fail("Authorization not applied");
+                    reject(
+                      new Error(
+                        "Sudo extrinsic was finalized but authorization was not applied.\n" +
+                          "The signer likely does not have sudo privileges on this chain.",
+                      ),
+                    );
+                  }
+                })
+                .catch(() => {
+                  spinner.warn("Authorization submitted (could not verify)");
+                  resolve({ txHash, blockHash: event.block.hash });
+                });
               break;
           }
         },
@@ -245,7 +301,7 @@ export async function authorizeAccount(
     }
 
     if (errorMessage.includes("BadOrigin")) {
-      throw new Error(`Authorization failed: The signer does not have sudo privileges.`);
+      throw new Error("Authorization failed: The signer does not have sudo privileges.");
     }
 
     throw error;
@@ -286,25 +342,36 @@ export async function ensureAccountAuthorized(
   signer: PolkadotSigner,
   accountAddress: string,
 ): Promise<void> {
-  if (!isLocalChainEndpoint(bulletinRpc)) {
+  const authStatus = await checkAuthorization(bulletinRpc, accountAddress);
+
+  if (authStatus.authorized) {
     return;
   }
 
-  try {
-    await authorizeAccount({
-      rpc: bulletinRpc,
-      sudoSigner: signer,
-      targetAddress: accountAddress,
-    });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
-    if (errorMessage.includes("AlreadyAuthorized") || errorMessage.includes("Sudid")) {
+  if (isLocalChainEndpoint(bulletinRpc)) {
+    try {
+      await authorizeAccount({
+        rpc: bulletinRpc,
+        sudoSigner: signer,
+        targetAddress: accountAddress,
+      });
       return;
-    }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
 
-    console.log(chalk.yellow(`  Authorization warning: ${errorMessage.split("\n")[0]}`));
+      if (errorMessage.includes("AlreadyAuthorized") || errorMessage.includes("Sudid")) {
+        return;
+      }
+
+      console.log(chalk.yellow(`  Authorization warning: ${errorMessage.split("\n")[0]}`));
+    }
   }
+
+  throw new Error(
+    `Account is not authorized for Bulletin TransactionStorage.\n` +
+      `Authorize it first:\n\n` +
+      `  dotns bulletin authorize ${accountAddress}\n`,
+  );
 }
 
 export async function uploadSingleBlock(
@@ -355,6 +422,8 @@ export async function uploadChunkedBlocks(
   chunkSizeBytes: number,
 ): Promise<string> {
   const contentChunks = splitBytesIntoChunks(fileBytes, chunkSizeBytes);
+  console.log(chalk.gray("  chunks:   ") + chalk.white(contentChunks.length.toString()));
+
   const spinner = ora(`Storing chunks (0/${contentChunks.length})`).start();
 
   try {

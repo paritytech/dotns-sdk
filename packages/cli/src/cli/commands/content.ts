@@ -5,6 +5,7 @@ import { viewDomainContentHash, setDomainContentHash } from "../../commands/cont
 import { addAuthOptions } from "./authOptions";
 import { prepareContext } from "../context";
 import { prepareReadOnlyContext } from "./lookup";
+import ora from "ora";
 
 export interface ContentViewOptions {
   rpc?: string;
@@ -49,8 +50,9 @@ export function attachContentCommands(root: Command) {
         const context = await prepareReadOnlyContext(mergedOptions as any);
 
         console.log(chalk.bold("\n▶ Content View\n"));
+        const spinner = ora();
 
-        await viewDomainContentHash(context.clientWrapper!, context.account.address, name);
+        await viewDomainContentHash(context.clientWrapper!, context.account.address, name, spinner);
 
         console.log(chalk.green("\n✓ Complete\n"));
         process.exit(0);
@@ -79,6 +81,7 @@ export function attachContentCommands(root: Command) {
         const context = await prepareContext({ ...mergedOptions, useRevive: true });
 
         console.log(chalk.bold("\n▶ Content Set\n"));
+        const spinner = ora();
 
         await setDomainContentHash(
           context.clientWrapper!,
@@ -86,6 +89,7 @@ export function attachContentCommands(root: Command) {
           context.signer,
           name,
           cid,
+          spinner,
         );
 
         console.log(chalk.green("\n✓ Complete\n"));

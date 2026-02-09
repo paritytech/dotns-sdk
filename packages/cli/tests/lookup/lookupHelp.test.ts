@@ -1,229 +1,77 @@
-import { afterAll, afterEach, expect, test } from "bun:test";
-import {
-  createDefaultAccountKeystore,
-  runDotnsCli,
-  type CliRunResult,
-} from "../_helpers/cli-helpers";
-import {
-  cleanupTestFileTemporaryDirectory,
-  cleanupTestTemporaryDirectory,
-  createKeystorePathsForTest,
-} from "../_helpers/test-paths";
-import { DEFAULT_MNEMONIC } from "../../src/utils/constants";
+import { expect, test } from "bun:test";
+import { HARNESS_HELP_SUCCESS_EXIT_CODE, runDotnsCli } from "../_helpers/cliHelpers";
 
-const createdTestTemporaryDirectoryPaths: string[] = [];
-let testFileTemporaryRootDirectoryPath: string | undefined;
-let testFileKeystoreDirectoryPath: string | undefined;
+test("lookup --help lists subcommands and auth options", async () => {
+  const result = await runDotnsCli(["lookup", "--help"]);
 
-function createPathsForTest(testName: string) {
-  const paths = createKeystorePathsForTest(testName);
-
-  createdTestTemporaryDirectoryPaths.push(paths.testTemporaryDirectoryPath);
-
-  if (!testFileTemporaryRootDirectoryPath) {
-    testFileTemporaryRootDirectoryPath = paths.testFileTemporaryRootDirectoryPath;
-  }
-  if (!testFileKeystoreDirectoryPath) {
-    testFileKeystoreDirectoryPath = paths.testFileKeystoreDirectoryPath;
-  }
-
-  return paths;
-}
-
-afterEach(() => {
-  for (const testTemporaryDirectoryPath of createdTestTemporaryDirectoryPaths) {
-    cleanupTestTemporaryDirectory(testTemporaryDirectoryPath);
-  }
-  createdTestTemporaryDirectoryPaths.length = 0;
+  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
+  expect(result.combinedOutput).toContain("Lookup domain information");
+  expect(result.combinedOutput).toContain("name");
+  expect(result.combinedOutput).toContain("owner-of");
+  expect(result.combinedOutput).toContain("transfer");
+  expect(result.combinedOutput).toContain("--rpc");
+  expect(result.combinedOutput).toContain("--mnemonic");
+  expect(result.combinedOutput).toContain("--key-uri");
+  expect(result.combinedOutput).toContain("--name");
+  expect(result.combinedOutput).toContain("--json");
 });
 
-afterAll(() => {
-  if (testFileTemporaryRootDirectoryPath) {
-    cleanupTestFileTemporaryDirectory(testFileTemporaryRootDirectoryPath);
-    testFileTemporaryRootDirectoryPath = undefined;
-    testFileKeystoreDirectoryPath = undefined;
-  }
+test("lookup name --help shows label argument and options", async () => {
+  const result = await runDotnsCli(["lookup", "name", "--help"]);
+
+  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
+  expect(result.combinedOutput).toContain("Lookup comprehensive domain information");
+  expect(result.combinedOutput).toContain("[label]");
+  expect(result.combinedOutput).toContain("--name");
+  expect(result.combinedOutput).toContain("--json");
+  expect(result.combinedOutput).toContain("--rpc");
 });
 
-function expectSuccessfulPopSet(result: CliRunResult) {
-  expect(result.combinedOutput).not.toContain("✗ Error:");
-  expect(result.combinedOutput).toContain("✓ PoP Status Updated");
-  expect(result.exitCode).toBe(1);
-}
+test("lookup owner-of --help shows label argument and options", async () => {
+  const result = await runDotnsCli(["lookup", "owner-of", "--help"]);
 
-function expectSuccessfulInfo(result: CliRunResult) {
-  expect(result.combinedOutput).not.toContain("✗ Error:");
-  expect(result.combinedOutput).toContain("Account Information");
-  expect(result.combinedOutput).toContain("substrate:");
-  expect(result.combinedOutput).toContain("evm:");
-  expect(result.exitCode).toBe(1);
-}
+  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
+  expect(result.combinedOutput).toContain("Show whether a name is registered");
+  expect(result.combinedOutput).toContain("<label>");
+  expect(result.combinedOutput).toContain("--json");
+  expect(result.combinedOutput).toContain("--rpc");
+});
 
-const POP_TEST_TIMEOUT_MS = 60_000;
-const TEST_PASSWORD = "test-password";
-const TEST_ACCOUNT = "default";
+test("lookup transfer --help shows label argument and destination option", async () => {
+  const result = await runDotnsCli(["lookup", "transfer", "--help"]);
 
-async function ensureDefaultKeystore() {
-  if (!testFileKeystoreDirectoryPath) throw new Error("Missing test file keystore directory path");
+  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
+  expect(result.combinedOutput).toContain("Transfer domain ownership");
+  expect(result.combinedOutput).toContain("[label]");
+  expect(result.combinedOutput).toContain("-d, --destination");
+  expect(result.combinedOutput).toContain("--json");
+  expect(result.combinedOutput).toContain("--rpc");
+  expect(result.combinedOutput).toContain("--mnemonic");
+  expect(result.combinedOutput).toContain("--key-uri");
+});
 
-  await createDefaultAccountKeystore(testFileKeystoreDirectoryPath, TEST_PASSWORD);
+test("lookup transfer parses destination at transfer level", async () => {
+  const result = await runDotnsCli([
+    "lookup",
+    "transfer",
+    "test",
+    "-d",
+    "0x0000000000000000000000000000000000000001",
+    "--help",
+  ]);
+  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
+});
 
-  return { keystorePassword: TEST_PASSWORD, keystoreDirectoryPath: testFileKeystoreDirectoryPath };
-}
-
-test(
-  "pop set lite with keystore at pop level",
-  async () => {
-    createPathsForTest("pop_set_lite_pop_level");
-
-    const { keystorePassword, keystoreDirectoryPath } = await ensureDefaultKeystore();
-
-    const result = await runDotnsCli(
-      ["pop", "--password", keystorePassword, "--account", TEST_ACCOUNT, "set", "lite"],
-      { DOTNS_KEYSTORE_PATH: keystoreDirectoryPath },
-    );
-
-    expectSuccessfulPopSet(result);
-  },
-  { timeout: POP_TEST_TIMEOUT_MS },
-);
-
-test(
-  "pop set full with keystore at set level",
-  async () => {
-    createPathsForTest("pop_set_full_set_level");
-
-    const { keystorePassword, keystoreDirectoryPath } = await ensureDefaultKeystore();
-
-    const result = await runDotnsCli(
-      ["pop", "set", "full", "--password", keystorePassword, "--account", TEST_ACCOUNT],
-      { DOTNS_KEYSTORE_PATH: keystoreDirectoryPath },
-    );
-
-    expectSuccessfulPopSet(result);
-  },
-  { timeout: POP_TEST_TIMEOUT_MS },
-);
-
-test(
-  "pop set lite with mnemonic flag",
-  async () => {
-    const result = await runDotnsCli(["pop", "--mnemonic", DEFAULT_MNEMONIC, "set", "lite"]);
-
-    expectSuccessfulPopSet(result);
-  },
-  { timeout: POP_TEST_TIMEOUT_MS },
-);
-
-test(
-  "pop set full with mnemonic flag at set level",
-  async () => {
-    const result = await runDotnsCli(["pop", "set", "full", "--mnemonic", DEFAULT_MNEMONIC]);
-
-    expectSuccessfulPopSet(result);
-  },
-  { timeout: POP_TEST_TIMEOUT_MS },
-);
-
-test(
-  "pop set lite with key-uri flag",
-  async () => {
-    const result = await runDotnsCli(["pop", "--key-uri", "//Alice", "set", "lite"]);
-
-    expectSuccessfulPopSet(result);
-  },
-  { timeout: POP_TEST_TIMEOUT_MS },
-);
-
-test(
-  "pop info with keystore at pop level",
-  async () => {
-    createPathsForTest("pop_info_pop_level");
-
-    const { keystorePassword, keystoreDirectoryPath } = await ensureDefaultKeystore();
-
-    const result = await runDotnsCli(
-      ["pop", "--password", keystorePassword, "--account", TEST_ACCOUNT, "info"],
-      { DOTNS_KEYSTORE_PATH: keystoreDirectoryPath },
-    );
-
-    expectSuccessfulInfo(result);
-  },
-  { timeout: POP_TEST_TIMEOUT_MS },
-);
-
-test(
-  "pop info with keystore at info level",
-  async () => {
-    createPathsForTest("pop_info_info_level");
-
-    const { keystorePassword, keystoreDirectoryPath } = await ensureDefaultKeystore();
-
-    const result = await runDotnsCli(
-      ["pop", "info", "--password", keystorePassword, "--account", TEST_ACCOUNT],
-      { DOTNS_KEYSTORE_PATH: keystoreDirectoryPath },
-    );
-
-    expectSuccessfulInfo(result);
-  },
-  { timeout: POP_TEST_TIMEOUT_MS },
-);
-
-test(
-  "pop info with mnemonic flag",
-  async () => {
-    const result = await runDotnsCli(["pop", "--mnemonic", DEFAULT_MNEMONIC, "info"]);
-
-    expectSuccessfulInfo(result);
-  },
-  { timeout: POP_TEST_TIMEOUT_MS },
-);
-
-test(
-  "pop info with key-uri flag at pop level",
-  async () => {
-    const result = await runDotnsCli(["pop", "--key-uri", "//Alice", "info"]);
-
-    expectSuccessfulInfo(result);
-  },
-  { timeout: POP_TEST_TIMEOUT_MS },
-);
-
-test(
-  "pop set fails without status argument",
-  async () => {
-    const result = await runDotnsCli(["pop", "--mnemonic", DEFAULT_MNEMONIC, "set"]);
-
-    expect(result.exitCode).toBe(1);
-    expect(result.combinedOutput).toContain("error:");
-  },
-  { timeout: POP_TEST_TIMEOUT_MS },
-);
-
-test(
-  "pop set fails with invalid status",
-  async () => {
-    const result = await runDotnsCli(["pop", "--mnemonic", DEFAULT_MNEMONIC, "set", "invalid"]);
-
-    expect(result.exitCode).toBe(1);
-    expect(result.combinedOutput).toContain("Error:");
-  },
-  { timeout: POP_TEST_TIMEOUT_MS },
-);
-
-test(
-  "pop set with mixed option levels",
-  async () => {
-    createPathsForTest("pop_set_mixed");
-
-    const { keystorePassword, keystoreDirectoryPath } = await ensureDefaultKeystore();
-
-    const result = await runDotnsCli(
-      ["pop", "--password", keystorePassword, "set", "lite", "--account", TEST_ACCOUNT],
-      { DOTNS_KEYSTORE_PATH: keystoreDirectoryPath },
-    );
-
-    expectSuccessfulPopSet(result);
-  },
-  { timeout: POP_TEST_TIMEOUT_MS },
-);
+test("lookup transfer parses auth options at lookup level", async () => {
+  const result = await runDotnsCli([
+    "lookup",
+    "--key-uri",
+    "//Alice",
+    "transfer",
+    "test",
+    "-d",
+    "0x0000000000000000000000000000000000000001",
+    "--help",
+  ]);
+  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
+});

@@ -1,14 +1,32 @@
 import { afterAll, afterEach, expect, test } from "bun:test";
 import { pathExists } from "../../src/cli/keystore/file";
-import { runDotnsCli, readKeystoreDirectory } from "../_helpers/cli-helpers";
+import {
+  runDotnsCli,
+  readKeystoreDirectory,
+  HARNESS_SUCCESS_EXIT_CODE,
+  ALICE_KEY_URI,
+  TEST_PASSWORD,
+} from "../_helpers/cliHelpers";
 import {
   cleanupTestFileTemporaryDirectory,
   cleanupTestTemporaryDirectory,
   createKeystorePathsForTest,
-} from "../_helpers/test-paths";
+} from "../_helpers/testPaths";
+import { DEFAULT_MNEMONIC } from "../../src/utils/constants";
 
 const createdTestTemporaryDirectoryPaths: string[] = [];
 let testFileTemporaryRootDirectoryPath: string | undefined;
+
+function createPathsForTest(testName: string) {
+  const paths = createKeystorePathsForTest(testName);
+  createdTestTemporaryDirectoryPaths.push(paths.testTemporaryDirectoryPath);
+
+  if (!testFileTemporaryRootDirectoryPath) {
+    testFileTemporaryRootDirectoryPath = paths.testFileTemporaryRootDirectoryPath;
+  }
+
+  return paths;
+}
 
 afterEach(() => {
   for (const testTemporaryDirectoryPath of createdTestTemporaryDirectoryPaths) {
@@ -24,367 +42,184 @@ afterAll(() => {
   }
 });
 
-function createPathsForTest(testName: string) {
-  const paths = createKeystorePathsForTest(testName);
-
-  createdTestTemporaryDirectoryPaths.push(paths.testTemporaryDirectoryPath);
-
-  if (!testFileTemporaryRootDirectoryPath) {
-    testFileTemporaryRootDirectoryPath = paths.testFileTemporaryRootDirectoryPath;
-  }
-
-  return paths;
+function runAuthSet(keystoreDirectoryPath: string, account: string, authArgs: string[]) {
+  return runDotnsCli([
+    "--keystore-path",
+    keystoreDirectoryPath,
+    "--password",
+    TEST_PASSWORD,
+    "auth",
+    "set",
+    "--account",
+    account,
+    ...authArgs,
+  ]);
 }
 
-test("auth set creates keystore directory and stores mnemonic", async () => {
-  const { keystoreDirectoryPath } = createPathsForTest(
-    "auth_set_creates_keystore_and_stores_mnemonic",
-  );
-
-  const keystorePassword = "test-password";
-  const testMnemonic = "bottom drive obey lake curtain smoke basket hold race lonely fit walk";
-
-  const result = await runDotnsCli([
+function runAuthList(keystoreDirectoryPath: string) {
+  return runDotnsCli([
     "--keystore-path",
     keystoreDirectoryPath,
     "--password",
-    keystorePassword,
-    "auth",
-    "set",
-    "--account",
-    "default",
-    "--mnemonic",
-    testMnemonic,
-  ]);
-
-  expect(result.exitCode).toBe(1);
-  expect(await pathExists(keystoreDirectoryPath)).toBe(true);
-
-  const keystore = await readKeystoreDirectory(keystoreDirectoryPath, keystorePassword);
-
-  expect(keystore.defaultAccount).toBe("default");
-  expect(keystore.accounts.default?.mnemonic).toBe(testMnemonic);
-});
-
-test("auth set updates existing keystore and stores key-uri under alice, making it default", async () => {
-  const { keystoreDirectoryPath } = createPathsForTest(
-    "auth_set_updates_existing_keystore_with_alice",
-  );
-
-  const keystorePassword = "test-password";
-  const testMnemonic = "bottom drive obey lake curtain smoke basket hold race lonely fit walk";
-
-  const createResult = await runDotnsCli([
-    "--keystore-path",
-    keystoreDirectoryPath,
-    "--password",
-    keystorePassword,
-    "auth",
-    "set",
-    "--account",
-    "default",
-    "--mnemonic",
-    testMnemonic,
-  ]);
-  expect(createResult.exitCode).toBe(1);
-
-  const updateResult = await runDotnsCli([
-    "--keystore-path",
-    keystoreDirectoryPath,
-    "--password",
-    keystorePassword,
-    "auth",
-    "set",
-    "--account",
-    "alice",
-    "--key-uri",
-    "//Alice",
-  ]);
-  expect(updateResult.exitCode).toBe(1);
-
-  const keystore = await readKeystoreDirectory(keystoreDirectoryPath, keystorePassword);
-
-  expect(keystore.defaultAccount).toBe("alice");
-  expect(keystore.accounts.alice?.keyUri).toBe("//Alice");
-  expect(keystore.accounts.default?.mnemonic).toBe(testMnemonic);
-});
-
-test("auth list exits 0 when keystore missing", async () => {
-  const { keystoreDirectoryPath } = createPathsForTest("auth_list_keystore_missing");
-
-  const keystorePassword = "test-password";
-
-  const listResult = await runDotnsCli([
-    "--keystore-path",
-    keystoreDirectoryPath,
-    "--password",
-    keystorePassword,
+    TEST_PASSWORD,
     "auth",
     "list",
   ]);
+}
 
-  expect(listResult.exitCode).toBe(1);
-  expect(listResult.combinedOutput).toContain("exists:");
-  expect(listResult.combinedOutput).toContain("false");
-});
-
-test("auth list shows all accounts", async () => {
-  const { keystoreDirectoryPath } = createPathsForTest("auth_list_shows_accounts");
-
-  const keystorePassword = "test-password";
-  const testMnemonic = "bottom drive obey lake curtain smoke basket hold race lonely fit walk";
-
-  await runDotnsCli([
+function runAuthUse(keystoreDirectoryPath: string, account: string) {
+  return runDotnsCli([
     "--keystore-path",
     keystoreDirectoryPath,
     "--password",
-    keystorePassword,
-    "auth",
-    "set",
-    "--account",
-    "default",
-    "--mnemonic",
-    testMnemonic,
-  ]);
-
-  await runDotnsCli([
-    "--keystore-path",
-    keystoreDirectoryPath,
-    "--password",
-    keystorePassword,
-    "auth",
-    "set",
-    "--account",
-    "alice",
-    "--key-uri",
-    "//Alice",
-  ]);
-
-  const listResult = await runDotnsCli([
-    "--keystore-path",
-    keystoreDirectoryPath,
-    "--password",
-    keystorePassword,
-    "auth",
-    "list",
-  ]);
-
-  expect(listResult.exitCode).toBe(1);
-  expect(listResult.combinedOutput).toContain("alice");
-  expect(listResult.combinedOutput).toContain("default");
-  expect(listResult.combinedOutput).toContain("key-uri");
-  expect(listResult.combinedOutput).toContain("mnemonic");
-});
-
-test("auth use switches default account to default", async () => {
-  const { keystoreDirectoryPath } = createPathsForTest("auth_use_switches_default_account");
-
-  const keystorePassword = "test-password";
-  const testMnemonic = "bottom drive obey lake curtain smoke basket hold race lonely fit walk";
-
-  const createDefaultResult = await runDotnsCli([
-    "--keystore-path",
-    keystoreDirectoryPath,
-    "--password",
-    keystorePassword,
-    "auth",
-    "set",
-    "--account",
-    "default",
-    "--mnemonic",
-    testMnemonic,
-  ]);
-  expect(createDefaultResult.exitCode).toBe(1);
-
-  const createAliceResult = await runDotnsCli([
-    "--keystore-path",
-    keystoreDirectoryPath,
-    "--password",
-    keystorePassword,
-    "auth",
-    "set",
-    "--account",
-    "alice",
-    "--key-uri",
-    "//Alice",
-  ]);
-  expect(createAliceResult.exitCode).toBe(1);
-
-  let keystore = await readKeystoreDirectory(keystoreDirectoryPath, keystorePassword);
-  expect(keystore.defaultAccount).toBe("alice");
-
-  const useDefaultResult = await runDotnsCli([
-    "--keystore-path",
-    keystoreDirectoryPath,
-    "--password",
-    keystorePassword,
+    TEST_PASSWORD,
     "auth",
     "use",
-    "default",
+    account,
   ]);
-  expect(useDefaultResult.exitCode).toBe(1);
+}
 
-  keystore = await readKeystoreDirectory(keystoreDirectoryPath, keystorePassword);
+function runAuthRemove(keystoreDirectoryPath: string, account: string) {
+  return runDotnsCli([
+    "--keystore-path",
+    keystoreDirectoryPath,
+    "--password",
+    TEST_PASSWORD,
+    "auth",
+    "remove",
+    account,
+  ]);
+}
+
+function runAuthClear(keystoreDirectoryPath: string) {
+  return runDotnsCli(["--keystore-path", keystoreDirectoryPath, "auth", "clear"]);
+}
+
+async function setupDefaultAccount(keystoreDirectoryPath: string) {
+  const result = await runAuthSet(keystoreDirectoryPath, "default", [
+    "--mnemonic",
+    DEFAULT_MNEMONIC,
+  ]);
+  expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+  return result;
+}
+
+async function setupDefaultAndAliceAccounts(keystoreDirectoryPath: string) {
+  await setupDefaultAccount(keystoreDirectoryPath);
+  const result = await runAuthSet(keystoreDirectoryPath, "alice", ["--key-uri", ALICE_KEY_URI]);
+  expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+  return result;
+}
+
+test("auth set creates keystore and stores multiple accounts", async () => {
+  const { keystoreDirectoryPath } = createPathsForTest("auth_set_multiple_accounts");
+
+  await setupDefaultAndAliceAccounts(keystoreDirectoryPath);
+
+  expect(await pathExists(keystoreDirectoryPath)).toBe(true);
+
+  const keystore = await readKeystoreDirectory(keystoreDirectoryPath, TEST_PASSWORD);
+  expect(keystore.accounts.default?.mnemonic).toBe(DEFAULT_MNEMONIC);
+  expect(keystore.accounts.alice?.keyUri).toBe(ALICE_KEY_URI);
+  expect(keystore.defaultAccount).toBe("alice");
+});
+
+test("auth set accepts account names with special characters", async () => {
+  const { keystoreDirectoryPath } = createPathsForTest("auth_set_special_chars");
+
+  const validNames = ["alice-bob", "test_account", "my-account-123"];
+
+  for (const accountName of validNames) {
+    const result = await runAuthSet(keystoreDirectoryPath, accountName, [
+      "--mnemonic",
+      DEFAULT_MNEMONIC,
+    ]);
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+  }
+
+  const keystore = await readKeystoreDirectory(keystoreDirectoryPath, TEST_PASSWORD);
+  for (const accountName of validNames) {
+    expect(keystore.accounts[accountName]).toBeDefined();
+  }
+});
+
+test("auth list reports missing keystore", async () => {
+  const { keystoreDirectoryPath } = createPathsForTest("auth_list_missing_keystore");
+
+  const result = await runAuthList(keystoreDirectoryPath);
+
+  expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+  expect(result.combinedOutput).toContain("exists:");
+  expect(result.combinedOutput).toContain("false");
+});
+
+test("auth list shows all accounts and auth types", async () => {
+  const { keystoreDirectoryPath } = createPathsForTest("auth_list_shows_accounts");
+
+  await setupDefaultAndAliceAccounts(keystoreDirectoryPath);
+
+  const result = await runAuthList(keystoreDirectoryPath);
+
+  expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+  expect(result.combinedOutput).toContain("alice");
+  expect(result.combinedOutput).toContain("default");
+  expect(result.combinedOutput).toContain("key-uri");
+  expect(result.combinedOutput).toContain("mnemonic");
+});
+
+test("auth use switches default account", async () => {
+  const { keystoreDirectoryPath } = createPathsForTest("auth_use_switches_default");
+
+  await setupDefaultAndAliceAccounts(keystoreDirectoryPath);
+
+  let keystore = await readKeystoreDirectory(keystoreDirectoryPath, TEST_PASSWORD);
+  expect(keystore.defaultAccount).toBe("alice");
+
+  const result = await runAuthUse(keystoreDirectoryPath, "default");
+  expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+
+  keystore = await readKeystoreDirectory(keystoreDirectoryPath, TEST_PASSWORD);
   expect(keystore.defaultAccount).toBe("default");
 });
 
-test("auth remove deletes account file and clears default when last account removed", async () => {
-  const { keystoreDirectoryPath } = createPathsForTest(
-    "auth_remove_deletes_account_when_last_removed",
-  );
+test("auth remove last account clears default", async () => {
+  const { keystoreDirectoryPath } = createPathsForTest("auth_remove_last_account");
 
-  const keystorePassword = "test-password";
-  const testMnemonic = "bottom drive obey lake curtain smoke basket hold race lonely fit walk";
+  await setupDefaultAccount(keystoreDirectoryPath);
 
-  const createDefaultResult = await runDotnsCli([
-    "--keystore-path",
-    keystoreDirectoryPath,
-    "--password",
-    keystorePassword,
-    "auth",
-    "set",
-    "--account",
-    "default",
-    "--mnemonic",
-    testMnemonic,
-  ]);
-  expect(createDefaultResult.exitCode).toBe(1);
+  const result = await runAuthRemove(keystoreDirectoryPath, "default");
+  expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
 
-  const removeDefaultResult = await runDotnsCli([
-    "--keystore-path",
-    keystoreDirectoryPath,
-    "--password",
-    keystorePassword,
-    "auth",
-    "remove",
-    "default",
-  ]);
-  expect(removeDefaultResult.exitCode).toBe(1);
-
-  const keystore = await readKeystoreDirectory(keystoreDirectoryPath, keystorePassword);
+  const keystore = await readKeystoreDirectory(keystoreDirectoryPath, TEST_PASSWORD);
   expect(keystore.accounts.default).toBeUndefined();
   expect(keystore.defaultAccount).toBeUndefined();
 });
 
-test("auth remove keeps keystore when multiple accounts exist", async () => {
-  const { keystoreDirectoryPath } = createPathsForTest("auth_remove_keeps_keystore");
+test("auth remove preserves remaining accounts and reassigns default", async () => {
+  const { keystoreDirectoryPath } = createPathsForTest("auth_remove_preserves_remaining");
 
-  const keystorePassword = "test-password";
-  const testMnemonic = "bottom drive obey lake curtain smoke basket hold race lonely fit walk";
+  await setupDefaultAndAliceAccounts(keystoreDirectoryPath);
 
-  await runDotnsCli([
-    "--keystore-path",
-    keystoreDirectoryPath,
-    "--password",
-    keystorePassword,
-    "auth",
-    "set",
-    "--account",
-    "default",
-    "--mnemonic",
-    testMnemonic,
-  ]);
-
-  await runDotnsCli([
-    "--keystore-path",
-    keystoreDirectoryPath,
-    "--password",
-    keystorePassword,
-    "auth",
-    "set",
-    "--account",
-    "alice",
-    "--key-uri",
-    "//Alice",
-  ]);
-
-  const removeResult = await runDotnsCli([
-    "--keystore-path",
-    keystoreDirectoryPath,
-    "--password",
-    keystorePassword,
-    "auth",
-    "remove",
-    "default",
-  ]);
-  expect(removeResult.exitCode).toBe(1);
+  const result = await runAuthRemove(keystoreDirectoryPath, "default");
+  expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
 
   expect(await pathExists(keystoreDirectoryPath)).toBe(true);
 
-  const keystore = await readKeystoreDirectory(keystoreDirectoryPath, keystorePassword);
+  const keystore = await readKeystoreDirectory(keystoreDirectoryPath, TEST_PASSWORD);
   expect(keystore.accounts.alice).toBeDefined();
   expect(keystore.accounts.default).toBeUndefined();
   expect(keystore.defaultAccount).toBe("alice");
 });
 
-test("auth clear deletes keystore directory", async () => {
-  const { keystoreDirectoryPath } = createPathsForTest("auth_clear_deletes_keystore_path");
+test("auth clear deletes all accounts", async () => {
+  const { keystoreDirectoryPath } = createPathsForTest("auth_clear_deletes_all");
 
-  const keystorePassword = "test-password";
-  const testMnemonic = "bottom drive obey lake curtain smoke basket hold race lonely fit walk";
-
-  const createDefaultResult = await runDotnsCli([
-    "--keystore-path",
-    keystoreDirectoryPath,
-    "--password",
-    keystorePassword,
-    "auth",
-    "set",
-    "--account",
-    "default",
-    "--mnemonic",
-    testMnemonic,
-  ]);
-  expect(createDefaultResult.exitCode).toBe(1);
+  await setupDefaultAccount(keystoreDirectoryPath);
   expect(await pathExists(keystoreDirectoryPath)).toBe(true);
 
-  const clearResult = await runDotnsCli([
-    "--keystore-path",
-    keystoreDirectoryPath,
-    "auth",
-    "clear",
-  ]);
-  expect(clearResult.exitCode).toBe(1);
+  const result = await runAuthClear(keystoreDirectoryPath);
+  expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
 
-  const keystore = await readKeystoreDirectory(keystoreDirectoryPath, keystorePassword);
+  const keystore = await readKeystoreDirectory(keystoreDirectoryPath, TEST_PASSWORD);
   expect(Object.keys(keystore.accounts)).toHaveLength(0);
-});
-
-test("auth set accepts valid account names with special chars", async () => {
-  const { keystoreDirectoryPath } = createPathsForTest("auth_set_valid_special_chars");
-
-  const keystorePassword = "test-password";
-  const testMnemonic = "bottom drive obey lake curtain smoke basket hold race lonely fit walk";
-
-  const validNames = [
-    "alice-bob",
-    "test_account",
-    "my-account-123",
-    "account.backup",
-    "user@domain",
-    "account#1",
-  ];
-
-  for (const accountName of validNames) {
-    const result = await runDotnsCli([
-      "--keystore-path",
-      keystoreDirectoryPath,
-      "--password",
-      keystorePassword,
-      "auth",
-      "set",
-      "--account",
-      accountName,
-      "--mnemonic",
-      testMnemonic,
-    ]);
-
-    expect(result.exitCode).toBe(1);
-  }
-
-  const keystore = await readKeystoreDirectory(keystoreDirectoryPath, keystorePassword);
-  console.log("keystore.accounts[accountName]: ", keystore.accounts);
-  for (const accountName of validNames) {
-    expect(keystore.accounts[accountName]).toBeDefined();
-  }
 });

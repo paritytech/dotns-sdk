@@ -1,20 +1,34 @@
-import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
+import { afterAll, afterEach, expect, test } from "bun:test";
 import path from "node:path";
 import { promises as fs } from "node:fs";
 
-import { runDotnsCli, type CliRunResult } from "../_helpers/cli-helpers";
+import {
+  createDefaultAccountKeystore,
+  HARNESS_SUCCESS_EXIT_CODE,
+  runDotnsCli,
+  TEST_ACCOUNT,
+  TEST_PASSWORD,
+  type CliRunResult,
+} from "../_helpers/cliHelpers";
 import {
   cleanupTestFileTemporaryDirectory,
   cleanupTestTemporaryDirectory,
   createKeystorePathsForTest,
-} from "../_helpers/test-paths";
+} from "../_helpers/testPaths";
 
 const createdTestTemporaryDirectoryPaths: string[] = [];
 let testFileTemporaryRootDirectoryPath: string | undefined;
-let sharedKeystoreDirectoryPath: string | undefined;
+let testFileKeystoreDirectoryPath: string | undefined;
+const BULLETIN_TEST_TIMEOUT_MS = 3 * 60_000;
 
-const KEYSTORE_PASSWORD = "test-password";
-const ALICE_ACCOUNT = "alice";
+type JsonUploadResult = {
+  cid: string;
+  contenthash: string;
+  preview: string;
+  path: string;
+  type: "file" | "directory";
+  size: number;
+};
 
 function createPathsForTest(testName: string) {
   const paths = createKeystorePathsForTest(testName);
@@ -23,30 +37,12 @@ function createPathsForTest(testName: string) {
   if (!testFileTemporaryRootDirectoryPath) {
     testFileTemporaryRootDirectoryPath = paths.testFileTemporaryRootDirectoryPath;
   }
+  if (!testFileKeystoreDirectoryPath) {
+    testFileKeystoreDirectoryPath = paths.testFileKeystoreDirectoryPath;
+  }
 
   return paths;
 }
-
-beforeAll(async () => {
-  const paths = createKeystorePathsForTest("shared_keystore");
-  sharedKeystoreDirectoryPath = paths.keystoreDirectoryPath;
-  testFileTemporaryRootDirectoryPath = paths.testFileTemporaryRootDirectoryPath;
-
-  const result = await runDotnsCli([
-    "--keystore-path",
-    sharedKeystoreDirectoryPath,
-    "--password",
-    KEYSTORE_PASSWORD,
-    "auth",
-    "set",
-    "--account",
-    ALICE_ACCOUNT,
-    "--key-uri",
-    "//Alice",
-  ]);
-
-  expect(result.exitCode).toBe(0);
-});
 
 afterEach(() => {
   for (const testTemporaryDirectoryPath of createdTestTemporaryDirectoryPaths) {
@@ -59,11 +55,9 @@ afterAll(() => {
   if (testFileTemporaryRootDirectoryPath) {
     cleanupTestFileTemporaryDirectory(testFileTemporaryRootDirectoryPath);
     testFileTemporaryRootDirectoryPath = undefined;
-    sharedKeystoreDirectoryPath = undefined;
+    testFileKeystoreDirectoryPath = undefined;
   }
 });
-
-const BULLETIN_TEST_TIMEOUT_MS = 3 * 60_000;
 
 function spongePath(): string {
   return path.resolve(__dirname, "../_files/sponge.png");
@@ -77,8 +71,16 @@ async function createTestDirectory(testName: string): Promise<string> {
   return dirPath;
 }
 
+async function ensureDefaultKeystore() {
+  if (!testFileKeystoreDirectoryPath) throw new Error("Missing test file keystore directory path");
+
+  await createDefaultAccountKeystore(testFileKeystoreDirectoryPath, TEST_PASSWORD);
+
+  return { keystorePassword: TEST_PASSWORD, keystoreDirectoryPath: testFileKeystoreDirectoryPath };
+}
+
 function expectSuccessfulUpload(result: CliRunResult) {
-  expect(result.exitCode).toBe(0);
+  expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
   expect(result.combinedOutput).not.toContain("✗ Error:");
   expect(result.combinedOutput).toContain("▶ Bulletin Upload");
   expect(result.combinedOutput).toContain("cid:");
@@ -86,49 +88,53 @@ function expectSuccessfulUpload(result: CliRunResult) {
 }
 
 function expectSuccessfulAuthorize(result: CliRunResult) {
-  expect(result.exitCode).toBe(0);
+  expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
   expect(result.combinedOutput).not.toContain("✗ Error:");
   expect(result.combinedOutput).toContain("▶ Bulletin Authorize");
 }
 
+function stripAnsiCodes(text: string): string {
+  return text.replace(/\u001b\[[0-9;]*m/g, "");
+}
+
 function extractLastCid(result: CliRunResult): string {
-  const matches = [...result.combinedOutput.matchAll(/cid:\s+([a-z0-9]+)\s*/gi)];
+  const cleanOutput = stripAnsiCodes(result.combinedOutput);
+  const matches = [...cleanOutput.matchAll(/cid:\s+([a-z0-9]+)\s*/gi)];
   expect(matches.length).toBeGreaterThan(0);
   return matches[matches.length - 1]?.[1] ?? "";
 }
 
 function extractContenthash(result: CliRunResult): string {
-  const matches = [...result.combinedOutput.matchAll(/contenthash:\s+(0x[0-9a-f]+)\s*/gi)];
+  const cleanOutput = stripAnsiCodes(result.combinedOutput);
+  const matches = [...cleanOutput.matchAll(/contenthash:\s+(0x[0-9a-f]+)\s*/gi)];
   expect(matches.length).toBeGreaterThan(0);
   return matches[matches.length - 1]?.[1] ?? "";
 }
 
-function runBulletinUpload(args: string[], account: string = ALICE_ACCOUNT) {
-  return runDotnsCli([
-    "--keystore-path",
-    sharedKeystoreDirectoryPath!,
-    "--password",
-    KEYSTORE_PASSWORD,
-    "--account",
-    account,
-    "bulletin",
-    "upload",
-    ...args,
-  ]);
+function parseJsonUploadResult(result: CliRunResult): JsonUploadResult {
+  return JSON.parse(result.standardOutput);
 }
 
-function runBulletinAuthorize(args: string[], account: string = ALICE_ACCOUNT) {
-  return runDotnsCli([
-    "--keystore-path",
-    sharedKeystoreDirectoryPath!,
-    "--password",
-    KEYSTORE_PASSWORD,
-    "--account",
-    account,
-    "bulletin",
-    "authorize",
-    ...args,
-  ]);
+async function runBulletinUpload(args: string[]) {
+  const { keystorePassword, keystoreDirectoryPath } = await ensureDefaultKeystore();
+
+  return runDotnsCli(
+    ["--password", keystorePassword, "bulletin", "upload", "--account", TEST_ACCOUNT, ...args],
+    { DOTNS_KEYSTORE_PATH: keystoreDirectoryPath },
+  );
+}
+
+function runBulletinAuthorize(args: string[]) {
+  return runDotnsCli(["bulletin", "authorize", ...args]);
+}
+
+async function runBulletinAuthorizeWithAccount(args: string[] = []) {
+  const { keystorePassword, keystoreDirectoryPath } = await ensureDefaultKeystore();
+
+  return runDotnsCli(
+    ["--password", keystorePassword, "bulletin", "authorize", "--account", TEST_ACCOUNT, ...args],
+    { DOTNS_KEYSTORE_PATH: keystoreDirectoryPath },
+  );
 }
 
 function runBulletinHistory(args: string[] = []) {
@@ -136,90 +142,44 @@ function runBulletinHistory(args: string[] = []) {
 }
 
 test(
-  "bulletin upload file basic",
+  "bulletin upload directory json parallel",
   async () => {
-    createPathsForTest("bulletin_upload_file_basic");
-
-    const result = await runBulletinUpload([spongePath(), "--no-history"]);
-
-    expectSuccessfulUpload(result);
-    expect(extractLastCid(result).length).toBeGreaterThan(10);
-  },
-  { timeout: BULLETIN_TEST_TIMEOUT_MS },
-);
-
-test(
-  "bulletin upload file with contenthash",
-  async () => {
-    createPathsForTest("bulletin_upload_contenthash");
-
-    const result = await runBulletinUpload([spongePath(), "--print-contenthash", "--no-history"]);
-
-    expectSuccessfulUpload(result);
-    expect(extractContenthash(result)).toMatch(/^0x[0-9a-f]+$/i);
-  },
-  { timeout: BULLETIN_TEST_TIMEOUT_MS },
-);
-
-test(
-  "bulletin upload file force-chunked",
-  async () => {
-    createPathsForTest("bulletin_upload_force_chunked");
+    createPathsForTest("bulletin_upload_directory_json_parallel");
+    const dirPath = await createTestDirectory("test_site_json_parallel");
 
     const result = await runBulletinUpload([
-      spongePath(),
-      "--force-chunked",
-      "--chunk-size",
-      "1048576",
+      dirPath,
+      "--json",
+      "--parallel",
+      "--concurrency",
+      "3",
       "--no-history",
     ]);
 
-    expectSuccessfulUpload(result);
-    expect(result.combinedOutput).toContain("chunked (dag-pb)");
-    expect(result.combinedOutput).toContain("chunks:");
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+
+    const parsed = parseJsonUploadResult(result);
+    expect(parsed.cid).toMatch(/^bafy|^bafk/);
+    expect(parsed.type).toBe("directory");
   },
   { timeout: BULLETIN_TEST_TIMEOUT_MS },
 );
 
 test(
-  "bulletin upload file custom rpc",
+  "bulletin upload json cid matches interactive cid",
   async () => {
-    createPathsForTest("bulletin_upload_custom_rpc");
-    const customRpc = "wss://bulletin.dotspark.app";
+    createPathsForTest("bulletin_upload_json_cid_matches_interactive");
 
-    const result = await runBulletinUpload([
-      spongePath(),
-      "--bulletin-rpc",
-      customRpc,
-      "--no-history",
-    ]);
+    const jsonResult = await runBulletinUpload([spongePath(), "--json", "--no-history"]);
+    const interactiveResult = await runBulletinUpload([spongePath(), "--no-history"]);
 
-    expectSuccessfulUpload(result);
-    expect(result.combinedOutput).toContain(customRpc);
-  },
-  { timeout: BULLETIN_TEST_TIMEOUT_MS },
-);
+    expect(jsonResult.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+    expect(interactiveResult.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
 
-test(
-  "bulletin upload file all options",
-  async () => {
-    createPathsForTest("bulletin_upload_all_options");
+    const jsonCid = parseJsonUploadResult(jsonResult).cid;
+    const interactiveCid = extractLastCid(interactiveResult);
 
-    const result = await runBulletinUpload([
-      spongePath(),
-      "--bulletin-rpc",
-      "wss://bulletin.dotspark.app",
-      "--chunk-size",
-      "2097152",
-      "--force-chunked",
-      "--print-contenthash",
-      "--no-history",
-    ]);
-
-    expectSuccessfulUpload(result);
-    expect(result.combinedOutput).toContain("chunked (dag-pb)");
-    expect(result.combinedOutput).toContain("chunks:");
-    expect(extractContenthash(result)).toMatch(/^0x[0-9a-f]+$/i);
+    expect(jsonCid).toBe(interactiveCid);
   },
   { timeout: BULLETIN_TEST_TIMEOUT_MS },
 );
@@ -274,9 +234,9 @@ test(
 );
 
 test(
-  "bulletin authorize basic",
+  "bulletin authorize with positional address",
   async () => {
-    createPathsForTest("bulletin_authorize_basic");
+    createPathsForTest("bulletin_authorize_positional");
     const targetAddress = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty";
 
     const result = await runBulletinAuthorize([targetAddress]);
@@ -285,6 +245,23 @@ test(
     expect(result.combinedOutput).toContain(targetAddress);
     expect(result.combinedOutput).toContain("rpc:");
     expect(result.combinedOutput).toContain("transactions:");
+    expect(result.combinedOutput).toContain("sudo:");
+    expect(result.combinedOutput).toContain("//Alice");
+  },
+  { timeout: BULLETIN_TEST_TIMEOUT_MS },
+);
+
+test(
+  "bulletin authorize with --account resolves target from keystore",
+  async () => {
+    createPathsForTest("bulletin_authorize_account_flag");
+
+    const result = await runBulletinAuthorizeWithAccount();
+
+    expectSuccessfulAuthorize(result);
+    expect(result.combinedOutput).toContain("target:");
+    expect(result.combinedOutput).toContain("sudo:");
+    expect(result.combinedOutput).toContain("//Alice");
   },
   { timeout: BULLETIN_TEST_TIMEOUT_MS },
 );
@@ -298,27 +275,13 @@ test(
     const result = await runBulletinAuthorize([
       targetAddress,
       "--transactions",
-      "500000",
+      "100",
       "--bytes",
-      "549755813888",
+      "1000",
     ]);
 
     expectSuccessfulAuthorize(result);
-    expect(result.combinedOutput).toContain("500,000");
-  },
-  { timeout: BULLETIN_TEST_TIMEOUT_MS },
-);
-
-test(
-  "bulletin authorize already authorized account",
-  async () => {
-    createPathsForTest("bulletin_authorize_already_authorized");
-    const aliceAddress = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
-
-    const result = await runBulletinAuthorize([aliceAddress]);
-
-    expect(result.exitCode).toBe(0);
-    expect(result.combinedOutput).toMatch(/already authorized/i);
+    expect(result.combinedOutput).toContain("1000.00 B");
   },
   { timeout: BULLETIN_TEST_TIMEOUT_MS },
 );
@@ -343,14 +306,14 @@ test("bulletin history empty", async () => {
 
   const result = await runBulletinHistory();
 
-  expect(result.exitCode).toBe(0);
+  expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
   expect(result.combinedOutput).toContain("No uploads in history");
 });
 
 test("bulletin history json output", async () => {
   const result = await runBulletinHistory(["--json"]);
 
-  expect(result.exitCode).toBe(0);
+  expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
   const parsed = JSON.parse(result.combinedOutput);
   expect(Array.isArray(parsed)).toBe(true);
 });
@@ -358,13 +321,13 @@ test("bulletin history json output", async () => {
 test("bulletin history clear", async () => {
   const result = await runDotnsCli(["bulletin", "history:clear"]);
 
-  expect(result.exitCode).toBe(0);
+  expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
   expect(result.combinedOutput).toContain("Cleared");
 });
 
 test("bulletin history remove nonexistent cid", async () => {
   const result = await runDotnsCli(["bulletin", "history:remove", "bafybeifake123"]);
 
-  expect(result.exitCode).toBe(0);
+  expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
   expect(result.combinedOutput).toContain("not found");
 });

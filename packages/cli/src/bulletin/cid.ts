@@ -2,8 +2,7 @@ import { CID } from "multiformats/cid";
 import { create as createMultihashDigest } from "multiformats/hashes/digest";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { blake2b } from "@noble/hashes/blake2.js";
-import { base32 } from "multiformats/bases/base32";
-import { base58btc } from "multiformats/bases/base58";
+import { encode, decode, getCodec } from "@ensdomains/content-hash";
 
 export const CODEC = {
   RAW: 0x55,
@@ -13,7 +12,6 @@ export const CODEC = {
 export const HASH = {
   SHA2_256: 0x12,
   BLAKE2B_256: 0xb220,
-  KECCAK_256: 0x1b,
 } as const;
 
 export const HASH_LENGTH = 32;
@@ -42,28 +40,21 @@ export function createDagPbCid(data: Uint8Array, hashCode: number = HASH.SHA2_25
 }
 
 export function parseCid(cidString: string): CID {
-  const decoder = cidString.startsWith("Qm") ? base58btc : base32;
-  return CID.parse(cidString, decoder);
+  return CID.parse(cidString);
 }
 
 export function encodeIpfsContenthash(cidString: string): string {
-  const cid = parseCid(cidString);
-  const contenthashBytes = new Uint8Array(cid.bytes.length + 2);
-  contenthashBytes[0] = 0xe3;
-  contenthashBytes[1] = 0x01;
-  contenthashBytes.set(cid.bytes, 2);
-  return Buffer.from(contenthashBytes).toString("hex");
+  return encode("ipfs", cidString);
 }
 
 export function decodeIpfsContenthash(contenthashHex: string): string | null {
-  const hexString = contenthashHex.startsWith("0x") ? contenthashHex.slice(2) : contenthashHex;
-  const bytes = Buffer.from(hexString, "hex");
+  const hex = contenthashHex.startsWith("0x") ? contenthashHex.slice(2) : contenthashHex;
 
-  if (bytes.length < 4 || bytes[0] !== 0xe3) {
+  try {
+    const codec = getCodec(hex);
+    if (codec !== "ipfs") return null;
+    return decode(hex);
+  } catch {
     return null;
   }
-
-  const cidBytes = bytes.slice(2);
-  const cid = CID.decode(cidBytes);
-  return cid.toString();
 }
