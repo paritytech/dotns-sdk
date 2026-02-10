@@ -60,10 +60,10 @@ on:
         type: string
 
       cli-version:
-        description: 'CLI release tag to install (e.g., v0.1.0)'
+        description: 'CLI release tag to install (e.g., v0.2.0)'
         required: false
         type: string
-        default: 'v0.1.0'
+        default: 'v0.2.0'
 
       cli-artifact-name:
         description: 'Build artifact containing CLI tgz (overrides cli-version when set)'
@@ -174,14 +174,13 @@ jobs:
           if [[ -n "$CLI_ARTIFACT" ]]; then
             npm install -g ./cli-artifact/dotns-cli-*.tgz
           else
-            gh release download "$CLI_VERSION" -p "*.tgz" -R "$GITHUB_REPOSITORY"
+            gh release download "$CLI_VERSION" -p "*.tgz" -R paritytech/dotns-sdk
             npm install -g ./dotns-cli-*.tgz
           fi
         env:
           GH_TOKEN: ${{ github.token }}
           CLI_VERSION: ${{ inputs.cli-version }}
           CLI_ARTIFACT: ${{ inputs.cli-artifact-name }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
 
       - name: Resolve target
         id: target
