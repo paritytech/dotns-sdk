@@ -103,7 +103,7 @@ jobs:
     needs: [build]
     uses: ./.github/workflows/deploy.yml
     with:
-      basename: dotns-example
+      basename: dotns-example-site
       artifact-name: example-site
       register-base: true
     secrets:

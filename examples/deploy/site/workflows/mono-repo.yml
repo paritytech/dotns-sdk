@@ -1,0 +1,86 @@
+# Deploy multiple apps from a monorepo to separate DotNS domains.
+#
+# Each app gets its own base domain (my-app.dot, my-app-docs.dot, my-app-admin.dot).
+# In preview mode, subnames are created under each (pr42.my-app.dot, etc.).
+# Deploys run sequentially because all apps share the same mnemonic parallel
+# deploys would cause nonce collisions on Bulletin upload transactions.
+#
+# Use case: Monorepos with a frontend, docs site, and admin panel.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: deploy-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build all apps
+        run: npm run build --workspaces
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-build
+          path: apps/web/dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docs-build
+          path: apps/docs/dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: admin-build
+          path: apps/admin/dist
+
+  deploy-app:
+    name: Deploy App
+    needs: build
+    uses: paritytech/dotns-sdk/.github/workflows/deploy.yml@main
+    with:
+      basename: my-app
+      artifact-name: app-build
+      mode: ${{ github.event_name == 'push' && 'production' || 'preview' }}
+      register-base: true
+      max-retries: 10
+    secrets:
+      mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
+
+  deploy-docs:
+    name: Deploy Docs
+    needs: [build, deploy-app]
+    uses: paritytech/dotns-sdk/.github/workflows/deploy.yml@main
+    with:
+      basename: my-app-docs
+      artifact-name: docs-build
+      mode: ${{ github.event_name == 'push' && 'production' || 'preview' }}
+      register-base: true
+      max-retries: 10
+    secrets:
+      mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
+
+  deploy-admin:
+    name: Deploy Admin
+    needs: [build, deploy-docs]
+    uses: paritytech/dotns-sdk/.github/workflows/deploy.yml@main
+    with:
+      basename: my-app-admin
+      artifact-name: admin-build
+      mode: ${{ github.event_name == 'push' && 'production' || 'preview' }}
+      register-base: true
+      max-retries: 10
+    secrets:
+      mnemonic: ${{ secrets.DOTNS_MNEMONIC }}

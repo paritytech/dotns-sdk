@@ -1,0 +1,47 @@
+# Deploy to a local or self-hosted chain for integration testing.
+#
+# Uses a dev key URI (//Alice) instead of a mnemonic, and overrides both the
+# Bulletin RPC and registry RPC to point at local endpoints. Useful for CI
+# pipelines that spin up a local Substrate chain as a service container.
+#
+# The skip-cache flag is set to true because local chains reset between runs,
+# so cached CIDs from a previous chain state would be invalid.
+#
+# Use case: Integration tests that verify end-to-end deployment against a
+# local chain before promoting to testnet.
+name: Deploy (Local)
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build site
+        run: npm ci && npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: dist/
+
+  deploy:
+    name: Deploy to Local Chain
+    needs: build
+    uses: paritytech/dotns-sdk/.github/workflows/deploy.yml@main
+    with:
+      basename: test-app
+      artifact-name: site
+      mode: production
+      register-base: true
+      key-uri: //Alice
+      bulletin-rpc: ws://127.0.0.1:9944
+      rpc: ws://127.0.0.1:9944
+      skip-cache: true
+      max-retries: 3
+      retry-delay: 5

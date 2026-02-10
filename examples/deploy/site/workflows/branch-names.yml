@@ -1,0 +1,75 @@
+# Deploy feature branch previews using the branch name as the subname.
+#
+# Instead of pr42.my-app.dot, this creates feature-auth.my-app.dot which maybe
+# easier to remember and share. Branch names are sanitised automatically
+# (lowercased, special chars replaced with hyphens, truncated to 20 chars).
+#
+# The workflow also demonstrates manual dispatch with a skip-cache option,
+# useful for forcing a re-upload when debugging gateway propagation issues.
+#
+# Use case: Teams that prefer stable, human-readable preview URLs tied to
+# feature branches rather than ephemeral PR numbers.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      skip-cache:
+        description: 'Force re-upload even if build hash matches'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build
+        run: npm ci && npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: dist/
+
+  deploy-preview:
+    name: Deploy Preview
+    needs: build
+    if: github.event_name == 'pull_request'
+    uses: paritytech/dotns-sdk/.github/workflows/deploy.yml@main
+    with:
+      basename: my-app
+      artifact-name: site
+      mode: preview
+      subname-format: branch
+      register-base: true
+      skip-cache: ${{ inputs.skip-cache || false }}
+    secrets:
+      mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
+
+  deploy-production:
+    name: Deploy Production
+    needs: build
+    if: github.event_name == 'push'
+    uses: paritytech/dotns-sdk/.github/workflows/deploy.yml@main
+    with:
+      basename: my-app
+      artifact-name: site
+      mode: production
+      skip-cache: ${{ inputs.skip-cache || false }}
+    secrets:
+      mnemonic: ${{ secrets.DOTNS_MNEMONIC }}

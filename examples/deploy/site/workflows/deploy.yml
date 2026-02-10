@@ -1,4 +1,10 @@
-# Deploy the site to a DotNS base domain on every push to main.
+# Deploy a static site to a DotNS base domain on every push to main.
+#
+# This is the simplest deployment pattern: build the site, upload to Bulletin,
+# register the domain if needed, and set the contenthash. The site is then
+# accessible at https://my-app.paseo.li (or via any compatible gateway).
+#
+# Use case: Personal site, docs site, or any project with a single deployable.
 name: Deploy
 
 on:
@@ -12,19 +18,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Build site
+        run: npm ci && npm run build
+
       - uses: actions/upload-artifact@v4
         with:
           name: site
-          path: site/
+          path: dist/
 
   deploy:
     name: Deploy
     needs: build
     uses: paritytech/dotns-sdk/.github/workflows/deploy.yml@main
     with:
-      basename: dotns-sdk
+      basename: my-app
       artifact-name: site
-      subname-format: branch
       mode: production
+      register-base: true
     secrets:
       mnemonic: ${{ secrets.DOTNS_MNEMONIC }}

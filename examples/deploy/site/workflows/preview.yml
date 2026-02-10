@@ -1,11 +1,22 @@
-# Deploy a preview subname (e.g. pr42.example.dot) on every PR update.
-# Uses //Alice for testnet authentication, production previews would
-# use a mnemonic secret instead.
-name: Preview
+# Deploy a preview for every pull request and production on merge.
+#
+# Each PR gets a unique subname (e.g. pr42.my-app.dot → https://pr42.my-app.paseo.li).
+# Merging to main deploys to the base domain (my-app.dot → https://my-app.paseo.li).
+# The content-addressable cache skips re-upload when the build hasn't changed,
+# so pushing documentation-only changes won't waste Bulletin transactions.
+#
+# Use case: Any project that wants per-PR previews for design review or QA.
+name: Deploy
 
 on:
+  push:
+    branches: [main]
   pull_request:
-    types: [opened, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
   build:
@@ -14,17 +25,52 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Build site
+        run: npm ci && npm run build
+
       - uses: actions/upload-artifact@v4
         with:
-          name: site-preview
-          path: site/
+          name: site
+          path: dist/
 
-  preview:
-    name: Preview
+  deploy-preview:
+    name: Deploy Preview
     needs: build
+    if: github.event_name == 'pull_request'
     uses: paritytech/dotns-sdk/.github/workflows/deploy.yml@main
     with:
-      basename: example
+      basename: my-app
+      artifact-name: site
+      mode: preview
+      subname-format: pr-number
       register-base: true
-      artifact-name: site-preview
-      key-uri: '//Alice'
+      max-retries: 5
+    secrets:
+      mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
+
+  deploy-production:
+    name: Deploy Production
+    needs: build
+    if: github.event_name == 'push'
+    uses: paritytech/dotns-sdk/.github/workflows/deploy.yml@main
+    with:
+      basename: my-app
+      artifact-name: site
+      mode: production
+    secrets:
+      mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
+
+  comment:
+    name: Comment on PR
+    needs: deploy-preview
+    if: github.event_name == 'pull_request' && success()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: deploy-preview
+          message: |
+            ### Preview ready 
+            **URL:** ${{ needs.deploy-preview.outputs.url }}
+            **Domain:** `${{ needs.deploy-preview.outputs.fqdn }}`
+            **CID:** `${{ needs.deploy-preview.outputs.cid }}`
