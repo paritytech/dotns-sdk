@@ -1,0 +1,14 @@
+name: Transfer Issues
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  transfer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Transfer to dotns
+        run: gh issue transfer "$ISSUE_URL" paritytech/dotns
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
