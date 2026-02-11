@@ -11,5 +11,5 @@ jobs:
       - name: Transfer to dotns
         run: gh issue transfer "$ISSUE_URL" paritytech/dotns
         env:
-          GH_TOKEN: ${{ secrets.DOTNS_PAT }}
+          GH_TOKEN: ${{ secrets.DOTNS_SDK_WORKFLOW_ACCESS }}
           ISSUE_URL: ${{ github.event.issue.html_url }}
