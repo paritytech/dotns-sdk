@@ -1,40 +1,24 @@
 import chalk from "chalk";
 import type { Ora } from "ora";
 import { namehash, type Address, type Hex, zeroAddress, checksumAddress } from "viem";
-import { decode, encode, getCodec, cidForWeb } from "@ensdomains/content-hash";
 import type { PolkadotSigner } from "polkadot-api";
 import type { ReviveClientWrapper } from "../client/polkadotClient";
 import { CONTRACTS, DOTNS_REGISTRY_ABI, DOTNS_CONTENT_RESOLVER_ABI } from "../utils/constants";
 import { performContractCall, submitContractTransaction } from "../utils/contractInteractions";
+import { decodeIpfsContenthash, encodeIpfsContenthash } from "../bulletin/cid";
 
 function decodeContenthashToCid(contenthash: Hex): string {
   if (contenthash === "0x" || contenthash === "0x0" || contenthash.length < 6) {
     return "No CID set";
   }
 
-  try {
-    const codec = getCodec(contenthash);
-
-    if (codec !== "ipfs") {
-      return `Unsupported codec: ${codec}`;
-    }
-
-    const decoded = decode(contenthash);
-    return cidForWeb(decoded);
-  } catch (error) {
-    console.error("Error decoding contenthash:", error);
-    return `Unable to decode: ${contenthash}`;
-  }
+  const cid = decodeIpfsContenthash(contenthash);
+  return cid ?? `Unable to decode: ${contenthash}`;
 }
 
 function encodeCidToContenthash(cidString: string): Hex {
-  try {
-    const encoded = encode("ipfs", cidString);
-    return `0x${encoded}` as Hex;
-  } catch (error) {
-    console.error("Error encoding CID to contenthash:", error);
-    throw new Error(`Invalid CID: ${cidString}`);
-  }
+  const encoded = encodeIpfsContenthash(cidString);
+  return `0x${encoded}` as Hex;
 }
 
 export async function viewDomainContentHash(
