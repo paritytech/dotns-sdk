@@ -108,6 +108,7 @@ jobs:
       register-base: true
     secrets:
       mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
+      dotns-token: ${{ secrets.DOTNS_SDK_WORKFLOW_ACCESS }}
 
   comment:
     name: Update PR Comment
@@ -138,6 +139,7 @@ jobs:
           DEPLOY_CACHE_HIT: ${{ needs.deploy.outputs.cache-hit }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
+          github-token: ${{ github.token }}
           script: |
             const fs = require("fs");
 
