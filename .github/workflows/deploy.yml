@@ -93,6 +93,10 @@ on:
         description: 'BIP39 mnemonic phrase'
         required: false
 
+      dotns-token:
+        description: 'PAT with read access to dotns-sdk releases (cross-repo CLI download)'
+        required: false
+
     outputs:
       cid:
         value: ${{ jobs.deploy.outputs.cid }}
@@ -178,7 +182,7 @@ jobs:
             npm install -g ./dotns-cli-*.tgz
           fi
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.dotns-token || github.token }}
           CLI_VERSION: ${{ inputs.cli-version }}
           CLI_ARTIFACT: ${{ inputs.cli-artifact-name }}
 
