@@ -70,6 +70,18 @@ on:
         required: false
         type: string
 
+      parallel:
+        description: 'Upload directory blocks in parallel'
+        required: false
+        type: boolean
+        default: true
+
+      upload-concurrency:
+        description: 'Number of parallel block uploads'
+        required: false
+        type: number
+        default: 15
+
       skip-cache:
         description: 'Skip deployment cache and force re-upload'
         required: false
@@ -246,6 +258,7 @@ jobs:
         run: |
           ARGS=(./build --json)
           [[ -n "$BULLETIN_RPC" ]] && ARGS+=(--bulletin-rpc "$BULLETIN_RPC")
+          [[ "$PARALLEL" == "true" ]] && ARGS+=(--parallel --concurrency "$UPLOAD_CONCURRENCY")
 
           for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
             echo "Upload attempt $ATTEMPT/$MAX_RETRIES"
@@ -263,6 +276,7 @@ jobs:
             fi
 
             echo "::warning::Upload attempt $ATTEMPT failed"
+            echo "$RESULT"
             [[ "$ATTEMPT" -lt "$MAX_RETRIES" ]] && sleep "$RETRY_DELAY"
           done
 
@@ -270,6 +284,8 @@ jobs:
           exit 1
         env:
           BULLETIN_RPC: ${{ inputs.bulletin-rpc }}
+          PARALLEL: ${{ inputs.parallel }}
+          UPLOAD_CONCURRENCY: ${{ inputs.upload-concurrency }}
           MAX_RETRIES: ${{ inputs.max-retries }}
           RETRY_DELAY: ${{ inputs.retry-delay }}
 
