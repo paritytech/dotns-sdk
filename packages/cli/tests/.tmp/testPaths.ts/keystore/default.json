@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "kdf": {
+    "name": "scrypt",
+    "saltB64": "0HltiqlVNWPJ9w9tmUuKqg==",
+    "cost": 32768,
+    "blockSize": 8,
+    "parallelization": 1,
+    "keyLen": 32
+  },
+  "cipher": {
+    "name": "aes-256-gcm",
+    "ivB64": "2GcC7xTQnjpBQ5DS",
+    "tagB64": "2cY+vAuxkOSWipkrKBkNPw=="
+  },
+  "ciphertextB64": "Y+7cucf7qCFKXR5FK+e9rZltgpliTrOnX+JRY3DRhFOVZvllqSPOzFbHatZKX7yBWY5fta2gqLl+F1hpLGLKWczZwz6US01ubOx9R0A91Cpmt8mnyoDgCOKBGp+6GxXX7Xlqi8f8fw6x3KhjpuH6Ctzl3GIutHWPaf46K95DGS5KjmxinG6VYz0tXk+KUE4ff15eldNNNPUMhd54k2lV3IsUZGra7U0=",
+  "createdAtIso": "2026-02-13T04:05:43.745Z"
+}

@@ -12,6 +12,7 @@ import { attachLookupCommands } from "../../src/cli/commands/lookup";
 import { attachBulletinCommands } from "../../src/cli/commands/bulletin";
 import { attachPopCommands } from "../../src/cli/commands/pop";
 import { attachContentCommands } from "../../src/cli/commands/content";
+import { attachStoreCommands } from "../../src/cli/commands/store";
 
 export const HARNESS_SUCCESS_EXIT_CODE = 1;
 export const HARNESS_HELP_SUCCESS_EXIT_CODE = 0;
@@ -78,6 +79,7 @@ export function createDotnsTestProgram(): Command {
   attachRegisterCommand(rootCommand);
   attachLookupCommands(rootCommand);
   attachContentCommands(rootCommand);
+  attachStoreCommands(rootCommand);
   return rootCommand;
 }
 
