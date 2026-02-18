@@ -102,7 +102,11 @@ on:
 
     secrets:
       mnemonic:
-        description: 'BIP39 mnemonic phrase'
+        description: 'BIP39 mnemonic for DotNS on-chain operations (register, contenthash)'
+        required: false
+
+      bulletin-mnemonic:
+        description: 'BIP39 mnemonic for Bulletin uploads (defaults to //Alice dev seed)'
         required: false
 
       dotns-token:
@@ -133,34 +137,46 @@ jobs:
       - name: Resolve authentication
         id: auth
         run: |
-          AUTH_COUNT=0
-          [[ -n "$INPUT_MNEMONIC" ]] && AUTH_COUNT=$((AUTH_COUNT + 1))
-          [[ -n "$INPUT_KEY_URI" ]] && AUTH_COUNT=$((AUTH_COUNT + 1))
+          ALICE_MNEMONIC="bottom drive obey lake curtain smoke basket hold race lonely fit walk"
 
-          if [[ $AUTH_COUNT -eq 0 ]]; then
-            echo "::error::No authentication provided. Supply one of: mnemonic or key-uri"
+          # --- DotNS auth (register, contenthash) ---
+          DOTNS_COUNT=0
+          [[ -n "$INPUT_MNEMONIC" ]] && DOTNS_COUNT=$((DOTNS_COUNT + 1))
+          [[ -n "$INPUT_KEY_URI" ]] && DOTNS_COUNT=$((DOTNS_COUNT + 1))
+
+          if [[ $DOTNS_COUNT -gt 1 ]]; then
+            echo "::error::Multiple DotNS auth methods provided. Supply only one of: mnemonic or key-uri"
             exit 1
           fi
 
-          if [[ $AUTH_COUNT -gt 1 ]]; then
-            echo "::error::Multiple auth methods provided. Supply only one of: mnemonic or key-uri"
-            exit 1
-          fi
-
-          if [[ -n "$INPUT_MNEMONIC" ]]; then
+          if [[ $DOTNS_COUNT -eq 0 ]]; then
+            echo "::warning::No DotNS authentication provided — on-chain steps (register, contenthash) will be skipped if they require auth"
+            echo "dotns-method=none" >> "$GITHUB_OUTPUT"
+          elif [[ -n "$INPUT_MNEMONIC" ]]; then
             echo "::add-mask::$INPUT_MNEMONIC"
             echo "DOTNS_MNEMONIC=$INPUT_MNEMONIC" >> "$GITHUB_ENV"
-            echo "method=mnemonic" >> "$GITHUB_OUTPUT"
+            echo "dotns-method=mnemonic" >> "$GITHUB_OUTPUT"
           elif [[ -n "$INPUT_KEY_URI" ]]; then
             echo "::add-mask::$INPUT_KEY_URI"
             echo "DOTNS_KEY_URI=$INPUT_KEY_URI" >> "$GITHUB_ENV"
-            echo "method=key-uri" >> "$GITHUB_OUTPUT"
+            echo "dotns-method=key-uri" >> "$GITHUB_OUTPUT"
+          fi
+
+          # --- Bulletin auth (upload) ---
+          BULLETIN_MNEMONIC="${INPUT_BULLETIN_MNEMONIC:-$ALICE_MNEMONIC}"
+          echo "::add-mask::$BULLETIN_MNEMONIC"
+          echo "BULLETIN_MNEMONIC=$BULLETIN_MNEMONIC" >> "$GITHUB_ENV"
+          if [[ -n "$INPUT_BULLETIN_MNEMONIC" ]]; then
+            echo "bulletin-method=mnemonic" >> "$GITHUB_OUTPUT"
+          else
+            echo "bulletin-method=alice" >> "$GITHUB_OUTPUT"
           fi
 
           echo "Authentication resolved"
         env:
           INPUT_MNEMONIC: ${{ secrets.mnemonic }}
           INPUT_KEY_URI: ${{ inputs.key-uri }}
+          INPUT_BULLETIN_MNEMONIC: ${{ secrets.bulletin-mnemonic }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -251,6 +267,25 @@ jobs:
           CID=$(cat .deploy-cache/cid)
           echo "cid=$CID" >> "$GITHUB_OUTPUT"
           echo "::notice::Cache hit — reusing CID: $CID"
+
+      - name: Authorize account for Bulletin
+        if: steps.cache.outputs.cache-hit != 'true' && steps.auth.outputs.dotns-method != 'none'
+        run: |
+          echo "::add-mask::$DOTNS_MNEMONIC"
+          echo "::add-mask::$BULLETIN_MNEMONIC"
+
+          DOTNS_ADDRESS=$(dotns account address --mnemonic "$DOTNS_MNEMONIC")
+
+          echo "Authorizing ${DOTNS_ADDRESS} for Bulletin TransactionStorage..."
+
+          ARGS=("$DOTNS_ADDRESS" --json --sudo-key-uri "$BULLETIN_MNEMONIC")
+          [[ -n "$BULLETIN_RPC" ]] && ARGS+=(--bulletin-rpc "$BULLETIN_RPC")
+
+          dotns bulletin authorize "${ARGS[@]}" 2>&1 || true
+        env:
+          DOTNS_MNEMONIC: ${{ env.DOTNS_MNEMONIC }}
+          BULLETIN_MNEMONIC: ${{ env.BULLETIN_MNEMONIC }}
+          BULLETIN_RPC: ${{ inputs.bulletin-rpc }}
 
       - name: Upload to Bulletin
         id: upload
@@ -502,12 +537,14 @@ jobs:
           | Domain | \`${FQDN}\` |
           | CID | \`${CID}\`${CACHE_NOTE} |
           | URL | [${URL}](${URL}) |
-          | Auth | ${AUTH_METHOD} |
+          | DotNS Auth | ${DOTNS_AUTH_METHOD} |
+          | Bulletin Auth | ${BULLETIN_AUTH_METHOD} |
           EOF
         env:
           MODE: ${{ inputs.mode }}
           FQDN: ${{ steps.final.outputs.fqdn }}
           CID: ${{ steps.final.outputs.cid }}
           URL: ${{ steps.final.outputs.url }}
-          AUTH_METHOD: ${{ steps.auth.outputs.method }}
+          DOTNS_AUTH_METHOD: ${{ steps.auth.outputs.dotns-method }}
+          BULLETIN_AUTH_METHOD: ${{ steps.auth.outputs.bulletin-method }}
           CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}

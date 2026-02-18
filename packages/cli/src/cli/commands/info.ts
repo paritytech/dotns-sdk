@@ -8,7 +8,7 @@ import type { AccountInfoOptions, CommandOptions } from "../../types/types";
 import { displayAccountInformation, prepareContext } from "../context";
 import { addAuthOptions } from "./authOptions";
 import { resolveRpc, resolveKeystorePath } from "../env";
-import { resolveAuthSource } from "../../commands/auth";
+import { resolveAuthSource, createAccountFromSource } from "../../commands/auth";
 import { step } from "../ui";
 
 function getMergedOptions<T>(command: Command | undefined, fallback: T): CommandOptions & T {
@@ -34,6 +34,32 @@ export function attachAccountCommands(root: Command) {
   const accountCommand = root.command("account").description("Account management utilities");
 
   addAuthOptions(accountCommand);
+
+  const addressCommand = accountCommand
+    .command("address")
+    .description("Print the substrate address for the configured account (offline, no RPC)");
+
+  addAuthOptions(addressCommand).action(async (options: CommandOptions, command: Command) => {
+    try {
+      const mergedOptions = getMergedOptions(command, options);
+      const keystorePath = resolveKeystorePath(mergedOptions.keystorePath);
+
+      const auth = await resolveAuthSource({
+        mnemonic: mergedOptions.mnemonic,
+        keyUri: mergedOptions.keyUri,
+        keystorePath,
+        account: mergedOptions.account,
+        password: mergedOptions.password,
+      });
+
+      const account = await createAccountFromSource(auth.source, auth.isKeyUri);
+      console.log(account.address);
+      process.exit(0);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
 
   const infoCommand = accountCommand
     .command("info")
