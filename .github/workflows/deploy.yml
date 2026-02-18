@@ -277,10 +277,16 @@ jobs:
 
           echo "Authorizing ${BULLETIN_ADDRESS} for Bulletin TransactionStorage..."
 
-          ARGS=("$BULLETIN_ADDRESS" --json --sudo-key-uri "$BULLETIN_MNEMONIC")
+          ARGS=("$BULLETIN_ADDRESS" --json --mnemonic "$BULLETIN_MNEMONIC")
           [[ -n "$BULLETIN_RPC" ]] && ARGS+=(--bulletin-rpc "$BULLETIN_RPC")
 
-          dotns bulletin authorize "${ARGS[@]}" 2>&1 || true
+          OUTPUT=$(dotns bulletin authorize "${ARGS[@]}" 2>&1) || {
+            if echo "$OUTPUT" | grep -q "AlreadyAuthorized"; then
+              echo "::notice::Account ${BULLETIN_ADDRESS} is already authorized"
+            else
+              echo "::warning::Authorization failed: $OUTPUT"
+            fi
+          }
         env:
           BULLETIN_MNEMONIC: ${{ env.BULLETIN_MNEMONIC }}
           BULLETIN_RPC: ${{ inputs.bulletin-rpc }}
