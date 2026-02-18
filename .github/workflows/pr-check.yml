@@ -32,7 +32,7 @@ jobs:
             perf
             revert
           requireScope: false
-          subjectPattern: ^[a-z].+$
+          subjectPattern: ^[a-zA-Z][-a-zA-Z0-9 .,()]+$
 
       - name: Process results
         id: result
