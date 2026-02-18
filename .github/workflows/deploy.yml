@@ -269,21 +269,19 @@ jobs:
           echo "::notice::Cache hit — reusing CID: $CID"
 
       - name: Authorize account for Bulletin
-        if: steps.cache.outputs.cache-hit != 'true' && steps.auth.outputs.dotns-method != 'none'
+        if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          echo "::add-mask::$DOTNS_MNEMONIC"
           echo "::add-mask::$BULLETIN_MNEMONIC"
 
-          DOTNS_ADDRESS=$(dotns account address --mnemonic "$DOTNS_MNEMONIC")
+          BULLETIN_ADDRESS=$(dotns account address --mnemonic "$BULLETIN_MNEMONIC")
 
-          echo "Authorizing ${DOTNS_ADDRESS} for Bulletin TransactionStorage..."
+          echo "Authorizing ${BULLETIN_ADDRESS} for Bulletin TransactionStorage..."
 
-          ARGS=("$DOTNS_ADDRESS" --json --sudo-key-uri "$BULLETIN_MNEMONIC")
+          ARGS=("$BULLETIN_ADDRESS" --json --sudo-key-uri "$BULLETIN_MNEMONIC")
           [[ -n "$BULLETIN_RPC" ]] && ARGS+=(--bulletin-rpc "$BULLETIN_RPC")
 
           dotns bulletin authorize "${ARGS[@]}" 2>&1 || true
         env:
-          DOTNS_MNEMONIC: ${{ env.DOTNS_MNEMONIC }}
           BULLETIN_MNEMONIC: ${{ env.BULLETIN_MNEMONIC }}
           BULLETIN_RPC: ${{ inputs.bulletin-rpc }}
 
@@ -291,7 +289,9 @@ jobs:
         id: upload
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          ARGS=(./build --json)
+          echo "::add-mask::$BULLETIN_MNEMONIC"
+
+          ARGS=(./build --json --mnemonic "$BULLETIN_MNEMONIC")
           [[ -n "$BULLETIN_RPC" ]] && ARGS+=(--bulletin-rpc "$BULLETIN_RPC")
           [[ "$PARALLEL" == "true" ]] && ARGS+=(--parallel --concurrency "$UPLOAD_CONCURRENCY")
 
@@ -318,6 +318,7 @@ jobs:
           echo "::error::Upload failed after $MAX_RETRIES attempts"
           exit 1
         env:
+          BULLETIN_MNEMONIC: ${{ env.BULLETIN_MNEMONIC }}
           BULLETIN_RPC: ${{ inputs.bulletin-rpc }}
           PARALLEL: ${{ inputs.parallel }}
           UPLOAD_CONCURRENCY: ${{ inputs.upload-concurrency }}
