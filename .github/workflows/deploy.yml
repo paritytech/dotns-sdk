@@ -414,11 +414,17 @@ jobs:
           for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
             echo "Register subname attempt $ATTEMPT/$MAX_RETRIES"
 
-            if dotns register subname --name "$SUBNAME" --parent "$BASENAME" 2>&1; then
+            OUTPUT=$(dotns register subname --name "$SUBNAME" --parent "$BASENAME" 2>&1) && {
               echo "::notice::Subname ${SUBNAME}.${BASENAME}.dot registered"
+              exit 0
+            }
+
+            if echo "$OUTPUT" | grep -q "0x0dd76694"; then
+              echo "::notice::Subname ${SUBNAME}.${BASENAME}.dot Store key is locked from a previous registration — skipping"
               exit 0
             fi
 
+            echo "$OUTPUT"
             echo "::warning::Register subname attempt $ATTEMPT failed"
             [[ "$ATTEMPT" -lt "$MAX_RETRIES" ]] && sleep "$RETRY_DELAY"
           done
