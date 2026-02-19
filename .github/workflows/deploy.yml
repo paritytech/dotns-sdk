@@ -36,6 +36,16 @@ on:
         type: string
         default: 'pr-number'
 
+      # HACK: Workaround for DotNS Store contract key collision. The store key
+      # is keccak256("dotns.registered", labelhash) — scoped by label only, not
+      # by parent. This means the same owner cannot register the same subname
+      # label under multiple parents. Adding a suffix makes each label unique.
+      # TODO: Remove once the contract uses namehash instead of labelhash for the key.
+      subname-suffix:
+        description: 'Optional suffix appended to the subname (e.g. 0 → pr42-0). Use to avoid store key collisions when deploying the same PR to multiple base domains.'
+        required: false
+        type: string
+
       register-base:
         description: 'Attempt base domain registration if not already owned'
         required: false
@@ -177,6 +187,8 @@ jobs:
                 ;;
             esac
 
+            [[ -n "$SUBNAME_SUFFIX" ]] && SUBNAME="${SUBNAME}-${SUBNAME_SUFFIX}"
+
             echo "subname=$SUBNAME" >> "$GITHUB_OUTPUT"
             echo "domain=${SUBNAME}.${BASENAME}" >> "$GITHUB_OUTPUT"
             echo "fqdn=${SUBNAME}.${BASENAME}.dot" >> "$GITHUB_OUTPUT"
@@ -185,6 +197,7 @@ jobs:
           MODE: ${{ inputs.mode }}
           BASENAME: ${{ inputs.basename }}
           SUBNAME_FORMAT: ${{ inputs.subname-format }}
+          SUBNAME_SUFFIX: ${{ inputs.subname-suffix }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_REF: ${{ github.head_ref }}
           COMMIT_SHA: ${{ github.sha }}
