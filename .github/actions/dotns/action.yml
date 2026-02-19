@@ -157,8 +157,15 @@ runs:
           }
 
           if echo "$OUTPUT" | grep -q "0x0dd76694"; then
-            echo "::notice::Subname ${SUBNAME}.${BASENAME}.dot Store key is locked from a previous registration — skipping"
-            exit 0
+            echo "::error::Subname ${SUBNAME}.${BASENAME}.dot failed: Store key is locked."
+            echo ""
+            echo "The DotNS Store contract locks the key keccak256(\"dotns.registered\", labelhash)"
+            echo "per owner. This means the label \"${SUBNAME}\" has already been registered as a"
+            echo "subname under a different parent by the same account. The contract currently"
+            echo "does not allow the same label under multiple parents for the same owner."
+            echo ""
+            echo "Workaround: use a unique subname label per parent domain."
+            exit 1
           fi
 
           echo "$OUTPUT"
