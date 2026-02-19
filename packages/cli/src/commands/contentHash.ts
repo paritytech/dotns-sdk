@@ -118,17 +118,13 @@ export async function setDomainContentHash(
   console.log();
 
   if (!recordExists || ownerAddress === zeroAddress) {
-    console.log(chalk.red("  Domain is not registered"));
-    return;
+    throw new Error(`Domain ${label}.dot is not registered`);
   }
 
   if (checksumAddress(ownerAddress) !== checksumAddress(callerEvmAddress)) {
-    console.log(
-      chalk.red(
-        `  You do not own this domain. Owner is ${ownerAddress}, but you are ${callerEvmAddress}`,
-      ),
+    throw new Error(
+      `You do not own this domain. Owner is ${ownerAddress}, but you are ${callerEvmAddress}`,
     );
-    return;
   }
 
   console.log(chalk.gray("  status: ") + chalk.green("Ownership verified"));
