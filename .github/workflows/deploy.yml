@@ -130,7 +130,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: paritytech/dotns-sdk
-          ref: ${{ github.job_workflow_sha }}
+          ref: fix/dont-register-registered-subdomains
           token: ${{ secrets.dotns-token || github.token }}
           sparse-checkout: |
             .github/actions
