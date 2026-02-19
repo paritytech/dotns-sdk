@@ -101,9 +101,9 @@ on:
         default: 15
 
     secrets:
-      mnemonic:
+      dotns-mnemonic:
         description: 'BIP39 mnemonic for DotNS on-chain operations (register, contenthash)'
-        required: false
+        required: true
 
       bulletin-mnemonic:
         description: 'BIP39 mnemonic for Bulletin uploads (defaults to //Alice dev seed)'
@@ -137,46 +137,14 @@ jobs:
       - name: Resolve authentication
         id: auth
         run: |
-          ALICE_MNEMONIC="bottom drive obey lake curtain smoke basket hold race lonely fit walk"
-
-          # --- DotNS auth (register, contenthash) ---
-          DOTNS_COUNT=0
-          [[ -n "$INPUT_MNEMONIC" ]] && DOTNS_COUNT=$((DOTNS_COUNT + 1))
-          [[ -n "$INPUT_KEY_URI" ]] && DOTNS_COUNT=$((DOTNS_COUNT + 1))
-
-          if [[ $DOTNS_COUNT -gt 1 ]]; then
-            echo "::error::Multiple DotNS auth methods provided. Supply only one of: mnemonic or key-uri"
-            exit 1
-          fi
-
-          if [[ $DOTNS_COUNT -eq 0 ]]; then
-            echo "::warning::No DotNS authentication provided — on-chain steps (register, contenthash) will be skipped if they require auth"
-            echo "dotns-method=none" >> "$GITHUB_OUTPUT"
-          elif [[ -n "$INPUT_MNEMONIC" ]]; then
-            echo "::add-mask::$INPUT_MNEMONIC"
-            echo "DOTNS_MNEMONIC=$INPUT_MNEMONIC" >> "$GITHUB_ENV"
-            echo "dotns-method=mnemonic" >> "$GITHUB_OUTPUT"
-          elif [[ -n "$INPUT_KEY_URI" ]]; then
-            echo "::add-mask::$INPUT_KEY_URI"
-            echo "DOTNS_KEY_URI=$INPUT_KEY_URI" >> "$GITHUB_ENV"
-            echo "dotns-method=key-uri" >> "$GITHUB_OUTPUT"
-          fi
-
-          # --- Bulletin auth (upload) ---
-          BULLETIN_MNEMONIC="${INPUT_BULLETIN_MNEMONIC:-$ALICE_MNEMONIC}"
-          echo "::add-mask::$BULLETIN_MNEMONIC"
-          echo "BULLETIN_MNEMONIC=$BULLETIN_MNEMONIC" >> "$GITHUB_ENV"
-          if [[ -n "$INPUT_BULLETIN_MNEMONIC" ]]; then
+          if [[ -n "$MNEMONIC" ]]; then
             echo "bulletin-method=mnemonic" >> "$GITHUB_OUTPUT"
           else
             echo "bulletin-method=alice" >> "$GITHUB_OUTPUT"
           fi
-
           echo "Authentication resolved"
         env:
-          INPUT_MNEMONIC: ${{ secrets.mnemonic }}
-          INPUT_KEY_URI: ${{ inputs.key-uri }}
-          INPUT_BULLETIN_MNEMONIC: ${{ secrets.bulletin-mnemonic }}
+          MNEMONIC: ${{ secrets.bulletin-mnemonic }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -271,34 +239,34 @@ jobs:
       - name: Authorize account for Bulletin
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          echo "::add-mask::$BULLETIN_MNEMONIC"
+          echo "::add-mask::$MNEMONIC"
 
-          BULLETIN_ADDRESS=$(dotns account address --mnemonic "$BULLETIN_MNEMONIC")
+          ADDRESS=$(dotns account address --mnemonic "$MNEMONIC")
 
-          echo "Authorizing ${BULLETIN_ADDRESS} for Bulletin TransactionStorage..."
+          echo "Authorizing ${ADDRESS} for Bulletin TransactionStorage..."
 
-          ARGS=("$BULLETIN_ADDRESS" --json --mnemonic "$BULLETIN_MNEMONIC")
+          ARGS=("$ADDRESS" --json --mnemonic "$MNEMONIC")
           [[ -n "$BULLETIN_RPC" ]] && ARGS+=(--bulletin-rpc "$BULLETIN_RPC")
 
           OUTPUT=$(dotns bulletin authorize "${ARGS[@]}" 2>&1) || {
             if echo "$OUTPUT" | grep -q "AlreadyAuthorized"; then
-              echo "::notice::Account ${BULLETIN_ADDRESS} is already authorized"
+              echo "::notice::Account ${ADDRESS} is already authorized"
             else
               echo "::error::Authorization failed: $OUTPUT"
               exit 1
             fi
           }
         env:
-          BULLETIN_MNEMONIC: ${{ env.BULLETIN_MNEMONIC }}
+          MNEMONIC: ${{ secrets.bulletin-mnemonic || 'bottom drive obey lake curtain smoke basket hold race lonely fit walk' }}
           BULLETIN_RPC: ${{ inputs.bulletin-rpc }}
 
       - name: Upload to Bulletin
         id: upload
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          echo "::add-mask::$BULLETIN_MNEMONIC"
+          echo "::add-mask::$MNEMONIC"
 
-          ARGS=(./build --json --mnemonic "$BULLETIN_MNEMONIC")
+          ARGS=(./build --json --mnemonic "$MNEMONIC")
           [[ -n "$BULLETIN_RPC" ]] && ARGS+=(--bulletin-rpc "$BULLETIN_RPC")
           [[ "$PARALLEL" == "true" ]] && ARGS+=(--parallel --concurrency "$UPLOAD_CONCURRENCY")
 
@@ -325,7 +293,7 @@ jobs:
           echo "::error::Upload failed after $MAX_RETRIES attempts"
           exit 1
         env:
-          BULLETIN_MNEMONIC: ${{ env.BULLETIN_MNEMONIC }}
+          MNEMONIC: ${{ secrets.bulletin-mnemonic || 'bottom drive obey lake curtain smoke basket hold race lonely fit walk' }}
           BULLETIN_RPC: ${{ inputs.bulletin-rpc }}
           PARALLEL: ${{ inputs.parallel }}
           UPLOAD_CONCURRENCY: ${{ inputs.upload-concurrency }}
@@ -398,10 +366,12 @@ jobs:
       - name: Register base domain
         if: steps.check-base.outputs.exists != 'true' && inputs.register-base == true
         run: |
+          echo "::add-mask::$MNEMONIC"
+
           for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
             echo "Register base attempt $ATTEMPT/$MAX_RETRIES"
 
-            if dotns register domain --name "$BASENAME" 2>&1; then
+            if dotns register domain --name "$BASENAME" --mnemonic "$MNEMONIC" 2>&1; then
               echo "::notice::Base domain ${BASENAME}.dot registered"
               exit 0
             fi
@@ -423,6 +393,7 @@ jobs:
           echo "You can also register manually at https://dotns.paseo.li"
           exit 1
         env:
+          MNEMONIC: ${{ secrets.dotns-mnemonic }}
           BASENAME: ${{ inputs.basename }}
           MAX_RETRIES: ${{ inputs.max-retries }}
           RETRY_DELAY: ${{ inputs.retry-delay }}
@@ -454,10 +425,12 @@ jobs:
       - name: Register subname
         if: inputs.mode == 'preview' && steps.check-subname.outputs.exists != 'true'
         run: |
+          echo "::add-mask::$MNEMONIC"
+
           for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
             echo "Register subname attempt $ATTEMPT/$MAX_RETRIES"
 
-            OUTPUT=$(dotns register subname --name "$SUBNAME" --parent "$BASENAME" 2>&1) && {
+            OUTPUT=$(dotns register subname --name "$SUBNAME" --parent "$BASENAME" --mnemonic "$MNEMONIC" 2>&1) && {
               echo "::notice::Subname ${SUBNAME}.${BASENAME}.dot registered"
               exit 0
             }
@@ -487,6 +460,7 @@ jobs:
           echo "  dotns register subname --name $SUBNAME --parent $BASENAME"
           exit 1
         env:
+          MNEMONIC: ${{ secrets.dotns-mnemonic }}
           SUBNAME: ${{ steps.target.outputs.subname }}
           BASENAME: ${{ inputs.basename }}
           MAX_RETRIES: ${{ inputs.max-retries }}
@@ -494,7 +468,9 @@ jobs:
 
       - name: Set contenthash
         run: |
-          ARGS=("$DOMAIN" "$CID")
+          echo "::add-mask::$MNEMONIC"
+
+          ARGS=("$DOMAIN" "$CID" --mnemonic "$MNEMONIC")
           [[ -n "$RPC" ]] && ARGS+=(--rpc "$RPC")
 
           for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
@@ -512,6 +488,7 @@ jobs:
           echo "::error::Failed to set contenthash after $MAX_RETRIES attempts"
           exit 1
         env:
+          MNEMONIC: ${{ secrets.dotns-mnemonic }}
           DOMAIN: ${{ steps.target.outputs.domain }}
           CID: ${{ steps.cid.outputs.cid }}
           RPC: ${{ inputs.rpc }}
@@ -545,7 +522,6 @@ jobs:
           | Domain | \`${FQDN}\` |
           | CID | \`${CID}\`${CACHE_NOTE} |
           | URL | [${URL}](${URL}) |
-          | DotNS Auth | ${DOTNS_AUTH_METHOD} |
           | Bulletin Auth | ${BULLETIN_AUTH_METHOD} |
           EOF
         env:
@@ -553,6 +529,5 @@ jobs:
           FQDN: ${{ steps.final.outputs.fqdn }}
           CID: ${{ steps.final.outputs.cid }}
           URL: ${{ steps.final.outputs.url }}
-          DOTNS_AUTH_METHOD: ${{ steps.auth.outputs.dotns-method }}
           BULLETIN_AUTH_METHOD: ${{ steps.auth.outputs.bulletin-method }}
           CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
