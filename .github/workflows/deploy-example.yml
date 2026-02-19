@@ -17,6 +17,7 @@ on:
       - "packages/cli/**"
       - ".github/workflows/deploy-example.yml"
       - ".github/workflows/deploy.yml"
+      - ".github/actions/**"
 
 permissions:
   contents: read
