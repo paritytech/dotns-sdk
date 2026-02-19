@@ -8,9 +8,9 @@ export function banner(): void {
     .padStart(Math.floor((width + "dotns developer CLI".length) / 2), " ")
     .padEnd(width, " ");
 
-  console.log(`\n${chalk.bold.cyan(line)}`);
-  console.log(chalk.bold.cyan(title));
-  console.log(`${chalk.bold.cyan(line)}\n`);
+  console.error(`\n${chalk.bold.cyan(line)}`);
+  console.error(chalk.bold.cyan(title));
+  console.error(`${chalk.bold.cyan(line)}\n`);
 }
 
 export function stepStart(label: string) {

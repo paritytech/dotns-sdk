@@ -284,7 +284,8 @@ jobs:
             if echo "$OUTPUT" | grep -q "AlreadyAuthorized"; then
               echo "::notice::Account ${BULLETIN_ADDRESS} is already authorized"
             else
-              echo "::warning::Authorization failed: $OUTPUT"
+              echo "::error::Authorization failed: $OUTPUT"
+              exit 1
             fi
           }
         env:
