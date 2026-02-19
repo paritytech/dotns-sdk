@@ -4,9 +4,7 @@
 # registers a preview subname (e.g. pr42.dotns-example.dot). Results are posted
 # to the PR's CI Summary comment alongside other checks.
 #
-# The CLI is built from source (build-cli job) because no release exists yet.
-# Once a release is published, replace cli-artifact-name with cli-version and
-# remove the build-cli job.
+# The CLI is built from source inside deploy.yml via the setup-cli composite action.
 name: Deploy Example
 
 on:
@@ -100,40 +98,13 @@ jobs:
         if: steps.validate.outcome == 'failure'
         run: exit 1
 
-  build-cli:
-    name: Build CLI
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.2.6
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Build and pack CLI
-        run: |
-          cd packages/cli
-          bun run build
-          npm pack
-
-      - name: Upload CLI artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: dotns-cli
-          path: packages/cli/dotns-cli-*.tgz
-          retention-days: 7
-
   deploy:
     name: Deploy Preview
-    needs: [build, build-cli]
+    needs: [build]
     uses: ./.github/workflows/deploy.yml
     with:
       basename: dotns-example-site
       artifact-name: example-site
-      cli-artifact-name: dotns-cli
       register-base: true
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}

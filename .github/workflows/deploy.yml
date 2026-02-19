@@ -62,17 +62,6 @@ on:
         required: false
         type: string
 
-      cli-version:
-        description: 'CLI release tag to install (e.g., v0.2.0)'
-        required: false
-        type: string
-        default: 'v0.2.0'
-
-      cli-artifact-name:
-        description: 'Build artifact containing CLI tgz (overrides cli-version when set)'
-        required: false
-        type: string
-
       parallel:
         description: 'Upload directory blocks in parallel'
         required: false
@@ -113,7 +102,7 @@ on:
         required: false
 
       dotns-token:
-        description: 'PAT with read access to dotns-sdk releases (cross-repo CLI download)'
+        description: 'PAT with read access to dotns-sdk (cross-repo checkout)'
         required: false
 
     outputs:
@@ -143,7 +132,12 @@ jobs:
           repository: paritytech/dotns-sdk
           ref: ${{ github.workflow_sha }}
           token: ${{ secrets.dotns-token || github.token }}
-          sparse-checkout: .github/actions
+          sparse-checkout: |
+            .github/actions
+            packages/cli
+            packages/sdk
+            package.json
+            bun.lock
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -161,25 +155,8 @@ jobs:
           name: ${{ inputs.artifact-name }}
           path: build
 
-      - name: Download CLI artifact
-        if: inputs.cli-artifact-name != ''
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ inputs.cli-artifact-name }}
-          path: cli-artifact
-
-      - name: Install CLI
-        run: |
-          if [[ -n "$CLI_ARTIFACT" ]]; then
-            npm install -g ./cli-artifact/dotns-cli-*.tgz
-          else
-            gh release download "$CLI_VERSION" -p "*.tgz" -R paritytech/dotns-sdk
-            npm install -g ./dotns-cli-*.tgz
-          fi
-        env:
-          GH_TOKEN: ${{ secrets.dotns-token || github.token }}
-          CLI_VERSION: ${{ inputs.cli-version }}
-          CLI_ARTIFACT: ${{ inputs.cli-artifact-name }}
+      - name: Setup CLI
+        uses: ./.github/actions/setup-cli
 
       - name: Resolve target
         id: target
