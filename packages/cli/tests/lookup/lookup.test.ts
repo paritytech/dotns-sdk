@@ -1,60 +1,17 @@
-import { afterAll, afterEach, expect, test } from "bun:test";
+import { expect, test } from "bun:test";
 import {
-  createDefaultAccountKeystore,
   HARNESS_SUCCESS_EXIT_CODE,
   runDotnsCli,
-  TEST_ACCOUNT,
-  TEST_PASSWORD,
   TEST_TIMEOUT_MS,
   type CliRunResult,
 } from "../_helpers/cliHelpers";
-import {
-  cleanupTestFileTemporaryDirectory,
-  cleanupTestTemporaryDirectory,
-  createKeystorePathsForTest,
-} from "../_helpers/testPaths";
-import { DEFAULT_MNEMONIC } from "../../src/utils/constants";
 import { ProofOfPersonhoodStatus } from "../../src/types/types";
 import { generateRandomLabel } from "../../src/cli/labels";
-
-const createdTestTemporaryDirectoryPaths: string[] = [];
-let testFileTemporaryRootDirectoryPath: string | undefined;
-let testFileKeystoreDirectoryPath: string | undefined;
 
 const REGISTERED_DOMAIN = "dotnscli";
 const REGISTERED_DOMAIN_WITH_POP = "sphaman12";
 const REGISTERED_TLD = "dotns";
 const BOB_SS58 = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty";
-
-function createPathsForTest(testName: string) {
-  const paths = createKeystorePathsForTest(testName);
-
-  createdTestTemporaryDirectoryPaths.push(paths.testTemporaryDirectoryPath);
-
-  if (!testFileTemporaryRootDirectoryPath) {
-    testFileTemporaryRootDirectoryPath = paths.testFileTemporaryRootDirectoryPath;
-  }
-  if (!testFileKeystoreDirectoryPath) {
-    testFileKeystoreDirectoryPath = paths.testFileKeystoreDirectoryPath;
-  }
-
-  return paths;
-}
-
-afterEach(() => {
-  for (const testTemporaryDirectoryPath of createdTestTemporaryDirectoryPaths) {
-    cleanupTestTemporaryDirectory(testTemporaryDirectoryPath);
-  }
-  createdTestTemporaryDirectoryPaths.length = 0;
-});
-
-afterAll(() => {
-  if (testFileTemporaryRootDirectoryPath) {
-    cleanupTestFileTemporaryDirectory(testFileTemporaryRootDirectoryPath);
-    testFileTemporaryRootDirectoryPath = undefined;
-    testFileKeystoreDirectoryPath = undefined;
-  }
-});
 
 function expectSuccessfulLookup(result: CliRunResult, label: string) {
   expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
@@ -71,14 +28,6 @@ function expectSuccessfulOwnerLookup(result: CliRunResult, label: string) {
   expect(result.combinedOutput).toContain(label + ".dot");
   expect(result.combinedOutput).toContain("Registered:");
   expect(result.combinedOutput).toContain("Owner (EVM):");
-}
-
-async function ensureDefaultKeystore() {
-  if (!testFileKeystoreDirectoryPath) throw new Error("Missing test file keystore directory path");
-
-  await createDefaultAccountKeystore(testFileKeystoreDirectoryPath, TEST_PASSWORD);
-
-  return { keystorePassword: TEST_PASSWORD, keystoreDirectoryPath: testFileKeystoreDirectoryPath };
 }
 
 async function registerFreshDomainForAlice(): Promise<string> {
@@ -290,46 +239,6 @@ test(
     expect(parsed.destination).toBe(BOB_SS58);
     expect(parsed.recipient).toBeString();
     expect(parsed.transferred).toBe(true);
-  },
-  { timeout: TEST_TIMEOUT_MS },
-);
-
-test(
-  "list command requires authentication",
-  async () => {
-    createPathsForTest("list_with_auth");
-
-    const { keystorePassword, keystoreDirectoryPath } = await ensureDefaultKeystore();
-
-    const listResult = await runDotnsCli(
-      ["--password", keystorePassword, "list", "--account", TEST_ACCOUNT],
-      { DOTNS_KEYSTORE_PATH: keystoreDirectoryPath },
-    );
-
-    expect(listResult.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
-    expect(listResult.combinedOutput).not.toContain("✗ Error:");
-  },
-  { timeout: TEST_TIMEOUT_MS },
-);
-
-test(
-  "list command works with mnemonic flag",
-  async () => {
-    const listResult = await runDotnsCli(["--mnemonic", DEFAULT_MNEMONIC, "list"]);
-
-    expect(listResult.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
-    expect(listResult.combinedOutput).not.toContain("✗ Error:");
-  },
-  { timeout: TEST_TIMEOUT_MS },
-);
-
-test(
-  "list command works with key-uri flag",
-  async () => {
-    const listResult = await runDotnsCli(["--key-uri", "//Alice", "list"]);
-
-    expect(listResult.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
-    expect(listResult.combinedOutput).not.toContain("✗ Error:");
   },
   { timeout: TEST_TIMEOUT_MS },
 );

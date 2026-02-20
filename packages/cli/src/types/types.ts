@@ -665,3 +665,30 @@ export type DomainLookupResult = {
 };
 
 export type ChainContext = AssetHubContext | BulletinContext;
+
+export type StoreInfo = {
+  /** EVM address of the Store owner */
+  owner: Address;
+  /** Deployed Store contract address, null if no Store exists */
+  storeAddress: Address | null;
+  /** Whether a Store has been deployed for this owner */
+  exists: boolean;
+};
+
+export type StoreAuthStatus = {
+  /** Target address being checked */
+  address: Address;
+  /** Whether the address can call setValueFor on this Store */
+  isAuthorized: boolean;
+  /** Whether the address is a DotNS controller (locks keys on write) */
+  isDotnsController: boolean;
+};
+
+export type StoreValueResult = {
+  /** Bytes32 storage key (hex-encoded) */
+  key: `0x${string}`;
+  /** Stored string value, empty string if not set */
+  value: string;
+  /** Whether a non-empty value exists at this key */
+  exists: boolean;
+};

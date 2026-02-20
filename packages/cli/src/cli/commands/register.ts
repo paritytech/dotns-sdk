@@ -12,6 +12,7 @@ import {
   registerSubnode,
   verifyDomainOwnership,
   displayDeployedStore,
+  ensureStoreAuthorizations,
   setUserProofOfPersonhoodStatus,
 } from "../../commands/register";
 import {
@@ -241,6 +242,14 @@ async function executeGovernanceRegistration(
     verifyDomainOwnership(clientWrapper, substrateAddress, label, evmAddress),
   );
 
+  await step("Displaying store", async () =>
+    displayDeployedStore(clientWrapper, substrateAddress, evmAddress),
+  );
+
+  await step("Ensuring store authorizations", async () =>
+    ensureStoreAuthorizations(clientWrapper, substrateAddress, signer, evmAddress),
+  );
+
   if (transferDestination) {
     const recipient = await step("Resolving recipient", async () =>
       resolveTransferRecipient(clientWrapper, substrateAddress, transferDestination),
@@ -323,6 +332,10 @@ async function executeRegularRegistration(
 
   await step("Displaying store", async () =>
     displayDeployedStore(clientWrapper, substrateAddress, evmAddress),
+  );
+
+  await step("Ensuring store authorizations", async () =>
+    ensureStoreAuthorizations(clientWrapper, substrateAddress, signer, evmAddress),
   );
 
   if (transferDestination) {

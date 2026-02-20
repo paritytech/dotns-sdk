@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import ora from "ora";
 import crypto from "crypto";
-import { checksumAddress, zeroAddress, namehash, type Address, type Hex } from "viem";
+import { checksumAddress, zeroAddress, namehash, type Address, type Hex, getAddress } from "viem";
 import type { PolkadotSigner } from "polkadot-api";
 import type { ReviveClientWrapper } from "../client/polkadotClient";
 import {
@@ -22,6 +22,7 @@ import {
   DOTNS_REGISTRY_ABI,
   POP_RULES_ABI,
   STORE_FACTORY_ABI,
+  STORE_ABI,
 } from "../utils/constants";
 import { validateDomainLabel, stripTrailingDigits, countTrailingDigits } from "../utils/validation";
 import {
@@ -540,6 +541,104 @@ export async function displayDeployedStore(
   } catch (error) {
     spinner.fail("Failed to read Store address");
     throw error;
+  }
+}
+
+export async function ensureStoreAuthorizations(
+  clientWrapper: ReviveClientWrapper,
+  substrateAddress: string,
+  signer: PolkadotSigner,
+  evmAddress: Address,
+): Promise<void> {
+  const storeAddress = getAddress(
+    await withTimeout(
+      performContractCall<Address>(
+        clientWrapper,
+        substrateAddress,
+        CONTRACTS.STORE_FACTORY,
+        STORE_FACTORY_ABI,
+        "getDeployedStore",
+        [evmAddress],
+      ),
+      30000,
+      "getDeployedStore",
+    ),
+  );
+
+  if (storeAddress === zeroAddress) return;
+
+  const spinner = ora("Checking Store authorizations").start();
+
+  const [controllerAuthorized, registryAuthorized] = await Promise.all([
+    Boolean(
+      await performContractCall<boolean>(
+        clientWrapper,
+        substrateAddress,
+        storeAddress,
+        STORE_ABI,
+        "isDotnsController",
+        [CONTRACTS.DOTNS_REGISTRAR_CONTROLLER],
+      ),
+    ),
+    Boolean(
+      await performContractCall<boolean>(
+        clientWrapper,
+        substrateAddress,
+        storeAddress,
+        STORE_ABI,
+        "isDotnsController",
+        [CONTRACTS.DOTNS_REGISTRY],
+      ),
+    ),
+  ]);
+
+  if (controllerAuthorized && registryAuthorized) {
+    spinner.succeed("Store authorizations verified");
+    console.log(chalk.gray("  controller: ") + chalk.white(CONTRACTS.DOTNS_REGISTRAR_CONTROLLER));
+    console.log(chalk.gray("  registry:   ") + chalk.white(CONTRACTS.DOTNS_REGISTRY));
+    return;
+  }
+
+  spinner.succeed("Store authorizations need update");
+
+  if (!controllerAuthorized) {
+    const controllerSpinner = ora("Authorizing registrar controller as DotNS controller").start();
+
+    const tx = await submitContractTransaction(
+      clientWrapper,
+      storeAddress,
+      0n,
+      STORE_ABI,
+      "authorizeDotnsController",
+      [CONTRACTS.DOTNS_REGISTRAR_CONTROLLER],
+      substrateAddress,
+      signer,
+      controllerSpinner,
+      "Authorize controller",
+    );
+
+    console.log(chalk.gray("  tx:         ") + chalk.blue(tx));
+    console.log(chalk.gray("  controller: ") + chalk.white(CONTRACTS.DOTNS_REGISTRAR_CONTROLLER));
+  }
+
+  if (!registryAuthorized) {
+    const registrySpinner = ora("Authorizing registry as Store writer").start();
+
+    const tx = await submitContractTransaction(
+      clientWrapper,
+      storeAddress,
+      0n,
+      STORE_ABI,
+      "authorizeStore",
+      [CONTRACTS.DOTNS_REGISTRY],
+      substrateAddress,
+      signer,
+      registrySpinner,
+      "Authorize registry",
+    );
+
+    console.log(chalk.gray("  tx:         ") + chalk.blue(tx));
+    console.log(chalk.gray("  registry:   ") + chalk.white(CONTRACTS.DOTNS_REGISTRY));
   }
 }
 
