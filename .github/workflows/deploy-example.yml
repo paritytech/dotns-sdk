@@ -4,9 +4,7 @@
 # registers a preview subname (e.g. pr42.dotns-example.dot). Results are posted
 # to the PR's CI Summary comment alongside other checks.
 #
-# The CLI is built from source (build-cli job) because no release exists yet.
-# Once a release is published, replace cli-artifact-name with cli-version and
-# remove the build-cli job.
+# The CLI is built from source inside deploy.yml via the setup-cli composite action.
 name: Deploy Example
 
 on:
@@ -14,8 +12,10 @@ on:
     branches: [main]
     paths:
       - "examples/deploy/**"
+      - "packages/cli/**"
       - ".github/workflows/deploy-example.yml"
       - ".github/workflows/deploy.yml"
+      - ".github/actions/**"
 
 permissions:
   contents: read
@@ -107,7 +107,8 @@ jobs:
       artifact-name: example-site
       register-base: true
     secrets:
-      mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
+      dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
+      bulletin-mnemonic: ${{ secrets.BULLETIN_MNEMONIC }}
       dotns-token: ${{ secrets.DOTNS_SDK_WORKFLOW_ACCESS }}
 
   comment:

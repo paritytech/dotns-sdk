@@ -8,6 +8,9 @@
 # Lookup steps check name existence before registration to avoid redundant retries
 # and to fail fast with actionable error messages when prerequisites are missing.
 #
+# Bulletin-specific steps (authorize, upload) and DotNS-specific steps (lookup,
+# register, contenthash) are encapsulated in composite actions under .github/actions/.
+#
 # Modes:
 #   preview    — registers a subname (e.g. pr42.mysite.dot) under the base domain
 #   production — deploys directly to the base domain (e.g. mysite.dot)
@@ -33,6 +36,16 @@ on:
         type: string
         default: 'pr-number'
 
+      # HACK: Workaround for DotNS Store contract key collision. The store key
+      # is keccak256("dotns.registered", labelhash) — scoped by label only, not
+      # by parent. This means the same owner cannot register the same subname
+      # label under multiple parents. Adding a suffix makes each label unique.
+      # TODO: Remove once the contract uses namehash instead of labelhash for the key.
+      subname-suffix:
+        description: 'Optional suffix appended to the subname (e.g. 0 → pr42-0). Use to avoid store key collisions when deploying the same PR to multiple base domains.'
+        required: false
+        type: string
+
       register-base:
         description: 'Attempt base domain registration if not already owned'
         required: false
@@ -56,17 +69,6 @@ on:
 
       rpc:
         description: 'WebSocket RPC endpoint (default: CLI built-in)'
-        required: false
-        type: string
-
-      cli-version:
-        description: 'CLI release tag to install (e.g., v0.2.0)'
-        required: false
-        type: string
-        default: 'v0.2.0'
-
-      cli-artifact-name:
-        description: 'Build artifact containing CLI tgz (overrides cli-version when set)'
         required: false
         type: string
 
@@ -101,12 +103,16 @@ on:
         default: 15
 
     secrets:
-      mnemonic:
-        description: 'BIP39 mnemonic phrase'
+      dotns-mnemonic:
+        description: 'BIP39 mnemonic for DotNS on-chain operations (register, contenthash)'
+        required: true
+
+      bulletin-mnemonic:
+        description: 'BIP39 mnemonic for Bulletin uploads (defaults to //Alice dev seed)'
         required: false
 
       dotns-token:
-        description: 'PAT with read access to dotns-sdk releases (cross-repo CLI download)'
+        description: 'PAT with read access to dotns-sdk (cross-repo checkout)'
         required: false
 
     outputs:
@@ -130,37 +136,18 @@ jobs:
       cache-hit: ${{ steps.cache.outputs.cache-hit }}
 
     steps:
-      - name: Resolve authentication
-        id: auth
-        run: |
-          AUTH_COUNT=0
-          [[ -n "$INPUT_MNEMONIC" ]] && AUTH_COUNT=$((AUTH_COUNT + 1))
-          [[ -n "$INPUT_KEY_URI" ]] && AUTH_COUNT=$((AUTH_COUNT + 1))
-
-          if [[ $AUTH_COUNT -eq 0 ]]; then
-            echo "::error::No authentication provided. Supply one of: mnemonic or key-uri"
-            exit 1
-          fi
-
-          if [[ $AUTH_COUNT -gt 1 ]]; then
-            echo "::error::Multiple auth methods provided. Supply only one of: mnemonic or key-uri"
-            exit 1
-          fi
-
-          if [[ -n "$INPUT_MNEMONIC" ]]; then
-            echo "::add-mask::$INPUT_MNEMONIC"
-            echo "DOTNS_MNEMONIC=$INPUT_MNEMONIC" >> "$GITHUB_ENV"
-            echo "method=mnemonic" >> "$GITHUB_OUTPUT"
-          elif [[ -n "$INPUT_KEY_URI" ]]; then
-            echo "::add-mask::$INPUT_KEY_URI"
-            echo "DOTNS_KEY_URI=$INPUT_KEY_URI" >> "$GITHUB_ENV"
-            echo "method=key-uri" >> "$GITHUB_OUTPUT"
-          fi
-
-          echo "Authentication resolved"
-        env:
-          INPUT_MNEMONIC: ${{ secrets.mnemonic }}
-          INPUT_KEY_URI: ${{ inputs.key-uri }}
+      - name: Checkout actions
+        uses: actions/checkout@v4
+        with:
+          repository: paritytech/dotns-sdk
+          ref: main
+          token: ${{ secrets.dotns-token || github.token }}
+          sparse-checkout: |
+            .github/actions
+            packages/cli
+            packages/sdk
+            package.json
+            bun.lock
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -178,25 +165,8 @@ jobs:
           name: ${{ inputs.artifact-name }}
           path: build
 
-      - name: Download CLI artifact
-        if: inputs.cli-artifact-name != ''
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ inputs.cli-artifact-name }}
-          path: cli-artifact
-
-      - name: Install CLI
-        run: |
-          if [[ -n "$CLI_ARTIFACT" ]]; then
-            npm install -g ./cli-artifact/dotns-cli-*.tgz
-          else
-            gh release download "$CLI_VERSION" -p "*.tgz" -R paritytech/dotns-sdk
-            npm install -g ./dotns-cli-*.tgz
-          fi
-        env:
-          GH_TOKEN: ${{ secrets.dotns-token || github.token }}
-          CLI_VERSION: ${{ inputs.cli-version }}
-          CLI_ARTIFACT: ${{ inputs.cli-artifact-name }}
+      - name: Setup CLI
+        uses: ./.github/actions/setup-cli
 
       - name: Resolve target
         id: target
@@ -217,6 +187,8 @@ jobs:
                 ;;
             esac
 
+            [[ -n "$SUBNAME_SUFFIX" ]] && SUBNAME="${SUBNAME}-${SUBNAME_SUFFIX}"
+
             echo "subname=$SUBNAME" >> "$GITHUB_OUTPUT"
             echo "domain=${SUBNAME}.${BASENAME}" >> "$GITHUB_OUTPUT"
             echo "fqdn=${SUBNAME}.${BASENAME}.dot" >> "$GITHUB_OUTPUT"
@@ -225,6 +197,7 @@ jobs:
           MODE: ${{ inputs.mode }}
           BASENAME: ${{ inputs.basename }}
           SUBNAME_FORMAT: ${{ inputs.subname-format }}
+          SUBNAME_SUFFIX: ${{ inputs.subname-suffix }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_REF: ${{ github.head_ref }}
           COMMIT_SHA: ${{ github.sha }}
@@ -253,49 +226,25 @@ jobs:
           echo "::notice::Cache hit — reusing CID: $CID"
 
       - name: Upload to Bulletin
-        id: upload
+        id: bulletin
         if: steps.cache.outputs.cache-hit != 'true'
-        run: |
-          ARGS=(./build --json)
-          [[ -n "$BULLETIN_RPC" ]] && ARGS+=(--bulletin-rpc "$BULLETIN_RPC")
-          [[ "$PARALLEL" == "true" ]] && ARGS+=(--parallel --concurrency "$UPLOAD_CONCURRENCY")
-
-          for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
-            echo "Upload attempt $ATTEMPT/$MAX_RETRIES"
-
-            if RESULT=$(dotns bulletin upload "${ARGS[@]}" 2>&1); then
-              CID=$(echo "$RESULT" | jq -r '.cid')
-              CONTENTHASH=$(echo "$RESULT" | jq -r '.contenthash')
-
-              if [[ -n "$CID" && "$CID" != "null" ]]; then
-                echo "cid=$CID" >> "$GITHUB_OUTPUT"
-                echo "contenthash=$CONTENTHASH" >> "$GITHUB_OUTPUT"
-                echo "::notice::Uploaded CID: $CID"
-                exit 0
-              fi
-            fi
-
-            echo "::warning::Upload attempt $ATTEMPT failed"
-            echo "$RESULT"
-            [[ "$ATTEMPT" -lt "$MAX_RETRIES" ]] && sleep "$RETRY_DELAY"
-          done
-
-          echo "::error::Upload failed after $MAX_RETRIES attempts"
-          exit 1
-        env:
-          BULLETIN_RPC: ${{ inputs.bulletin-rpc }}
-          PARALLEL: ${{ inputs.parallel }}
-          UPLOAD_CONCURRENCY: ${{ inputs.upload-concurrency }}
-          MAX_RETRIES: ${{ inputs.max-retries }}
-          RETRY_DELAY: ${{ inputs.retry-delay }}
+        uses: ./.github/actions/bulletin
+        with:
+          mnemonic: ${{ secrets.bulletin-mnemonic || 'bottom drive obey lake curtain smoke basket hold race lonely fit walk' }}
+          bulletin-rpc: ${{ inputs.bulletin-rpc }}
+          build-path: ./build
+          parallel: ${{ inputs.parallel }}
+          upload-concurrency: ${{ inputs.upload-concurrency }}
+          max-retries: ${{ inputs.max-retries }}
+          retry-delay: ${{ inputs.retry-delay }}
 
       - name: Save CID to cache
-        if: steps.cache.outputs.cache-hit != 'true' && steps.upload.outputs.cid != ''
+        if: steps.cache.outputs.cache-hit != 'true' && steps.bulletin.outputs.cid != ''
         run: |
           mkdir -p .deploy-cache
           echo "$CID" > .deploy-cache/cid
         env:
-          CID: ${{ steps.upload.outputs.cid }}
+          CID: ${{ steps.bulletin.outputs.cid }}
 
       - name: Resolve CID
         id: cid
@@ -310,164 +259,21 @@ jobs:
           echo "cid=$CID" >> "$GITHUB_OUTPUT"
         env:
           CACHED_CID: ${{ steps.cached.outputs.cid }}
-          UPLOAD_CID: ${{ steps.upload.outputs.cid }}
+          UPLOAD_CID: ${{ steps.bulletin.outputs.cid }}
 
-      - name: Check base domain existence
-        id: check-base
-        run: |
-          if RESULT=$(dotns lookup name "$BASENAME" --json 2>&1); then
-            EXISTS=$(echo "$RESULT" | jq -r '.exists')
-            OWNER=$(echo "$RESULT" | jq -r '.owner')
-            echo "exists=$EXISTS" >> "$GITHUB_OUTPUT"
-            echo "owner=$OWNER" >> "$GITHUB_OUTPUT"
-
-            if [[ "$EXISTS" == "true" ]]; then
-              echo "::notice::Base domain ${BASENAME}.dot is registered (owner: $OWNER)"
-            fi
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "owner=" >> "$GITHUB_OUTPUT"
-            echo "::warning::Base domain lookup failed — treating as unregistered"
-          fi
-        env:
-          BASENAME: ${{ inputs.basename }}
-
-      - name: Fail if base domain not registered
-        if: steps.check-base.outputs.exists != 'true' && inputs.register-base != true
-        run: |
-          echo "::error::Base domain ${BASENAME}.dot is not registered."
-          echo ""
-          echo "To deploy, the base domain must be registered first."
-          echo "You can register it in one of two ways:"
-          echo ""
-          echo "  1. Visit https://dotns.paseo.li"
-          echo "  2. Use the DotNS CLI:"
-          echo "     dotns register domain --name $BASENAME"
-          echo ""
-          echo "To have this workflow register it automatically, set register-base: true."
-          echo ""
-          echo "If registration requires Proof-of-Personhood, ensure your account has"
-          echo "the correct POP status first. See: dotns pop set --help"
-          exit 1
-        env:
-          BASENAME: ${{ inputs.basename }}
-
-      - name: Register base domain
-        if: steps.check-base.outputs.exists != 'true' && inputs.register-base == true
-        run: |
-          for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
-            echo "Register base attempt $ATTEMPT/$MAX_RETRIES"
-
-            if dotns register domain --name "$BASENAME" 2>&1; then
-              echo "::notice::Base domain ${BASENAME}.dot registered"
-              exit 0
-            fi
-
-            echo "::warning::Register base attempt $ATTEMPT failed"
-            [[ "$ATTEMPT" -lt "$MAX_RETRIES" ]] && sleep "$RETRY_DELAY"
-          done
-
-          echo "::error::Base domain registration failed after $MAX_RETRIES attempts."
-          echo ""
-          echo "This usually means the account does not have the required"
-          echo "Proof-of-Personhood status for this name."
-          echo ""
-          echo "To fix this:"
-          echo "  1. Check your POP status:  dotns pop status"
-          echo "  2. Set POP if needed:      dotns pop set --help"
-          echo "  3. Then re-run this workflow."
-          echo ""
-          echo "You can also register manually at https://dotns.paseo.li"
-          exit 1
-        env:
-          BASENAME: ${{ inputs.basename }}
-          MAX_RETRIES: ${{ inputs.max-retries }}
-          RETRY_DELAY: ${{ inputs.retry-delay }}
-
-      - name: Check subname existence
-        id: check-subname
-        if: inputs.mode == 'preview'
-        run: |
-          LOOKUP_DOMAIN="${SUBNAME}.${BASENAME}"
-
-          if RESULT=$(dotns lookup name "$LOOKUP_DOMAIN" --json 2>&1); then
-            EXISTS=$(echo "$RESULT" | jq -r '.exists')
-            OWNER=$(echo "$RESULT" | jq -r '.owner')
-            echo "exists=$EXISTS" >> "$GITHUB_OUTPUT"
-            echo "owner=$OWNER" >> "$GITHUB_OUTPUT"
-
-            if [[ "$EXISTS" == "true" ]]; then
-              echo "::notice::Subname ${LOOKUP_DOMAIN}.dot already exists (owner: $OWNER) — skipping registration"
-            fi
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "owner=" >> "$GITHUB_OUTPUT"
-            echo "::warning::Subname lookup failed — will attempt registration"
-          fi
-        env:
-          SUBNAME: ${{ steps.target.outputs.subname }}
-          BASENAME: ${{ inputs.basename }}
-
-      - name: Register subname
-        if: inputs.mode == 'preview' && steps.check-subname.outputs.exists != 'true'
-        run: |
-          for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
-            echo "Register subname attempt $ATTEMPT/$MAX_RETRIES"
-
-            if dotns register subname --name "$SUBNAME" --parent "$BASENAME" 2>&1; then
-              echo "::notice::Subname ${SUBNAME}.${BASENAME}.dot registered"
-              exit 0
-            fi
-
-            echo "::warning::Register subname attempt $ATTEMPT failed"
-            [[ "$ATTEMPT" -lt "$MAX_RETRIES" ]] && sleep "$RETRY_DELAY"
-          done
-
-          echo "::error::Subname registration failed after $MAX_RETRIES attempts."
-          echo ""
-          echo "This usually means the authenticated account does not own"
-          echo "the parent domain ${BASENAME}.dot, or the parent's subname"
-          echo "registration hooks rejected the request."
-          echo ""
-          echo "To fix this:"
-          echo "  1. Verify parent domain ownership: dotns lookup name $BASENAME --json"
-          echo "  2. Check the parent allows subname registration"
-          echo "  3. Ensure the workflow's auth account matches the parent owner"
-          echo ""
-          echo "You can also register subnames manually:"
-          echo "  dotns register subname --name $SUBNAME --parent $BASENAME"
-          exit 1
-        env:
-          SUBNAME: ${{ steps.target.outputs.subname }}
-          BASENAME: ${{ inputs.basename }}
-          MAX_RETRIES: ${{ inputs.max-retries }}
-          RETRY_DELAY: ${{ inputs.retry-delay }}
-
-      - name: Set contenthash
-        run: |
-          ARGS=("$DOMAIN" "$CID")
-          [[ -n "$RPC" ]] && ARGS+=(--rpc "$RPC")
-
-          for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
-            echo "Contenthash attempt $ATTEMPT/$MAX_RETRIES"
-
-            if dotns content set "${ARGS[@]}" 2>&1; then
-              echo "::notice::Contenthash set for $DOMAIN"
-              exit 0
-            fi
-
-            echo "::warning::Contenthash attempt $ATTEMPT failed"
-            [[ "$ATTEMPT" -lt "$MAX_RETRIES" ]] && sleep "$RETRY_DELAY"
-          done
-
-          echo "::error::Failed to set contenthash after $MAX_RETRIES attempts"
-          exit 1
-        env:
-          DOMAIN: ${{ steps.target.outputs.domain }}
-          CID: ${{ steps.cid.outputs.cid }}
-          RPC: ${{ inputs.rpc }}
-          MAX_RETRIES: ${{ inputs.max-retries }}
-          RETRY_DELAY: ${{ inputs.retry-delay }}
+      - name: Register and set contenthash
+        uses: ./.github/actions/dotns
+        with:
+          mnemonic: ${{ secrets.dotns-mnemonic }}
+          rpc: ${{ inputs.rpc }}
+          basename: ${{ inputs.basename }}
+          mode: ${{ inputs.mode }}
+          subname: ${{ steps.target.outputs.subname }}
+          domain: ${{ steps.target.outputs.domain }}
+          register-base: ${{ inputs.register-base }}
+          cid: ${{ steps.cid.outputs.cid }}
+          max-retries: ${{ inputs.max-retries }}
+          retry-delay: ${{ inputs.retry-delay }}
 
       - name: Set outputs
         id: final
@@ -487,6 +293,11 @@ jobs:
             CACHE_NOTE=" (cached)"
           fi
 
+          BULLETIN_AUTH="mnemonic"
+          if [[ -z "$BULLETIN_MNEMONIC" ]]; then
+            BULLETIN_AUTH="alice"
+          fi
+
           cat >> "$GITHUB_STEP_SUMMARY" <<EOF
           ## Deployment Complete
 
@@ -496,12 +307,12 @@ jobs:
           | Domain | \`${FQDN}\` |
           | CID | \`${CID}\`${CACHE_NOTE} |
           | URL | [${URL}](${URL}) |
-          | Auth | ${AUTH_METHOD} |
+          | Bulletin Auth | ${BULLETIN_AUTH} |
           EOF
         env:
           MODE: ${{ inputs.mode }}
           FQDN: ${{ steps.final.outputs.fqdn }}
           CID: ${{ steps.final.outputs.cid }}
           URL: ${{ steps.final.outputs.url }}
-          AUTH_METHOD: ${{ steps.auth.outputs.method }}
+          BULLETIN_MNEMONIC: ${{ secrets.bulletin-mnemonic }}
           CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
