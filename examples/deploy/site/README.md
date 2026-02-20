@@ -33,7 +33,6 @@ The example workflow passes minimal inputs. All optional inputs and their defaul
 | `artifact-name` | *(required)* | Name of the uploaded build artifact |
 | `subname-format` | `pr-number` | `pr-number`, `branch`, or `sha-short` |
 | `register-base` | `false` | Register base domain if not owned |
-| `cli-version` | `0.1.0` | CLI version to install |
 | `bulletin-rpc` | CLI default | Bulletin chain endpoint override |
 | `naming-rpc` | CLI default | Naming chain endpoint override |
 
