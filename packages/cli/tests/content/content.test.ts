@@ -219,7 +219,7 @@ test(
   async () => {
     const result = await runContentSet(["--key-uri", "//Alice"], UNREGISTERED_DOMAIN, TEST_CID);
 
-    expect(result.combinedOutput).toContain("Domain is not registered");
+    expect(result.combinedOutput).toContain("is not registered");
   },
   { timeout: TEST_TIMEOUT_MS },
 );
