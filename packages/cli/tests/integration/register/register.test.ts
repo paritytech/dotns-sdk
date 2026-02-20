@@ -1,6 +1,6 @@
 import { afterAll, afterEach, expect, test } from "bun:test";
-import { ProofOfPersonhoodStatus } from "../../src/types/types";
-import { generateRandomLabel } from "../../src/cli/labels";
+import { ProofOfPersonhoodStatus } from "../../../src/types/types";
+import { generateRandomLabel } from "../../../src/cli/labels";
 import {
   createDefaultAccountKeystore,
   generateGovernanceLabel,
@@ -9,12 +9,12 @@ import {
   TEST_ACCOUNT,
   runDotnsCli,
   type CliRunResult,
-} from "../_helpers/cliHelpers";
+} from "../../_helpers/cliHelpers";
 import {
   cleanupTestFileTemporaryDirectory,
   cleanupTestTemporaryDirectory,
   createKeystorePathsForTest,
-} from "../_helpers/testPaths";
+} from "../../_helpers/testPaths";
 
 const createdTestTemporaryDirectoryPaths: string[] = [];
 let testFileTemporaryRootDirectoryPath: string | undefined;

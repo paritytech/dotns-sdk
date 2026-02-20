@@ -9,12 +9,12 @@ import {
   TEST_ACCOUNT,
   TEST_PASSWORD,
   type CliRunResult,
-} from "../_helpers/cliHelpers";
+} from "../../_helpers/cliHelpers";
 import {
   cleanupTestFileTemporaryDirectory,
   cleanupTestTemporaryDirectory,
   createKeystorePathsForTest,
-} from "../_helpers/testPaths";
+} from "../../_helpers/testPaths";
 
 const createdTestTemporaryDirectoryPaths: string[] = [];
 let testFileTemporaryRootDirectoryPath: string | undefined;
@@ -60,7 +60,7 @@ afterAll(() => {
 });
 
 function spongePath(): string {
-  return path.resolve(__dirname, "../_files/sponge.png");
+  return path.resolve(__dirname, "../../_files/sponge.png");
 }
 
 async function createTestDirectory(testName: string): Promise<string> {
