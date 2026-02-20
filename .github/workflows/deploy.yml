@@ -111,10 +111,6 @@ on:
         description: 'BIP39 mnemonic for Bulletin uploads (defaults to //Alice dev seed)'
         required: false
 
-      dotns-token:
-        description: 'PAT with read access to dotns-sdk (cross-repo checkout)'
-        required: false
-
     outputs:
       cid:
         value: ${{ jobs.deploy.outputs.cid }}
@@ -141,7 +137,6 @@ jobs:
         with:
           repository: paritytech/dotns-sdk
           ref: main
-          token: ${{ secrets.dotns-token || github.token }}
           sparse-checkout: |
             .github/actions
             packages/cli

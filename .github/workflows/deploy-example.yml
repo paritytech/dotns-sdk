@@ -109,7 +109,6 @@ jobs:
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
       bulletin-mnemonic: ${{ secrets.BULLETIN_MNEMONIC }}
-      dotns-token: ${{ secrets.DOTNS_SDK_WORKFLOW_ACCESS }}
 
   comment:
     name: Update PR Comment
