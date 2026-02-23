@@ -4,11 +4,7 @@ import { createClient } from "polkadot-api";
 import { getWsProvider } from "polkadot-api/ws-provider";
 import { paseo } from "@polkadot-api/descriptors";
 import { ReviveClientWrapper, type PolkadotApiClient } from "../../client/polkadotClient";
-import {
-  performDomainLookup,
-  listMyRegisteredNames,
-  performOwnerOfLookup,
-} from "../../commands/lookup";
+import { performDomainLookup, performOwnerOfLookup } from "../../commands/lookup";
 import { verifyDomainOwnership } from "../../commands/register";
 import { resolveRpc } from "../env";
 import {
@@ -379,26 +375,4 @@ export function attachLookupCommands(root: Command): void {
       }
     },
   );
-
-  const listCommand = root.command("list").description("List all names registered by your account");
-
-  addAuthOptions(listCommand).action(async (options: any, cmd: any) => {
-    try {
-      const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
-
-      const { clientWrapper, account } = await prepareReadOnlyContext(merged);
-
-      console.log(chalk.bold("\n▶ My Registered Names\n"));
-
-      await listMyRegisteredNames(clientWrapper, account.address);
-
-      console.log(chalk.green("\n✓ Complete\n"));
-      process.exit(0);
-    } catch (error) {
-      console.error(
-        chalk.red(`\n✗ Error: ${error instanceof Error ? error.message : String(error)}\n`),
-      );
-      process.exit(1);
-    }
-  });
 }
