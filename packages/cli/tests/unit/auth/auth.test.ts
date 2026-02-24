@@ -1,18 +1,18 @@
 import { afterAll, afterEach, expect, test } from "bun:test";
-import { pathExists } from "../../src/cli/keystore/file";
+import { pathExists } from "../../../src/cli/keystore/file";
 import {
   runDotnsCli,
   readKeystoreDirectory,
   HARNESS_SUCCESS_EXIT_CODE,
   ALICE_KEY_URI,
   TEST_PASSWORD,
-} from "../_helpers/cliHelpers";
+} from "../../_helpers/cliHelpers";
 import {
   cleanupTestFileTemporaryDirectory,
   cleanupTestTemporaryDirectory,
   createKeystorePathsForTest,
-} from "../_helpers/testPaths";
-import { DEFAULT_MNEMONIC } from "../../src/utils/constants";
+} from "../../_helpers/testPaths";
+import { DEFAULT_MNEMONIC } from "../../../src/utils/constants";
 
 const createdTestTemporaryDirectoryPaths: string[] = [];
 let testFileTemporaryRootDirectoryPath: string | undefined;

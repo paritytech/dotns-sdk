@@ -7,13 +7,13 @@ import {
   TEST_PASSWORD,
   TEST_TIMEOUT_MS,
   type CliRunResult,
-} from "../_helpers/cliHelpers";
+} from "../../_helpers/cliHelpers";
 import {
   cleanupTestFileTemporaryDirectory,
   cleanupTestTemporaryDirectory,
   createKeystorePathsForTest,
-} from "../_helpers/testPaths";
-import { DEFAULT_MNEMONIC } from "../../src/utils/constants";
+} from "../../_helpers/testPaths";
+import { DEFAULT_MNEMONIC } from "../../../src/utils/constants";
 
 const createdTestTemporaryDirectoryPaths: string[] = [];
 let testFileTemporaryRootDirectoryPath: string | undefined;

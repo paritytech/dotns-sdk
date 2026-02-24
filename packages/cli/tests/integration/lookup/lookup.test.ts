@@ -7,15 +7,15 @@ import {
   TEST_PASSWORD,
   TEST_TIMEOUT_MS,
   type CliRunResult,
-} from "../_helpers/cliHelpers";
+} from "../../_helpers/cliHelpers";
 import {
   cleanupTestFileTemporaryDirectory,
   cleanupTestTemporaryDirectory,
   createKeystorePathsForTest,
-} from "../_helpers/testPaths";
-import { DEFAULT_MNEMONIC } from "../../src/utils/constants";
-import { ProofOfPersonhoodStatus } from "../../src/types/types";
-import { generateRandomLabel } from "../../src/cli/labels";
+} from "../../_helpers/testPaths";
+import { DEFAULT_MNEMONIC } from "../../../src/utils/constants";
+import { ProofOfPersonhoodStatus } from "../../../src/types/types";
+import { generateRandomLabel } from "../../../src/cli/labels";
 
 const createdTestTemporaryDirectoryPaths: string[] = [];
 let testFileTemporaryRootDirectoryPath: string | undefined;

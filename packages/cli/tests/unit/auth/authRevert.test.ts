@@ -1,11 +1,11 @@
 import { afterAll, afterEach, expect, test } from "bun:test";
-import { runDotnsCli } from "../_helpers/cliHelpers";
+import { runDotnsCli } from "../../_helpers/cliHelpers";
 import {
   cleanupTestFileTemporaryDirectory,
   cleanupTestTemporaryDirectory,
   createKeystorePathsForTest,
-} from "../_helpers/testPaths";
-import { DEFAULT_MNEMONIC } from "../../src/utils/constants";
+} from "../../_helpers/testPaths";
+import { DEFAULT_MNEMONIC } from "../../../src/utils/constants";
 
 const createdTemporaryDirectoryPaths: string[] = [];
 let testFileTemporaryRootDirectoryPath: string | undefined;
