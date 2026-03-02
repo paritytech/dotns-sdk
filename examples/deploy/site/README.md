@@ -38,7 +38,6 @@ All inputs accepted by the reusable `deploy.yml` workflow:
 | `artifact-name` | *(required)* | Name of the uploaded build artifact |
 | `mode` | `preview` | `preview` (subname deploy) or `production` (basename deploy) |
 | `subname-format` | `pr-number` | `pr-number`, `branch`, or `sha-short` (ignored in production mode) |
-| `subname-suffix` | | Optional suffix to avoid store key collisions across base domains |
 | `register-base` | `false` | Register base domain if not already owned |
 | `key-uri` | | Substrate key URI for dev/test (e.g. `//Alice`) |
 | `bulletin-rpc` | CLI default | Bulletin chain WebSocket RPC endpoint override |
