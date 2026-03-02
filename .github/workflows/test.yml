@@ -1,0 +1,51 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/cli/**"
+      - ".github/workflows/test.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "packages/cli/**"
+      - ".github/workflows/test.yml"
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.6"
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun install --frozen-lockfile
+          for pkg in packages/*; do
+            [ -f "$pkg/package.json" ] || continue
+            grep -q '"file:' "$pkg/package.json" || continue
+            grep -oP '"[^"]+": "file:\K[^"]+' "$pkg/package.json" | while read -r dep; do
+              name=$(jq -r .name "$pkg/$dep/package.json")
+              scope_dir="$pkg/node_modules/$(dirname "$name")"
+              mkdir -p "$scope_dir"
+              ln -sfn "$(cd "$pkg/$dep" && pwd)" "$pkg/node_modules/$name"
+            done
+          done
+
+      - name: Run unit tests
+        working-directory: packages/cli
+        run: bun run test:unit

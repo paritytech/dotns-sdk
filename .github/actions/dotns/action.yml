@@ -1,0 +1,225 @@
+name: Register and set contenthash
+description: Look up, register, and set contenthash for a DotNS domain or subname
+
+inputs:
+  mnemonic:
+    description: 'BIP39 mnemonic for DotNS on-chain operations'
+    required: true
+  rpc:
+    description: 'WebSocket RPC endpoint (default: CLI built-in)'
+    required: false
+  basename:
+    description: 'Base domain without .dot'
+    required: true
+  mode:
+    description: 'preview (subname deploy) | production (basename deploy)'
+    required: true
+  subname:
+    description: 'Subname to register (required when mode=preview)'
+    required: false
+  domain:
+    description: 'Resolved domain (e.g. pr42.mysite or mysite)'
+    required: true
+  register-base:
+    description: 'Attempt base domain registration if not already owned'
+    required: false
+    default: 'false'
+  cid:
+    description: 'Content Identifier to set as contenthash'
+    required: true
+  max-retries:
+    description: 'Max retry attempts for transient RPC failures'
+    required: false
+    default: '3'
+  retry-delay:
+    description: 'Seconds to wait between retries'
+    required: false
+    default: '15'
+
+runs:
+  using: composite
+  steps:
+    - name: Check base domain existence
+      id: check-base
+      shell: bash
+      run: |
+        if RESULT=$(dotns lookup name "$BASENAME" --json 2>&1); then
+          EXISTS=$(echo "$RESULT" | jq -r '.exists')
+          OWNER=$(echo "$RESULT" | jq -r '.owner')
+          echo "exists=$EXISTS" >> "$GITHUB_OUTPUT"
+          echo "owner=$OWNER" >> "$GITHUB_OUTPUT"
+
+          if [[ "$EXISTS" == "true" ]]; then
+            echo "::notice::Base domain ${BASENAME}.dot is registered (owner: $OWNER)"
+          fi
+        else
+          echo "exists=false" >> "$GITHUB_OUTPUT"
+          echo "owner=" >> "$GITHUB_OUTPUT"
+          echo "::warning::Base domain lookup failed — treating as unregistered"
+        fi
+      env:
+        BASENAME: ${{ inputs.basename }}
+
+    - name: Fail if base domain not registered
+      if: steps.check-base.outputs.exists != 'true' && inputs.register-base != 'true'
+      shell: bash
+      run: |
+        echo "::error::Base domain ${BASENAME}.dot is not registered."
+        echo ""
+        echo "To deploy, the base domain must be registered first."
+        echo "You can register it in one of two ways:"
+        echo ""
+        echo "  1. Visit https://dotns.paseo.li"
+        echo "  2. Use the DotNS CLI:"
+        echo "     dotns register domain --name $BASENAME"
+        echo ""
+        echo "To have this workflow register it automatically, set register-base: true."
+        echo ""
+        echo "If registration requires Proof-of-Personhood, ensure your account has"
+        echo "the correct POP status first. See: dotns pop set --help"
+        exit 1
+      env:
+        BASENAME: ${{ inputs.basename }}
+
+    - name: Register base domain
+      if: steps.check-base.outputs.exists != 'true' && inputs.register-base == 'true'
+      shell: bash
+      run: |
+        echo "::add-mask::$MNEMONIC"
+
+        for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
+          echo "Register base attempt $ATTEMPT/$MAX_RETRIES"
+
+          if dotns register domain --name "$BASENAME" --mnemonic "$MNEMONIC" 2>&1; then
+            echo "::notice::Base domain ${BASENAME}.dot registered"
+            exit 0
+          fi
+
+          echo "::warning::Register base attempt $ATTEMPT failed"
+          [[ "$ATTEMPT" -lt "$MAX_RETRIES" ]] && sleep "$RETRY_DELAY"
+        done
+
+        echo "::error::Base domain registration failed after $MAX_RETRIES attempts."
+        echo ""
+        echo "This usually means the account does not have the required"
+        echo "Proof-of-Personhood status for this name."
+        echo ""
+        echo "To fix this:"
+        echo "  1. Check your POP status:  dotns pop status"
+        echo "  2. Set POP if needed:      dotns pop set --help"
+        echo "  3. Then re-run this workflow."
+        echo ""
+        echo "You can also register manually at https://dotns.paseo.li"
+        exit 1
+      env:
+        MNEMONIC: ${{ inputs.mnemonic }}
+        BASENAME: ${{ inputs.basename }}
+        MAX_RETRIES: ${{ inputs.max-retries }}
+        RETRY_DELAY: ${{ inputs.retry-delay }}
+
+    - name: Check subname existence
+      id: check-subname
+      if: inputs.mode == 'preview'
+      shell: bash
+      run: |
+        LOOKUP_DOMAIN="${SUBNAME}.${BASENAME}"
+
+        if RESULT=$(dotns lookup name "$LOOKUP_DOMAIN" --json 2>&1); then
+          EXISTS=$(echo "$RESULT" | jq -r '.exists')
+          OWNER=$(echo "$RESULT" | jq -r '.owner')
+          echo "exists=$EXISTS" >> "$GITHUB_OUTPUT"
+          echo "owner=$OWNER" >> "$GITHUB_OUTPUT"
+
+          if [[ "$EXISTS" == "true" ]]; then
+            echo "::notice::Subname ${LOOKUP_DOMAIN}.dot already exists (owner: $OWNER) — skipping registration"
+          fi
+        else
+          echo "exists=false" >> "$GITHUB_OUTPUT"
+          echo "owner=" >> "$GITHUB_OUTPUT"
+          echo "::warning::Subname lookup failed — will attempt registration"
+        fi
+      env:
+        SUBNAME: ${{ inputs.subname }}
+        BASENAME: ${{ inputs.basename }}
+
+    - name: Register subname
+      if: inputs.mode == 'preview' && steps.check-subname.outputs.exists != 'true'
+      shell: bash
+      run: |
+        echo "::add-mask::$MNEMONIC"
+
+        for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
+          echo "Register subname attempt $ATTEMPT/$MAX_RETRIES"
+
+          OUTPUT=$(dotns register subname --name "$SUBNAME" --parent "$BASENAME" --mnemonic "$MNEMONIC" 2>&1) && {
+            echo "::notice::Subname ${SUBNAME}.${BASENAME}.dot registered"
+            exit 0
+          }
+
+          if echo "$OUTPUT" | grep -q "0x0dd76694"; then
+            echo "::error::Subname ${SUBNAME}.${BASENAME}.dot failed: Store key is locked."
+            echo ""
+            echo "The DotNS Store contract locks the key keccak256(\"dotns.registered\", labelhash)"
+            echo "per owner. This means the label \"${SUBNAME}\" has already been registered as a"
+            echo "subname under a different parent by the same account. The contract currently"
+            echo "does not allow the same label under multiple parents for the same owner."
+            echo ""
+            echo "Workaround: use a unique subname label per parent domain."
+            exit 1
+          fi
+
+          echo "$OUTPUT"
+          echo "::warning::Register subname attempt $ATTEMPT failed"
+          [[ "$ATTEMPT" -lt "$MAX_RETRIES" ]] && sleep "$RETRY_DELAY"
+        done
+
+        echo "::error::Subname registration failed after $MAX_RETRIES attempts."
+        echo ""
+        echo "This usually means the authenticated account does not own"
+        echo "the parent domain ${BASENAME}.dot, or the parent's subname"
+        echo "registration hooks rejected the request."
+        echo ""
+        echo "To fix this:"
+        echo "  1. Verify parent domain ownership: dotns lookup name $BASENAME --json"
+        echo "  2. Check the parent allows subname registration"
+        echo "  3. Ensure the workflow's auth account matches the parent owner"
+        echo ""
+        echo "You can also register subnames manually:"
+        echo "  dotns register subname --name $SUBNAME --parent $BASENAME"
+        exit 1
+      env:
+        MNEMONIC: ${{ inputs.mnemonic }}
+        SUBNAME: ${{ inputs.subname }}
+        BASENAME: ${{ inputs.basename }}
+        MAX_RETRIES: ${{ inputs.max-retries }}
+        RETRY_DELAY: ${{ inputs.retry-delay }}
+
+    - name: Set contenthash
+      shell: bash
+      run: |
+        echo "::add-mask::$MNEMONIC"
+
+        ARGS=("$DOMAIN" "$CID" --mnemonic "$MNEMONIC")
+        [[ -n "$RPC" ]] && ARGS+=(--rpc "$RPC")
+
+        for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
+          echo "Contenthash attempt $ATTEMPT/$MAX_RETRIES"
+
+          if dotns content set "${ARGS[@]}" 2>&1; then
+            echo "::notice::Contenthash set for $DOMAIN"
+            exit 0
+          fi
+
+          echo "::warning::Contenthash attempt $ATTEMPT failed"
+          [[ "$ATTEMPT" -lt "$MAX_RETRIES" ]] && sleep "$RETRY_DELAY"
+        done
+
+        echo "::error::Failed to set contenthash after $MAX_RETRIES attempts"
+        exit 1
+      env:
+        MNEMONIC: ${{ inputs.mnemonic }}
+        DOMAIN: ${{ inputs.domain }}
+        CID: ${{ inputs.cid }}
+        RPC: ${{ inputs.rpc }}
+        MAX_RETRIES: ${{ inputs.max-retries }}
+        RETRY_DELAY: ${{ inputs.retry-delay }}

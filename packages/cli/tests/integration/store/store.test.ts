@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { HARNESS_SUCCESS_EXIT_CODE, runDotnsCli, TEST_TIMEOUT_MS } from "../_helpers/cliHelpers";
+import { HARNESS_SUCCESS_EXIT_CODE, runDotnsCli, TEST_TIMEOUT_MS } from "../../_helpers/cliHelpers";
 
 const ALICE_KEY_URI = "//Alice";
 const BOB_ADDRESS = "0x0000000000000000000000000000000000000001";

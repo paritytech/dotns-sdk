@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { HARNESS_HELP_SUCCESS_EXIT_CODE, runDotnsCli } from "../_helpers/cliHelpers";
+import { HARNESS_HELP_SUCCESS_EXIT_CODE, runDotnsCli } from "../../_helpers/cliHelpers";
 
 test("lookup --help lists subcommands and auth options", async () => {
   const result = await runDotnsCli(["lookup", "--help"]);

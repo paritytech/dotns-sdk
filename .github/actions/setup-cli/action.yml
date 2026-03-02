@@ -1,0 +1,37 @@
+name: Setup CLI
+description: Build and install the DotNS CLI globally from source
+
+runs:
+  using: composite
+  steps:
+    - name: Install dependencies
+      shell: bash
+      run: |
+        set -euo pipefail
+        bun install --frozen-lockfile
+        for pkg in packages/*; do
+          [ -f "$pkg/package.json" ] || continue
+          grep -q '"file:' "$pkg/package.json" || continue
+          grep -oP '"[^"]+": "file:\K[^"]+' "$pkg/package.json" | while read -r dep; do
+            name=$(jq -r .name "$pkg/$dep/package.json")
+            scope_dir="$pkg/node_modules/$(dirname "$name")"
+            mkdir -p "$scope_dir"
+            ln -sfn "$(cd "$pkg/$dep" && pwd)" "$pkg/node_modules/$name"
+          done
+        done
+
+    - name: Build CLI
+      shell: bash
+      working-directory: packages/cli
+      run: bun run build
+
+    - name: Pack and install globally
+      shell: bash
+      working-directory: packages/cli
+      run: |
+        npm pack
+        npm install -g ./dotns-cli-*.tgz
+
+    - name: Verify
+      shell: bash
+      run: dotns --help > /dev/null

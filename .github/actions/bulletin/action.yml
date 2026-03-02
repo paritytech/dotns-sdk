@@ -1,0 +1,106 @@
+name: Upload to Bulletin
+description: Authorize an account and upload a build directory to Bulletin
+
+inputs:
+  mnemonic:
+    description: 'BIP39 mnemonic for Bulletin uploads'
+    required: true
+  bulletin-rpc:
+    description: 'Bulletin chain WebSocket RPC endpoint (default: CLI built-in)'
+    required: false
+  build-path:
+    description: 'Path to the build directory to upload'
+    required: false
+    default: './build'
+  parallel:
+    description: 'Upload directory blocks in parallel'
+    required: false
+    default: 'true'
+  upload-concurrency:
+    description: 'Number of parallel block uploads'
+    required: false
+    default: '15'
+  max-retries:
+    description: 'Max retry attempts for transient RPC failures'
+    required: false
+    default: '3'
+  retry-delay:
+    description: 'Seconds to wait between retries'
+    required: false
+    default: '15'
+
+outputs:
+  cid:
+    description: 'Content Identifier of the uploaded build'
+    value: ${{ steps.upload.outputs.cid }}
+  contenthash:
+    description: 'Contenthash of the uploaded build'
+    value: ${{ steps.upload.outputs.contenthash }}
+
+runs:
+  using: composite
+  steps:
+    - name: Authorize account for Bulletin
+      shell: bash
+      run: |
+        echo "::add-mask::$MNEMONIC"
+
+        ADDRESS=$(dotns account address --mnemonic "$MNEMONIC")
+
+        echo "Authorizing ${ADDRESS} for Bulletin TransactionStorage..."
+
+        ARGS=("$ADDRESS" --json --mnemonic "$MNEMONIC")
+        [[ -n "$BULLETIN_RPC" ]] && ARGS+=(--bulletin-rpc "$BULLETIN_RPC")
+
+        OUTPUT=$(dotns bulletin authorize "${ARGS[@]}" 2>&1) || {
+          if echo "$OUTPUT" | grep -q "AlreadyAuthorized"; then
+            echo "::notice::Account ${ADDRESS} is already authorized"
+          else
+            echo "::error::Authorization failed: $OUTPUT"
+            exit 1
+          fi
+        }
+      env:
+        MNEMONIC: ${{ inputs.mnemonic }}
+        BULLETIN_RPC: ${{ inputs.bulletin-rpc }}
+
+    - name: Upload to Bulletin
+      id: upload
+      shell: bash
+      run: |
+        echo "::add-mask::$MNEMONIC"
+
+        ARGS=("$BUILD_PATH" --json --mnemonic "$MNEMONIC")
+        [[ -n "$BULLETIN_RPC" ]] && ARGS+=(--bulletin-rpc "$BULLETIN_RPC")
+        [[ "$PARALLEL" == "true" ]] && ARGS+=(--parallel --concurrency "$UPLOAD_CONCURRENCY")
+
+        for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
+          echo "Upload attempt $ATTEMPT/$MAX_RETRIES"
+
+          if RESULT=$(dotns bulletin upload "${ARGS[@]}" 2>&1); then
+            CID=$(echo "$RESULT" | jq -r '.cid')
+            CONTENTHASH=$(echo "$RESULT" | jq -r '.contenthash')
+
+            if [[ -n "$CID" && "$CID" != "null" ]]; then
+              echo "cid=$CID" >> "$GITHUB_OUTPUT"
+              echo "contenthash=$CONTENTHASH" >> "$GITHUB_OUTPUT"
+              echo "::notice::Uploaded CID: $CID"
+              exit 0
+            fi
+          fi
+
+          echo "::warning::Upload attempt $ATTEMPT failed"
+          echo "$RESULT"
+          [[ "$ATTEMPT" -lt "$MAX_RETRIES" ]] && sleep "$RETRY_DELAY"
+        done
+
+        echo "::error::Upload failed after $MAX_RETRIES attempts"
+        exit 1
+      env:
+        MNEMONIC: ${{ inputs.mnemonic }}
+        BULLETIN_RPC: ${{ inputs.bulletin-rpc }}
+        BUILD_PATH: ${{ inputs.build-path }}
+        PARALLEL: ${{ inputs.parallel }}
+        UPLOAD_CONCURRENCY: ${{ inputs.upload-concurrency }}
+        MAX_RETRIES: ${{ inputs.max-retries }}
+        RETRY_DELAY: ${{ inputs.retry-delay }}

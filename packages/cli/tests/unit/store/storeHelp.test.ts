@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { HARNESS_HELP_SUCCESS_EXIT_CODE, runDotnsCli } from "../_helpers/cliHelpers";
+import { HARNESS_HELP_SUCCESS_EXIT_CODE, runDotnsCli } from "../../_helpers/cliHelpers";
 
 test("store --help lists subcommands", async () => {
   const result = await runDotnsCli(["store", "--help"]);

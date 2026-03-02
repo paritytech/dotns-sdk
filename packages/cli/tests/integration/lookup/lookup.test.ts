@@ -4,9 +4,15 @@ import {
   runDotnsCli,
   TEST_TIMEOUT_MS,
   type CliRunResult,
-} from "../_helpers/cliHelpers";
-import { ProofOfPersonhoodStatus } from "../../src/types/types";
-import { generateRandomLabel } from "../../src/cli/labels";
+} from "../../_helpers/cliHelpers";
+import {
+  cleanupTestFileTemporaryDirectory,
+  cleanupTestTemporaryDirectory,
+  createKeystorePathsForTest,
+} from "../../_helpers/testPaths";
+import { DEFAULT_MNEMONIC } from "../../../src/utils/constants";
+import { ProofOfPersonhoodStatus } from "../../../src/types/types";
+import { generateRandomLabel } from "../../../src/cli/labels";
 
 const REGISTERED_DOMAIN = "dotnscli";
 const REGISTERED_DOMAIN_WITH_POP = "sphaman12";

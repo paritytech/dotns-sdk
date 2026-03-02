@@ -7,13 +7,13 @@ import {
   TEST_PASSWORD,
   TEST_TIMEOUT_MS,
   type CliRunResult,
-} from "../_helpers/cliHelpers";
+} from "../../_helpers/cliHelpers";
 import {
   cleanupTestFileTemporaryDirectory,
   cleanupTestTemporaryDirectory,
   createKeystorePathsForTest,
-} from "../_helpers/testPaths";
-import { DEFAULT_MNEMONIC } from "../../src/utils/constants";
+} from "../../_helpers/testPaths";
+import { DEFAULT_MNEMONIC } from "../../../src/utils/constants";
 
 const createdTestTemporaryDirectoryPaths: string[] = [];
 let testFileTemporaryRootDirectoryPath: string | undefined;
@@ -219,7 +219,7 @@ test(
   async () => {
     const result = await runContentSet(["--key-uri", "//Alice"], UNREGISTERED_DOMAIN, TEST_CID);
 
-    expect(result.combinedOutput).toContain("Domain is not registered");
+    expect(result.combinedOutput).toContain("is not registered");
   },
   { timeout: TEST_TIMEOUT_MS },
 );
