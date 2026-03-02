@@ -24,7 +24,7 @@ export function resolveRpc(maybeRpc?: string): string {
 }
 
 export function resolveMinBalancePas(maybeMin?: string): string {
-  return maybeMin || process.env[ENV.MIN_BALANCE_PAS] || "5";
+  return maybeMin || process.env[ENV.MIN_BALANCE_PAS] || "0.1";
 }
 
 /**
