@@ -5,7 +5,12 @@ import type { PolkadotSigner } from "polkadot-api";
 import type { ReviveClientWrapper } from "../client/polkadotClient";
 import { CONTRACTS, STORE_FACTORY_ABI, STORE_ABI } from "../utils/constants";
 import { performContractCall, submitContractTransaction } from "../utils/contractInteractions";
-import type { StoreInfo, StoreValueResult, StoreAuthStatus, StoreEnsureAuthResult } from "../types/types";
+import type {
+  StoreInfo,
+  StoreValueResult,
+  StoreAuthStatus,
+  StoreEnsureAuthResult,
+} from "../types/types";
 
 export function normalizeKeyToBytes32(raw: string): `0x${string}` {
   if (raw.startsWith("0x") && raw.length === 66) {
@@ -392,8 +397,16 @@ export async function ensureStoreAuthorizations(
 
     console.log("\n▶ Store Authorizations");
     console.log(chalk.gray("  store:      ") + chalk.white(storeAddress));
-    console.log(chalk.gray("  controller: ") + chalk.green("authorized") + chalk.gray(` (${CONTRACTS.DOTNS_REGISTRAR_CONTROLLER})`));
-    console.log(chalk.gray("  registry:   ") + chalk.green("authorized") + chalk.gray(` (${CONTRACTS.DOTNS_REGISTRY})`));
+    console.log(
+      chalk.gray("  controller: ") +
+        chalk.green("authorized") +
+        chalk.gray(` (${CONTRACTS.DOTNS_REGISTRAR_CONTROLLER})`),
+    );
+    console.log(
+      chalk.gray("  registry:   ") +
+        chalk.green("authorized") +
+        chalk.gray(` (${CONTRACTS.DOTNS_REGISTRY})`),
+    );
 
     return result;
   }
