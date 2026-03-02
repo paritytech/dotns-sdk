@@ -5,7 +5,7 @@ import type { PolkadotSigner } from "polkadot-api";
 import type { ReviveClientWrapper } from "../client/polkadotClient";
 import { CONTRACTS, STORE_FACTORY_ABI, STORE_ABI } from "../utils/constants";
 import { performContractCall, submitContractTransaction } from "../utils/contractInteractions";
-import type { StoreInfo, StoreValueResult, StoreAuthStatus } from "../types/types";
+import type { StoreInfo, StoreValueResult, StoreAuthStatus, StoreEnsureAuthResult } from "../types/types";
 
 export function normalizeKeyToBytes32(raw: string): `0x${string}` {
   if (raw.startsWith("0x") && raw.length === 66) {
@@ -155,6 +155,7 @@ export async function setStoreValue(
     "Store write",
   );
 
+  console.log("\n▶ Store Set");
   console.log(chalk.gray("  tx:    ") + chalk.blue(tx));
   console.log(chalk.gray("  key:   ") + chalk.white(key));
   console.log(chalk.gray("  value: ") + chalk.white(value));
@@ -186,6 +187,7 @@ export async function deleteStoreValue(
     "Store delete",
   );
 
+  console.log("\n▶ Store Delete");
   console.log(chalk.gray("  tx:  ") + chalk.blue(tx));
   console.log(chalk.gray("  key: ") + chalk.white(key));
 
@@ -257,6 +259,7 @@ export async function authorizeStoreWriter(
     "Authorize writer",
   );
 
+  console.log("\n▶ Authorize Writer");
   console.log(chalk.gray("  tx:     ") + chalk.blue(tx));
   console.log(chalk.gray("  target: ") + chalk.white(targetAddress));
 }
@@ -284,6 +287,7 @@ export async function unauthorizeStoreWriter(
     "Revoke writer",
   );
 
+  console.log("\n▶ Revoke Writer");
   console.log(chalk.gray("  tx:     ") + chalk.blue(tx));
   console.log(chalk.gray("  target: ") + chalk.white(targetAddress));
 }
@@ -311,6 +315,7 @@ export async function authorizeDotnsController(
     "Authorize controller",
   );
 
+  console.log("\n▶ Authorize Controller");
   console.log(chalk.gray("  tx:     ") + chalk.blue(tx));
   console.log(chalk.gray("  target: ") + chalk.white(targetAddress));
 }
@@ -338,6 +343,106 @@ export async function unauthorizeDotnsController(
     "Revoke controller",
   );
 
+  console.log("\n▶ Revoke Controller");
   console.log(chalk.gray("  tx:     ") + chalk.blue(tx));
   console.log(chalk.gray("  target: ") + chalk.white(targetAddress));
+}
+
+export async function ensureStoreAuthorizations(
+  clientWrapper: ReviveClientWrapper,
+  substrateAddress: string,
+  signer: PolkadotSigner,
+  evmAddress: Address,
+): Promise<StoreEnsureAuthResult> {
+  const storeAddress = await resolveStoreAddress(clientWrapper, substrateAddress, evmAddress);
+  const spinner = ora("Checking Store authorizations").start();
+
+  const [controllerAuthorized, registryAuthorized] = await Promise.all([
+    Boolean(
+      await performContractCall<boolean>(
+        clientWrapper,
+        substrateAddress,
+        storeAddress,
+        STORE_ABI,
+        "isAuthorized",
+        [CONTRACTS.DOTNS_REGISTRAR_CONTROLLER],
+      ),
+    ),
+    Boolean(
+      await performContractCall<boolean>(
+        clientWrapper,
+        substrateAddress,
+        storeAddress,
+        STORE_ABI,
+        "isAuthorized",
+        [CONTRACTS.DOTNS_REGISTRY],
+      ),
+    ),
+  ]);
+
+  const result: StoreEnsureAuthResult = {
+    controllerAddress: CONTRACTS.DOTNS_REGISTRAR_CONTROLLER,
+    controllerAuthorized,
+    registryAddress: CONTRACTS.DOTNS_REGISTRY,
+    registryAuthorized,
+  };
+
+  if (controllerAuthorized && registryAuthorized) {
+    spinner.succeed("Store authorizations verified");
+
+    console.log("\n▶ Store Authorizations");
+    console.log(chalk.gray("  store:      ") + chalk.white(storeAddress));
+    console.log(chalk.gray("  controller: ") + chalk.green("authorized") + chalk.gray(` (${CONTRACTS.DOTNS_REGISTRAR_CONTROLLER})`));
+    console.log(chalk.gray("  registry:   ") + chalk.green("authorized") + chalk.gray(` (${CONTRACTS.DOTNS_REGISTRY})`));
+
+    return result;
+  }
+
+  spinner.warn("Store authorizations need update");
+
+  if (!controllerAuthorized) {
+    const controllerSpinner = ora("Authorizing registrar controller as Store writer").start();
+
+    const tx = await submitContractTransaction(
+      clientWrapper,
+      storeAddress,
+      0n,
+      STORE_ABI,
+      "authorizeStore",
+      [CONTRACTS.DOTNS_REGISTRAR_CONTROLLER],
+      substrateAddress,
+      signer,
+      controllerSpinner,
+      "Authorize controller",
+    );
+
+    result.controllerTx = tx;
+    result.controllerAuthorized = true;
+    console.log(chalk.gray("  tx:         ") + chalk.blue(tx));
+    console.log(chalk.gray("  controller: ") + chalk.white(CONTRACTS.DOTNS_REGISTRAR_CONTROLLER));
+  }
+
+  if (!registryAuthorized) {
+    const registrySpinner = ora("Authorizing registry as Store writer").start();
+
+    const tx = await submitContractTransaction(
+      clientWrapper,
+      storeAddress,
+      0n,
+      STORE_ABI,
+      "authorizeStore",
+      [CONTRACTS.DOTNS_REGISTRY],
+      substrateAddress,
+      signer,
+      registrySpinner,
+      "Authorize registry",
+    );
+
+    result.registryTx = tx;
+    result.registryAuthorized = true;
+    console.log(chalk.gray("  tx:         ") + chalk.blue(tx));
+    console.log(chalk.gray("  registry:   ") + chalk.white(CONTRACTS.DOTNS_REGISTRY));
+  }
+
+  return result;
 }

@@ -16,6 +16,7 @@ import {
   unauthorizeStoreWriter,
   authorizeDotnsController,
   unauthorizeDotnsController,
+  ensureStoreAuthorizations,
 } from "../../commands/storeManagement";
 import type { LookupActionOptions } from "../../types/types";
 
@@ -65,7 +66,7 @@ export function attachStoreCommands(root: Command): void {
       if (jsonOutput) {
         console.log(JSON.stringify(result));
       } else {
-        console.log(chalk.green("\n✓ Complete\n"));
+        console.log(chalk.green("\n✓ Store info retrieved\n"));
       }
 
       process.exit(0);
@@ -95,7 +96,7 @@ export function attachStoreCommands(root: Command): void {
       if (jsonOutput) {
         console.log(JSON.stringify({ values: result }));
       } else {
-        console.log(chalk.green("\n✓ Complete\n"));
+        console.log(chalk.green("\n✓ Store values listed\n"));
       }
 
       process.exit(0);
@@ -125,7 +126,7 @@ export function attachStoreCommands(root: Command): void {
       if (jsonOutput) {
         console.log(JSON.stringify(result));
       } else {
-        console.log(chalk.green("\n✓ Complete\n"));
+        console.log(chalk.green("\n✓ Value retrieved\n"));
       }
 
       process.exit(0);
@@ -154,7 +155,7 @@ export function attachStoreCommands(root: Command): void {
       if (jsonOutput) {
         console.log(JSON.stringify(result));
       } else {
-        console.log(chalk.green("\n✓ Complete\n"));
+        console.log(chalk.green("\n✓ Value set\n"));
       }
 
       process.exit(0);
@@ -183,7 +184,7 @@ export function attachStoreCommands(root: Command): void {
       if (jsonOutput) {
         console.log(JSON.stringify(result));
       } else {
-        console.log(chalk.green("\n✓ Complete\n"));
+        console.log(chalk.green("\n✓ Value deleted\n"));
       }
 
       process.exit(0);
@@ -214,7 +215,7 @@ export function attachStoreCommands(root: Command): void {
       if (jsonOutput) {
         console.log(JSON.stringify(result));
       } else {
-        console.log(chalk.green("\n✓ Complete\n"));
+        console.log(chalk.green("\n✓ Authorization check complete\n"));
       }
 
       process.exit(0);
@@ -250,7 +251,7 @@ export function attachStoreCommands(root: Command): void {
       if (jsonOutput) {
         console.log(JSON.stringify({ authorized: targetAddress, role: "writer" }));
       } else {
-        console.log(chalk.green("\n✓ Complete\n"));
+        console.log(chalk.green("\n✓ Writer authorized\n"));
       }
 
       process.exit(0);
@@ -286,7 +287,7 @@ export function attachStoreCommands(root: Command): void {
       if (jsonOutput) {
         console.log(JSON.stringify({ unauthorized: targetAddress, role: "writer" }));
       } else {
-        console.log(chalk.green("\n✓ Complete\n"));
+        console.log(chalk.green("\n✓ Writer revoked\n"));
       }
 
       process.exit(0);
@@ -323,7 +324,7 @@ export function attachStoreCommands(root: Command): void {
         if (jsonOutput) {
           console.log(JSON.stringify({ authorized: targetAddress, role: "controller" }));
         } else {
-          console.log(chalk.green("\n✓ Complete\n"));
+          console.log(chalk.green("\n✓ Controller authorized\n"));
         }
 
         process.exit(0);
@@ -361,7 +362,7 @@ export function attachStoreCommands(root: Command): void {
         if (jsonOutput) {
           console.log(JSON.stringify({ unauthorized: targetAddress, role: "controller" }));
         } else {
-          console.log(chalk.green("\n✓ Complete\n"));
+          console.log(chalk.green("\n✓ Controller revoked\n"));
         }
 
         process.exit(0);
@@ -370,4 +371,33 @@ export function attachStoreCommands(root: Command): void {
       }
     },
   );
+
+  const ensureAuthCommand = storeCommand
+    .command("ensure-auth")
+    .description("Ensure DotNS system contracts are authorized on your Store")
+    .option("--json", "Output result as JSON", false);
+
+  addAuthOptions(ensureAuthCommand).action(async (options: any, cmd: any) => {
+    try {
+      const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
+      const jsonOutput = getJsonFlag(cmd);
+
+      const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(merged));
+      const { clientWrapper, substrateAddress, signer, evmAddress } = context;
+
+      const result = await maybeQuiet(jsonOutput, () =>
+        ensureStoreAuthorizations(clientWrapper, substrateAddress, signer, evmAddress as Address),
+      );
+
+      if (jsonOutput) {
+        console.log(JSON.stringify(result));
+      } else {
+        console.log(chalk.green("\n✓ Store authorizations ensured\n"));
+      }
+
+      process.exit(0);
+    } catch (error) {
+      handleCommandError(error, cmd);
+    }
+  });
 }

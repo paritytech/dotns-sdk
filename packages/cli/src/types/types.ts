@@ -692,3 +692,18 @@ export type StoreValueResult = {
   /** Whether a non-empty value exists at this key */
   exists: boolean;
 };
+
+export type StoreEnsureAuthResult = {
+  /** EVM address of the DotNS registrar controller contract */
+  controllerAddress: Address;
+  /** Whether the controller is authorized as a Store writer */
+  controllerAuthorized: boolean;
+  /** Transaction hash of the controller authorization, if newly authorized */
+  controllerTx?: string;
+  /** EVM address of the DotNS registry contract */
+  registryAddress: Address;
+  /** Whether the registry is authorized as a Store writer */
+  registryAuthorized: boolean;
+  /** Transaction hash of the registry authorization, if newly authorized */
+  registryTx?: string;
+};

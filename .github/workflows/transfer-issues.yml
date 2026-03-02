@@ -3,9 +3,11 @@ name: Transfer Issues
 on:
   issues:
     types: [opened]
+  workflow_dispatch:
 
 jobs:
-  transfer:
+  transfer-new:
+    if: github.event_name == 'issues'
     runs-on: ubuntu-latest
     steps:
       - name: Transfer to dotns
@@ -13,3 +15,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.DOTNS_SDK_ISSUE_TRANSFER }}
           ISSUE_URL: ${{ github.event.issue.html_url }}
+
+  transfer-all:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Transfer all open issues to dotns
+        run: |
+          gh issue list --repo paritytech/dotns-sdk --state open --json url --jq '.[].url' | while read -r issue_url; do
+            echo "Transferring $issue_url"
+            gh issue transfer "$issue_url" paritytech/dotns || echo "Failed to transfer $issue_url"
+          done
+        env:
+          GH_TOKEN: ${{ secrets.DOTNS_SDK_ISSUE_TRANSFER }}

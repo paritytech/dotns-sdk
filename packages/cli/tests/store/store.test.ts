@@ -266,3 +266,40 @@ test(
   },
   { timeout: TEST_TIMEOUT_MS * 3 },
 );
+
+test(
+  "store ensure-auth checks and authorizes system contracts",
+  async () => {
+    const result = await runDotnsCli(["store", "ensure-auth", "--key-uri", ALICE_KEY_URI]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+    expect(result.combinedOutput).not.toContain("✗ Error:");
+  },
+  { timeout: TEST_TIMEOUT_MS * 2 },
+);
+
+test(
+  "store ensure-auth --json returns structured result",
+  async () => {
+    const result = await runDotnsCli([
+      "store",
+      "ensure-auth",
+      "--key-uri",
+      ALICE_KEY_URI,
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+
+    expect(result.combinedOutput).not.toContain("▶");
+    expect(result.combinedOutput).not.toContain("✓");
+
+    const parsed = JSON.parse(result.combinedOutput.trim());
+
+    expect(parsed.controllerAddress).toBeString();
+    expect(parsed.controllerAuthorized).toBeBoolean();
+    expect(parsed.registryAddress).toBeString();
+    expect(parsed.registryAuthorized).toBeBoolean();
+  },
+  { timeout: TEST_TIMEOUT_MS * 2 },
+);

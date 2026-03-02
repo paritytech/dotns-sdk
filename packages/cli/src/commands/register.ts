@@ -576,7 +576,7 @@ export async function ensureStoreAuthorizations(
         substrateAddress,
         storeAddress,
         STORE_ABI,
-        "isDotnsController",
+        "isAuthorized",
         [CONTRACTS.DOTNS_REGISTRAR_CONTROLLER],
       ),
     ),
@@ -586,7 +586,7 @@ export async function ensureStoreAuthorizations(
         substrateAddress,
         storeAddress,
         STORE_ABI,
-        "isDotnsController",
+        "isAuthorized",
         [CONTRACTS.DOTNS_REGISTRY],
       ),
     ),
@@ -599,17 +599,17 @@ export async function ensureStoreAuthorizations(
     return;
   }
 
-  spinner.succeed("Store authorizations need update");
+  spinner.warn("Store authorizations need update");
 
   if (!controllerAuthorized) {
-    const controllerSpinner = ora("Authorizing registrar controller as DotNS controller").start();
+    const controllerSpinner = ora("Authorizing registrar controller as Store writer").start();
 
     const tx = await submitContractTransaction(
       clientWrapper,
       storeAddress,
       0n,
       STORE_ABI,
-      "authorizeDotnsController",
+      "authorizeStore",
       [CONTRACTS.DOTNS_REGISTRAR_CONTROLLER],
       substrateAddress,
       signer,

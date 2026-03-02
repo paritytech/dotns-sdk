@@ -16,6 +16,7 @@ test("store --help lists subcommands", async () => {
   expect(result.combinedOutput).toContain("unauthorize ");
   expect(result.combinedOutput).toContain("authorize-controller");
   expect(result.combinedOutput).toContain("unauthorize-controller");
+  expect(result.combinedOutput).toContain("ensure-auth");
 });
 
 test("store info --help shows auth options", async () => {
@@ -110,4 +111,14 @@ test("store unauthorize-controller --help shows address argument", async () => {
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
   expect(result.combinedOutput).toContain("Revoke DotNS controller");
   expect(result.combinedOutput).toContain("<address>");
+});
+
+test("store ensure-auth --help shows description and auth options", async () => {
+  const result = await runDotnsCli(["store", "ensure-auth", "--help"]);
+
+  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
+  expect(result.combinedOutput).toContain("Ensure DotNS system contracts");
+  expect(result.combinedOutput).toContain("--json");
+  expect(result.combinedOutput).toContain("--mnemonic");
+  expect(result.combinedOutput).toContain("--key-uri");
 });
