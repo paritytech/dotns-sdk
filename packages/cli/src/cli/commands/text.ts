@@ -66,13 +66,24 @@ export function attachTextCommands(root: Command) {
   );
 
   const setTextCommand = textCommand
-    .command("set <name> <key> <value>")
-    .description("Set a domain text record");
+    .command("set <name> <key> [value]")
+    .description("Set a domain text record (reads from stdin if value omitted)");
 
   addAuthOptions(setTextCommand).action(
-    async (name: string, key: string, value: string, options: TextSetOptions, command: Command) => {
+    async (name: string, key: string, value: string | undefined, options: TextSetOptions, command: Command) => {
       try {
         const mergedOptions = getMergedOptions(command, options);
+
+        if (!value) {
+          if (process.stdin.isTTY) {
+            throw new Error("No value provided. Pass a value argument or pipe via stdin.");
+          }
+          const chunks: Buffer[] = [];
+          for await (const chunk of process.stdin) {
+            chunks.push(chunk);
+          }
+          value = Buffer.concat(chunks).toString("utf-8").trimEnd();
+        }
 
         if (mergedOptions.mnemonic && mergedOptions.keyUri) {
           throw new Error("Cannot specify both --mnemonic and --key-uri");
@@ -89,7 +100,7 @@ export function attachTextCommands(root: Command) {
           context.signer,
           name,
           key,
-          value,
+          value!,
           spinner,
         );
 
