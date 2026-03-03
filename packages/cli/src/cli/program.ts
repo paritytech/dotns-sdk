@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { attachAuthCommands } from "./commands/auth";
 import { attachBulletinCommands } from "./commands/bulletin";
 import { attachContentCommands } from "./commands/content";
+import { attachTextCommands } from "./commands/text";
 import { attachLookupCommands } from "./commands/lookup";
 import { attachPopCommands } from "./commands/pop";
 import { attachRegisterCommand } from "./commands/registerCommand";
@@ -19,6 +20,7 @@ export function createProgram() {
   attachRegisterCommand(program);
   attachLookupCommands(program);
   attachContentCommands(program);
+  attachTextCommands(program);
   attachBulletinCommands(program);
   attachAccountCommands(program);
   attachStoreCommands(program);
