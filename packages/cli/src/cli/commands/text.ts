@@ -44,17 +44,29 @@ export function attachTextCommands(root: Command) {
     .description("View a domain text record");
   addAuthOptions(viewTextCommand).action(
     async (name: string, key: string, options: TextViewOptions, command: Command) => {
+      const piped = !process.stdout.isTTY;
+      const origWrite = process.stdout.write.bind(process.stdout);
+      if (piped) {
+        console.log = console.error;
+        process.stdout.write = process.stderr.write.bind(process.stderr) as typeof process.stdout.write;
+      }
+
       try {
         const mergedOptions = getMergedOptions(command, options);
 
         const context = await prepareReadOnlyContext(mergedOptions as any);
 
-        console.log(chalk.bold("\n▶ Text View\n"));
-        const spinner = ora();
+        console.error(chalk.bold("\n▶ Text View\n"));
+        const spinner = ora({ stream: process.stderr });
 
-        await viewDomainText(context.clientWrapper!, context.account.address, name, key, spinner);
+        const value = await viewDomainText(context.clientWrapper!, context.account.address, name, key, spinner);
 
-        console.log(chalk.green("\n✓ Complete\n"));
+        console.error(chalk.green("\n✓ Complete\n"));
+
+        if (piped && value != null) {
+          origWrite(value);
+        }
+
         process.exit(0);
       } catch (error) {
         console.error(

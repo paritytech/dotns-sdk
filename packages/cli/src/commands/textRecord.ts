@@ -12,7 +12,7 @@ export async function viewDomainText(
   label: string,
   key: string,
   spinner: Ora,
-): Promise<void> {
+): Promise<string | undefined> {
   const namehashNode = namehash(`${label}.dot`);
   spinner.start("Querying registry");
 
@@ -45,7 +45,7 @@ export async function viewDomainText(
 
   if (!recordExists || ownerAddress === zeroAddress) {
     console.log(chalk.yellow("  status: Domain not registered"));
-    return;
+    return undefined;
   }
 
   const value = await performContractCall<string>(
@@ -60,6 +60,8 @@ export async function viewDomainText(
   console.log(chalk.gray("  resolver: ") + chalk.white(CONTRACTS.DOTNS_CONTENT_RESOLVER));
   console.log(chalk.gray("  key:      ") + chalk.white(key));
   console.log(chalk.gray("  value:    ") + chalk.cyan(value || "(not set)"));
+
+  return value;
 }
 
 export async function setDomainText(
