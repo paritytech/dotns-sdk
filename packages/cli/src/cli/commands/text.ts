@@ -48,7 +48,9 @@ export function attachTextCommands(root: Command) {
       const origWrite = process.stdout.write.bind(process.stdout);
       if (piped) {
         console.log = console.error;
-        process.stdout.write = process.stderr.write.bind(process.stderr) as typeof process.stdout.write;
+        process.stdout.write = process.stderr.write.bind(
+          process.stderr,
+        ) as typeof process.stdout.write;
       }
 
       try {
@@ -59,7 +61,13 @@ export function attachTextCommands(root: Command) {
         console.error(chalk.bold("\n▶ Text View\n"));
         const spinner = ora({ stream: process.stderr });
 
-        const value = await viewDomainText(context.clientWrapper!, context.account.address, name, key, spinner);
+        const value = await viewDomainText(
+          context.clientWrapper!,
+          context.account.address,
+          name,
+          key,
+          spinner,
+        );
 
         console.error(chalk.green("\n✓ Complete\n"));
 
@@ -82,7 +90,13 @@ export function attachTextCommands(root: Command) {
     .description("Set a domain text record (reads from stdin if value omitted)");
 
   addAuthOptions(setTextCommand).action(
-    async (name: string, key: string, value: string | undefined, options: TextSetOptions, command: Command) => {
+    async (
+      name: string,
+      key: string,
+      value: string | undefined,
+      options: TextSetOptions,
+      command: Command,
+    ) => {
       try {
         const mergedOptions = getMergedOptions(command, options);
 
