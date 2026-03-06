@@ -1,0 +1,221 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #f5f5f4;
+  --color-primary-hover: #e7e5e4;
+  --color-primary-light: #292524;
+  --color-primary-text: #1c1917;
+
+  --color-dot-bg: #0f0f0f;
+  --color-dot-surface: #1c1917;
+  --color-dot-surface-secondary: #292524;
+  --color-dot-text-primary: #fafaf9;
+  --color-dot-text-secondary: #d6d3d1;
+  --color-dot-text-tertiary: #a8a29e;
+  --color-dot-border: #44403c;
+  --color-dot-border-strong: #57534e;
+  --color-dot-accent: #ff2867;
+  --color-dot-accent-hover: #e6245d;
+  --color-dot-accent-active: #cc2050;
+  --color-dot-accent-soft: rgba(255, 40, 103, 0.08);
+
+  --color-success: #059669;
+  --color-success-light: #dcfce7;
+  --color-error: #dc2626;
+  --color-error-light: #fee2e2;
+  --color-warning: #d97706;
+  --color-warning-light: #ffedd5;
+
+  --font-sans: "DM Sans", system-ui, sans-serif;
+  --font-serif: "DM Serif Display", Georgia, serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  --z-index-header: 100;
+  --z-index-dropdown: 1000;
+  --z-index-overlay: 9998;
+  --z-index-modal: 9999;
+  --z-index-loading-bar: 999999;
+
+  /* Loader Rotate - circular spinning */
+  --animate-loader-rotate: loader-rotate 1.6s linear infinite;
+
+  /* Loader Dash - SVG stroke animation */
+  --animate-loader-dash: loader-dash 1.6s ease-in-out infinite;
+
+  /* Loading Bar - horizontal progress */
+  --animate-loading-bar: loading-bar 1.5s ease-in-out infinite;
+
+  /* Spin - standard spinner (1s) */
+  --animate-spin: spin 1s linear infinite;
+
+  /* Pulse Slow - gentle pulsing for text/elements */
+  --animate-pulse-slow: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+
+  /* Pulse Dot - scale pulsing for dots */
+  --animate-pulse-dot: pulse-dot 1.2s ease-in-out infinite;
+
+  /* Pulse Ring - subtle scale pulsing for rings */
+  --animate-pulse-ring: pulse-ring 1.6s ease-in-out infinite;
+
+  /* Move Highlight - horizontal highlight sweep */
+  --animate-move-highlight: move-highlight 1.5s linear infinite;
+
+  /* Dot Bounce - bouncing dots for loading indicators */
+  --animate-dot-bounce: dot-bounce 1.4s ease-in-out infinite both;
+
+  /* Bounce Dot - alternative bouncing dot */
+  --animate-bounce-dot: bounce-dot 1.3s ease-in-out infinite;
+
+  /* Fade In - entrance animation */
+  --animate-fade-in: fade-in 0.5s ease-out forwards;
+
+  /* Shimmer - skeleton loading effect */
+  --animate-shimmer: shimmer 1.5s linear infinite;
+
+  @keyframes loader-rotate {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes loader-dash {
+    0% {
+      stroke-dasharray: 1, 260;
+      stroke-dashoffset: 0;
+    }
+    50% {
+      stroke-dasharray: 180, 260;
+      stroke-dashoffset: -90;
+    }
+    100% {
+      stroke-dasharray: 180, 260;
+      stroke-dashoffset: -280;
+    }
+  }
+
+  @keyframes loading-bar {
+    0% {
+      transform: translateX(-100%);
+    }
+    50% {
+      transform: translateX(0%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  @keyframes pulse-dot {
+    0% {
+      transform: scale(1.4);
+    }
+    50% {
+      transform: scale(1.8);
+    }
+    100% {
+      transform: scale(1.4);
+    }
+  }
+
+  @keyframes pulse-ring {
+    0% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.04);
+      opacity: 0.7;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  @keyframes move-highlight {
+    0% {
+      left: -50%;
+    }
+    100% {
+      left: 100%;
+    }
+  }
+
+  @keyframes dot-bounce {
+    0%,
+    80%,
+    100% {
+      transform: scale(0);
+    }
+    40% {
+      transform: scale(1);
+    }
+  }
+
+  @keyframes bounce-dot {
+    0%,
+    80%,
+    100% {
+      transform: scale(0.7);
+      opacity: 0.4;
+    }
+    40% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  @keyframes fade-in {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: -450px 0;
+    }
+    100% {
+      background-position: 450px 0;
+    }
+  }
+}
+
+/* Shimmer background gradient for skeleton loading */
+.animate-shimmer {
+  background: linear-gradient(to right, #292524 4%, #44403c 25%, #292524 36%);
+  background-size: 1000px 100%;
+}
+
+/* Combined loader animation for GradientLoader component */
+.animate-loader-combined {
+  transform-origin: center;
+  animation:
+    loader-rotate 1.6s linear infinite,
+    loader-dash 1.6s ease-in-out infinite;
+}
