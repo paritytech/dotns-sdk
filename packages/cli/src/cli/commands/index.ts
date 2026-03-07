@@ -3,6 +3,7 @@ import { attachAuthCommands } from "./auth";
 import { attachRegisterCommand } from "./registerCommand";
 import { attachLookupCommands } from "./lookup";
 import { attachContentCommands } from "./content";
+import { attachTextCommands } from "./text";
 import { attachPopCommands } from "./pop";
 import { attachBulletinCommands } from "./bulletin";
 import { attachAccountCommands } from "./info";
@@ -12,6 +13,7 @@ export function attachAllCommands(root: Command) {
   attachRegisterCommand(root);
   attachLookupCommands(root);
   attachContentCommands(root);
+  attachTextCommands(root);
   attachPopCommands(root);
   attachBulletinCommands(root);
   attachAccountCommands(root);
