@@ -516,8 +516,10 @@ export async function storeDirectory(
       );
     }
 
-    // Per the bulletin chain runtime: max ~8 individual store txs fit in one block.
-    // The chain's own examples use parallel individual transactions (not batch_all for stores).
+    // The bulletin chain fits ~8 store txs per block (6s block time).
+    // Submit in waves matching chain throughput to avoid AncientBirthBlock errors
+    // from nonces sitting too long in the pool.
+    const WAVE_SIZE = Math.min(concurrency, 8);
     const storeSpinner = ora(`Storing blocks (0/${blocks.length})`).start();
     let completedBlockCount = 0;
 
@@ -525,45 +527,30 @@ export async function storeDirectory(
 
     try {
       if (parallel && accountAddress) {
-        const startingNonce = await fetchAccountNonce(bulletinRpc, accountAddress);
+        // Submit in waves: assign nonces for one wave, submit, wait for all to clear, repeat.
+        for (let waveStart = 0; waveStart < blocks.length; waveStart += WAVE_SIZE) {
+          const waveEnd = Math.min(waveStart + WAVE_SIZE, blocks.length);
+          const waveBlocks = blocks.slice(waveStart, waveEnd);
+          const startingNonce = await fetchAccountNonce(bulletinRpc, accountAddress);
 
-        const blocksWithAssignedNonces = blocks.map((block, index) => ({
-          block,
-          nonce: startingNonce + index,
-        }));
+          const wavePromises = waveBlocks.map((block, index) =>
+            storeBlockToBulletin({
+              rpc: bulletinRpc,
+              signer,
+              contentBytes: block.bytes,
+              contentCid: block.cid.toString(),
+              codecValue: block.cid.code,
+              hashCodeValue: block.cid.multihash.code,
+              nonce: startingNonce + index,
+              client: sharedClient,
+              waitForFinalization,
+            }).then(() => {
+              completedBlockCount++;
+              storeSpinner.text = `Storing blocks (${completedBlockCount}/${blocks.length})`;
+            }),
+          );
 
-        const processBlockUpload = async (block: MerkleizedBlock, nonce: number) => {
-          await storeBlockToBulletin({
-            rpc: bulletinRpc,
-            signer,
-            contentBytes: block.bytes,
-            contentCid: block.cid.toString(),
-            codecValue: block.cid.code,
-            hashCodeValue: block.cid.multihash.code,
-            nonce,
-            client: sharedClient,
-            waitForFinalization,
-          });
-
-          completedBlockCount++;
-          storeSpinner.text = `Storing blocks (${completedBlockCount}/${blocks.length})`;
-        };
-
-        const pendingQueue = [...blocksWithAssignedNonces];
-        const executingPromises: Promise<void>[] = [];
-
-        while (pendingQueue.length > 0 || executingPromises.length > 0) {
-          while (executingPromises.length < concurrency && pendingQueue.length > 0) {
-            const queueItem = pendingQueue.shift()!;
-            const uploadPromise = processBlockUpload(queueItem.block, queueItem.nonce).then(() => {
-              executingPromises.splice(executingPromises.indexOf(uploadPromise), 1);
-            });
-            executingPromises.push(uploadPromise);
-          }
-
-          if (executingPromises.length > 0) {
-            await Promise.race(executingPromises);
-          }
+          await Promise.all(wavePromises);
         }
       } else {
         for (const block of blocks) {
