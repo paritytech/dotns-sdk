@@ -239,7 +239,7 @@ export function attachBulletinCommands(root: Command): void {
     )
     .option("--force-chunked", "Force chunked upload (DAG-PB)", false)
     .option("--parallel", "Upload directory blocks in parallel (faster)", false)
-    .option("--concurrency <n>", "Number of parallel uploads (default: 5)", "5")
+    .option("--concurrency <n>", "Number of parallel uploads (default: 10)", "10")
     .option("--print-contenthash", "Also print 0x-prefixed IPFS contenthash for the CID", false)
     .option("--no-history", "Do not save upload to history", true)
     .option("--json", "Output result as JSON (suppresses all other output)", false);
@@ -268,7 +268,7 @@ export function attachBulletinCommands(root: Command): void {
           Number(mergedOptions.chunkSize || DEFAULT_CHUNK_SIZE_BYTES),
         );
         const parallel = Boolean(mergedOptions.parallel);
-        const concurrency = Math.max(1, Number(mergedOptions.concurrency || 5));
+        const concurrency = Math.max(1, Number(mergedOptions.concurrency || 10));
 
         const context = await maybeQuiet(jsonOutput, () =>
           prepareContext({ ...mergedOptions, useBulletin: true }),
@@ -284,6 +284,7 @@ export function attachBulletinCommands(root: Command): void {
               parallel,
               concurrency,
               accountAddress: context.substrateAddress,
+              waitForFinalization: !parallel,
             });
             return { cid: result.storageCid, ipfsCid: result.ipfsCid, size: 0 };
           }

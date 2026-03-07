@@ -9,10 +9,10 @@
       "codeHash": "0xedc99e025ff3d49960fb34d8005e91f555638f4e7f997b602507946876c12f50"
     },
     "bulletin": {
-      "wsUrl": "wss://bulletin.dotspark.app",
+      "wsUrl": "wss://paseo-bulletin-rpc.polkadot.io",
       "metadata": ".papi/metadata/bulletin.scale",
-      "genesis": "0x1c9c9b663a6de42d1579dff051567f4133897518023d9c4a2c778da4ea513657",
-      "codeHash": "0x70c974df89d1a642a5b067094dfa16383b54a8ed37eee7867ec4f2a44f15df4d"
+      "genesis": "0x744960c32e3a3df5440e1ecd4d34096f1ce2230d7016a5ada8a765d5a622b4ea",
+      "codeHash": "0xce76768a4d9db3a9dbea8acdefeec037a1119dafdc98c62c30c90453ef3a2c75"
     }
   }
 }

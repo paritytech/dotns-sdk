@@ -13,7 +13,7 @@ const bundledIpfsBinaryPath = join(
   process.platform === "win32" ? "ipfs.exe" : "ipfs",
 );
 
-const DEFAULT_VERIFICATION_GATEWAY = "https://ipfs.dotspark.app";
+const DEFAULT_VERIFICATION_GATEWAY = "https://paseo-ipfs.polkadot.io";
 const VERIFICATION_TIMEOUT_MILLISECONDS = 30000;
 
 export function findIpfsBinaryPath(): string | null {
@@ -195,7 +195,7 @@ export async function verifyMultipleCids(
 export async function verifyCidWithMultipleGateways(
   contentCid: string,
   gatewayUrls: string[] = [
-    "https://ipfs.dotspark.app",
+    "https://paseo-ipfs.polkadot.io",
     "https://dweb.link",
     "https://cloudflare-ipfs.com",
     "https://w3s.link",

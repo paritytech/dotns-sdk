@@ -45,7 +45,7 @@ test("bulletin upload help shows default values", async () => {
   const result = await runDotnsCli(["bulletin", "upload", "--help"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 
-  expect(result.combinedOutput).toContain("wss://bulletin.dotspark.app");
+  expect(result.combinedOutput).toContain("wss://paseo-bulletin-rpc.polkadot.io");
 });
 
 test("bulletin authorize help shows all options", async () => {
@@ -73,7 +73,7 @@ test("bulletin authorize help shows default values", async () => {
   const result = await runDotnsCli(["bulletin", "authorize", "--help"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 
-  expect(result.combinedOutput).toContain("wss://bulletin.dotspark.app");
+  expect(result.combinedOutput).toContain("wss://paseo-bulletin-rpc.polkadot.io");
   expect(result.combinedOutput).toContain("1000000");
   expect(result.combinedOutput).toContain("//Alice");
 });

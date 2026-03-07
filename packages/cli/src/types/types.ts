@@ -1,7 +1,7 @@
 import type { Address, Hex } from "viem";
 import type { StoredAuth } from "../cli/keystore/types";
 import type { Ora } from "ora";
-import type { PolkadotSigner, TypedApi } from "polkadot-api";
+import type { PolkadotClient, PolkadotSigner, TypedApi } from "polkadot-api";
 import type { ReviveClientWrapper, PolkadotApiClient } from "../client/polkadotClient";
 import type { Bulletin } from "@polkadot-api/descriptors";
 
@@ -362,6 +362,8 @@ export type StoreDirectoryOptions = {
   concurrency?: number;
   /** Gateway URL for content resolution verification */
   verificationGateway?: string;
+  /** If false, resolve on best-block inclusion instead of finalization. Default: true */
+  waitForFinalization?: boolean;
 };
 
 export type UploadRecord = {
@@ -455,6 +457,10 @@ export type StoreContentParameters = {
   nonce?: number;
   /** Callback for progress updates */
   onProgress?: (status: string) => void;
+  /** Optional shared client — caller owns lifecycle when provided */
+  client?: PolkadotClient;
+  /** If false, resolve on best-block inclusion instead of finalization. Default: true */
+  waitForFinalization?: boolean;
 };
 
 export type StoreSingleFileParameters = {
@@ -466,6 +472,8 @@ export type StoreSingleFileParameters = {
   contentBytes: Uint8Array;
   /** Callback for progress updates */
   onProgress?: (status: string) => void;
+  /** Optional shared client — caller owns lifecycle when provided */
+  client?: PolkadotClient;
 };
 
 export type StoreChunkedFileParameters = {
@@ -477,6 +485,8 @@ export type StoreChunkedFileParameters = {
   contentChunks: Uint8Array[];
   /** Callback for progress updates with chunk position */
   onProgress?: (currentChunk: number, totalChunks: number, status: string) => void;
+  /** Optional shared client — caller owns lifecycle when provided */
+  client?: PolkadotClient;
 };
 
 export type StoreBlockParameters = {
@@ -494,6 +504,10 @@ export type StoreBlockParameters = {
   hashCodeValue: number;
   /** Optional nonce for transaction ordering */
   nonce?: number;
+  /** Optional shared client — caller owns lifecycle when provided */
+  client?: PolkadotClient;
+  /** If false, resolve on best-block inclusion instead of finalization. Default: true */
+  waitForFinalization?: boolean;
 };
 
 export type StoreParameters = {
