@@ -22,6 +22,7 @@ import {
   splitBytesIntoChunks,
   storeChunkedFileToBulletin,
   fetchAccountNonce,
+  createBulletinClient,
   storeBlockToBulletin,
 } from "../bulletin/store";
 import type {
@@ -426,6 +427,8 @@ export async function uploadChunkedBlocks(
 
   const spinner = ora(`Storing chunks (0/${contentChunks.length})`).start();
 
+  const sharedClient = createBulletinClient(bulletinRpc);
+
   try {
     const storeResult = await storeChunkedFileToBulletin({
       rpc: bulletinRpc,
@@ -438,6 +441,7 @@ export async function uploadChunkedBlocks(
           spinner.text = `${status} (${currentChunk}/${totalChunks})`;
         }
       },
+      client: sharedClient,
     });
 
     spinner.succeed("Stored");
@@ -453,6 +457,8 @@ export async function uploadChunkedBlocks(
     }
 
     throw error;
+  } finally {
+    sharedClient.destroy();
   }
 }
 
@@ -464,9 +470,10 @@ export async function storeDirectory(
 ): Promise<StoreDirectoryResult> {
   const {
     parallel = false,
-    concurrency = 5,
+    concurrency = 10,
     accountAddress,
     verificationGateway = DEFAULT_VERIFICATION_GATEWAY,
+    waitForFinalization = true,
   } = options;
 
   const merkleSpinner = ora("Merkleizing directory").start();
@@ -509,68 +516,60 @@ export async function storeDirectory(
       );
     }
 
+    // The bulletin chain fits ~8 store txs per block (6s block time).
+    // Submit in waves matching chain throughput to avoid AncientBirthBlock errors
+    // from nonces sitting too long in the pool.
+    const WAVE_SIZE = Math.min(concurrency, 8);
     const storeSpinner = ora(`Storing blocks (0/${blocks.length})`).start();
     let completedBlockCount = 0;
 
-    if (parallel && accountAddress) {
-      const startingNonce = await fetchAccountNonce(bulletinRpc, accountAddress);
+    const sharedClient = createBulletinClient(bulletinRpc);
 
-      const blocksWithAssignedNonces = blocks.map((block, index) => ({
-        block,
-        nonce: startingNonce + index,
-      }));
+    try {
+      if (parallel && accountAddress) {
+        // Submit in waves: assign nonces for one wave, submit, wait for all to clear, repeat.
+        for (let waveStart = 0; waveStart < blocks.length; waveStart += WAVE_SIZE) {
+          const waveEnd = Math.min(waveStart + WAVE_SIZE, blocks.length);
+          const waveBlocks = blocks.slice(waveStart, waveEnd);
+          const startingNonce = await fetchAccountNonce(bulletinRpc, accountAddress);
 
-      const processBlockUpload = async (block: MerkleizedBlock, nonce: number) => {
-        const codecValue = block.cid.code;
-        const hashCodeValue = block.cid.multihash.code;
+          const wavePromises = waveBlocks.map((block, index) =>
+            storeBlockToBulletin({
+              rpc: bulletinRpc,
+              signer,
+              contentBytes: block.bytes,
+              contentCid: block.cid.toString(),
+              codecValue: block.cid.code,
+              hashCodeValue: block.cid.multihash.code,
+              nonce: startingNonce + index,
+              client: sharedClient,
+              waitForFinalization,
+            }).then(() => {
+              completedBlockCount++;
+              storeSpinner.text = `Storing blocks (${completedBlockCount}/${blocks.length})`;
+            }),
+          );
 
-        await storeBlockToBulletin({
-          rpc: bulletinRpc,
-          signer,
-          contentBytes: block.bytes,
-          contentCid: block.cid.toString(),
-          codecValue,
-          hashCodeValue,
-          nonce,
-        });
-
-        completedBlockCount++;
-        storeSpinner.text = `Storing blocks (${completedBlockCount}/${blocks.length})`;
-      };
-
-      const pendingQueue = [...blocksWithAssignedNonces];
-      const executingPromises: Promise<void>[] = [];
-
-      while (pendingQueue.length > 0 || executingPromises.length > 0) {
-        while (executingPromises.length < concurrency && pendingQueue.length > 0) {
-          const queueItem = pendingQueue.shift()!;
-          const uploadPromise = processBlockUpload(queueItem.block, queueItem.nonce).then(() => {
-            executingPromises.splice(executingPromises.indexOf(uploadPromise), 1);
+          await Promise.all(wavePromises);
+        }
+      } else {
+        for (const block of blocks) {
+          await storeBlockToBulletin({
+            rpc: bulletinRpc,
+            signer,
+            contentBytes: block.bytes,
+            contentCid: block.cid.toString(),
+            codecValue: block.cid.code,
+            hashCodeValue: block.cid.multihash.code,
+            client: sharedClient,
           });
-          executingPromises.push(uploadPromise);
-        }
 
-        if (executingPromises.length > 0) {
-          await Promise.race(executingPromises);
+          completedBlockCount++;
+          storeSpinner.text = `Storing blocks (${completedBlockCount}/${blocks.length})`;
         }
       }
-    } else {
-      for (const block of blocks) {
-        const codecValue = block.cid.code;
-        const hashCodeValue = block.cid.multihash.code;
-
-        await storeBlockToBulletin({
-          rpc: bulletinRpc,
-          signer,
-          contentBytes: block.bytes,
-          contentCid: block.cid.toString(),
-          codecValue,
-          hashCodeValue,
-        });
-
-        completedBlockCount++;
-        storeSpinner.text = `Storing blocks (${completedBlockCount}/${blocks.length})`;
-      }
+    } finally {
+      sharedClient.destroy();
     }
 
     storeSpinner.succeed("Stored");

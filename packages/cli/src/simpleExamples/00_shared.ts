@@ -8,7 +8,7 @@ import { type Address } from "viem";
 
 import { ReviveClientWrapper, type PolkadotApiClient } from "../client/polkadotClient";
 import { DEFAULT_MNEMONIC, RPC_ENDPOINTS } from "../utils/constants";
-const DEFAULT_BULLETIN_RPC = "wss://bulletin.dotspark.app";
+const DEFAULT_BULLETIN_RPC = "wss://paseo-bulletin-rpc.polkadot.io";
 
 export type ConnectedDotns = {
   client: PolkadotApiClient;

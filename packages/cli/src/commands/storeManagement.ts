@@ -12,7 +12,7 @@ import type {
   StoreEnsureAuthResult,
 } from "../types/types";
 
-export function normalizeKeyToBytes32(raw: string): `0x${string}` {
+function normalizeKeyToBytes32(raw: string): `0x${string}` {
   if (raw.startsWith("0x") && raw.length === 66) {
     return raw as `0x${string}`;
   }
