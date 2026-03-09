@@ -698,6 +698,47 @@ export async function setUserProofOfPersonhoodStatus(
   }
 }
 
+// TODO: remove this before any new environment deployment
+// This ensures all names are synced with the registrar
+export async function syncLabelWithRegistrar(
+  clientWrapper: ReviveClientWrapper,
+  substrateAddress: string,
+  signer: PolkadotSigner,
+  label: string,
+): Promise<void> {
+  const spinner = ora(`Syncing label ${chalk.cyan(label)} with registrar`).start();
+
+  try {
+    const tokenId = computeDomainTokenId(label);
+
+    const transactionHash = await submitContractTransaction(
+      clientWrapper,
+      CONTRACTS.DOTNS_REGISTRAR,
+      0n,
+      DOTNS_REGISTRAR_ABI,
+      "syncLabel",
+      [tokenId, label],
+      substrateAddress,
+      signer,
+      spinner,
+      "Label sync",
+    );
+
+    console.log(chalk.gray("  tx:        ") + chalk.blue(transactionHash));
+    console.log(chalk.gray("  tokenId:   ") + chalk.white(tokenId.toString()));
+  } catch (error) {
+    const errorMessage = formatErrorMessage(error);
+
+    if (errorMessage.includes("LabelAlreadySet")) {
+      spinner.succeed("Label already synced");
+      return;
+    }
+
+    spinner.fail("Label sync failed");
+    throw error;
+  }
+}
+
 export async function getDomainOwnershipInfo(
   clientWrapper: ReviveClientWrapper,
   substrateAddress: string,

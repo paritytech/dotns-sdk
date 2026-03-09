@@ -26,12 +26,11 @@ import {
   DEFAULT_BULLETIN_RPC,
   DEFAULT_CHUNK_SIZE_BYTES,
   DEFAULT_SUDO_KEY_URI,
+  DEFAULT_AUTHORIZATION_TRANSACTIONS,
+  DEFAULT_AUTHORIZATION_BYTES,
   MAX_SINGLE_UPLOAD_SIZE_BYTES,
 } from "../../utils/constants";
 import { getJsonFlag } from "./lookup";
-
-const DEFAULT_AUTH_TRANSACTIONS = 1000000;
-const DEFAULT_AUTH_BYTES = BigInt(1099511627776);
 
 function getMergedOptions(
   command: Command | undefined,
@@ -127,10 +126,9 @@ export function attachBulletinCommands(root: Command): void {
     .option(
       "--transactions <count>",
       "Number of transactions to authorize",
-      String(DEFAULT_AUTH_TRANSACTIONS),
+      String(DEFAULT_AUTHORIZATION_TRANSACTIONS),
     )
-    .option("--bytes <count>", "Number of bytes to authorize", String(DEFAULT_AUTH_BYTES))
-    .option("--sudo-key-uri <uri>", "Override the sudo signer key URI", DEFAULT_SUDO_KEY_URI)
+    .option("--bytes <count>", "Number of bytes to authorize", String(DEFAULT_AUTHORIZATION_BYTES))
     .option("--json", "Output result as JSON (suppresses all other output)", false);
 
   addAuthOptions(authorizeCommand).action(
@@ -140,9 +138,11 @@ export function attachBulletinCommands(root: Command): void {
         const jsonOutput = getJsonFlag(command);
 
         const bulletinRpc = String(mergedOptions.bulletinRpc || DEFAULT_BULLETIN_RPC);
-        const transactions = Number(mergedOptions.transactions || DEFAULT_AUTH_TRANSACTIONS);
-        const bytes = BigInt(mergedOptions.bytes || DEFAULT_AUTH_BYTES);
-        const sudoKeyUri = String(mergedOptions.sudoKeyUri || DEFAULT_SUDO_KEY_URI);
+        const transactions = Number(
+          mergedOptions.transactions || DEFAULT_AUTHORIZATION_TRANSACTIONS,
+        );
+        const bytes = BigInt(mergedOptions.bytes || DEFAULT_AUTHORIZATION_BYTES);
+        const signerKeyUri = String(mergedOptions.keyUri || DEFAULT_SUDO_KEY_URI);
 
         let targetAddress: string;
 
@@ -155,8 +155,8 @@ export function attachBulletinCommands(root: Command): void {
           targetAddress = targetContext.substrateAddress;
         }
 
-        const sudoContext = await withCapturedConsole(() =>
-          prepareContext({ keyUri: sudoKeyUri, useBulletin: true }),
+        const signerContext = await withCapturedConsole(() =>
+          prepareContext({ keyUri: signerKeyUri, useBulletin: true }),
         );
 
         if (!jsonOutput) {
@@ -165,13 +165,13 @@ export function attachBulletinCommands(root: Command): void {
           console.log(chalk.gray("  rpc:          ") + chalk.white(bulletinRpc));
           console.log(chalk.gray("  transactions: ") + chalk.white(transactions.toLocaleString()));
           console.log(chalk.gray("  bytes:        ") + chalk.white(formatBytes(bytes)));
-          console.log(chalk.gray("  sudo:         ") + chalk.yellow(sudoKeyUri));
+          console.log(chalk.gray("  signer:       ") + chalk.yellow(signerKeyUri));
         }
 
         await maybeQuiet(jsonOutput, () =>
           authorizeAccount({
             rpc: bulletinRpc,
-            sudoSigner: sudoContext.signer,
+            signer: signerContext.signer,
             targetAddress,
             transactions,
             bytes,
@@ -211,15 +211,15 @@ export function attachBulletinCommands(root: Command): void {
         if (errorMessage.includes("BadOrigin")) {
           console.error(chalk.red("\n✗ Authorization failed — insufficient privileges"));
           console.error(
-            chalk.yellow("  The sudo signer does not have sudo privileges on this chain."),
+            chalk.yellow("  The signer does not have Authorizer privileges on this chain."),
           );
-          console.error(chalk.gray("  Override with --sudo-key-uri if needed.\n"));
+          console.error(chalk.gray("  Override with --key-uri if needed.\n"));
           process.exit(1);
         }
 
         if (errorMessage.includes("not applied")) {
           console.error(chalk.red(`\n✗ ${errorMessage}`));
-          console.error(chalk.gray("  Override with --sudo-key-uri if needed.\n"));
+          console.error(chalk.gray("  Override with --key-uri if needed.\n"));
           process.exit(1);
         }
 

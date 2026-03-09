@@ -153,7 +153,7 @@ export async function authorizeAccount(
 ): Promise<AuthorizeAccountResult> {
   const {
     rpc,
-    sudoSigner,
+    signer,
     targetAddress,
     transactions = DEFAULT_AUTHORIZATION_TRANSACTIONS,
     bytes = DEFAULT_AUTHORIZATION_BYTES,
@@ -164,13 +164,6 @@ export async function authorizeAccount(
   let txHash = "";
 
   try {
-    client = createClient(withPolkadotSdkCompat(getWsProvider(rpc)));
-    const typedApi = client.getTypedApi(bulletin);
-
-    if (!typedApi.tx.Sudo?.sudo) {
-      throw new Error("Sudo pallet is not available on this chain");
-    }
-
     const existingAuthorization = await checkAuthorization(rpc, targetAddress);
 
     if (existingAuthorization.authorized) {
@@ -178,7 +171,6 @@ export async function authorizeAccount(
       const existingBytes = existingAuthorization.bytes ?? BigInt(0);
 
       if (existingTransactions >= transactions && existingBytes >= bytes) {
-        client.destroy();
         spinner.warn("Account already authorized");
         console.log(
           chalk.gray("  transactions: ") +
@@ -208,18 +200,17 @@ export async function authorizeAccount(
       );
     }
 
-    const sudoTransaction = typedApi.tx.Sudo.sudo({
-      call: {
-        type: "TransactionStorage",
-        value: {
-          type: "authorize_account",
-          value: { who: targetAddress, transactions, bytes },
-        },
-      },
+    client = createClient(withPolkadotSdkCompat(getWsProvider(rpc)));
+    const typedApi = client.getTypedApi(bulletin);
+
+    const authTransaction = typedApi.tx.TransactionStorage.authorize_account({
+      who: targetAddress,
+      transactions,
+      bytes,
     });
 
     return await new Promise<AuthorizeAccountResult>((resolve, reject) => {
-      const subscription = sudoTransaction.signSubmitAndWatch(sudoSigner).subscribe({
+      const subscription = authTransaction.signSubmitAndWatch(signer).subscribe({
         next: (event) => {
           switch (event.type) {
             case "signed":
@@ -265,8 +256,8 @@ export async function authorizeAccount(
                     spinner.fail("Authorization not applied");
                     reject(
                       new Error(
-                        "Sudo extrinsic was finalized but authorization was not applied.\n" +
-                          "The signer likely does not have sudo privileges on this chain.",
+                        "Authorization was finalized but not applied.\n" +
+                          "The signer may not have Authorizer privileges on this chain.",
                       ),
                     );
                   }
@@ -298,7 +289,7 @@ export async function authorizeAccount(
     }
 
     if (errorMessage.includes("BadOrigin")) {
-      throw new Error("Authorization failed: The signer does not have sudo privileges.");
+      throw new Error("Authorization failed: The signer does not have Authorizer privileges.");
     }
 
     throw error;
@@ -349,7 +340,7 @@ export async function ensureAccountAuthorized(
     try {
       await authorizeAccount({
         rpc: bulletinRpc,
-        sudoSigner: signer,
+        signer,
         targetAddress: accountAddress,
       });
       return;

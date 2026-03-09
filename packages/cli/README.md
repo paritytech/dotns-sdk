@@ -200,7 +200,7 @@ dotns --password test-password bulletin upload ./large-file.zip --force-chunked 
 dotns --password test-password bulletin upload ./site.html --print-contenthash --account default
 
 # Custom RPC
-dotns --password test-password bulletin upload ./image.png --bulletin-rpc wss://bulletin.dotspark.app --account default
+dotns --password test-password bulletin upload ./image.png --bulletin-rpc wss://paseo-bulletin-rpc.polkadot.io --account default
 
 # Skip history
 dotns --password test-password bulletin upload ./image.png --no-history --account default
@@ -234,7 +234,7 @@ dotns --key-uri //Alice bulletin authorize 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC9
 dotns --key-uri //Alice bulletin authorize 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty --transactions 500000 --bytes 549755813888
 
 # Custom RPC
-dotns --key-uri //Alice bulletin authorize 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty --bulletin-rpc wss://bulletin.dotspark.app
+dotns --key-uri //Alice bulletin authorize 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty --bulletin-rpc wss://paseo-bulletin-rpc.polkadot.io
 ```
 
 ### Account Management
