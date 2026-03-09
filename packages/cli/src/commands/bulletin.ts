@@ -11,12 +11,7 @@ import { importer } from "ipfs-unixfs-importer";
 import { Readable } from "node:stream";
 import type { CID } from "multiformats/cid";
 import { encodeIpfsContenthash } from "../bulletin/cid";
-import {
-  hasIpfsCli,
-  merkleizeWithIpfs,
-  verifyMultipleCids,
-  verifyCidResolution,
-} from "../bulletin/ipfs";
+import { hasIpfsCli, merkleizeWithIpfs, verifyCidResolution } from "../bulletin/ipfs";
 import {
   storeSingleFileToBulletin,
   splitBytesIntoChunks,
@@ -577,15 +572,12 @@ export async function storeDirectory(
     const verifySpinner = ora("Verifying content resolution").start();
     const rootCidString = rootCid.toString();
 
-    const blockCids = blocks.map((block) => block.cid.toString());
-    const verificationResult = await verifyMultipleCids(blockCids, verificationGateway);
+    const rootVerification = await verifyCidResolution(rootCidString, verificationGateway);
 
-    if (verificationResult.missingBlocks.length === 0) {
-      verifySpinner.succeed("All blocks resolvable");
+    if (rootVerification.resolvable) {
+      verifySpinner.succeed("Root CID resolvable");
     } else {
-      verifySpinner.warn(
-        `${verificationResult.missingBlocks.length}/${verificationResult.totalBlocks} blocks not yet resolvable`,
-      );
+      verifySpinner.warn("Root CID not yet resolvable");
       console.log(chalk.gray("  gateway:  ") + chalk.white(verificationGateway));
       console.log(chalk.yellow("  Content may take time to propagate through the network"));
     }
