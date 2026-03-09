@@ -99,6 +99,34 @@ function unwrapExecutionResult(rawResult: any): {
   return { ok: null, err: rawResult, successFlag: null };
 }
 
+function formatDispatchError(dispatchError: any): string {
+  if (!dispatchError) return "Unknown error";
+  if (typeof dispatchError === "string") return dispatchError;
+  if (dispatchError.type === "Module") {
+    const moduleError = dispatchError.value as {
+      type: string;
+      value?: { type: string };
+    };
+    return `Module error: ${moduleError.type}.${moduleError.value?.type || "Unknown"}`;
+  }
+  if (dispatchError.type) return dispatchError.type;
+  try {
+    return JSON.stringify(dispatchError);
+  } catch {
+    return String(dispatchError);
+  }
+}
+
+function ensureError(error: unknown): Error {
+  if (error instanceof Error) return error;
+  if (typeof error === "string") return new Error(error);
+  try {
+    return new Error(JSON.stringify(error));
+  } catch {
+    return new Error(String(error));
+  }
+}
+
 export class ReviveClientWrapper {
   public client: PolkadotApiClient;
   private mappedAccounts: Set<string> = new Set();
@@ -244,7 +272,7 @@ export class ReviveClientWrapper {
       await this.signAndSubmitExtrinsic(mappingExtrinsic, signer, () => {});
       this.mappedAccounts.add(substrateAddress);
     } catch (error: any) {
-      const errorMessage = error?.message || String(error);
+      const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
       if (errorMessage.includes("AccountAlreadyMapped")) {
         this.mappedAccounts.add(substrateAddress);
         return true;
@@ -277,7 +305,9 @@ export class ReviveClientWrapper {
               case "finalized":
                 if (event.dispatchError) {
                   statusCallback("failed");
-                  reject(new Error(`Transaction failed: ${event.dispatchError.toString()}`));
+                  reject(
+                    new Error(`Transaction failed: ${formatDispatchError(event.dispatchError)}`),
+                  );
                   return;
                 }
                 statusCallback("finalized");
@@ -294,7 +324,7 @@ export class ReviveClientWrapper {
           },
           error: (error: any) => {
             statusCallback("failed");
-            reject(error);
+            reject(ensureError(error));
           },
         });
       } catch (error) {

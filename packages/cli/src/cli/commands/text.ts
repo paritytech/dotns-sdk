@@ -5,6 +5,7 @@ import { viewDomainText, setDomainText } from "../../commands/textRecord";
 import { addAuthOptions } from "./authOptions";
 import { prepareContext } from "../context";
 import { prepareReadOnlyContext } from "./lookup";
+import { formatErrorMessage } from "../../utils/formatting";
 import ora from "ora";
 
 export interface TextViewOptions {
@@ -77,9 +78,7 @@ export function attachTextCommands(root: Command) {
 
         process.exit(0);
       } catch (error) {
-        console.error(
-          chalk.red(`\n✗ Error: ${error instanceof Error ? error.message : String(error)}\n`),
-        );
+        console.error(chalk.red(`\n✗ Error: ${formatErrorMessage(error)}\n`));
         process.exit(1);
       }
     },
@@ -133,9 +132,7 @@ export function attachTextCommands(root: Command) {
         console.log(chalk.green("\n✓ Complete\n"));
         process.exit(0);
       } catch (error) {
-        console.error(
-          chalk.red(`\n✗ Error: ${error instanceof Error ? error.message : String(error)}\n`),
-        );
+        console.error(chalk.red(`\n✗ Error: ${formatErrorMessage(error)}\n`));
         process.exit(1);
       }
     },

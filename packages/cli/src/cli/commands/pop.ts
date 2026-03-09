@@ -8,6 +8,7 @@ import { parseProofOfPersonhoodStatus } from "../labels";
 import { prepareContext } from "../context";
 import { addAuthOptions } from "./authOptions";
 import type { CommandOptions } from "../../types/types";
+import { formatErrorMessage } from "../../utils/formatting";
 import { ProofOfPersonhoodStatus } from "../../types/types";
 import { prepareReadOnlyContext } from "./lookup";
 import type { Address } from "viem";
@@ -82,9 +83,7 @@ export function attachPopCommands(root: Command): void {
         console.log(chalk.green("\n✓ PoP Status Updated\n"));
         process.exit(0);
       } catch (error) {
-        console.error(
-          chalk.red(`\n✗ Error: ${error instanceof Error ? error.message : String(error)}\n`),
-        );
+        console.error(chalk.red(`\n✗ Error: ${formatErrorMessage(error)}\n`));
         process.exit(1);
       }
     },
@@ -105,9 +104,7 @@ export function attachPopCommands(root: Command): void {
 
       process.exit(0);
     } catch (error) {
-      console.error(
-        chalk.red(`\n✗ Error: ${error instanceof Error ? error.message : String(error)}\n`),
-      );
+      console.error(chalk.red(`\n✗ Error: ${formatErrorMessage(error)}\n`));
       process.exit(1);
     }
   });

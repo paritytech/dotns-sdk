@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { checksumAddress, zeroAddress, namehash, type Address, type Hex, getAddress } from "viem";
 import type { PolkadotSigner } from "polkadot-api";
 import type { ReviveClientWrapper } from "../client/polkadotClient";
+import { formatErrorMessage } from "../utils/formatting";
 import {
   ProofOfPersonhoodStatus,
   type CommitmentResults,
@@ -109,7 +110,7 @@ export async function ensureDomainNotRegistered(
       throw new Error(`Domain already owned by ${owner}`);
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage = formatErrorMessage(error);
     if (errorMessage.includes("already owned")) throw error;
   }
 

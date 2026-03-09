@@ -7,6 +7,7 @@ import { ReviveClientWrapper, type PolkadotApiClient } from "../../client/polkad
 import { performDomainLookup, performOwnerOfLookup } from "../../commands/lookup";
 import { verifyDomainOwnership } from "../../commands/register";
 import { resolveRpc } from "../env";
+import { formatErrorMessage } from "../../utils/formatting";
 import {
   resolveAuthSourceReadOnly,
   resolveAuthSource,
@@ -176,7 +177,7 @@ export function attachLookupCommands(root: Command): void {
 
         process.exit(0);
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage = formatErrorMessage(error);
         const jsonOutput = getJsonFlag(cmd);
 
         if (jsonOutput) {
@@ -220,7 +221,7 @@ export function attachLookupCommands(root: Command): void {
 
           process.exit(0);
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
+          const errorMessage = formatErrorMessage(error);
           const jsonOutput = getJsonFlag(cmd);
 
           if (jsonOutput) {
@@ -263,7 +264,7 @@ export function attachLookupCommands(root: Command): void {
 
       process.exit(0);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = formatErrorMessage(error);
       const jsonOutput = getJsonFlag(cmd);
 
       if (jsonOutput) {
@@ -362,7 +363,7 @@ export function attachLookupCommands(root: Command): void {
 
         process.exit(0);
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage = formatErrorMessage(error);
         const jsonOutput = getJsonFlag(cmd);
 
         if (jsonOutput) {

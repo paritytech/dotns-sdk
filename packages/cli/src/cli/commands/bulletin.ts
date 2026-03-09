@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import type { BulletinUploadOptions, CommandOptions } from "../../types/types";
+import { formatErrorMessage } from "../../utils/formatting";
 import {
   validateAndReadPath,
   uploadSingleBlock,
@@ -194,7 +195,7 @@ export function attachBulletinCommands(root: Command): void {
 
         process.exit(0);
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage = formatErrorMessage(error);
         const jsonOutput = getJsonFlag(command);
 
         if (jsonOutput) {
@@ -379,7 +380,7 @@ export function attachBulletinCommands(root: Command): void {
 
         process.exit(0);
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage = formatErrorMessage(error);
         const jsonOutput = getJsonFlag(command);
 
         if (jsonOutput) {
@@ -439,15 +440,11 @@ export function attachBulletinCommands(root: Command): void {
       const jsonOutput = getJsonFlag(command);
 
       if (jsonOutput) {
-        console.error(
-          JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
-        );
+        console.error(JSON.stringify({ error: formatErrorMessage(error) }));
         process.exit(1);
       }
 
-      console.error(
-        chalk.red(`\n✗ Error: ${error instanceof Error ? error.message : String(error)}\n`),
-      );
+      console.error(chalk.red(`\n✗ Error: ${formatErrorMessage(error)}\n`));
       process.exit(1);
     }
   });
@@ -467,9 +464,7 @@ export function attachBulletinCommands(root: Command): void {
 
         process.exit(0);
       } catch (error) {
-        console.error(
-          chalk.red(`\n✗ Error: ${error instanceof Error ? error.message : String(error)}\n`),
-        );
+        console.error(chalk.red(`\n✗ Error: ${formatErrorMessage(error)}\n`));
         process.exit(1);
       }
     });
@@ -487,9 +482,7 @@ export function attachBulletinCommands(root: Command): void {
 
         process.exit(0);
       } catch (error) {
-        console.error(
-          chalk.red(`\n✗ Error: ${error instanceof Error ? error.message : String(error)}\n`),
-        );
+        console.error(chalk.red(`\n✗ Error: ${formatErrorMessage(error)}\n`));
         process.exit(1);
       }
     });

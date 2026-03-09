@@ -32,6 +32,7 @@ import {
   DEFAULT_AUTHORIZATION_BYTES,
   DEFAULT_VERIFICATION_GATEWAY,
 } from "../utils/constants";
+import { formatErrorMessage } from "../utils/formatting";
 
 type MerkleizedBlock = {
   cid: CID;
@@ -289,7 +290,7 @@ export async function authorizeAccount(
     client?.destroy();
     spinner.fail("Authorization failed");
 
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage = formatErrorMessage(error);
 
     if (errorMessage.includes("AlreadyAuthorized")) {
       console.log(chalk.yellow("  Account is already authorized"));
@@ -353,7 +354,7 @@ export async function ensureAccountAuthorized(
       });
       return;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = formatErrorMessage(error);
 
       if (errorMessage.includes("AlreadyAuthorized") || errorMessage.includes("Sudid")) {
         return;
@@ -400,7 +401,7 @@ export async function uploadSingleBlock(
   } catch (error) {
     spinner.fail("Upload failed");
 
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage = formatErrorMessage(error);
     if (errorMessage.includes("Payment")) {
       console.log(chalk.red("\n  Account is not authorized for TransactionStorage."));
       console.log(chalk.yellow("\n  To authorize your account, run:\n"));
@@ -444,7 +445,7 @@ export async function uploadChunkedBlocks(
   } catch (error) {
     spinner.fail("Upload failed");
 
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage = formatErrorMessage(error);
     if (errorMessage.includes("Payment")) {
       console.log(chalk.red("\n  Account is not authorized for TransactionStorage."));
       console.log(chalk.yellow("\n  To authorize your account, run:\n"));
