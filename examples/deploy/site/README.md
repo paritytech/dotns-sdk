@@ -42,6 +42,7 @@ All inputs accepted by the reusable `deploy.yml` workflow:
 | `key-uri` | | Substrate key URI for dev/test (e.g. `//Alice`) |
 | `bulletin-rpc` | CLI default | Bulletin chain WebSocket RPC endpoint override |
 | `rpc` | CLI default | DotNS chain WebSocket RPC endpoint override |
+| `use-car` | `false` | Merkleize with IPFS CLI and upload as a CAR file instead of individual blocks |
 | `parallel` | `true` | Upload directory blocks in parallel |
 | `upload-concurrency` | `15` | Number of parallel block uploads |
 | `skip-cache` | `false` | Skip deployment cache and force re-upload |
@@ -58,6 +59,7 @@ examples/deploy/site/
 │   ├── deploy.yml                # Production deploy (push to main)
 │   ├── preview.yml               # PR previews + production on merge
 │   ├── branch-names.yml          # Branch-name subnames + manual dispatch
+│   ├── car-upload.yml             # CAR-based upload (IPFS merkleization)
 │   ├── custom-rpc.yml            # Custom RPC endpoints (local chain)
 │   └── mono-repo.yml             # Multiple apps from a monorepo
 └── README.md
