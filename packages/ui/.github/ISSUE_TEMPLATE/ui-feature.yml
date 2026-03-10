@@ -1,0 +1,53 @@
+name: Feature / Improvement
+description: Propose a new feature or improvement
+labels: ["type: feature"]
+body:
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Area
+      options:
+        - Store
+        - Component
+        - View
+        - Router
+        - Service
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What problem does this solve and what is the desired outcome.
+      placeholder: One or two concise paragraphs.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: High-level approach. Link designs/specs if available.
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Checklist of conditions to consider this done.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context / notes
+      description: Links to related issues, PRs, discussions, or benchmarks.
+    validations:
+      required: false

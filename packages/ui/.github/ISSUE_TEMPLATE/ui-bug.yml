@@ -1,0 +1,83 @@
+name: UI Bug
+description: Bug in the frontend
+labels: ["type: bug", "needs-info"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This tracker is for frontend bugs only.
+
+        Protocol bugs: https://github.com/paritytech/dotns/issues
+        SDK/CLI bugs: https://github.com/paritytech/dotns-sdk/issues
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Checklist
+      options:
+        - label: Searched existing issues
+          required: true
+        - label: This is UI specific
+          required: true
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Area
+      options:
+        - Store
+        - Component
+        - View
+        - Router
+        - Service
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. See ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      value: |
+        Browser:
+        Wallet:
+        OS:
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console errors / screenshots
