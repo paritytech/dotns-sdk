@@ -4,6 +4,7 @@ import { checksumAddress, isAddress, zeroAddress, type Address } from "viem";
 import { ReviveClientWrapper } from "../client/polkadotClient";
 import { CONTRACTS, DOTNS_REGISTRAR_ABI } from "../utils/constants";
 import { validateDomainLabel } from "../utils/validation";
+import { formatErrorMessage } from "../utils/formatting";
 import {
   computeDomainTokenId,
   performContractCall,
@@ -104,6 +105,30 @@ export async function transferDomain(
     console.log(chalk.gray("  expected owner: ") + chalk.white(fromC));
     console.log(chalk.gray("  on-chain owner: ") + chalk.white(currentOwnerC));
     throw new Error(`Cannot transfer: ${normLabel}.dot owned by ${currentOwnerC}`);
+  }
+
+  // TODO: remove this before any new environment deployment
+  // This ensures all names are synced with the registrar
+  try {
+    const syncSpinner = ora(`Syncing label ${chalk.cyan(normLabel)} with registrar`).start();
+    await submitContractTransaction(
+      clientWrapper,
+      CONTRACTS.DOTNS_REGISTRAR,
+      0n,
+      DOTNS_REGISTRAR_ABI,
+      "syncLabel",
+      [tokenId, normLabel],
+      originSubstrateAddress,
+      signer,
+      syncSpinner,
+      "Label sync",
+    );
+    syncSpinner.succeed("Label synced");
+  } catch (error) {
+    const errorMessage = formatErrorMessage(error);
+    if (!errorMessage.includes("LabelAlreadySet")) {
+      console.log(chalk.yellow("  Label sync skipped: " + errorMessage.split("\n")[0]));
+    }
   }
 
   spinner.start(`Submitting transfer ${chalk.cyan(normLabel + ".dot")} → ${chalk.green(toC)}`);

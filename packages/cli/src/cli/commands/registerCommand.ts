@@ -3,6 +3,7 @@ import chalk from "chalk";
 import { executeRegistration, executeSubnameRegistration } from "./register";
 import { type RegistrationCommandOptions } from "../../types/types";
 import { addAuthOptions, getAuthOptions } from "./authOptions";
+import { formatErrorMessage } from "../../utils/formatting";
 
 export type RegisterActionOptions = RegistrationCommandOptions & {
   __statusProvided?: boolean;
@@ -40,9 +41,7 @@ export function attachRegisterCommand(root: Command) {
         await executeRegistration(merged);
         process.exit(0);
       } catch (error) {
-        console.error(
-          `\n${chalk.red.bold("✗ Error:")} ${error instanceof Error ? error.message : String(error)}\n`,
-        );
+        console.error(`\n${chalk.red.bold("✗ Error:")} ${formatErrorMessage(error)}\n`);
         process.exit(1);
       }
     });
@@ -62,9 +61,7 @@ export function attachRegisterCommand(root: Command) {
         await executeSubnameRegistration(merged);
         process.exit(0);
       } catch (error) {
-        console.error(
-          `\n${chalk.red.bold("✗ Error:")} ${error instanceof Error ? error.message : String(error)}\n`,
-        );
+        console.error(`\n${chalk.red.bold("✗ Error:")} ${formatErrorMessage(error)}\n`);
         process.exit(1);
       }
     });

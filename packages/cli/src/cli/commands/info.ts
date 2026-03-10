@@ -8,6 +8,7 @@ import type { AccountInfoOptions, CommandOptions } from "../../types/types";
 import { displayAccountInformation, prepareContext } from "../context";
 import { addAuthOptions } from "./authOptions";
 import { resolveRpc, resolveKeystorePath } from "../env";
+import { formatErrorMessage } from "../../utils/formatting";
 import { resolveAuthSource, createAccountFromSource } from "../../commands/auth";
 import { step } from "../ui";
 
@@ -56,7 +57,7 @@ export function attachAccountCommands(root: Command) {
       console.log(account.address);
       process.exit(0);
     } catch (error) {
-      console.error(error instanceof Error ? error.message : String(error));
+      console.error(formatErrorMessage(error));
       process.exit(1);
     }
   });
@@ -106,9 +107,7 @@ export function attachAccountCommands(root: Command) {
       console.log(chalk.green("\n✓ Complete\n"));
       process.exit(0);
     } catch (error) {
-      console.error(
-        chalk.red(`\n✗ Error: ${error instanceof Error ? error.message : String(error)}\n`),
-      );
+      console.error(chalk.red(`\n✗ Error: ${formatErrorMessage(error)}\n`));
       process.exit(1);
     }
   });
@@ -152,9 +151,7 @@ export function attachAccountCommands(root: Command) {
 
       process.exit(0);
     } catch (error) {
-      console.error(
-        chalk.red(`\n✗ Error: ${error instanceof Error ? error.message : String(error)}\n`),
-      );
+      console.error(chalk.red(`\n✗ Error: ${formatErrorMessage(error)}\n`));
       process.exit(1);
     }
   });

@@ -11,12 +11,7 @@ import { importer } from "ipfs-unixfs-importer";
 import { Readable } from "node:stream";
 import type { CID } from "multiformats/cid";
 import { encodeIpfsContenthash } from "../bulletin/cid";
-import {
-  hasIpfsCli,
-  merkleizeWithIpfs,
-  verifyMultipleCids,
-  verifyCidResolution,
-} from "../bulletin/ipfs";
+import { hasIpfsCli, merkleizeWithIpfs, verifyCidResolution } from "../bulletin/ipfs";
 import {
   storeSingleFileToBulletin,
   splitBytesIntoChunks,
@@ -37,6 +32,7 @@ import {
   DEFAULT_AUTHORIZATION_BYTES,
   DEFAULT_VERIFICATION_GATEWAY,
 } from "../utils/constants";
+import { formatErrorMessage } from "../utils/formatting";
 
 type MerkleizedBlock = {
   cid: CID;
@@ -157,7 +153,7 @@ export async function authorizeAccount(
 ): Promise<AuthorizeAccountResult> {
   const {
     rpc,
-    sudoSigner,
+    signer,
     targetAddress,
     transactions = DEFAULT_AUTHORIZATION_TRANSACTIONS,
     bytes = DEFAULT_AUTHORIZATION_BYTES,
@@ -168,13 +164,6 @@ export async function authorizeAccount(
   let txHash = "";
 
   try {
-    client = createClient(withPolkadotSdkCompat(getWsProvider(rpc)));
-    const typedApi = client.getTypedApi(bulletin);
-
-    if (!typedApi.tx.Sudo?.sudo) {
-      throw new Error("Sudo pallet is not available on this chain");
-    }
-
     const existingAuthorization = await checkAuthorization(rpc, targetAddress);
 
     if (existingAuthorization.authorized) {
@@ -182,7 +171,6 @@ export async function authorizeAccount(
       const existingBytes = existingAuthorization.bytes ?? BigInt(0);
 
       if (existingTransactions >= transactions && existingBytes >= bytes) {
-        client.destroy();
         spinner.warn("Account already authorized");
         console.log(
           chalk.gray("  transactions: ") +
@@ -212,18 +200,17 @@ export async function authorizeAccount(
       );
     }
 
-    const sudoTransaction = typedApi.tx.Sudo.sudo({
-      call: {
-        type: "TransactionStorage",
-        value: {
-          type: "authorize_account",
-          value: { who: targetAddress, transactions, bytes },
-        },
-      },
+    client = createClient(withPolkadotSdkCompat(getWsProvider(rpc)));
+    const typedApi = client.getTypedApi(bulletin);
+
+    const authTransaction = typedApi.tx.TransactionStorage.authorize_account({
+      who: targetAddress,
+      transactions,
+      bytes,
     });
 
     return await new Promise<AuthorizeAccountResult>((resolve, reject) => {
-      const subscription = sudoTransaction.signSubmitAndWatch(sudoSigner).subscribe({
+      const subscription = authTransaction.signSubmitAndWatch(signer).subscribe({
         next: (event) => {
           switch (event.type) {
             case "signed":
@@ -269,8 +256,8 @@ export async function authorizeAccount(
                     spinner.fail("Authorization not applied");
                     reject(
                       new Error(
-                        "Sudo extrinsic was finalized but authorization was not applied.\n" +
-                          "The signer likely does not have sudo privileges on this chain.",
+                        "Authorization was finalized but not applied.\n" +
+                          "The signer may not have Authorizer privileges on this chain.",
                       ),
                     );
                   }
@@ -294,7 +281,7 @@ export async function authorizeAccount(
     client?.destroy();
     spinner.fail("Authorization failed");
 
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage = formatErrorMessage(error);
 
     if (errorMessage.includes("AlreadyAuthorized")) {
       console.log(chalk.yellow("  Account is already authorized"));
@@ -302,7 +289,7 @@ export async function authorizeAccount(
     }
 
     if (errorMessage.includes("BadOrigin")) {
-      throw new Error("Authorization failed: The signer does not have sudo privileges.");
+      throw new Error("Authorization failed: The signer does not have Authorizer privileges.");
     }
 
     throw error;
@@ -353,12 +340,12 @@ export async function ensureAccountAuthorized(
     try {
       await authorizeAccount({
         rpc: bulletinRpc,
-        sudoSigner: signer,
+        signer,
         targetAddress: accountAddress,
       });
       return;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = formatErrorMessage(error);
 
       if (errorMessage.includes("AlreadyAuthorized") || errorMessage.includes("Sudid")) {
         return;
@@ -405,7 +392,7 @@ export async function uploadSingleBlock(
   } catch (error) {
     spinner.fail("Upload failed");
 
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage = formatErrorMessage(error);
     if (errorMessage.includes("Payment")) {
       console.log(chalk.red("\n  Account is not authorized for TransactionStorage."));
       console.log(chalk.yellow("\n  To authorize your account, run:\n"));
@@ -449,7 +436,7 @@ export async function uploadChunkedBlocks(
   } catch (error) {
     spinner.fail("Upload failed");
 
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage = formatErrorMessage(error);
     if (errorMessage.includes("Payment")) {
       console.log(chalk.red("\n  Account is not authorized for TransactionStorage."));
       console.log(chalk.yellow("\n  To authorize your account, run:\n"));
@@ -577,15 +564,12 @@ export async function storeDirectory(
     const verifySpinner = ora("Verifying content resolution").start();
     const rootCidString = rootCid.toString();
 
-    const blockCids = blocks.map((block) => block.cid.toString());
-    const verificationResult = await verifyMultipleCids(blockCids, verificationGateway);
+    const rootVerification = await verifyCidResolution(rootCidString, verificationGateway);
 
-    if (verificationResult.missingBlocks.length === 0) {
-      verifySpinner.succeed("All blocks resolvable");
+    if (rootVerification.resolvable) {
+      verifySpinner.succeed("Root CID resolvable");
     } else {
-      verifySpinner.warn(
-        `${verificationResult.missingBlocks.length}/${verificationResult.totalBlocks} blocks not yet resolvable`,
-      );
+      verifySpinner.warn("Root CID not yet resolvable");
       console.log(chalk.gray("  gateway:  ") + chalk.white(verificationGateway));
       console.log(chalk.yellow("  Content may take time to propagate through the network"));
     }

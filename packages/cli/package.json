@@ -1,7 +1,7 @@
 {
   "name": "@dotns/cli",
   "module": "index.ts",
-  "version": "0.3.0",
+  "version": "0.4.1",
   "type": "module",
   "private": true,
   "packageManager": "bun@1.2.6",

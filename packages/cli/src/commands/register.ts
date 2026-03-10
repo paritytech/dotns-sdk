@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { checksumAddress, zeroAddress, namehash, type Address, type Hex, getAddress } from "viem";
 import type { PolkadotSigner } from "polkadot-api";
 import type { ReviveClientWrapper } from "../client/polkadotClient";
+import { formatErrorMessage } from "../utils/formatting";
 import {
   ProofOfPersonhoodStatus,
   type CommitmentResults,
@@ -109,7 +110,7 @@ export async function ensureDomainNotRegistered(
       throw new Error(`Domain already owned by ${owner}`);
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage = formatErrorMessage(error);
     if (errorMessage.includes("already owned")) throw error;
   }
 
@@ -693,6 +694,47 @@ export async function setUserProofOfPersonhoodStatus(
     console.log(chalk.gray("  tx:        ") + chalk.blue(transactionHash));
   } catch (error) {
     if (checkSpinner.isSpinning) checkSpinner.fail("Failed to check PoP status");
+    throw error;
+  }
+}
+
+// TODO: remove this before any new environment deployment
+// This ensures all names are synced with the registrar
+export async function syncLabelWithRegistrar(
+  clientWrapper: ReviveClientWrapper,
+  substrateAddress: string,
+  signer: PolkadotSigner,
+  label: string,
+): Promise<void> {
+  const spinner = ora(`Syncing label ${chalk.cyan(label)} with registrar`).start();
+
+  try {
+    const tokenId = computeDomainTokenId(label);
+
+    const transactionHash = await submitContractTransaction(
+      clientWrapper,
+      CONTRACTS.DOTNS_REGISTRAR,
+      0n,
+      DOTNS_REGISTRAR_ABI,
+      "syncLabel",
+      [tokenId, label],
+      substrateAddress,
+      signer,
+      spinner,
+      "Label sync",
+    );
+
+    console.log(chalk.gray("  tx:        ") + chalk.blue(transactionHash));
+    console.log(chalk.gray("  tokenId:   ") + chalk.white(tokenId.toString()));
+  } catch (error) {
+    const errorMessage = formatErrorMessage(error);
+
+    if (errorMessage.includes("LabelAlreadySet")) {
+      spinner.succeed("Label already synced");
+      return;
+    }
+
+    spinner.fail("Label sync failed");
     throw error;
   }
 }

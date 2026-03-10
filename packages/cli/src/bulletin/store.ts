@@ -17,6 +17,27 @@ import type {
 
 const MAXIMUM_TRANSACTION_SIZE = 8 * 1024 * 1024;
 
+function formatDispatchError(dispatchError: { type: string; value?: unknown }): string {
+  if (dispatchError.type === "Module") {
+    const moduleError = dispatchError.value as {
+      type: string;
+      value?: { type: string };
+    };
+    return `Module error: ${moduleError.type}.${moduleError.value?.type || "Unknown"}`;
+  }
+  return dispatchError.type;
+}
+
+function ensureError(error: unknown): Error {
+  if (error instanceof Error) return error;
+  if (typeof error === "string") return new Error(error);
+  try {
+    return new Error(JSON.stringify(error));
+  } catch {
+    return new Error(String(error));
+  }
+}
+
 export function createBulletinClient(rpc: string): PolkadotClient {
   return createPolkadotClient(withPolkadotSdkCompat(getWsProvider(rpc)));
 }
@@ -118,14 +139,9 @@ async function storeContentOnBulletin(
                   if (!isExternalClient) client.destroy();
                   resolve({ cid: contentCid, storedIndex });
                 } else {
-                  let errorMessage = "Transaction failed";
-                  if (event.dispatchError?.type === "Module") {
-                    const moduleError = event.dispatchError.value as {
-                      type: string;
-                      value?: { type: string };
-                    };
-                    errorMessage = `Module error: ${moduleError.type}.${moduleError.value?.type || "Unknown"}`;
-                  }
+                  const errorMessage = event.dispatchError
+                    ? formatDispatchError(event.dispatchError)
+                    : "Transaction failed";
                   subscription.unsubscribe();
                   if (!isExternalClient) client.destroy();
                   reject(new Error(errorMessage));
@@ -164,7 +180,7 @@ async function storeContentOnBulletin(
         error: (error) => {
           subscription.unsubscribe();
           if (!isExternalClient) client.destroy();
-          reject(error);
+          reject(ensureError(error));
         },
       });
   });
@@ -349,14 +365,9 @@ export async function storeBatchedBlocksToBulletin(
                   if (!isExternalClient) client.destroy();
                   resolve({ cids });
                 } else {
-                  let errorMessage = "Batch transaction failed";
-                  if (event.dispatchError?.type === "Module") {
-                    const moduleError = event.dispatchError.value as {
-                      type: string;
-                      value?: { type: string };
-                    };
-                    errorMessage = `Module error: ${moduleError.type}.${moduleError.value?.type || "Unknown"}`;
-                  }
+                  const errorMessage = event.dispatchError
+                    ? formatDispatchError(event.dispatchError)
+                    : "Batch transaction failed";
                   subscription.unsubscribe();
                   if (!isExternalClient) client.destroy();
                   reject(new Error(errorMessage));
@@ -388,7 +399,7 @@ export async function storeBatchedBlocksToBulletin(
         error: (error) => {
           subscription.unsubscribe();
           if (!isExternalClient) client.destroy();
-          reject(error);
+          reject(ensureError(error));
         },
       });
   });
@@ -428,13 +439,13 @@ export async function fetchAccountNonce(rpc: string, accountAddress: string): Pr
         }
       } catch (parseError) {
         websocket.close();
-        reject(parseError);
+        reject(ensureError(parseError));
       }
     };
 
-    websocket.onerror = (errorEvent: unknown) => {
+    websocket.onerror = () => {
       websocket.close();
-      reject(errorEvent);
+      reject(new Error(`WebSocket connection to ${rpc} failed`));
     };
   });
 }

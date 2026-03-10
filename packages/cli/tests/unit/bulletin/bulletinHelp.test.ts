@@ -57,7 +57,6 @@ test("bulletin authorize help shows all options", async () => {
   expect(result.combinedOutput).toContain("--bulletin-rpc");
   expect(result.combinedOutput).toContain("--transactions");
   expect(result.combinedOutput).toContain("--bytes");
-  expect(result.combinedOutput).toContain("--sudo-key-uri");
   expect(result.combinedOutput).toContain("--json");
 
   // Auth options are available for resolving the target address
@@ -75,7 +74,6 @@ test("bulletin authorize help shows default values", async () => {
 
   expect(result.combinedOutput).toContain("wss://paseo-bulletin-rpc.polkadot.io");
   expect(result.combinedOutput).toContain("1000000");
-  expect(result.combinedOutput).toContain("//Alice");
 });
 
 test("bulletin history help shows options", async () => {

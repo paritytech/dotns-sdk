@@ -229,8 +229,6 @@ export type BulletinUploadOptions = {
   json: boolean;
   /** Whether to store the current upload to the local history db */
   history: boolean;
-  /**The default sudo key uri */
-  sudoKeyUri: string;
 };
 
 export type BulletinStoreParams = {
@@ -320,8 +318,8 @@ export type PricingAndEligibility = {
 export type AuthorizeAccountOptions = {
   /** Bulletin WebSocket RPC endpoint URL */
   rpc: string;
-  /** Signer with sudo privileges for authorization */
-  sudoSigner: PolkadotSigner;
+  /** Signer with Authorizer privileges */
+  signer: PolkadotSigner;
   /** SS58 address of the account to authorize */
   targetAddress: string;
   /** Maximum number of store transactions allowed */

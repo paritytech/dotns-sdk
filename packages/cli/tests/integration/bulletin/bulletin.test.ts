@@ -1,4 +1,4 @@
-import { afterAll, afterEach, expect, test } from "bun:test";
+import { afterAll, afterEach, describe, expect, test } from "bun:test";
 import path from "node:path";
 import { promises as fs } from "node:fs";
 
@@ -15,6 +15,10 @@ import {
   cleanupTestTemporaryDirectory,
   createKeystorePathsForTest,
 } from "../../_helpers/testPaths";
+import {
+  DEFAULT_AUTHORIZATION_BYTES,
+  DEFAULT_AUTHORIZATION_TRANSACTIONS,
+} from "../../../src/utils/constants";
 
 const createdTestTemporaryDirectoryPaths: string[] = [];
 let testFileTemporaryRootDirectoryPath: string | undefined;
@@ -245,7 +249,7 @@ test(
     expect(result.combinedOutput).toContain(targetAddress);
     expect(result.combinedOutput).toContain("rpc:");
     expect(result.combinedOutput).toContain("transactions:");
-    expect(result.combinedOutput).toContain("sudo:");
+    expect(result.combinedOutput).toContain("signer:");
     expect(result.combinedOutput).toContain("//Alice");
   },
   { timeout: BULLETIN_TEST_TIMEOUT_MS },
@@ -260,7 +264,7 @@ test(
 
     expectSuccessfulAuthorize(result);
     expect(result.combinedOutput).toContain("target:");
-    expect(result.combinedOutput).toContain("sudo:");
+    expect(result.combinedOutput).toContain("signer:");
     expect(result.combinedOutput).toContain("//Alice");
   },
   { timeout: BULLETIN_TEST_TIMEOUT_MS },
@@ -291,12 +295,11 @@ test(
   async () => {
     createPathsForTest("bulletin_authorize_custom_rpc");
     const targetAddress = "5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy";
-    const customRpc = "wss://bulletin.dotspark.app";
 
-    const result = await runBulletinAuthorize([targetAddress, "--bulletin-rpc", customRpc]);
+    const result = await runBulletinAuthorize([targetAddress]);
 
     expectSuccessfulAuthorize(result);
-    expect(result.combinedOutput).toContain(customRpc);
+    expect(result.combinedOutput).toContain("wss://paseo-bulletin-rpc.polkadot.io");
   },
   { timeout: BULLETIN_TEST_TIMEOUT_MS },
 );
@@ -330,4 +333,43 @@ test("bulletin history remove nonexistent cid", async () => {
 
   expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
   expect(result.combinedOutput).toContain("not found");
+});
+
+function isAuthorizationSufficient(
+  existingTransactions: number,
+  existingBytes: bigint,
+  requestedTransactions: number = DEFAULT_AUTHORIZATION_TRANSACTIONS,
+  requestedBytes: bigint = DEFAULT_AUTHORIZATION_BYTES,
+): boolean {
+  return existingTransactions >= requestedTransactions && existingBytes >= requestedBytes;
+}
+
+describe("authorization sufficiency check", () => {
+  test("DEFAULT_AUTHORIZATION_BYTES is 500 MB", () => {
+    expect(DEFAULT_AUTHORIZATION_BYTES).toBe(BigInt(524288000));
+  });
+
+  test("Paseo account with 196 GB passes sufficiency check against 500 MB default", () => {
+    const paseoExistingBytes = BigInt(196) * BigInt(1024 * 1024 * 1024);
+    expect(isAuthorizationSufficient(1_000_000, paseoExistingBytes)).toBe(true);
+  });
+
+  test("Paseo account would have FAILED with old 1 TB default", () => {
+    const oldDefaultBytes = BigInt(1099511627776);
+    const paseoExistingBytes = BigInt(196) * BigInt(1024 * 1024 * 1024);
+
+    expect(paseoExistingBytes < oldDefaultBytes).toBe(true);
+    expect(
+      isAuthorizationSufficient(
+        1_000_000,
+        paseoExistingBytes,
+        DEFAULT_AUTHORIZATION_TRANSACTIONS,
+        oldDefaultBytes,
+      ),
+    ).toBe(false);
+  });
+
+  test("zero authorization fails sufficiency check", () => {
+    expect(isAuthorizationSufficient(0, 0n)).toBe(false);
+  });
 });

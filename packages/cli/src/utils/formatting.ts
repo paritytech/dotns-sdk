@@ -109,6 +109,16 @@ export function createTransactionStatusHandler(
   };
 }
 
+export function formatErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
 export async function withTimeout<T>(
   promise: Promise<T>,
   timeoutMilliseconds: number,

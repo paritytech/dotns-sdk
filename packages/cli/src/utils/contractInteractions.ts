@@ -1,6 +1,7 @@
 import {
   encodeFunctionData,
   decodeFunctionResult,
+  decodeErrorResult,
   keccak256,
   toBytes,
   type Abi,
@@ -39,7 +40,16 @@ export async function performContractCall<T>(
   const flags = (call?.result?.value?.flags ?? 1n) as bigint;
 
   if ((flags & 1n) === 1n) {
-    throw new Error(`Contract reverted (flags=${flags}) with data: ${data}`);
+    let revertReason: string = data;
+    try {
+      const decoded = decodeErrorResult({ abi, data });
+      revertReason = decoded.args
+        ? `${decoded.errorName}(${decoded.args.map(String).join(", ")})`
+        : decoded.errorName;
+    } catch {
+      // Unknown error selector — fall back to raw hex
+    }
+    throw new Error(`Contract reverted: ${revertReason}`);
   }
 
   const decoded = decodeFunctionResult({
@@ -71,18 +81,40 @@ export async function submitContractTransaction(
     args: functionArguments,
   }) as Hex;
 
-  return await withTimeout(
-    clientWrapper.submitTransaction(
-      contractAddress,
-      valueInNativeUnits,
-      encodedCallData,
-      signerSubstrateAddress,
-      signer,
-      createTransactionStatusHandler(spinner, operationName),
-    ),
-    OPERATION_TIMEOUT_MILLISECONDS,
-    operationName || "Transaction",
-  );
+  try {
+    return await withTimeout(
+      clientWrapper.submitTransaction(
+        contractAddress,
+        valueInNativeUnits,
+        encodedCallData,
+        signerSubstrateAddress,
+        signer,
+        createTransactionStatusHandler(spinner, operationName),
+      ),
+      OPERATION_TIMEOUT_MILLISECONDS,
+      operationName || "Transaction",
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("would revert: 0x")) {
+      const hexMatch = error.message.match(/0x[0-9a-fA-F]+/);
+      if (hexMatch) {
+        try {
+          const decoded = decodeErrorResult({
+            abi: contractAbi,
+            data: hexMatch[0] as Hex,
+          });
+          const reason = decoded.args
+            ? `${decoded.errorName}(${decoded.args.map(String).join(", ")})`
+            : decoded.errorName;
+          throw new Error(`Contract reverted: ${reason}`);
+        } catch (decodeError) {
+          if (decodeError instanceof Error && decodeError.message.startsWith("Contract reverted:"))
+            throw decodeError;
+        }
+      }
+    }
+    throw error;
+  }
 }
 
 export function computeDomainTokenId(label: string): bigint {
