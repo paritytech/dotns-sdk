@@ -11,7 +11,7 @@ import Store from "../../abis/Store.json" assert { type: "json" };
 
 export const PREVIEW_BASE_URL = "http://dotns.paseo.li/#/preview";
 export const DEFAULT_BULLETIN_RPC = "wss://paseo-bulletin-rpc.polkadot.io";
-export const DEFAULT_CHUNK_SIZE_BYTES = 4 * 1024 * 1024;
+export const DEFAULT_CHUNK_SIZE_BYTES = 2 * 1024 * 1024;
 export const MAX_SINGLE_UPLOAD_SIZE_BYTES = 8 * 1024 * 1024;
 export const DEFAULT_AUTHORIZATION_TRANSACTIONS = 1000000;
 export const DEFAULT_AUTHORIZATION_BYTES = BigInt(524288000);
