@@ -13,7 +13,11 @@ import { resolveAuthSource, createAccountFromSource } from "../../commands/auth"
 import { step } from "../ui";
 import { getJsonFlag, prepareReadOnlyContext } from "./lookup";
 import { maybeQuiet } from "./bulletin";
-import { checkAccountMapped, checkWhitelisted, whitelistAddress } from "../../commands/accountChecks";
+import {
+  checkAccountMapped,
+  checkWhitelisted,
+  whitelistAddress,
+} from "../../commands/accountChecks";
 
 function getMergedOptions<T>(command: Command | undefined, fallback: T): CommandOptions & T {
   const mergedOptions: any = { ...(fallback ?? {}) };
@@ -165,27 +169,25 @@ export function attachAccountCommands(root: Command) {
     .description("Check if a Substrate or EVM address is mapped on-chain")
     .option("--json", "Output result as JSON (suppresses all other output)", false);
 
-  addAuthOptions(isMappedCommand).action(
-    async (address: string, options: any, cmd: any) => {
-      const jsonOutput = getJsonFlag(cmd);
-      try {
-        const mergedOptions = getMergedOptions(cmd, options);
-        const { clientWrapper, account } = await maybeQuiet(jsonOutput, () =>
-          prepareReadOnlyContext(mergedOptions),
-        );
-        const result = await maybeQuiet(jsonOutput, () =>
-          checkAccountMapped(clientWrapper, account.address, address),
-        );
-        if (jsonOutput) console.log(JSON.stringify(result));
-        else console.log(chalk.green("\n  Complete\n"));
-        process.exit(0);
-      } catch (error) {
-        if (jsonOutput) console.error(JSON.stringify({ error: formatErrorMessage(error) }));
-        else console.error(chalk.red(`\n  Error: ${formatErrorMessage(error)}\n`));
-        process.exit(1);
-      }
-    },
-  );
+  addAuthOptions(isMappedCommand).action(async (address: string, options: any, cmd: any) => {
+    const jsonOutput = getJsonFlag(cmd);
+    try {
+      const mergedOptions = getMergedOptions(cmd, options);
+      const { clientWrapper, account } = await maybeQuiet(jsonOutput, () =>
+        prepareReadOnlyContext(mergedOptions),
+      );
+      const result = await maybeQuiet(jsonOutput, () =>
+        checkAccountMapped(clientWrapper, account.address, address),
+      );
+      if (jsonOutput) console.log(JSON.stringify(result));
+      else console.log(chalk.green("\n  Complete\n"));
+      process.exit(0);
+    } catch (error) {
+      if (jsonOutput) console.error(JSON.stringify({ error: formatErrorMessage(error) }));
+      else console.error(chalk.red(`\n  Error: ${formatErrorMessage(error)}\n`));
+      process.exit(1);
+    }
+  });
 
   const isWhitelistedCommand = accountCommand
     .command("is-whitelisted <address>")
@@ -193,27 +195,25 @@ export function attachAccountCommands(root: Command) {
     .description("Check if an address is whitelisted on the DotNS Controller")
     .option("--json", "Output result as JSON (suppresses all other output)", false);
 
-  addAuthOptions(isWhitelistedCommand).action(
-    async (address: string, options: any, cmd: any) => {
-      const jsonOutput = getJsonFlag(cmd);
-      try {
-        const mergedOptions = getMergedOptions(cmd, options);
-        const { clientWrapper, account } = await maybeQuiet(jsonOutput, () =>
-          prepareReadOnlyContext(mergedOptions),
-        );
-        const result = await maybeQuiet(jsonOutput, () =>
-          checkWhitelisted(clientWrapper, account.address, address),
-        );
-        if (jsonOutput) console.log(JSON.stringify(result));
-        else console.log(chalk.green("\n  Complete\n"));
-        process.exit(0);
-      } catch (error) {
-        if (jsonOutput) console.error(JSON.stringify({ error: formatErrorMessage(error) }));
-        else console.error(chalk.red(`\n  Error: ${formatErrorMessage(error)}\n`));
-        process.exit(1);
-      }
-    },
-  );
+  addAuthOptions(isWhitelistedCommand).action(async (address: string, options: any, cmd: any) => {
+    const jsonOutput = getJsonFlag(cmd);
+    try {
+      const mergedOptions = getMergedOptions(cmd, options);
+      const { clientWrapper, account } = await maybeQuiet(jsonOutput, () =>
+        prepareReadOnlyContext(mergedOptions),
+      );
+      const result = await maybeQuiet(jsonOutput, () =>
+        checkWhitelisted(clientWrapper, account.address, address),
+      );
+      if (jsonOutput) console.log(JSON.stringify(result));
+      else console.log(chalk.green("\n  Complete\n"));
+      process.exit(0);
+    } catch (error) {
+      if (jsonOutput) console.error(JSON.stringify({ error: formatErrorMessage(error) }));
+      else console.error(chalk.red(`\n  Error: ${formatErrorMessage(error)}\n`));
+      process.exit(1);
+    }
+  });
 
   const whitelistCommand = accountCommand
     .command("whitelist <address>")
@@ -221,32 +221,28 @@ export function attachAccountCommands(root: Command) {
     .option("-r, --remove", "Remove address from whitelist instead of adding", false)
     .option("--json", "Output result as JSON (suppresses all other output)", false);
 
-  addAuthOptions(whitelistCommand).action(
-    async (address: string, options: any, cmd: any) => {
-      const jsonOutput = getJsonFlag(cmd);
-      try {
-        const mergedOptions = getMergedOptions(cmd, options);
-        const enable = !mergedOptions.remove;
-        const context = await maybeQuiet(jsonOutput, () =>
-          prepareAssetHubContext(mergedOptions),
-        );
-        const result = await maybeQuiet(jsonOutput, () =>
-          whitelistAddress(
-            context.clientWrapper,
-            context.substrateAddress,
-            context.signer,
-            address,
-            enable,
-          ),
-        );
-        if (jsonOutput) console.log(JSON.stringify(result));
-        else console.log(chalk.green("\n  Complete\n"));
-        process.exit(0);
-      } catch (error) {
-        if (jsonOutput) console.error(JSON.stringify({ error: formatErrorMessage(error) }));
-        else console.error(chalk.red(`\n  Error: ${formatErrorMessage(error)}\n`));
-        process.exit(1);
-      }
-    },
-  );
+  addAuthOptions(whitelistCommand).action(async (address: string, options: any, cmd: any) => {
+    const jsonOutput = getJsonFlag(cmd);
+    try {
+      const mergedOptions = getMergedOptions(cmd, options);
+      const enable = !mergedOptions.remove;
+      const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(mergedOptions));
+      const result = await maybeQuiet(jsonOutput, () =>
+        whitelistAddress(
+          context.clientWrapper,
+          context.substrateAddress,
+          context.signer,
+          address,
+          enable,
+        ),
+      );
+      if (jsonOutput) console.log(JSON.stringify(result));
+      else console.log(chalk.green("\n  Complete\n"));
+      process.exit(0);
+    } catch (error) {
+      if (jsonOutput) console.error(JSON.stringify({ error: formatErrorMessage(error) }));
+      else console.error(chalk.red(`\n  Error: ${formatErrorMessage(error)}\n`));
+      process.exit(1);
+    }
+  });
 }

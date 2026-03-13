@@ -11,10 +11,12 @@ import { isValidSubstrateAddress } from "../utils/validation";
 function resolveToEvmAddress(
   clientWrapper: ReviveClientWrapper,
   address: string,
-): Promise<{ evmAddress: Address; originalAddress: string }> | {
-  evmAddress: Address;
-  originalAddress: string;
-} {
+):
+  | Promise<{ evmAddress: Address; originalAddress: string }>
+  | {
+      evmAddress: Address;
+      originalAddress: string;
+    } {
   if (isAddress(address)) {
     return { evmAddress: getAddress(address), originalAddress: address };
   }
@@ -41,9 +43,7 @@ export async function checkAccountMapped(
   spinner.succeed("Mapping check complete");
   console.log(chalk.gray("\n  address: ") + chalk.white(originalAddress));
   console.log(chalk.gray("  evm:     ") + chalk.cyan(evmAddress));
-  console.log(
-    chalk.gray("  mapped:  ") + (isMapped ? chalk.green("true") : chalk.yellow("false")),
-  );
+  console.log(chalk.gray("  mapped:  ") + (isMapped ? chalk.green("true") : chalk.yellow("false")));
 
   return { address: originalAddress, evmAddress, isMapped };
 }
@@ -70,8 +70,7 @@ export async function checkWhitelisted(
   console.log(chalk.gray("\n  address:     ") + chalk.white(originalAddress));
   console.log(chalk.gray("  evm:         ") + chalk.cyan(evmAddress));
   console.log(
-    chalk.gray("  whitelisted: ") +
-      (isWhitelisted ? chalk.green("true") : chalk.yellow("false")),
+    chalk.gray("  whitelisted: ") + (isWhitelisted ? chalk.green("true") : chalk.yellow("false")),
   );
 
   return { address: originalAddress, evmAddress, isWhitelisted };
