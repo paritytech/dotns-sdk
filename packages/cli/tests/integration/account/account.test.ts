@@ -71,6 +71,42 @@ test(
 );
 
 test(
+  "account is-mapped with EVM address returns mapped status",
+  async () => {
+    const result = await runDotnsCli([
+      "account",
+      "is-mapped",
+      ALICE_EVM,
+      "--key-uri",
+      ALICE_KEY_URI,
+    ]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+    expect(result.combinedOutput).not.toContain("Error:");
+    expect(result.combinedOutput).toContain("mapped:");
+  },
+  { timeout: TEST_TIMEOUT_MS },
+);
+
+test(
+  "account is-whitelisted with SS58 address returns whitelist status",
+  async () => {
+    const result = await runDotnsCli([
+      "account",
+      "is-whitelisted",
+      ALICE_SS58,
+      "--key-uri",
+      ALICE_KEY_URI,
+    ]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+    expect(result.combinedOutput).not.toContain("Error:");
+    expect(result.combinedOutput).toContain("whitelisted:");
+  },
+  { timeout: TEST_TIMEOUT_MS },
+);
+
+test(
   "account is-whitelisted with EVM address returns whitelist status",
   async () => {
     const result = await runDotnsCli([

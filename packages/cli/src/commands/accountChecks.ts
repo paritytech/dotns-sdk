@@ -8,25 +8,18 @@ import { CONTRACTS, DOTNS_REGISTRAR_CONTROLLER_ABI } from "../utils/constants";
 import { performContractCall, submitContractTransaction } from "../utils/contractInteractions";
 import { isValidSubstrateAddress } from "../utils/validation";
 
-function resolveToEvmAddress(
+async function resolveToEvmAddress(
   clientWrapper: ReviveClientWrapper,
   address: string,
-):
-  | Promise<{ evmAddress: Address; originalAddress: string }>
-  | {
-      evmAddress: Address;
-      originalAddress: string;
-    } {
+): Promise<{ evmAddress: Address; originalAddress: string }> {
   if (isAddress(address)) {
-    return { evmAddress: getAddress(address), originalAddress: address };
+    return Promise.resolve({ evmAddress: getAddress(address), originalAddress: address });
   }
   if (!isValidSubstrateAddress(address)) {
     throw new Error(`Invalid address: not a valid EVM or Substrate address`);
   }
-  return clientWrapper.getEvmAddress(address).then((evm) => ({
-    evmAddress: evm,
-    originalAddress: address,
-  }));
+  const evm = await clientWrapper.getEvmAddress(address);
+  return { evmAddress: evm, originalAddress: address };
 }
 
 export async function checkAccountMapped(
