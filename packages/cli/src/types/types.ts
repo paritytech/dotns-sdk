@@ -705,6 +705,25 @@ export type StoreValueResult = {
   exists: boolean;
 };
 
+export type IsMappedResult = {
+  address: string;
+  evmAddress: string;
+  isMapped: boolean;
+};
+
+export type IsWhitelistedResult = {
+  address: string;
+  evmAddress: string;
+  isWhitelisted: boolean;
+};
+
+export type WhitelistResult = {
+  address: string;
+  evmAddress: string;
+  whitelisted: boolean;
+  txHash: string;
+};
+
 export type StoreEnsureAuthResult = {
   /** EVM address of the DotNS registrar controller contract */
   controllerAddress: Address;

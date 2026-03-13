@@ -239,7 +239,7 @@ export class ReviveClientWrapper {
     };
   }
 
-  private async checkIfAccountMapped(substrateAddress: string): Promise<boolean> {
+  async checkIfAccountMapped(substrateAddress: string): Promise<boolean> {
     try {
       const evmAddress = await this.getEvmAddress(substrateAddress);
       const key = Binary.fromHex(evmAddress);
