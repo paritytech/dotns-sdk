@@ -53,6 +53,8 @@ export function ensureIpfsInitialized(): void {
   }
 
   try {
+    // binaryPath is resolved from the bundled or system-installed binary only —
+    // never user-supplied input — so interpolating it here is safe.
     execSync(`"${binaryPath}" repo stat`, { encoding: "utf-8", stdio: "pipe" });
   } catch {
     execSync(`"${binaryPath}" init`, { encoding: "utf-8", stdio: "pipe" });

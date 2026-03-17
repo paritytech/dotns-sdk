@@ -2,6 +2,8 @@ import chalk from "chalk";
 import ora from "ora";
 import { promises as filesystem } from "node:fs";
 import path from "node:path";
+import { tmpdir } from "node:os";
+import { randomUUID } from "node:crypto";
 import type { PolkadotClient, PolkadotSigner } from "polkadot-api";
 import { createClient } from "polkadot-api";
 import { getWsProvider } from "polkadot-api/ws-provider";
@@ -11,7 +13,13 @@ import { importer } from "ipfs-unixfs-importer";
 import { Readable } from "node:stream";
 import type { CID } from "multiformats/cid";
 import { encodeIpfsContenthash } from "../bulletin/cid";
-import { hasIpfsCli, merkleizeWithIpfs, verifyCidResolution } from "../bulletin/ipfs";
+import {
+  hasIpfsCli,
+  merkleizeWithIpfs,
+  ensureIpfsInitialized,
+  exportCarFile,
+  verifyCidResolution,
+} from "../bulletin/ipfs";
 import {
   storeSingleFileToBulletin,
   splitBytesIntoChunks,
@@ -578,6 +586,38 @@ export async function storeDirectory(
   } catch (error) {
     merkleSpinner.fail("Directory upload failed");
     throw error;
+  }
+}
+
+export async function storeCar(
+  bulletinRpc: string,
+  signer: PolkadotSigner,
+  directoryPath: string,
+  chunkSizeBytes: number,
+): Promise<{ cid: string; ipfsCid: string; size: number }> {
+  ensureIpfsInitialized();
+
+  const merkleSpinner = ora("Merkleizing directory with IPFS CLI").start();
+  const { cid: ipfsCid } = merkleizeWithIpfs(directoryPath);
+  merkleSpinner.succeed(`Merkleized: ${ipfsCid}`);
+
+  const exportSpinner = ora("Exporting CAR file").start();
+  // UUID-based name avoids collisions when multiple uploads run concurrently.
+  const tempCarPath = path.join(tmpdir(), `dotns-car-${randomUUID()}.car`);
+
+  try {
+    exportCarFile(ipfsCid, tempCarPath);
+    const carBytes = new Uint8Array(await filesystem.readFile(tempCarPath));
+    exportSpinner.succeed(`CAR exported: ${(carBytes.length / 1024 / 1024).toFixed(2)} MB`);
+
+    // Store the CAR bytes as chunked content with a DAG-PB root, mirroring
+    // deploy.js storeChunkedContent — the gateway fetches the DAG-PB root
+    // which links to the raw CAR chunks.
+    const storageCid = await uploadChunkedBlocks(bulletinRpc, signer, carBytes, chunkSizeBytes);
+
+    return { cid: storageCid, ipfsCid, size: carBytes.length };
+  } finally {
+    await filesystem.unlink(tempCarPath).catch(() => {});
   }
 }
 

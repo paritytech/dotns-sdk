@@ -1,21 +1,17 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import ora from "ora";
-import { promises as filesystem } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import type { BulletinUploadOptions, CommandOptions } from "../../types/types";
 import { formatErrorMessage } from "../../utils/formatting";
 import {
   validateAndReadPath,
   uploadSingleBlock,
   uploadChunkedBlocks,
+  storeCar,
   storeDirectory,
   generateContenthash,
   ensureAccountAuthorized,
   authorizeAccount,
 } from "../../commands/bulletin";
-import { ensureIpfsInitialized, merkleizeWithIpfs, exportCarFile } from "../../bulletin/ipfs";
 import {
   addUploadRecord,
   readHistory,
@@ -297,38 +293,7 @@ export function attachBulletinCommands(root: Command): void {
         const performUpload = async () => {
           if (isDirectory) {
             if (useCar) {
-              ensureIpfsInitialized();
-
-              const merkleSpinner = ora("Merkleizing directory with IPFS CLI").start();
-              const merkleResult = merkleizeWithIpfs(resolvedPath);
-              const ipfsCid = merkleResult.cid;
-              merkleSpinner.succeed(`Merkleized: ${ipfsCid}`);
-
-              const exportSpinner = ora("Exporting CAR file").start();
-              const tempCarPath = join(tmpdir(), `dotns-car-${Date.now()}.car`);
-              try {
-                exportCarFile(ipfsCid, tempCarPath);
-                const carBytes = new Uint8Array(await filesystem.readFile(tempCarPath));
-                exportSpinner.succeed(
-                  `CAR exported: ${(carBytes.length / 1024 / 1024).toFixed(2)} MB`,
-                );
-
-                let storageCid: string;
-                if (carBytes.length > MAX_SINGLE_UPLOAD_SIZE_BYTES) {
-                  storageCid = await uploadChunkedBlocks(
-                    bulletinRpc,
-                    context.signer,
-                    carBytes,
-                    chunkSizeBytes,
-                  );
-                } else {
-                  storageCid = await uploadSingleBlock(bulletinRpc, context.signer, carBytes);
-                }
-
-                return { cid: storageCid, ipfsCid, size: carBytes.length };
-              } finally {
-                await filesystem.unlink(tempCarPath).catch(() => {});
-              }
+              return storeCar(bulletinRpc, context.signer, resolvedPath, chunkSizeBytes);
             }
 
             const result = await storeDirectory(bulletinRpc, context.signer, resolvedPath, {
