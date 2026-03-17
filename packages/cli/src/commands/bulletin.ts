@@ -595,10 +595,10 @@ export async function storeCar(
   directoryPath: string,
   chunkSizeBytes: number,
 ): Promise<{ cid: string; ipfsCid: string; size: number }> {
-  ensureIpfsInitialized();
+  const ipfsBinaryPath = ensureIpfsInitialized();
 
   const merkleSpinner = ora("Merkleizing directory with IPFS CLI").start();
-  const { cid: ipfsCid } = merkleizeWithIpfs(directoryPath);
+  const { cid: ipfsCid } = merkleizeWithIpfs(directoryPath, ipfsBinaryPath);
   merkleSpinner.succeed(`Merkleized: ${ipfsCid}`);
 
   const exportSpinner = ora("Exporting CAR file").start();
@@ -606,7 +606,7 @@ export async function storeCar(
   const tempCarPath = path.join(tmpdir(), `dotns-car-${randomUUID()}.car`);
 
   try {
-    exportCarFile(ipfsCid, tempCarPath);
+    exportCarFile(ipfsCid, tempCarPath, ipfsBinaryPath);
     const carBytes = new Uint8Array(await filesystem.readFile(tempCarPath));
     exportSpinner.succeed(`CAR exported: ${(carBytes.length / 1024 / 1024).toFixed(2)} MB`);
 

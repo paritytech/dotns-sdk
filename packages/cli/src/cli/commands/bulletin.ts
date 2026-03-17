@@ -244,7 +244,7 @@ export function attachBulletinCommands(root: Command): void {
     .option("--concurrency <n>", "Number of parallel uploads (default: 10)", "10")
     .option("--print-contenthash", "Also print 0x-prefixed IPFS contenthash for the CID", false)
     .option(
-      "--use-car",
+      "--car",
       "Merkleize with IPFS CLI and upload as a CAR file (directories only)",
       false,
     )
@@ -276,10 +276,10 @@ export function attachBulletinCommands(root: Command): void {
         );
         const parallel = Boolean(mergedOptions.parallel);
         const concurrency = Math.max(1, Number(mergedOptions.concurrency || 10));
-        const useCar = Boolean(mergedOptions.useCar);
+        const useCar = Boolean(mergedOptions.car);
 
         if (useCar && !isDirectory) {
-          throw new Error("--use-car is only supported for directory uploads");
+          throw new Error("--car is only supported for directory uploads");
         }
 
         const context = await maybeQuiet(jsonOutput, () =>
