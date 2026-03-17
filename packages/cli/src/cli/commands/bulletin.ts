@@ -15,11 +15,7 @@ import {
   ensureAccountAuthorized,
   authorizeAccount,
 } from "../../commands/bulletin";
-import {
-  ensureIpfsInitialized,
-  merkleizeWithIpfs,
-  exportCarFile,
-} from "../../bulletin/ipfs";
+import { ensureIpfsInitialized, merkleizeWithIpfs, exportCarFile } from "../../bulletin/ipfs";
 import {
   addUploadRecord,
   readHistory,
@@ -251,7 +247,11 @@ export function attachBulletinCommands(root: Command): void {
     .option("--parallel", "Upload directory blocks in parallel (faster)", false)
     .option("--concurrency <n>", "Number of parallel uploads (default: 10)", "10")
     .option("--print-contenthash", "Also print 0x-prefixed IPFS contenthash for the CID", false)
-    .option("--use-car", "Merkleize with IPFS CLI and upload as a CAR file (directories only)", false)
+    .option(
+      "--use-car",
+      "Merkleize with IPFS CLI and upload as a CAR file (directories only)",
+      false,
+    )
     .option("--no-history", "Do not save upload to history", true)
     .option("--json", "Output result as JSON (suppresses all other output)", false);
 
