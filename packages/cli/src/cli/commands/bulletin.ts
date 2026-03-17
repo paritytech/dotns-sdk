@@ -1,5 +1,9 @@
 import { Command } from "commander";
 import chalk from "chalk";
+import ora from "ora";
+import { promises as filesystem } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { BulletinUploadOptions, CommandOptions } from "../../types/types";
 import { formatErrorMessage } from "../../utils/formatting";
 import {
@@ -11,6 +15,11 @@ import {
   ensureAccountAuthorized,
   authorizeAccount,
 } from "../../commands/bulletin";
+import {
+  ensureIpfsInitialized,
+  merkleizeWithIpfs,
+  exportCarFile,
+} from "../../bulletin/ipfs";
 import {
   addUploadRecord,
   readHistory,
@@ -242,6 +251,7 @@ export function attachBulletinCommands(root: Command): void {
     .option("--parallel", "Upload directory blocks in parallel (faster)", false)
     .option("--concurrency <n>", "Number of parallel uploads (default: 10)", "10")
     .option("--print-contenthash", "Also print 0x-prefixed IPFS contenthash for the CID", false)
+    .option("--use-car", "Merkleize with IPFS CLI and upload as a CAR file (directories only)", false)
     .option("--no-history", "Do not save upload to history", true)
     .option("--json", "Output result as JSON (suppresses all other output)", false);
 
@@ -270,6 +280,11 @@ export function attachBulletinCommands(root: Command): void {
         );
         const parallel = Boolean(mergedOptions.parallel);
         const concurrency = Math.max(1, Number(mergedOptions.concurrency || 10));
+        const useCar = Boolean(mergedOptions.useCar);
+
+        if (useCar && !isDirectory) {
+          throw new Error("--use-car is only supported for directory uploads");
+        }
 
         const context = await maybeQuiet(jsonOutput, () =>
           prepareContext({ ...mergedOptions, useBulletin: true }),
@@ -281,6 +296,41 @@ export function attachBulletinCommands(root: Command): void {
 
         const performUpload = async () => {
           if (isDirectory) {
+            if (useCar) {
+              ensureIpfsInitialized();
+
+              const merkleSpinner = ora("Merkleizing directory with IPFS CLI").start();
+              const merkleResult = merkleizeWithIpfs(resolvedPath);
+              const ipfsCid = merkleResult.cid;
+              merkleSpinner.succeed(`Merkleized: ${ipfsCid}`);
+
+              const exportSpinner = ora("Exporting CAR file").start();
+              const tempCarPath = join(tmpdir(), `dotns-car-${Date.now()}.car`);
+              try {
+                exportCarFile(ipfsCid, tempCarPath);
+                const carBytes = new Uint8Array(await filesystem.readFile(tempCarPath));
+                exportSpinner.succeed(
+                  `CAR exported: ${(carBytes.length / 1024 / 1024).toFixed(2)} MB`,
+                );
+
+                let storageCid: string;
+                if (carBytes.length > MAX_SINGLE_UPLOAD_SIZE_BYTES) {
+                  storageCid = await uploadChunkedBlocks(
+                    bulletinRpc,
+                    context.signer,
+                    carBytes,
+                    chunkSizeBytes,
+                  );
+                } else {
+                  storageCid = await uploadSingleBlock(bulletinRpc, context.signer, carBytes);
+                }
+
+                return { cid: storageCid, ipfsCid, size: carBytes.length };
+              } finally {
+                await filesystem.unlink(tempCarPath).catch(() => {});
+              }
+            }
+
             const result = await storeDirectory(bulletinRpc, context.signer, resolvedPath, {
               parallel,
               concurrency,
@@ -319,7 +369,11 @@ export function attachBulletinCommands(root: Command): void {
           console.log(chalk.gray("  rpc:      ") + chalk.white(bulletinRpc));
 
           if (isDirectory) {
-            const mode = parallel ? `directory (parallel, ${concurrency}x)` : "directory";
+            const mode = useCar
+              ? "car (ipfs cli)"
+              : parallel
+                ? `directory (parallel, ${concurrency}x)`
+                : "directory";
             console.log(chalk.gray("  mode:     ") + chalk.white(mode));
           } else if (mergedOptions.forceChunked || bytes.length > MAX_SINGLE_UPLOAD_SIZE_BYTES) {
             console.log(chalk.gray("  size:     ") + chalk.white(`${bytes.length} bytes`));
@@ -349,7 +403,8 @@ export function attachBulletinCommands(root: Command): void {
         if (jsonOutput) {
           console.log(
             JSON.stringify({
-              cid: ipfsCid,
+              cid,
+              ipfsCid: ipfsCid !== cid ? ipfsCid : undefined,
               contenthash,
               preview: previewUrl,
               path: resolvedPath,
@@ -358,7 +413,10 @@ export function attachBulletinCommands(root: Command): void {
             }),
           );
         } else {
-          console.log(chalk.gray("\n  cid:         ") + chalk.cyan(ipfsCid));
+          console.log(chalk.gray("\n  cid:         ") + chalk.cyan(cid));
+          if (ipfsCid !== cid) {
+            console.log(chalk.gray("  ipfs-cid:    ") + chalk.cyan(ipfsCid));
+          }
           console.log(chalk.gray("  preview:     ") + chalk.blue(previewUrl));
 
           if (mergedOptions.printContenthash) {

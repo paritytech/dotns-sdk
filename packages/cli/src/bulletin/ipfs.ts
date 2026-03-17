@@ -42,6 +42,23 @@ export function hasIpfsCli(): boolean {
   return findIpfsBinaryPath() !== null;
 }
 
+export function ensureIpfsInitialized(): void {
+  const binaryPath = findIpfsBinaryPath();
+
+  if (!binaryPath) {
+    throw new Error(
+      "IPFS CLI not found. Install with: bun install\n" +
+        "Or manually from: https://docs.ipfs.tech/install/",
+    );
+  }
+
+  try {
+    execSync(`"${binaryPath}" repo stat`, { encoding: "utf-8", stdio: "pipe" });
+  } catch {
+    execSync(`"${binaryPath}" init`, { encoding: "utf-8", stdio: "pipe" });
+  }
+}
+
 export function getIpfsVersion(): string | null {
   const binaryPath = findIpfsBinaryPath();
   if (!binaryPath) {

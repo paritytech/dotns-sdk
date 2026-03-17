@@ -225,6 +225,8 @@ export type BulletinUploadOptions = {
   transactions?: string;
   /** Number of bytes to authorize */
   bytes?: string;
+  /** Merkleize with IPFS CLI and upload as a CAR file instead of individual blocks */
+  useCar?: boolean;
   /**  Output as json */
   json: boolean;
   /** Whether to store the current upload to the local history db */
