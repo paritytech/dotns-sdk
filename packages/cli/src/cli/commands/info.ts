@@ -173,12 +173,10 @@ export function attachAccountCommands(root: Command) {
     const jsonOutput = getJsonFlag(cmd);
     try {
       const mergedOptions = getMergedOptions(cmd, options);
-      const { clientWrapper, account } = await maybeQuiet(jsonOutput, () =>
+      const { clientWrapper } = await maybeQuiet(jsonOutput, () =>
         prepareReadOnlyContext(mergedOptions),
       );
-      const result = await maybeQuiet(jsonOutput, () =>
-        checkAccountMapped(clientWrapper, account.address, address),
-      );
+      const result = await maybeQuiet(jsonOutput, () => checkAccountMapped(clientWrapper, address));
       if (jsonOutput) console.log(JSON.stringify(result));
       else console.log(chalk.green("\n  Complete\n"));
       process.exit(0);

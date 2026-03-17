@@ -24,7 +24,6 @@ async function resolveToEvmAddress(
 
 export async function checkAccountMapped(
   clientWrapper: ReviveClientWrapper,
-  originAddress: string,
   targetAddress: string,
 ): Promise<IsMappedResult> {
   const spinner = ora("Resolving address").start();

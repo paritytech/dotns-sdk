@@ -20,6 +20,7 @@ jobs:
             const pull_number = context.payload.pull_request.number;
             const author = context.payload.pull_request.user.login;
 
+            // Keep this list in sync with .github/CODEOWNERS
             const codeOwners = [
               "filvecchiato",
               "waytwotall",
