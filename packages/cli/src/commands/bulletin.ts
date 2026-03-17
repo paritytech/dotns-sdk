@@ -24,6 +24,7 @@ import type {
   ValidatePathResult,
   AuthorizeAccountOptions,
   AuthorizeAccountResult,
+  AuthorizationStatus,
   StoreDirectoryOptions,
   StoreDirectoryResult,
 } from "../types/types";
@@ -31,6 +32,7 @@ import {
   DEFAULT_AUTHORIZATION_TRANSACTIONS,
   DEFAULT_AUTHORIZATION_BYTES,
   DEFAULT_VERIFICATION_GATEWAY,
+  BULLETIN_BLOCK_TIME_MS,
 } from "../utils/constants";
 import { formatErrorMessage } from "../utils/formatting";
 
@@ -50,6 +52,32 @@ function formatBytesAsHumanReadable(bytesValue: bigint): string {
   }
 
   return `${numericValue.toFixed(2)} ${units[unitIndex]}`;
+}
+
+export function estimateBlockDate(currentBlock: number, targetBlock: number): Date {
+  const blockDelta = targetBlock - currentBlock;
+  return new Date(Date.now() + blockDelta * BULLETIN_BLOCK_TIME_MS);
+}
+
+export function formatEstimatedDate(date: Date): string {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const hours = String(date.getUTCHours()).padStart(2, "0");
+  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day} ${hours}:${minutes} UTC`;
+}
+
+export function formatExpirationDisplay(currentBlock: number, expirationBlock: number): string {
+  return `~${formatEstimatedDate(estimateBlockDate(currentBlock, expirationBlock))}`;
+}
+
+export function expirationToISOString(
+  currentBlock: number | undefined,
+  expirationBlock: number | undefined,
+): string | null {
+  if (currentBlock === undefined || expirationBlock === undefined) return null;
+  return estimateBlockDate(currentBlock, expirationBlock).toISOString();
 }
 
 function isLocalChainEndpoint(rpcUrl: string): boolean {
@@ -157,9 +185,10 @@ export async function authorizeAccount(
     targetAddress,
     transactions = DEFAULT_AUTHORIZATION_TRANSACTIONS,
     bytes = DEFAULT_AUTHORIZATION_BYTES,
+    force = false,
   } = options;
 
-  const spinner = ora("Authorizing account").start();
+  const spinner = ora("Checking authorization status").start();
   let client: PolkadotClient | undefined;
   let txHash = "";
 
@@ -169,35 +198,52 @@ export async function authorizeAccount(
     if (existingAuthorization.authorized) {
       const existingTransactions = existingAuthorization.transactions ?? 0;
       const existingBytes = existingAuthorization.bytes ?? BigInt(0);
+      const currentBlock = existingAuthorization.currentBlock ?? 0;
 
-      if (existingTransactions >= transactions && existingBytes >= bytes) {
-        spinner.warn("Account already authorized");
+      if (existingAuthorization.expired) {
+        spinner.warn("Authorization expired");
+        console.log(
+          chalk.gray("  expired:  ") +
+            chalk.red(formatExpirationDisplay(currentBlock, existingAuthorization.expiration!)),
+        );
+        spinner.start("Re-authorizing account");
+      } else if (existingTransactions >= transactions && existingBytes >= bytes) {
+        if (!force) {
+          spinner.warn("Account already authorized");
+          console.log(
+            chalk.gray("  transactions: ") +
+              chalk.white(existingTransactions.toLocaleString()) +
+              chalk.gray(` (requested: ${transactions.toLocaleString()})`),
+          );
+          console.log(
+            chalk.gray("  bytes:        ") +
+              chalk.white(formatBytesAsHumanReadable(existingBytes)) +
+              chalk.gray(` (requested: ${formatBytesAsHumanReadable(bytes)})`),
+          );
+          console.log(
+            chalk.gray("  expires:      ") +
+              chalk.white(formatExpirationDisplay(currentBlock, existingAuthorization.expiration!)),
+          );
+          return { txHash: "", blockHash: "" };
+        }
+        spinner.info("Force re-authorizing account");
+      } else {
+        spinner.info("Upgrading authorization limits");
         console.log(
           chalk.gray("  transactions: ") +
-            chalk.white(existingTransactions.toLocaleString()) +
-            chalk.gray(` (requested: ${transactions.toLocaleString()})`),
+            chalk.white(
+              `${existingTransactions.toLocaleString()} → ${transactions.toLocaleString()}`,
+            ),
         );
         console.log(
           chalk.gray("  bytes:        ") +
-            chalk.white(formatBytesAsHumanReadable(existingBytes)) +
-            chalk.gray(` (requested: ${formatBytesAsHumanReadable(bytes)})`),
+            chalk.white(
+              `${formatBytesAsHumanReadable(existingBytes)} → ${formatBytesAsHumanReadable(bytes)}`,
+            ),
         );
-        return { txHash: "", blockHash: "" };
       }
-
-      spinner.info("Upgrading authorization limits");
-      console.log(
-        chalk.gray("  transactions: ") +
-          chalk.white(
-            `${existingTransactions.toLocaleString()} → ${transactions.toLocaleString()}`,
-          ),
-      );
-      console.log(
-        chalk.gray("  bytes:        ") +
-          chalk.white(
-            `${formatBytesAsHumanReadable(existingBytes)} → ${formatBytesAsHumanReadable(bytes)}`,
-          ),
-      );
+    } else {
+      spinner.text = "Authorizing account";
     }
 
     client = createClient(withPolkadotSdkCompat(getWsProvider(rpc)));
@@ -239,6 +285,7 @@ export async function authorizeAccount(
                 .then((verification) => {
                   if (
                     verification.authorized &&
+                    !verification.expired &&
                     (verification.transactions ?? 0) >= transactions &&
                     (verification.bytes ?? BigInt(0)) >= bytes
                   ) {
@@ -250,6 +297,15 @@ export async function authorizeAccount(
                     console.log(
                       chalk.gray("  bytes:        ") +
                         chalk.white(formatBytesAsHumanReadable(bytes)),
+                    );
+                    console.log(
+                      chalk.gray("  expires:      ") +
+                        chalk.white(
+                          formatExpirationDisplay(
+                            verification.currentBlock ?? 0,
+                            verification.expiration!,
+                          ),
+                        ),
                     );
                     resolve({ txHash, blockHash: event.block.hash });
                   } else {
@@ -299,25 +355,34 @@ export async function authorizeAccount(
 export async function checkAuthorization(
   rpc: string,
   accountAddress: string,
-): Promise<{ authorized: boolean; transactions?: number; bytes?: bigint }> {
+): Promise<AuthorizationStatus> {
   const client = createClient(withPolkadotSdkCompat(getWsProvider(rpc)));
 
   try {
     const typedApi = client.getTypedApi(bulletin);
-    const authorizationState = await typedApi.query.TransactionStorage.Authorizations.getValue({
-      type: "Account",
-      value: accountAddress,
-    });
+    const [authorizationState, currentBlock] = await Promise.all([
+      typedApi.query.TransactionStorage.Authorizations.getValue({
+        type: "Account",
+        value: accountAddress,
+      }),
+      typedApi.query.System.Number.getValue(),
+    ]);
 
     if (authorizationState) {
+      const expiration = authorizationState.expiration;
+      const expired = currentBlock >= expiration;
+
       return {
         authorized: true,
         transactions: authorizationState.extent.transactions,
         bytes: authorizationState.extent.bytes,
+        expiration,
+        currentBlock,
+        expired,
       };
     }
 
-    return { authorized: false };
+    return { authorized: false, currentBlock };
   } catch {
     return { authorized: false };
   } finally {
@@ -329,11 +394,19 @@ export async function ensureAccountAuthorized(
   bulletinRpc: string,
   signer: PolkadotSigner,
   accountAddress: string,
-): Promise<void> {
+): Promise<{ expiration?: number; currentBlock?: number }> {
   const authStatus = await checkAuthorization(bulletinRpc, accountAddress);
 
-  if (authStatus.authorized) {
-    return;
+  if (authStatus.authorized && !authStatus.expired) {
+    return { expiration: authStatus.expiration, currentBlock: authStatus.currentBlock };
+  }
+
+  if (authStatus.authorized && authStatus.expired) {
+    throw new Error(
+      `Account authorization has expired (${formatExpirationDisplay(authStatus.currentBlock ?? 0, authStatus.expiration!)}).\n` +
+        `Re-authorize it:\n\n` +
+        `  dotns bulletin authorize ${accountAddress}\n`,
+    );
   }
 
   if (isLocalChainEndpoint(bulletinRpc)) {
@@ -343,12 +416,13 @@ export async function ensureAccountAuthorized(
         signer,
         targetAddress: accountAddress,
       });
-      return;
+      const refreshed = await checkAuthorization(bulletinRpc, accountAddress);
+      return { expiration: refreshed.expiration, currentBlock: refreshed.currentBlock };
     } catch (error) {
       const errorMessage = formatErrorMessage(error);
 
       if (errorMessage.includes("AlreadyAuthorized") || errorMessage.includes("Sudid")) {
-        return;
+        return {};
       }
 
       console.log(chalk.yellow(`  Authorization warning: ${errorMessage.split("\n")[0]}`));

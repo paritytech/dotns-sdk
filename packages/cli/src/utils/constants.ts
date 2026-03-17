@@ -27,6 +27,8 @@ export const DEFAULT_MNEMONIC =
 
 export const DEFAULT_SUDO_KEY_URI = "//Alice";
 
+export const BULLETIN_BLOCK_TIME_MS = 6000;
+
 export const OPERATION_TIMEOUT_MILLISECONDS = 300_000;
 
 export const DOTNS_REGISTRAR_CONTROLLER_ABI = DotnsRegistrarController.abi as Abi;
