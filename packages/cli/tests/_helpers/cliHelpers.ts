@@ -13,6 +13,7 @@ import { attachPopCommands } from "../../src/cli/commands/pop";
 import { attachContentCommands } from "../../src/cli/commands/content";
 import { attachTextCommands } from "../../src/cli/commands/text";
 import { attachStoreCommands } from "../../src/cli/commands/store";
+import { attachAccountCommands } from "../../src/cli/commands/info";
 
 export const HARNESS_SUCCESS_EXIT_CODE = 1;
 export const HARNESS_HELP_SUCCESS_EXIT_CODE = 0;
@@ -54,6 +55,7 @@ export function createDotnsTestProgram(): Command {
   attachContentCommands(rootCommand);
   attachTextCommands(rootCommand);
   attachStoreCommands(rootCommand);
+  attachAccountCommands(rootCommand);
   return rootCommand;
 }
 

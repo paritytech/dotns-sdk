@@ -231,7 +231,7 @@ async function executeGovernanceRegistration(
   );
 
   await step("Waiting commitment age", async () =>
-    waitForMinimumCommitmentAge(clientWrapper, substrateAddress),
+    waitForMinimumCommitmentAge(clientWrapper, substrateAddress, commitment),
   );
 
   await step("Finalizing registration", async () =>
@@ -309,7 +309,7 @@ async function executeRegularRegistration(
   );
 
   await step("Waiting commitment age", async () =>
-    waitForMinimumCommitmentAge(clientWrapper, substrateAddress),
+    waitForMinimumCommitmentAge(clientWrapper, substrateAddress, commitment),
   );
 
   const pricing: PricingAndEligibility = await step("Pricing and eligibility", async () =>
