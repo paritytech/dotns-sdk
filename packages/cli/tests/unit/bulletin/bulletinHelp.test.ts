@@ -28,8 +28,10 @@ test("bulletin upload help shows all options", async () => {
   expect(result.combinedOutput).toContain("--bulletin-rpc");
   expect(result.combinedOutput).toContain("--chunk-size");
   expect(result.combinedOutput).toContain("--force-chunked");
-  expect(result.combinedOutput).toContain("--parallel");
+  expect(result.combinedOutput).toContain("--resume");
   expect(result.combinedOutput).toContain("--concurrency");
+  expect(result.combinedOutput).toContain("--profile-upload");
+  expect(result.combinedOutput).toContain("--profile-output");
   expect(result.combinedOutput).toContain("--print-contenthash");
   expect(result.combinedOutput).toContain("--json");
   expect(result.combinedOutput).toContain("--no-history");

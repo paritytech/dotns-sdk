@@ -56,11 +56,13 @@ export async function connectBulletin() {
     account.sign(input),
   );
 
-  const client = createClient(getWsProvider(rpc)).getTypedApi(bulletin);
+  const rawClient = createClient(getWsProvider(rpc));
+  const client = rawClient.getTypedApi(bulletin);
 
   return {
     rpc,
     client,
+    rawClient,
     substrateAddress,
     signer,
   };

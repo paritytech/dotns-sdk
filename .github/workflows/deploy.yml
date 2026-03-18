@@ -68,12 +68,6 @@ on:
         required: false
         type: string
 
-      parallel:
-        description: 'Upload directory blocks in parallel'
-        required: false
-        type: boolean
-        default: true
-
       upload-concurrency:
         description: 'Number of parallel block uploads'
         required: false
@@ -242,7 +236,6 @@ jobs:
           mnemonic: ${{ secrets.bulletin-mnemonic || 'bottom drive obey lake curtain smoke basket hold race lonely fit walk' }}
           bulletin-rpc: ${{ inputs.bulletin-rpc }}
           build-path: ${{ inputs.use-car && './build.car' || './build' }}
-          parallel: ${{ inputs.parallel }}
           upload-concurrency: ${{ inputs.upload-concurrency }}
           max-retries: ${{ inputs.max-retries }}
           retry-delay: ${{ inputs.retry-delay }}

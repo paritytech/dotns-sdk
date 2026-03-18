@@ -154,7 +154,6 @@ test(
     const result = await runBulletinUpload([
       dirPath,
       "--json",
-      "--parallel",
       "--concurrency",
       "3",
       "--no-history",
@@ -189,6 +188,43 @@ test(
 );
 
 test(
+  "bulletin upload --profile-upload keeps json output stable and writes report",
+  async () => {
+    createPathsForTest("bulletin_upload_profile_json");
+    const profileOutputPath = path.join(
+      testFileTemporaryRootDirectoryPath!,
+      `upload-profile-${Date.now()}.json`,
+    );
+
+    const result = await runBulletinUpload([
+      spongePath(),
+      "--json",
+      "--profile-upload",
+      "--profile-output",
+      profileOutputPath,
+      "--no-history",
+    ]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+
+    const parsed = parseJsonUploadResult(result);
+    expect(parsed.cid).toMatch(/^bafy|^bafk/);
+    expect(parsed.contenthash).toMatch(/^[0-9a-f]+$/i);
+    expect(parsed.preview).toContain("preview");
+    expect(parsed.type).toBe("file");
+
+    const profileRaw = await fs.readFile(profileOutputPath, "utf8");
+    const profileParsed = JSON.parse(profileRaw);
+
+    expect(profileParsed.meta).toBeDefined();
+    expect(Array.isArray(profileParsed.samples)).toBe(true);
+    expect(Array.isArray(profileParsed.waves)).toBe(true);
+    expect(profileParsed.summary).toBeDefined();
+  },
+  { timeout: BULLETIN_TEST_TIMEOUT_MS },
+);
+
+test(
   "bulletin upload directory",
   async () => {
     createPathsForTest("bulletin_upload_directory");
@@ -203,14 +239,13 @@ test(
 );
 
 test(
-  "bulletin upload directory parallel",
+  "bulletin upload directory with concurrency",
   async () => {
     createPathsForTest("bulletin_upload_directory_parallel");
     const dirPath = await createTestDirectory("test_site_parallel");
 
     const result = await runBulletinUpload([
       dirPath,
-      "--parallel",
       "--concurrency",
       "3",
       "--no-history",

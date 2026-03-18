@@ -190,11 +190,14 @@ dotns --password test-password bulletin upload ./image.png --account default
 # Upload directory
 dotns --password test-password bulletin upload ./dist --account default
 
-# Upload directory in parallel (faster)
-dotns --password test-password bulletin upload ./dist --parallel --concurrency 5 --account default
+# Upload directory with concurrency control
+dotns --password test-password bulletin upload ./dist --concurrency 5 --account default
 
-# Force chunked upload for large files
+# Force chunked upload for large files (streams from disk, low memory)
 dotns --password test-password bulletin upload ./large-file.zip --force-chunked --chunk-size 1048576 --account default
+
+# Resume an interrupted upload
+dotns --password test-password bulletin upload ./large-file.zip --force-chunked --resume --account default
 
 # Print contenthash
 dotns --password test-password bulletin upload ./site.html --print-contenthash --account default
