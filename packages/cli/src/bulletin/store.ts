@@ -26,10 +26,10 @@ import type {
 } from "../types/types";
 
 const MAXIMUM_TRANSACTION_SIZE = 8 * 1024 * 1024;
-const MAX_IN_FLIGHT_BYTES = 16 * 1024 * 1024;
+const MAX_IN_FLIGHT_BYTES = 8 * 1024 * 1024;
 const MIN_CHUNK_SIZE_BYTES = 256 * 1024;
 const DEFAULT_CHUNK_SIZE_BYTES = 2 * 1024 * 1024;
-const MAX_CHUNK_SIZE_BYTES = 4 * 1024 * 1024;
+const MAX_CHUNK_SIZE_BYTES = 2 * 1024 * 1024;
 const ADAPTIVE_WINDOW_MIN = 1;
 const ADAPTIVE_WINDOW_DEFAULT_START = 1;
 const ADAPTIVE_WINDOW_DEFAULT_MAX = 4;
@@ -575,7 +575,7 @@ export async function storeChunkedFileToBulletin(
   const { CID } = await import("multiformats/cid");
 
   const chunkSize = clampChunkSizeBytes(parameters.chunkSize);
-  const maxWindow = 1;
+  const maxWindow = sanitizeWindowLimit(parameters.concurrency);
   let window = 1;
   let cleanWaveStreak = 0;
 
@@ -687,7 +687,7 @@ export async function storeChunkedFileToBulletin(
               hashCodeValue: HASH.SHA2_256,
               nonce,
               client: sharedClient,
-              waitForFinalization: false,
+              waitForFinalization,
             });
 
             manifestState.completedBlocks.set(chunk.index, {
@@ -824,7 +824,7 @@ export async function storeChunkedFileToBulletin(
       hashCodeValue: HASH.SHA2_256,
       nonce: nextNonce,
       client: sharedClient,
-      waitForFinalization: false,
+      waitForFinalization,
     });
 
     manifestState.rootCid = rootCidString;

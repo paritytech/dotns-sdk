@@ -96,7 +96,7 @@ describe("chunk size clamping", () => {
   test("uses memory-safe defaults and bounds", () => {
     expect(clampChunkSizeBytes(undefined)).toBe(2 * 1024 * 1024);
     expect(clampChunkSizeBytes(128 * 1024)).toBe(256 * 1024);
-    expect(clampChunkSizeBytes(8 * 1024 * 1024)).toBe(4 * 1024 * 1024);
+    expect(clampChunkSizeBytes(8 * 1024 * 1024)).toBe(2 * 1024 * 1024);
   });
 });
 

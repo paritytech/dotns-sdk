@@ -5,9 +5,9 @@ import { mkdirSync, rmSync, writeFileSync, readFileSync } from "fs";
 import { join, resolve } from "path";
 import { spawnSync } from "child_process";
 
-const DEFAULT_SIZES = ["1MB", "8MB", "32MB", "128MB", "256MB", "512MB", "1GB"];
+const DEFAULT_SIZES = ["500KB", "1MB", "5MB", "10MB", "50MB", "100MB", "500MB", "1GB"];
 const DEFAULT_RPC = "wss://paseo-bulletin-rpc.polkadot.io";
-const DEFAULT_TIMEOUT_MINUTES = 60;
+const DEFAULT_TIMEOUT_MINUTES = 120;
 
 const { values } = parseArgs({
   args: Bun.argv.slice(2),
@@ -125,15 +125,11 @@ function runUpload(filePath: string, profilePath: string): { stdout: string; rep
     "bulletin",
     "upload",
     filePath,
-    "--password",
-    String(values.password),
-    "--account",
-    String(values.account),
+    "--key-uri",
+    "//Alice",
     "--bulletin-rpc",
     String(values.rpc),
     "--force-chunked",
-    "--concurrency",
-    String(values.concurrency),
     "--profile-upload",
     "--profile-output",
     profilePath,
