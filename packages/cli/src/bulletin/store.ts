@@ -575,8 +575,8 @@ export async function storeChunkedFileToBulletin(
   const { CID } = await import("multiformats/cid");
 
   const chunkSize = clampChunkSizeBytes(parameters.chunkSize);
-  const maxWindow = sanitizeWindowLimit(parameters.concurrency);
-  let window = maxWindow;
+  const maxWindow = 1;
+  let window = 1;
   let cleanWaveStreak = 0;
 
   const waitForFinalization = parameters.waitForFinalization ?? false;
@@ -602,27 +602,8 @@ export async function storeChunkedFileToBulletin(
   const chunkIterator = streamFileChunks(parameters.filePath, chunkSize)[Symbol.asyncIterator]();
   let reachedEndOfStream = false;
 
-  const poolSize = maxWindow;
-  const clientPool: PolkadotClient[] = await Promise.all(
-    Array.from({ length: poolSize }, () => {
-      const client = createBulletinClient(parameters.rpc);
-      return client.getTypedApi(bulletin).query.System.Number.getValue().then(() => client);
-    }),
-  );
-  let nextPoolSlot = 0;
-
-  function acquireClient(): PolkadotClient {
-    const client = clientPool[nextPoolSlot % clientPool.length]!;
-    nextPoolSlot++;
-    return client;
-  }
-
-  function destroyPool(): void {
-    for (const client of clientPool) {
-      try { client.destroy(); } catch { /* already closed */ }
-    }
-    clientPool.length = 0;
-  }
+  const sharedClient = parameters.client ?? createBulletinClient(parameters.rpc);
+  const ownsClient = !parameters.client;
 
   const startingNonce = await fetchAccountNonce(parameters.rpc, parameters.accountAddress);
   let nextNonce = startingNonce;
@@ -705,8 +686,8 @@ export async function storeChunkedFileToBulletin(
               codecValue: CODEC.RAW,
               hashCodeValue: HASH.SHA2_256,
               nonce,
-              client: acquireClient(),
-              waitForFinalization,
+              client: sharedClient,
+              waitForFinalization: false,
             });
 
             manifestState.completedBlocks.set(chunk.index, {
@@ -768,14 +749,6 @@ export async function storeChunkedFileToBulletin(
         const isNonceError = errorMsg.includes("stale") || errorMsg.includes("ancientbirthblock");
 
         if (isStall || isNonceError) {
-          destroyPool();
-          const freshClients = await Promise.all(
-            Array.from({ length: poolSize }, () => {
-              const c = createBulletinClient(parameters.rpc);
-              return c.getTypedApi(bulletin).query.System.Number.getValue().then(() => c);
-            }),
-          );
-          clientPool.push(...freshClients);
           nextNonce = await fetchAccountNonce(parameters.rpc, parameters.accountAddress);
           window = Math.max(ADAPTIVE_WINDOW_MIN, Math.floor(window / 2));
           cleanWaveStreak = 0;
@@ -850,8 +823,8 @@ export async function storeChunkedFileToBulletin(
       codecValue: CODEC.DAG_PB,
       hashCodeValue: HASH.SHA2_256,
       nonce: nextNonce,
-      client: acquireClient(),
-      waitForFinalization,
+      client: sharedClient,
+      waitForFinalization: false,
     });
 
     manifestState.rootCid = rootCidString;
@@ -862,7 +835,9 @@ export async function storeChunkedFileToBulletin(
 
     return { rootCid: rootCidString };
   } finally {
-    destroyPool();
+    if (ownsClient) {
+      try { sharedClient.destroy(); } catch { /* already closed */ }
+    }
   }
 }
 
