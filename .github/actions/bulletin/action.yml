@@ -12,10 +12,6 @@ inputs:
     description: 'Path to the build directory to upload'
     required: false
     default: './build'
-  parallel:
-    description: 'Upload directory blocks in parallel'
-    required: false
-    default: 'true'
   upload-concurrency:
     description: 'Number of parallel block uploads'
     required: false
@@ -72,7 +68,7 @@ runs:
 
         ARGS=("$BUILD_PATH" --json)
         [[ -n "$BULLETIN_RPC" ]] && ARGS+=(--bulletin-rpc "$BULLETIN_RPC")
-        [[ "$PARALLEL" == "true" ]] && ARGS+=(--parallel --concurrency "$UPLOAD_CONCURRENCY")
+        ARGS+=(--concurrency "$UPLOAD_CONCURRENCY")
 
         for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
           echo "Upload attempt $ATTEMPT/$MAX_RETRIES"
@@ -100,7 +96,6 @@ runs:
         DOTNS_MNEMONIC: ${{ inputs.mnemonic }}
         BULLETIN_RPC: ${{ inputs.bulletin-rpc }}
         BUILD_PATH: ${{ inputs.build-path }}
-        PARALLEL: ${{ inputs.parallel }}
         UPLOAD_CONCURRENCY: ${{ inputs.upload-concurrency }}
         MAX_RETRIES: ${{ inputs.max-retries }}
         RETRY_DELAY: ${{ inputs.retry-delay }}

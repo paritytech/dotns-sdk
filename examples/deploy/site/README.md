@@ -43,7 +43,6 @@ All inputs accepted by the reusable `deploy.yml` workflow:
 | `bulletin-rpc` | CLI default | Bulletin chain WebSocket RPC endpoint override |
 | `rpc` | CLI default | DotNS chain WebSocket RPC endpoint override |
 | `use-car` | `false` | Merkleize with IPFS CLI and upload as a CAR file instead of individual blocks |
-| `parallel` | `true` | Upload directory blocks in parallel |
 | `upload-concurrency` | `15` | Number of parallel block uploads |
 | `skip-cache` | `false` | Skip deployment cache and force re-upload |
 | `max-retries` | `3` | Max retry attempts per step for transient RPC failures |

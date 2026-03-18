@@ -10,7 +10,7 @@ import {
 } from "../commands/bulletin";
 
 const MAX_SINGLE_UPLOAD_SIZE_BYTES = 8 * 1024 * 1024;
-const DEFAULT_CHUNK_SIZE_BYTES = 2 * 1024 * 1024;
+const DEFAULT_CHUNK_SIZE_BYTES = 512 * 1024;
 
 async function main() {
   const filePath = process.env.BULLETIN_FILE ?? "./01_info.ts";
@@ -31,11 +31,11 @@ async function main() {
 
   const { rpc, substrateAddress, signer } = await connectBulletin();
 
-  const fileBytes = await validateAndReadPath(resolvedPath);
+  const validated = await validateAndReadPath(resolvedPath);
 
   console.log("\n▶ Bulletin Upload\n");
   console.log("  file:     ", resolvedPath);
-  console.log("  size:     ", fileBytes.bytes.length, "bytes");
+  console.log("  size:     ", validated.fileSize ?? validated.bytes.length, "bytes");
   console.log("  rpc:      ", rpc);
   console.log("  mode:     ", forceChunked ? "chunked (dag-pb)" : "auto");
 
@@ -43,10 +43,11 @@ async function main() {
 
   let cid: string;
 
-  if (!forceChunked && fileBytes.bytes.length <= MAX_SINGLE_UPLOAD_SIZE_BYTES) {
-    cid = await uploadSingleBlock(rpc, signer, fileBytes.bytes);
+  if (!forceChunked && !validated.deferredRead && validated.bytes.length <= MAX_SINGLE_UPLOAD_SIZE_BYTES) {
+    cid = await uploadSingleBlock(rpc, signer, validated.bytes);
   } else {
-    cid = await uploadChunkedBlocks(rpc, signer, fileBytes.bytes, chunkSize);
+    const fileSize = validated.fileSize ?? validated.bytes.length;
+    cid = await uploadChunkedBlocks(rpc, signer, resolvedPath, chunkSize, fileSize, substrateAddress);
   }
 
   console.log("\n  cid:      ", cid);

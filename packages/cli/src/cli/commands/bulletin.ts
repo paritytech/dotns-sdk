@@ -1,7 +1,19 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import type { BulletinUploadOptions, CommandOptions } from "../../types/types";
-import { formatErrorMessage } from "../../utils/formatting";
+import os from "node:os";
+import path from "node:path";
+import { createHash } from "node:crypto";
+import v8 from "node:v8";
+import { promises as filesystem } from "node:fs";
+import type {
+  BulletinUploadOptions,
+  CommandOptions,
+  UploadProfileReport,
+  UploadProfileSample,
+  UploadSchedulerState,
+  UploadWaveSummary,
+} from "../../types/types";
+import { formatErrorMessage, formatBytes } from "../../utils/formatting";
 import {
   validateAndReadPath,
   uploadSingleBlock,
@@ -23,6 +35,12 @@ import {
   formatRecordTimestamp,
   getPreviewUrl,
 } from "../../bulletin/cidHistory";
+import {
+  completedBlocksFromManifest,
+  cleanupStaleManifests,
+  deleteManifest,
+  loadManifestForResume,
+} from "../../bulletin/uploadManifest";
 import { addAuthOptions } from "./authOptions";
 import { prepareContext } from "../context";
 import {
@@ -34,6 +52,7 @@ import {
   MAX_SINGLE_UPLOAD_SIZE_BYTES,
 } from "../../utils/constants";
 import { getJsonFlag } from "./lookup";
+import { clampChunkSizeBytes } from "../../bulletin/store";
 
 function getMergedOptions(
   command: Command | undefined,
@@ -57,17 +76,155 @@ function getMergedOptions(
   return mergedOptions;
 }
 
-function formatBytes(bytes: bigint | number): string {
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let value = Number(bytes);
-  let unitIndex = 0;
 
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex++;
-  }
+export type UploadProfiler = {
+  onSchedulerState: (state: UploadSchedulerState) => void;
+  onWave: (wave: UploadWaveSummary) => void;
+  finalize: (
+    finalCid: string,
+    overrideOutputPath?: string,
+  ) => Promise<{ report: UploadProfileReport; outputPath: string }>;
+};
 
-  return `${value.toFixed(2)} ${units[unitIndex]}`;
+export type UploadProfilerOptions = {
+  sourcePath: string;
+  sourceSizeBytes: number;
+  chunkSizeBytes: number;
+  rpc: string;
+  initialConcurrency: number;
+  maxConcurrency: number;
+  outputPath?: string;
+  jsonOutput: boolean;
+};
+
+const PROFILE_SAMPLE_INTERVAL_MS = 2_000;
+
+export function createProfileFingerprint(input: string): string {
+  return createHash("sha256").update(input).digest("hex").slice(0, 16);
+}
+
+export function buildDefaultProfileOutputPath(sourcePath: string, fingerprint: string): string {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const basename = path.basename(sourcePath).replace(/[^a-zA-Z0-9._-]/g, "_");
+  return path.join(
+    os.homedir(),
+    ".dotns",
+    "upload-profiles",
+    `${timestamp}-${basename}-${fingerprint}.json`,
+  );
+}
+
+export function createUploadProfiler(options: UploadProfilerOptions): UploadProfiler {
+  const startedAtMs = Date.now();
+  const startedAtIso = new Date(startedAtMs).toISOString();
+  let latestSchedulerState: UploadSchedulerState = {
+    timestampMs: startedAtMs,
+    window: Math.max(1, options.initialConcurrency),
+    inFlightBytes: 0,
+    inFlightChunks: 0,
+    completedChunks: 0,
+    retries: 0,
+  };
+  const samples: UploadProfileSample[] = [];
+  const waves: UploadWaveSummary[] = [];
+
+  const captureSample = () => {
+    const usage = process.memoryUsage();
+    samples.push({
+      timestampMs: Date.now(),
+      heapUsed: usage.heapUsed,
+      rss: usage.rss,
+      arrayBuffers: usage.arrayBuffers,
+      external: usage.external,
+      inFlightBytes: latestSchedulerState.inFlightBytes,
+      inFlightChunks: latestSchedulerState.inFlightChunks,
+      window: latestSchedulerState.window,
+      completed: latestSchedulerState.completedChunks,
+      retries: latestSchedulerState.retries,
+    });
+  };
+
+  captureSample();
+  const timer = setInterval(captureSample, PROFILE_SAMPLE_INTERVAL_MS);
+  timer.unref?.();
+
+  const summarizeAndWrite = async (
+    finalCid: string,
+    overrideOutputPath?: string,
+  ): Promise<{ report: UploadProfileReport; outputPath: string }> => {
+    clearInterval(timer);
+    captureSample();
+
+    const elapsedMs = Math.max(1, Date.now() - startedAtMs);
+    const throughputBytesPerSecond = (options.sourceSizeBytes / elapsedMs) * 1000;
+    const peakHeapUsed = Math.max(...samples.map((sample) => sample.heapUsed));
+    const peakRss = Math.max(...samples.map((sample) => sample.rss));
+    const peakArrayBuffers = Math.max(...samples.map((sample) => sample.arrayBuffers));
+    const peakExternal = Math.max(...samples.map((sample) => sample.external));
+    const maxWindowReached = Math.max(...samples.map((sample) => sample.window));
+
+    const report: UploadProfileReport = {
+      meta: {
+        sourcePath: options.sourcePath,
+        sourceSizeBytes: options.sourceSizeBytes,
+        chunkSizeBytes: options.chunkSizeBytes,
+        rpc: options.rpc,
+        startedAtIso,
+        heapLimitBytes: v8.getHeapStatistics().heap_size_limit,
+        initialConcurrency: options.initialConcurrency,
+        maxConcurrency: options.maxConcurrency,
+      },
+      samples,
+      waves,
+      summary: {
+        elapsedMs,
+        throughputBytesPerSecond,
+        peakHeapUsed,
+        peakRss,
+        peakArrayBuffers,
+        peakExternal,
+        retryCount: latestSchedulerState.retries,
+        maxWindowReached,
+        finalCid,
+      },
+    };
+
+    const outputPath =
+      overrideOutputPath ??
+      options.outputPath ??
+      buildDefaultProfileOutputPath(
+        options.sourcePath,
+        createProfileFingerprint(
+          `${options.sourcePath}:${options.sourceSizeBytes}:${options.chunkSizeBytes}:${startedAtIso}`,
+        ),
+      );
+
+    const resolvedOutputPath = path.resolve(outputPath);
+    await filesystem.mkdir(path.dirname(resolvedOutputPath), { recursive: true });
+    await filesystem.writeFile(resolvedOutputPath, JSON.stringify(report, null, 2), "utf8");
+
+    return { report, outputPath: resolvedOutputPath };
+  };
+
+  return {
+    onSchedulerState: (state: UploadSchedulerState) => {
+      latestSchedulerState = state;
+      captureSample();
+    },
+    onWave: (wave: UploadWaveSummary) => {
+      waves.push(wave);
+      captureSample();
+      if (!options.jsonOutput) {
+        const seconds = (wave.durationMs / 1000).toFixed(1);
+        console.log(
+          chalk.gray(
+            `  wave #${wave.wave}: ${seconds}s | window=${wave.window} | retries=${wave.retries}`,
+          ),
+        );
+      }
+    },
+    finalize: summarizeAndWrite,
+  };
 }
 
 export async function withCapturedConsole<T>(callback: () => Promise<T>): Promise<T> {
@@ -255,9 +412,11 @@ export function attachBulletinCommands(root: Command): void {
       String(DEFAULT_CHUNK_SIZE_BYTES),
     )
     .option("--force-chunked", "Force chunked upload (DAG-PB)", false)
-    .option("--parallel", "Upload directory blocks in parallel (faster)", false)
-    .option("--concurrency <n>", "Number of parallel uploads (default: 10)", "10")
+    .option("--concurrency <n>", "Adaptive scheduler max window (default: 4)", "4")
     .option("--print-contenthash", "Also print 0x-prefixed IPFS contenthash for the CID", false)
+    .option("--resume", "Resume a previously interrupted upload", false)
+    .option("--profile-upload", "Enable upload profiling and write a JSON report", false)
+    .option("--profile-output <path>", "Path to write upload profiling JSON report")
     .option("--no-history", "Do not save upload to history", true)
     .option("--json", "Output result as JSON (suppresses all other output)", false);
 
@@ -275,17 +434,61 @@ export function attachBulletinCommands(root: Command): void {
           throw new Error("Cannot specify both --mnemonic and --key-uri");
         }
 
-        const { bytes, isDirectory, resolvedPath } = await maybeQuiet(jsonOutput, () =>
+        await cleanupStaleManifests();
+
+        const validatedPath = await maybeQuiet(jsonOutput, () =>
           validateAndReadPath(inputPath),
         );
+        const { bytes, isDirectory, resolvedPath, deferredRead, fileSize, fileMtimeMs } =
+          validatedPath;
 
         const bulletinRpc = String(mergedOptions.bulletinRpc || DEFAULT_BULLETIN_RPC);
-        const chunkSizeBytes = Math.max(
-          1,
+        const chunkSizeBytes = clampChunkSizeBytes(
           Number(mergedOptions.chunkSize || DEFAULT_CHUNK_SIZE_BYTES),
         );
-        const parallel = Boolean(mergedOptions.parallel);
-        const concurrency = Math.max(1, Number(mergedOptions.concurrency || 10));
+        const concurrency = Math.max(
+          1,
+          Math.min(4, Math.floor(Number(mergedOptions.concurrency || 4))),
+        );
+        const resume = Boolean(mergedOptions.resume);
+        const profileUpload = Boolean(mergedOptions.profileUpload);
+
+        const shouldUseChunkedUpload =
+          !isDirectory &&
+          (deferredRead || mergedOptions.forceChunked || bytes.length > MAX_SINGLE_UPLOAD_SIZE_BYTES);
+        const effectiveFileSize = isDirectory ? 0 : fileSize ?? bytes.length;
+
+        let resumedBlocks: ReturnType<typeof completedBlocksFromManifest> | undefined;
+        if (resume && shouldUseChunkedUpload) {
+          const resolvedFileMtimeMs =
+            fileMtimeMs ?? (await filesystem.stat(resolvedPath)).mtimeMs;
+          const manifestLoadResult = await loadManifestForResume({
+            inputPath: resolvedPath,
+            fileSize: effectiveFileSize,
+            fileMtimeMs: resolvedFileMtimeMs,
+            chunkSize: chunkSizeBytes,
+          });
+
+          if (manifestLoadResult.manifest && manifestLoadResult.manifest.completedBlocks.length > 0) {
+            resumedBlocks = completedBlocksFromManifest(manifestLoadResult.manifest);
+            if (!jsonOutput) {
+              console.log(
+                chalk.yellow(
+                  `  resuming: ${manifestLoadResult.manifest.completedBlocks.length} blocks already uploaded`,
+                ),
+              );
+            }
+          } else if (manifestLoadResult.staleManifest) {
+            if (!jsonOutput) {
+              console.log(
+                chalk.yellow(
+                  "  resume notice: file fingerprint changed, starting a fresh upload manifest",
+                ),
+              );
+            }
+            await deleteManifest(manifestLoadResult.staleManifest);
+          }
+        }
 
         const context = await maybeQuiet(jsonOutput, () =>
           prepareContext({ ...mergedOptions, useBulletin: true }),
@@ -295,25 +498,49 @@ export function attachBulletinCommands(root: Command): void {
           ensureAccountAuthorized(bulletinRpc, context.signer, context.substrateAddress),
         );
 
+        const profileOutputOverride = mergedOptions.profileOutput
+          ? String(mergedOptions.profileOutput)
+          : undefined;
+        const profiler =
+          profileUpload
+            ? createUploadProfiler({
+                sourcePath: resolvedPath,
+                sourceSizeBytes: effectiveFileSize,
+                chunkSizeBytes: shouldUseChunkedUpload ? chunkSizeBytes : Math.max(1, effectiveFileSize),
+                rpc: bulletinRpc,
+                initialConcurrency: shouldUseChunkedUpload ? 1 : 1,
+                maxConcurrency: shouldUseChunkedUpload ? concurrency : 1,
+                outputPath: profileOutputOverride,
+                jsonOutput,
+              })
+            : undefined;
+
         const performUpload = async () => {
           if (isDirectory) {
             const result = await storeDirectory(bulletinRpc, context.signer, resolvedPath, {
-              parallel,
               concurrency,
               accountAddress: context.substrateAddress,
-              waitForFinalization: !parallel,
+              waitForFinalization: false,
             });
             return { cid: result.storageCid, ipfsCid: result.ipfsCid, size: 0 };
           }
 
-          if (mergedOptions.forceChunked || bytes.length > MAX_SINGLE_UPLOAD_SIZE_BYTES) {
+          if (shouldUseChunkedUpload) {
             const result = await uploadChunkedBlocks(
               bulletinRpc,
               context.signer,
-              bytes,
+              resolvedPath,
               chunkSizeBytes,
+              effectiveFileSize,
+              context.substrateAddress,
+              {
+                completedBlocks: resumedBlocks,
+                concurrency,
+                onSchedulerState: profiler?.onSchedulerState,
+                onWave: profiler?.onWave,
+              },
             );
-            return { cid: result, ipfsCid: result, size: bytes.length };
+            return { cid: result, ipfsCid: result, size: effectiveFileSize };
           }
 
           const result = await uploadSingleBlock(bulletinRpc, context.signer, bytes);
@@ -323,6 +550,8 @@ export function attachBulletinCommands(root: Command): void {
         let cid: string;
         let ipfsCid: string;
         let uploadSize: number;
+        let profileReportPath: string | undefined;
+        let profileReport: UploadProfileReport | undefined;
 
         if (jsonOutput) {
           const uploadResult = await withCapturedConsole(performUpload);
@@ -330,9 +559,7 @@ export function attachBulletinCommands(root: Command): void {
           ipfsCid = uploadResult.ipfsCid;
           uploadSize = uploadResult.size;
         } else {
-          console.log(chalk.blue("\n▶ Bulletin Upload"));
-          console.log(chalk.gray("  path:     ") + chalk.white(resolvedPath));
-          console.log(chalk.gray("  rpc:      ") + chalk.white(bulletinRpc));
+          const pathBasename = resolvedPath.split("/").pop() ?? resolvedPath;
 
           if (authInfo?.expiration && authInfo.currentBlock) {
             console.log(
@@ -344,20 +571,39 @@ export function attachBulletinCommands(root: Command): void {
           }
 
           if (isDirectory) {
-            const mode = parallel ? `directory (parallel, ${concurrency}x)` : "directory";
-            console.log(chalk.gray("  mode:     ") + chalk.white(mode));
-          } else if (mergedOptions.forceChunked || bytes.length > MAX_SINGLE_UPLOAD_SIZE_BYTES) {
-            console.log(chalk.gray("  size:     ") + chalk.white(`${bytes.length} bytes`));
-            console.log(chalk.gray("  mode:     ") + chalk.white("chunked (dag-pb)"));
+            console.log(chalk.blue(`\n▶ Uploading directory: ${pathBasename}`));
+            console.log(chalk.gray("  path:        ") + chalk.white(resolvedPath));
+            console.log(chalk.gray("  rpc:         ") + chalk.white(bulletinRpc));
+            console.log(chalk.gray("  concurrency: ") + chalk.white(`${concurrency}x parallel waves`));
+          } else if (shouldUseChunkedUpload) {
+            const effectiveSize = fileSize ?? bytes.length;
+            const totalChunks = Math.ceil(effectiveSize / chunkSizeBytes);
+            console.log(chalk.blue(`\n▶ Uploading file: ${pathBasename} (${formatBytes(effectiveSize)})`));
+            console.log(chalk.gray("  path:        ") + chalk.white(resolvedPath));
+            console.log(chalk.gray("  rpc:         ") + chalk.white(bulletinRpc));
+            console.log(
+              chalk.gray("  mode:        ") +
+                chalk.white(
+                  `chunked (${totalChunks} × ${formatBytes(chunkSizeBytes)}, adaptive window 1..${concurrency})`,
+                ),
+            );
           } else {
-            console.log(chalk.gray("  size:     ") + chalk.white(`${bytes.length} bytes`));
-            console.log(chalk.gray("  mode:     ") + chalk.white("single"));
+            console.log(chalk.blue(`\n▶ Uploading file: ${pathBasename} (${formatBytes(bytes.length)})`));
+            console.log(chalk.gray("  path:        ") + chalk.white(resolvedPath));
+            console.log(chalk.gray("  rpc:         ") + chalk.white(bulletinRpc));
+            console.log(chalk.gray("  mode:        ") + chalk.white("single block"));
           }
 
           const uploadResult = await performUpload();
           cid = uploadResult.cid;
           ipfsCid = uploadResult.ipfsCid;
           uploadSize = uploadResult.size;
+        }
+
+        if (profiler) {
+          const finalizedProfile = await profiler.finalize(cid, profileOutputOverride);
+          profileReport = finalizedProfile.report;
+          profileReportPath = finalizedProfile.outputPath;
         }
 
         const contenthash = generateContenthash(cid);
@@ -390,6 +636,20 @@ export function attachBulletinCommands(root: Command): void {
 
           if (mergedOptions.printContenthash) {
             console.log(chalk.gray("  contenthash: ") + chalk.white(`0x${contenthash}`));
+          }
+
+          if (profileReportPath && profileReport) {
+            console.log(chalk.gray("  profile:     ") + chalk.white(profileReportPath));
+            console.log(
+              chalk.gray("  throughput:  ") +
+                chalk.white(
+                  `${formatBytes(profileReport.summary.throughputBytesPerSecond)}/s`,
+                ),
+            );
+            console.log(
+              chalk.gray("  peak heap:   ") +
+                chalk.white(formatBytes(profileReport.summary.peakHeapUsed)),
+            );
           }
 
           console.log(chalk.green("\n✓ Upload Complete\n"));
