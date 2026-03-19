@@ -26,7 +26,8 @@ const { values } = parseArgs({
   allowPositionals: false,
 });
 
-const runTimeoutMs = Math.max(1, Number(values["timeout-minutes"] || DEFAULT_TIMEOUT_MINUTES)) * 60 * 1000;
+const runTimeoutMs =
+  Math.max(1, Number(values["timeout-minutes"] || DEFAULT_TIMEOUT_MINUTES)) * 60 * 1000;
 const maxAttempts = Math.max(1, Math.floor(Number(values["max-attempts"] || 8)));
 
 if (values.help) {
@@ -179,7 +180,10 @@ function parseFailureMessage(stderr: string, stdout: string): string {
   return informative || "Unknown CLI failure";
 }
 
-function runUpload(filePath: string, profilePath: string): { stdout: string; report: ProfileReport } {
+function runUpload(
+  filePath: string,
+  profilePath: string,
+): { stdout: string; report: ProfileReport } {
   const args = [
     "run",
     "dev",
@@ -270,9 +274,7 @@ function runUploadWithRetries(
         const stdoutSummary = typedError.stdoutTail
           ? `stdout tail:\n${typedError.stdoutTail}`
           : undefined;
-        console.log(
-          [stderrSummary, stdoutSummary].filter(Boolean).join("\n\n"),
-        );
+        console.log([stderrSummary, stdoutSummary].filter(Boolean).join("\n\n"));
       }
       sleep(backoffMs);
     }
@@ -416,7 +418,9 @@ for (const result of results) {
       `  │ ${result.label.padEnd(8)} │ ${(Number(result.elapsedMs) / 1000).toFixed(1).padStart(6)}s │ ${Number(result.throughputMBps).toFixed(2).padStart(8)} │ ${Number(result.peakHeapMB).toFixed(0).padStart(9)} │ ${String(result.retries).padStart(8)} │ ${String(result.maxWindow).padStart(6)} │`,
     );
   } else {
-    console.log(`  │ ${result.label.padEnd(8)} │   FAIL   │     —    │        —  │        — │      — │`);
+    console.log(
+      `  │ ${result.label.padEnd(8)} │   FAIL   │     —    │        —  │        — │      — │`,
+    );
   }
 }
 console.log("  └──────────┴──────────┴──────────┴───────────┴──────────┴────────┘\n");

@@ -44,7 +44,6 @@ const STORE_CALL_TIMEOUT_MS = 30_000;
 const FETCH_NONCE_TIMEOUT_MS = 15_000;
 let rxUnhandledErrorGuardInstalled = false;
 
-
 export type AdaptiveWindowUpdateInput = {
   currentWindow: number;
   maxWindow: number;
@@ -317,7 +316,11 @@ export function computeNextAdaptiveWindow(
 ): AdaptiveWindowUpdateOutput {
   const maxWindow = Math.max(ADAPTIVE_WINDOW_MIN, input.maxWindow);
 
-  if (input.hadRetryableFailures || input.hadRetries || input.waveDurationMs > SLOW_WAVE_DURATION_THRESHOLD_MS) {
+  if (
+    input.hadRetryableFailures ||
+    input.hadRetries ||
+    input.waveDurationMs > SLOW_WAVE_DURATION_THRESHOLD_MS
+  ) {
     return {
       nextWindow: Math.max(ADAPTIVE_WINDOW_MIN, Math.floor(input.currentWindow / 2)),
       nextCleanWaveStreak: 0,
@@ -407,7 +410,8 @@ export async function runWaveWithRetries(parameters: {
     retryableFailures += retryCandidates.length;
     pending = retryCandidates;
 
-    const baseDelay = retryBaseDelaysMs[Math.min(retryAttempt, retryBaseDelaysMs.length - 1)] ??
+    const baseDelay =
+      retryBaseDelaysMs[Math.min(retryAttempt, retryBaseDelaysMs.length - 1)] ??
       retryBaseDelaysMs[retryBaseDelaysMs.length - 1] ??
       0;
     await sleep(baseDelay + Math.max(0, jitterMs()));
@@ -420,7 +424,6 @@ export function createBulletinClient(rpc: string): PolkadotClient {
   installRxUnhandledErrorGuard();
   return createPolkadotClient(withPolkadotSdkCompat(getWsProvider(rpc)));
 }
-
 
 async function storeContentOnBulletin(
   parameters: StoreContentParameters,
@@ -479,9 +482,17 @@ async function storeContentOnBulletin(
 
     function cleanup(sub?: { unsubscribe: () => void }): void {
       clearTimeout(timeout);
-      try { sub?.unsubscribe(); } catch { /* already destroyed */ }
+      try {
+        sub?.unsubscribe();
+      } catch {
+        /* already destroyed */
+      }
       if (!isExternalClient) {
-        try { client.destroy(); } catch { /* already destroyed */ }
+        try {
+          client.destroy();
+        } catch {
+          /* already destroyed */
+        }
       }
     }
 
@@ -505,7 +516,8 @@ async function storeContentOnBulletin(
                   if (event.ok) {
                     const storedEvent = event.events?.find(
                       (eventItem: { type: string; value: { type: string } }) =>
-                        eventItem.type === "TransactionStorage" && eventItem.value.type === "Stored",
+                        eventItem.type === "TransactionStorage" &&
+                        eventItem.value.type === "Stored",
                     );
                     const storedIndex = (
                       storedEvent?.value as { value?: { index?: { toString?: () => string } } }
@@ -618,7 +630,11 @@ export async function storeChunkedFileToBulletin(
 
   const recreateOwnedClient = () => {
     if (!ownsClient) return;
-    try { activeClient.destroy(); } catch { /* already closed */ }
+    try {
+      activeClient.destroy();
+    } catch {
+      /* already closed */
+    }
     activeClient = createBulletinClient(parameters.rpc);
   };
 
@@ -647,7 +663,11 @@ export async function storeChunkedFileToBulletin(
     const chunkCid = createRawCid(bytes, HASH.SHA2_256).toString();
     const alreadyCompleted = manifestState.completedBlocks.get(index);
 
-    if (alreadyCompleted && alreadyCompleted.cid === chunkCid && alreadyCompleted.length === length) {
+    if (
+      alreadyCompleted &&
+      alreadyCompleted.cid === chunkCid &&
+      alreadyCompleted.length === length
+    ) {
       completedChunks += 1;
       parameters.onProgress?.(index + 1, totalChunks, "skipped");
       return true;
@@ -674,7 +694,9 @@ export async function storeChunkedFileToBulletin(
       const waveChunks = selectWaveChunks(queue, window, MAX_IN_FLIGHT_BYTES);
       const inFlightBytes = waveChunks.reduce((sum, chunk) => sum + chunk.length, 0);
       if (inFlightBytes > MAX_IN_FLIGHT_BYTES) {
-        throw new Error(`In-flight bytes (${inFlightBytes}) exceed hard budget (${MAX_IN_FLIGHT_BYTES})`);
+        throw new Error(
+          `In-flight bytes (${inFlightBytes}) exceed hard budget (${MAX_IN_FLIGHT_BYTES})`,
+        );
       }
 
       waveNumber += 1;
@@ -854,7 +876,11 @@ export async function storeChunkedFileToBulletin(
     return { rootCid: rootCidString };
   } finally {
     if (ownsClient) {
-      try { activeClient.destroy(); } catch { /* already closed */ }
+      try {
+        activeClient.destroy();
+      } catch {
+        /* already closed */
+      }
     }
   }
 }
@@ -875,7 +901,6 @@ export async function storeBlockToBulletin(
   });
 }
 
-
 export async function fetchAccountNonce(rpc: string, accountAddress: string): Promise<number> {
   const WebSocketConstructor = globalThis.WebSocket ?? (await import("ws")).default;
 
@@ -886,7 +911,11 @@ export async function fetchAccountNonce(rpc: string, accountAddress: string): Pr
     const timeout = setTimeout(() => {
       if (settled) return;
       settled = true;
-      try { websocket.close(); } catch { /* ignore */ }
+      try {
+        websocket.close();
+      } catch {
+        /* ignore */
+      }
       reject(new Error("nonce-timeout"));
     }, FETCH_NONCE_TIMEOUT_MS);
 
@@ -914,7 +943,11 @@ export async function fetchAccountNonce(rpc: string, accountAddress: string): Pr
         if (settled) return;
         const messageData =
           typeof messageEvent.data === "string" ? messageEvent.data : messageEvent.data.toString();
-        const response = JSON.parse(messageData) as { id?: number; result?: unknown; error?: { message?: string } };
+        const response = JSON.parse(messageData) as {
+          id?: number;
+          result?: unknown;
+          error?: { message?: string };
+        };
 
         if (response.id === requestId) {
           finalize(() => {

@@ -21,12 +21,15 @@ function getManifestDirectory(): string {
   return DEFAULT_MANIFEST_DIR;
 }
 
-function normalizeCompletedBlock(
-  block: { cid?: unknown; index?: unknown; length?: unknown },
-): UploadManifestCompletedBlock | null {
+function normalizeCompletedBlock(block: {
+  cid?: unknown;
+  index?: unknown;
+  length?: unknown;
+}): UploadManifestCompletedBlock | null {
   if (typeof block.cid !== "string") return null;
   if (typeof block.index !== "number" || !Number.isFinite(block.index)) return null;
-  const length = typeof block.length === "number" && Number.isFinite(block.length) ? block.length : 0;
+  const length =
+    typeof block.length === "number" && Number.isFinite(block.length) ? block.length : 0;
   return {
     cid: block.cid,
     index: Math.max(0, Math.floor(block.index)),
@@ -39,7 +42,9 @@ function normalizeManifest(raw: unknown): UploadManifest | null {
   const maybe = raw as Record<string, unknown>;
   const completedRaw = Array.isArray(maybe.completedBlocks) ? maybe.completedBlocks : [];
   const completedBlocks = completedRaw
-    .map((item) => normalizeCompletedBlock(item as { cid?: unknown; index?: unknown; length?: unknown }))
+    .map((item) =>
+      normalizeCompletedBlock(item as { cid?: unknown; index?: unknown; length?: unknown }),
+    )
     .filter((item): item is UploadManifestCompletedBlock => item !== null)
     .sort((a, b) => a.index - b.index);
 
@@ -238,10 +243,9 @@ export async function deleteManifest(
 export function completedBlocksFromManifest(
   manifest: UploadManifest,
 ): Map<number, UploadManifestCompletedBlock> {
-  const entries = manifest.completedBlocks.map((block) => [
-    block.index,
-    { index: block.index, cid: block.cid, length: block.length },
-  ] as const);
+  const entries = manifest.completedBlocks.map(
+    (block) => [block.index, { index: block.index, cid: block.cid, length: block.length }] as const,
+  );
   return new Map(entries);
 }
 

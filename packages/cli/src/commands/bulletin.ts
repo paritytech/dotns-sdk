@@ -133,6 +133,10 @@ export function expirationToISOString(
   return estimateBlockDate(currentBlock, expirationBlock).toISOString();
 }
 
+function isLocalChainEndpoint(rpcUrl: string): boolean {
+  return rpcUrl.includes("127.0.0.1") || rpcUrl.includes("localhost");
+}
+
 async function* traverseDirectoryRecursively(
   directoryPath: string,
 ): AsyncGenerator<{ path: string; fullPath: string }> {
