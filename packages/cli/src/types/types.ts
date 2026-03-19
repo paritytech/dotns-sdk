@@ -517,6 +517,8 @@ export type StoreSingleFileParameters = {
   onProgress?: (status: string) => void;
   /** Optional shared client — caller owns lifecycle when provided */
   client?: PolkadotClient;
+  /** If false, resolve on best-block inclusion instead of finalization. Default: false */
+  waitForFinalization?: boolean;
 };
 
 export type StoreChunkedFileParameters = {

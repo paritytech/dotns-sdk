@@ -577,6 +577,7 @@ export async function storeSingleFileToBulletin(
 ): Promise<BulletinStoreResult> {
   const cidObject = createRawCid(parameters.contentBytes, HASH.SHA2_256);
   const cidString = cidObject.toString();
+  const waitForFinalization = parameters.waitForFinalization ?? false;
 
   return storeContentOnBulletin({
     rpc: parameters.rpc,
@@ -587,6 +588,7 @@ export async function storeSingleFileToBulletin(
     hashCodeValue: HASH.SHA2_256,
     onProgress: parameters.onProgress,
     client: parameters.client,
+    waitForFinalization,
   });
 }
 
