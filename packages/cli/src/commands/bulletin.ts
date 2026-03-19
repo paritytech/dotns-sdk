@@ -30,8 +30,6 @@ import type {
   UploadChunkedBlocksOptions,
   UploadManifestCompletedBlock,
   UploadSingleBlockOptions,
-  UploadSchedulerState,
-  UploadWaveSummary,
 } from "../types/types";
 import {
   DEFAULT_AUTHORIZATION_TRANSACTIONS,
@@ -542,6 +540,7 @@ export async function uploadSingleBlock(
             onProgress: (status) => {
               spinner.text = `Storing: ${status}`;
             },
+            waitForFinalization: false,
           });
 
           spinner.succeed("Stored");
