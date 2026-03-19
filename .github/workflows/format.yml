@@ -51,7 +51,7 @@ jobs:
             echo "status=Passed" >> "$GITHUB_OUTPUT"
             echo "details=Format passed" >> "$GITHUB_OUTPUT"
           else
-            FILES=$(grep -c "^\[warn\]" format-output.txt 2>/dev/null || echo "0")
+            FILES=$(grep -c "^\[warn\]" format-output.txt 2>/dev/null) || FILES=0
             echo "status=Failed" >> "$GITHUB_OUTPUT"
             echo "details=${FILES} files need formatting" >> "$GITHUB_OUTPUT"
           fi

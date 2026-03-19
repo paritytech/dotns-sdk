@@ -18,7 +18,9 @@ import {
 import {
   DEFAULT_AUTHORIZATION_BYTES,
   DEFAULT_AUTHORIZATION_TRANSACTIONS,
+  BULLETIN_BLOCK_TIME_MS,
 } from "../../../src/utils/constants";
+import { estimateBlockDate, formatEstimatedDate } from "../../../src/commands/bulletin";
 
 const createdTestTemporaryDirectoryPaths: string[] = [];
 let testFileTemporaryRootDirectoryPath: string | undefined;
@@ -139,6 +141,10 @@ async function runBulletinAuthorizeWithAccount(args: string[] = []) {
     ["--password", keystorePassword, "bulletin", "authorize", "--account", TEST_ACCOUNT, ...args],
     { DOTNS_KEYSTORE_PATH: keystoreDirectoryPath },
   );
+}
+
+function runBulletinStatus(args: string[]) {
+  return runDotnsCli(["bulletin", "status", ...args]);
 }
 
 function runBulletinHistory(args: string[] = []) {
@@ -373,3 +379,143 @@ describe("authorization sufficiency check", () => {
     expect(isAuthorizationSufficient(0, 0n)).toBe(false);
   });
 });
+
+describe("estimateBlockDate", () => {
+  test("returns a future date when target block is ahead of current block", () => {
+    const now = Date.now();
+    const currentBlock = 1000;
+    const targetBlock = 2000;
+    const result = estimateBlockDate(currentBlock, targetBlock);
+    const expectedMs = (targetBlock - currentBlock) * BULLETIN_BLOCK_TIME_MS;
+
+    expect(result.getTime()).toBeGreaterThanOrEqual(now + expectedMs - 100);
+    expect(result.getTime()).toBeLessThanOrEqual(now + expectedMs + 100);
+  });
+
+  test("returns a past date when target block is behind current block", () => {
+    const now = Date.now();
+    const currentBlock = 2000;
+    const targetBlock = 1000;
+    const result = estimateBlockDate(currentBlock, targetBlock);
+
+    expect(result.getTime()).toBeLessThan(now);
+  });
+
+  test("returns approximately now when target equals current block", () => {
+    const now = Date.now();
+    const result = estimateBlockDate(1000, 1000);
+
+    expect(Math.abs(result.getTime() - now)).toBeLessThan(100);
+  });
+});
+
+describe("formatEstimatedDate", () => {
+  test("formats date as YYYY-MM-DD HH:MM UTC", () => {
+    const date = new Date("2026-03-24T14:30:00.000Z");
+    expect(formatEstimatedDate(date)).toBe("2026-03-24 14:30 UTC");
+  });
+
+  test("pads single-digit month and day", () => {
+    const date = new Date("2026-01-05T08:05:00.000Z");
+    expect(formatEstimatedDate(date)).toBe("2026-01-05 08:05 UTC");
+  });
+});
+
+test(
+  "bulletin authorize with --force re-authorizes already authorized account",
+  async () => {
+    createPathsForTest("bulletin_authorize_force");
+    const targetAddress = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty";
+
+    const firstResult = await runBulletinAuthorize([targetAddress]);
+    expectSuccessfulAuthorize(firstResult);
+
+    const forceResult = await runBulletinAuthorize([targetAddress, "--force"]);
+    expectSuccessfulAuthorize(forceResult);
+  },
+  { timeout: BULLETIN_TEST_TIMEOUT_MS },
+);
+
+test(
+  "bulletin authorize shows expiration date",
+  async () => {
+    createPathsForTest("bulletin_authorize_expiration");
+    const targetAddress = "5GNJqTPyNqANBkUVMN1LPPrxXnFouWA2MRQg3gKrUYgw6J9y";
+
+    const result = await runBulletinAuthorize([targetAddress]);
+
+    expectSuccessfulAuthorize(result);
+    expect(result.combinedOutput).toContain("expires:");
+    expect(result.combinedOutput).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC/);
+  },
+  { timeout: BULLETIN_TEST_TIMEOUT_MS },
+);
+
+test(
+  "bulletin authorize json output includes expiresAt",
+  async () => {
+    createPathsForTest("bulletin_authorize_json_expires");
+    const targetAddress = "5HGjWAeFDfFCWPsjFQdVV2Msvz2XtMktvgocEZcCj68kUMaw";
+
+    const result = await runBulletinAuthorize([targetAddress, "--json"]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+    const parsed = JSON.parse(result.standardOutput);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.expiresAt).toBeDefined();
+  },
+  { timeout: BULLETIN_TEST_TIMEOUT_MS },
+);
+
+test(
+  "bulletin status shows authorization for authorized account",
+  async () => {
+    createPathsForTest("bulletin_status_authorized");
+    const targetAddress = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty";
+
+    await runBulletinAuthorize([targetAddress]);
+
+    const result = await runBulletinStatus([targetAddress]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+    expect(result.combinedOutput).toContain("Authorization Status");
+    expect(result.combinedOutput).toContain("authorized");
+    expect(result.combinedOutput).toContain("expires:");
+    expect(result.combinedOutput).toContain("transactions:");
+    expect(result.combinedOutput).toContain("bytes:");
+  },
+  { timeout: BULLETIN_TEST_TIMEOUT_MS },
+);
+
+test(
+  "bulletin status json output includes all fields",
+  async () => {
+    createPathsForTest("bulletin_status_json");
+    const targetAddress = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty";
+
+    const result = await runBulletinStatus([targetAddress, "--json"]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+    const parsed = JSON.parse(result.standardOutput);
+    expect(parsed.address).toBe(targetAddress);
+    expect(parsed.authorized).toBe(true);
+    expect(typeof parsed.expired).toBe("boolean");
+    expect(typeof parsed.transactions).toBe("number");
+    expect(parsed.expiresAt).toBeDefined();
+  },
+  { timeout: BULLETIN_TEST_TIMEOUT_MS },
+);
+
+test(
+  "bulletin status shows not authorized for unknown account",
+  async () => {
+    createPathsForTest("bulletin_status_not_authorized");
+    const targetAddress = "5CiPPseXPECbkjWCa6MnjNokrgYjMqmKndv2rSneWj6VLWZK";
+
+    const result = await runBulletinStatus([targetAddress]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+    expect(result.combinedOutput).toContain("not authorized");
+  },
+  { timeout: BULLETIN_TEST_TIMEOUT_MS },
+);

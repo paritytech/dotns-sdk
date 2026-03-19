@@ -326,6 +326,23 @@ export type AuthorizeAccountOptions = {
   transactions?: number;
   /** Maximum bytes allowed to store */
   bytes?: bigint;
+  /** Bypass the existing authorization check and re-submit the extrinsic */
+  force?: boolean;
+};
+
+export type AuthorizationStatus = {
+  /** Whether an authorization entry exists in chain storage */
+  authorized: boolean;
+  /** Remaining transaction allowance */
+  transactions?: number;
+  /** Remaining byte allowance */
+  bytes?: bigint;
+  /** Block number at which the authorization expires */
+  expiration?: number;
+  /** Current chain block number at time of query */
+  currentBlock?: number;
+  /** Whether the current block has passed the expiration block */
+  expired?: boolean;
 };
 
 export type AuthorizeAccountResult = {

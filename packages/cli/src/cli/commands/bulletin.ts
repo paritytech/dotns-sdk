@@ -10,6 +10,9 @@ import {
   generateContenthash,
   ensureAccountAuthorized,
   authorizeAccount,
+  checkAuthorization,
+  formatExpirationDisplay,
+  expirationToISOString,
 } from "../../commands/bulletin";
 import {
   addUploadRecord,
@@ -112,6 +115,18 @@ export function maybeQuiet<T>(jsonOutput: boolean, callback: () => Promise<T>): 
   return jsonOutput ? withCapturedConsole(callback) : callback();
 }
 
+async function resolveTargetAddress(
+  positionalAddress: string | undefined,
+  mergedOptions: any,
+  jsonOutput: boolean,
+): Promise<string> {
+  if (positionalAddress) return positionalAddress;
+  const context = await maybeQuiet(jsonOutput, () =>
+    prepareContext({ ...mergedOptions, useBulletin: true }),
+  );
+  return context.substrateAddress;
+}
+
 export function attachBulletinCommands(root: Command): void {
   const bulletinCommand = root
     .command("bulletin")
@@ -129,6 +144,7 @@ export function attachBulletinCommands(root: Command): void {
       String(DEFAULT_AUTHORIZATION_TRANSACTIONS),
     )
     .option("--bytes <count>", "Number of bytes to authorize", String(DEFAULT_AUTHORIZATION_BYTES))
+    .option("--force", "Force re-authorization even if account appears already authorized", false)
     .option("--json", "Output result as JSON (suppresses all other output)", false);
 
   addAuthOptions(authorizeCommand).action(
@@ -142,18 +158,14 @@ export function attachBulletinCommands(root: Command): void {
           mergedOptions.transactions || DEFAULT_AUTHORIZATION_TRANSACTIONS,
         );
         const bytes = BigInt(mergedOptions.bytes || DEFAULT_AUTHORIZATION_BYTES);
+        const force = Boolean(options.force);
         const signerKeyUri = String(mergedOptions.keyUri || DEFAULT_SUDO_KEY_URI);
 
-        let targetAddress: string;
-
-        if (positionalAddress) {
-          targetAddress = positionalAddress;
-        } else {
-          const targetContext = await maybeQuiet(jsonOutput, () =>
-            prepareContext({ ...mergedOptions, useBulletin: true }),
-          );
-          targetAddress = targetContext.substrateAddress;
-        }
+        const targetAddress = await resolveTargetAddress(
+          positionalAddress,
+          mergedOptions,
+          jsonOutput,
+        );
 
         const signerContext = await withCapturedConsole(() =>
           prepareContext({ keyUri: signerKeyUri, useBulletin: true }),
@@ -175,10 +187,13 @@ export function attachBulletinCommands(root: Command): void {
             targetAddress,
             transactions,
             bytes,
+            force,
           }),
         );
 
         if (jsonOutput) {
+          const authStatus = await checkAuthorization(bulletinRpc, targetAddress);
+          const expiresAt = expirationToISOString(authStatus.currentBlock, authStatus.expiration);
           console.log(
             JSON.stringify({
               ok: true,
@@ -186,6 +201,7 @@ export function attachBulletinCommands(root: Command): void {
               rpc: bulletinRpc,
               transactions,
               bytes: bytes.toString(),
+              expiresAt,
             }),
           );
         } else {
@@ -275,7 +291,7 @@ export function attachBulletinCommands(root: Command): void {
           prepareContext({ ...mergedOptions, useBulletin: true }),
         );
 
-        await maybeQuiet(jsonOutput, () =>
+        const authInfo = await maybeQuiet(jsonOutput, () =>
           ensureAccountAuthorized(bulletinRpc, context.signer, context.substrateAddress),
         );
 
@@ -318,6 +334,15 @@ export function attachBulletinCommands(root: Command): void {
           console.log(chalk.gray("  path:     ") + chalk.white(resolvedPath));
           console.log(chalk.gray("  rpc:      ") + chalk.white(bulletinRpc));
 
+          if (authInfo?.expiration && authInfo.currentBlock) {
+            console.log(
+              chalk.gray("  auth:     ") +
+                chalk.white(
+                  `valid (expires ${formatExpirationDisplay(authInfo.currentBlock, authInfo.expiration)})`,
+                ),
+            );
+          }
+
           if (isDirectory) {
             const mode = parallel ? `directory (parallel, ${concurrency}x)` : "directory";
             console.log(chalk.gray("  mode:     ") + chalk.white(mode));
@@ -347,6 +372,7 @@ export function attachBulletinCommands(root: Command): void {
         });
 
         if (jsonOutput) {
+          const authExpiresAt = expirationToISOString(authInfo?.currentBlock, authInfo?.expiration);
           console.log(
             JSON.stringify({
               cid: ipfsCid,
@@ -355,6 +381,7 @@ export function attachBulletinCommands(root: Command): void {
               path: resolvedPath,
               type: isDirectory ? "directory" : "file",
               size: uploadSize,
+              authorizationExpiresAt: authExpiresAt,
             }),
           );
         } else {
@@ -389,6 +416,101 @@ export function attachBulletinCommands(root: Command): void {
         }
 
         console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
+        process.exit(1);
+      }
+    },
+  );
+
+  const statusCommand = bulletinCommand
+    .command("status [address]")
+    .description("Check authorization status for an account on Bulletin")
+    .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint", DEFAULT_BULLETIN_RPC)
+    .option("--json", "Output result as JSON (suppresses all other output)", false);
+
+  addAuthOptions(statusCommand).action(
+    async (positionalAddress: string | undefined, options: any, command: any) => {
+      try {
+        const mergedOptions = getMergedOptions(command, options);
+        const jsonOutput = getJsonFlag(command);
+        const bulletinRpc = String(mergedOptions.bulletinRpc || DEFAULT_BULLETIN_RPC);
+
+        const targetAddress = await resolveTargetAddress(
+          positionalAddress,
+          mergedOptions,
+          jsonOutput,
+        );
+
+        const authStatus = await checkAuthorization(bulletinRpc, targetAddress);
+
+        if (jsonOutput) {
+          console.log(
+            JSON.stringify({
+              address: targetAddress,
+              rpc: bulletinRpc,
+              authorized: authStatus.authorized,
+              expired: authStatus.expired ?? false,
+              transactions: authStatus.transactions ?? 0,
+              bytes: (authStatus.bytes ?? BigInt(0)).toString(),
+              expiresAt: expirationToISOString(authStatus.currentBlock, authStatus.expiration),
+            }),
+          );
+        } else {
+          console.log(chalk.blue("\n▶ Bulletin Authorization Status"));
+          console.log(chalk.gray("  account:      ") + chalk.cyan(targetAddress));
+          console.log(chalk.gray("  rpc:          ") + chalk.white(bulletinRpc));
+
+          if (!authStatus.authorized) {
+            console.log(chalk.gray("  status:       ") + chalk.red("not authorized"));
+            console.log(
+              chalk.gray("\n  Authorize with: dotns bulletin authorize " + targetAddress + "\n"),
+            );
+          } else {
+            const isExpired = authStatus.expired;
+            const dateDisplay = formatExpirationDisplay(
+              authStatus.currentBlock!,
+              authStatus.expiration!,
+            );
+
+            console.log(
+              chalk.gray("  status:       ") +
+                (isExpired ? chalk.red("expired") : chalk.green("authorized")),
+            );
+            console.log(
+              chalk.gray(isExpired ? "  expired:      " : "  expires:      ") +
+                (isExpired ? chalk.red(dateDisplay) : chalk.white(dateDisplay)),
+            );
+            console.log(
+              chalk.gray("  transactions: ") +
+                chalk.white((authStatus.transactions ?? 0).toLocaleString()),
+            );
+            console.log(
+              chalk.gray("  bytes:        ") +
+                chalk.white(formatBytes(authStatus.bytes ?? BigInt(0))),
+            );
+
+            if (isExpired) {
+              console.log(
+                chalk.gray(
+                  "\n  Re-authorize with: dotns bulletin authorize " + targetAddress + "\n",
+                ),
+              );
+            } else {
+              console.log();
+            }
+          }
+        }
+
+        process.exit(0);
+      } catch (error) {
+        const errorMessage = formatErrorMessage(error);
+        const jsonOutput = getJsonFlag(command);
+
+        if (jsonOutput) {
+          console.error(JSON.stringify({ error: errorMessage }));
+        } else {
+          console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
+        }
+
         process.exit(1);
       }
     },
