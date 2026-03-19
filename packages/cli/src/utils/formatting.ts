@@ -109,6 +109,24 @@ export function createTransactionStatusHandler(
   };
 }
 
+export function formatBytes(bytes: number | bigint): string {
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = Number(bytes);
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex++;
+  }
+  return `${value.toFixed(unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`;
+}
+
+export function formatDuration(seconds: number): string {
+  if (!isFinite(seconds) || seconds <= 0) return "--:--";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}m${s.toString().padStart(2, "0")}s`;
+}
+
 export function formatErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
