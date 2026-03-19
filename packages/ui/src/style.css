@@ -72,6 +72,34 @@
   /* Shimmer - skeleton loading effect */
   --animate-shimmer: shimmer 1.5s linear infinite;
 
+  /* Draw Circle - SVG circle stroke draw-in */
+  --animate-draw-circle: draw-circle 0.6s ease-out forwards;
+
+  /* Draw Check - SVG checkmark stroke draw-in */
+  --animate-draw-check: draw-check 0.4s ease-out 0.4s forwards;
+
+  @keyframes draw-circle {
+    0% {
+      stroke-dasharray: 0 276;
+      stroke-dashoffset: 0;
+    }
+    100% {
+      stroke-dasharray: 276 276;
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @keyframes draw-check {
+    0% {
+      stroke-dasharray: 0 60;
+      stroke-dashoffset: 0;
+    }
+    100% {
+      stroke-dasharray: 60 60;
+      stroke-dashoffset: 0;
+    }
+  }
+
   @keyframes loader-rotate {
     0% {
       transform: rotate(0deg);
@@ -218,4 +246,23 @@
   animation:
     loader-rotate 1.6s linear infinite,
     loader-dash 1.6s ease-in-out infinite;
+}
+
+/* Success checkmark draw-in animations */
+.animate-draw-circle {
+  stroke-dasharray: 0 276;
+}
+
+.animate-draw-check {
+  stroke-dasharray: 0 60;
+}
+
+/* Dark-theme scrollbar — standard properties only.
+   ::-webkit-scrollbar is intentionally omitted because it disables
+   overlay scrollbar mode in Chrome, forcing a permanent gutter on
+   every overflow:auto element even when content fits. Chrome 121+
+   supports scrollbar-color natively with overlay behaviour intact. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #44403c transparent;
 }

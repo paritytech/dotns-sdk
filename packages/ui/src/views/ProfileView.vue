@@ -304,6 +304,17 @@
       @close="showResolveModal = false"
       @save="saveResolve"
     />
+
+    <AuthorizeStoreModal
+      v-if="authGuard.showAuthModal.value"
+      :open="authGuard.showAuthModal.value"
+      :contracts="authGuard.authStatuses.value"
+      :loading="authGuard.authLoading.value"
+      :progress="authGuard.authProgress.value"
+      :error="authGuard.authError.value"
+      @close="authGuard.handleAuthClose"
+      @submit="authGuard.handleAuthSubmit"
+    />
   </main>
 </template>
 
@@ -312,8 +323,10 @@ import { ref, computed, onBeforeMount, watch } from "vue";
 import { useWalletStore } from "@/store/useWalletStore";
 import AddSubdomainModal from "../components/modals/AddSubdomainModal.vue";
 import TransferDomainModal from "../components/modals/TransferDomainModal.vue";
+import AuthorizeStoreModal from "../components/modals/AuthorizeStoreModal.vue";
 import ResolveIPFSModal from "../components/modals/ResolveIPFSModal.vue";
 import TransactionStatus from "../components/TransactionStatus.vue";
+import { useStoreAuthGuard } from "@/composables/useStoreAuthGuard";
 import type { MyDomain, TransactionResult, NameRequirement } from "@/type";
 import { getAddress, zeroHash, zeroAddress } from "viem";
 import { useRouter } from "vue-router";
@@ -327,6 +340,7 @@ import Icon from "@/components/ui/Icon.vue";
 import Button from "@/components/ui/Button.vue";
 
 const wallet = useWalletStore();
+const authGuard = useStoreAuthGuard();
 const isLoading = ref(true);
 const allDomains = ref<MyDomain[]>([]);
 const searchQuery = ref("");
@@ -452,11 +466,17 @@ function prevPage() {
 }
 
 function openAddSubdomains() {
-  if (tlds.value.length > 0) showAddModal.value = { open: true, tld: "", tlds };
+  if (tlds.value.length > 0) {
+    authGuard.checkAuthAndProceed(() => {
+      showAddModal.value = { open: true, tld: "", tlds };
+    });
+  }
 }
 
 function openTransferModal() {
-  showTransferModal.value = true;
+  authGuard.checkAuthAndProceed(() => {
+    showTransferModal.value = true;
+  });
 }
 
 function openResolve(domain: string) {
@@ -465,6 +485,12 @@ function openResolve(domain: string) {
 }
 
 async function saveResolve(hash: string) {
+  if (!wallet.isConnected) {
+    transaction.value = { hash: zeroHash, status: false };
+    showTransaction.value = true;
+    return;
+  }
+
   showResolveModal.value = false;
   showTransaction.value = true;
   transaction.value = { hash: zeroHash, status: undefined };

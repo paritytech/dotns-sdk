@@ -6,6 +6,7 @@ import {
   encodePacked,
   zeroAddress,
   zeroHash,
+  toHex,
   type Address,
   type Hash,
   isAddress,
@@ -20,7 +21,7 @@ import {
   normalizeDomainName,
   ZERO_SUBSTRATE_ADDRESS,
 } from "../utils";
-import type { DotnsAvailability } from "@/type";
+import type { ContractAuthStatus, DotnsAvailability } from "@/type";
 import { useResolverStore } from "./useResolverStore";
 import { useWalletStore } from "./useWalletStore";
 
@@ -36,6 +37,52 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
     return keccak256(encodePacked(["address", "string"], [walletAddress, value]));
   }
 
+  function getRequiredContracts(): { name: string; address: Address }[] {
+    const network = networkStore.currentNetwork;
+    const contracts: { name: string; address: Address }[] = [];
+    if (network?.dotnsRegistrarController) {
+      contracts.push({ name: "Registrar Controller", address: network.dotnsRegistrarController });
+    }
+    if (network?.dotnsRegistry) {
+      contracts.push({ name: "Registry", address: network.dotnsRegistry });
+    }
+    if (network?.dotnsRegistrar) {
+      contracts.push({ name: "Registrar", address: network.dotnsRegistrar });
+    }
+    return contracts;
+  }
+
+  async function ethRead(
+    to: Address,
+    functionName: string,
+    abiName: "Store" | "StoreFactory",
+    args: readonly unknown[],
+  ): Promise<`0x${string}`> {
+    const client = await networkStore.getClient();
+    const data = encodeFunctionData({
+      abi: abiStore.getABI(abiName),
+      functionName,
+      args,
+    });
+    return transactionStore.ethCall(
+      client,
+      walletStore.substrateAddress ?? ZERO_SUBSTRATE_ADDRESS,
+      to,
+      data,
+    );
+  }
+
+  async function ethWrite(to: Address, data: `0x${string}`): Promise<Hash> {
+    await walletStore.ensureReady();
+    const client = await networkStore.getClient();
+    return transactionStore.ethTransact(
+      client,
+      walletStore.getInjected(),
+      walletStore.substrateAddress!,
+      { to, data },
+    );
+  }
+
   async function getUserStore(accountEvm: Address): Promise<Address> {
     try {
       networkStore.ensureClient();
@@ -44,20 +91,9 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
       const network = networkStore.currentNetwork;
       if (!network?.storeFactory) throw new Error("StoreFactory not configured");
 
-      const client = await networkStore.getClient();
-
-      const data = encodeFunctionData({
-        abi: abiStore.getABI("StoreFactory"),
-        functionName: "getDeployedStore",
-        args: [accountEvm],
-      });
-
-      const raw = await transactionStore.ethCall(
-        client,
-        walletStore.substrateAddress ?? ZERO_SUBSTRATE_ADDRESS,
-        network.storeFactory,
-        data,
-      );
+      const raw = await ethRead(network.storeFactory, "getDeployedStore", "StoreFactory", [
+        accountEvm,
+      ]);
 
       const store = decodeFunctionResult({
         abi: abiStore.getABI("StoreFactory"),
@@ -83,14 +119,8 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
       const network = networkStore.currentNetwork;
       if (!network?.storeFactory) throw new Error("StoreFactory not configured");
 
-      // Check if Store already exists
       const existing = await getUserStore(walletStore.evmAddress as Address);
-      if (existing !== zeroAddress) {
-        console.log("[UserStoreManager:deployStore] Store already exists:", existing);
-        return zeroHash;
-      }
-
-      const client = await networkStore.getClient();
+      if (existing !== zeroAddress) return zeroHash;
 
       const data = encodeFunctionData({
         abi: abiStore.getABI("StoreFactory"),
@@ -98,16 +128,8 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
         args: [],
       });
 
-      const hash = await transactionStore.ethTransact(
-        client,
-        walletStore.getInjected(),
-        walletStore.substrateAddress!,
-        { to: network.storeFactory, data },
-      );
-
-      // Update cached Store address
+      const hash = await ethWrite(network.storeFactory, data);
       await getUserStore(walletStore.evmAddress as Address);
-
       return hash;
     } catch (error) {
       console.warn("[UserStoreManager:deployStore]", error);
@@ -122,26 +144,9 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
       walletStore.ensureWalletConnected();
 
       const store = await getUserStore(walletStore.evmAddress as Address);
-      if (store === zeroAddress) {
-        console.log("[UserStoreManager:getSubdomains] No Store deployed yet");
-        return [];
-      }
+      if (store === zeroAddress) return [];
 
-      const client = await networkStore.getClient();
-
-      const data = encodeFunctionData({
-        abi: abiStore.getABI("Store"),
-        functionName: "getValues",
-        args: [],
-      });
-
-      const raw = await transactionStore.ethCall(
-        client,
-        walletStore.substrateAddress!,
-        store,
-        data,
-      );
-
+      const raw = await ethRead(store, "getValues", "Store", []);
       const allValues = decodeFunctionResult({
         abi: abiStore.getABI("Store"),
         functionName: "getValues",
@@ -164,20 +169,9 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
       const network = networkStore.currentNetwork;
       if (!network?.storeFactory) throw new Error("StoreFactory not configured");
 
-      const client = await networkStore.getClient();
-
-      const storeCheckData = encodeFunctionData({
-        abi: abiStore.getABI("StoreFactory"),
-        functionName: "getDeployedStore",
-        args: [targetEvm],
-      });
-
-      const storeRaw = await transactionStore.ethCall(
-        client,
-        walletStore.substrateAddress!,
-        network.storeFactory,
-        storeCheckData,
-      );
+      const storeRaw = await ethRead(network.storeFactory, "getDeployedStore", "StoreFactory", [
+        targetEvm,
+      ]);
 
       const store = decodeFunctionResult({
         abi: abiStore.getABI("StoreFactory"),
@@ -185,24 +179,9 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
         data: storeRaw,
       }) as Address;
 
-      if (store === zeroAddress) {
-        console.log("[UserStoreManager:getSubdomainsForAddress] No Store deployed for", targetEvm);
-        return [];
-      }
+      if (store === zeroAddress) return [];
 
-      const valuesData = encodeFunctionData({
-        abi: abiStore.getABI("Store"),
-        functionName: "getValues",
-        args: [],
-      });
-
-      const valuesRaw = await transactionStore.ethCall(
-        client,
-        walletStore.substrateAddress!,
-        store,
-        valuesData,
-      );
-
+      const valuesRaw = await ethRead(store, "getValues", "Store", []);
       const allValues = decodeFunctionResult({
         abi: abiStore.getABI("Store"),
         functionName: "getValues",
@@ -272,6 +251,134 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
     }
   }
 
+  async function getAuthorizationStatus(store: Address): Promise<ContractAuthStatus[]> {
+    try {
+      networkStore.ensureClient();
+      await abiStore.ensureAbis();
+
+      const contracts = getRequiredContracts();
+      if (contracts.length === 0) return [];
+
+      const results = await Promise.all(
+        contracts.map(async (c) => {
+          try {
+            const raw = await ethRead(store, "isAuthorized", "Store", [c.address]);
+            const authorized = decodeFunctionResult({
+              abi: abiStore.getABI("Store"),
+              functionName: "isAuthorized",
+              data: raw,
+            }) as boolean;
+            return { name: c.name, address: c.address, authorized };
+          } catch {
+            return { name: c.name, address: c.address, authorized: false };
+          }
+        }),
+      );
+
+      return results;
+    } catch (error) {
+      console.warn("[UserStoreManager:getAuthorizationStatus]", error);
+      return getRequiredContracts().map((c) => ({ ...c, authorized: false }));
+    }
+  }
+
+  async function authorizeContract(store: Address, contractAddress: Address): Promise<Hash> {
+    walletStore.ensureWalletConnected();
+    const data = encodeFunctionData({
+      abi: abiStore.getABI("Store"),
+      functionName: "authorizeStore",
+      args: [contractAddress],
+    });
+    return ethWrite(store, data);
+  }
+
+  async function unauthorizeContract(store: Address, contractAddress: Address): Promise<Hash> {
+    walletStore.ensureWalletConnected();
+    const data = encodeFunctionData({
+      abi: abiStore.getABI("Store"),
+      functionName: "unauthorizeStore",
+      args: [contractAddress],
+    });
+    return ethWrite(store, data);
+  }
+
+  async function batchAuthChanges(
+    store: Address,
+    changes: { address: Address; authorize: boolean }[],
+  ): Promise<Hash> {
+    await walletStore.ensureReady();
+    walletStore.ensureWalletConnected();
+    await abiStore.ensureAbis();
+
+    const calls = changes.map((change) => ({
+      to: store,
+      data: encodeFunctionData({
+        abi: abiStore.getABI("Store"),
+        functionName: change.authorize ? "authorizeStore" : "unauthorizeStore",
+        args: [change.address],
+      }),
+    }));
+
+    if (calls.length === 1) {
+      return ethWrite(calls[0]!.to, calls[0]!.data);
+    }
+
+    const client = await networkStore.getClient();
+    return transactionStore.batchEthTransact(
+      client,
+      walletStore.getInjected(),
+      walletStore.substrateAddress!,
+      calls,
+    );
+  }
+
+  async function isNameInStore(label: string): Promise<boolean> {
+    try {
+      networkStore.ensureClient();
+      await abiStore.ensureAbis();
+      walletStore.ensureWalletConnected();
+
+      const store = await getUserStore(walletStore.evmAddress as Address);
+      if (store === zeroAddress) return false;
+
+      const raw = await ethRead(store, "getValue", "Store", [keccak256(toHex(label))]);
+      const value = decodeFunctionResult({
+        abi: abiStore.getABI("Store"),
+        functionName: "getValue",
+        data: raw,
+      }) as string;
+
+      return value.length > 0;
+    } catch (error) {
+      console.warn("[UserStoreManager:isNameInStore]", error);
+      return false;
+    }
+  }
+
+  async function writeNameToStore(label: string): Promise<Hash> {
+    try {
+      networkStore.ensureClient();
+      await abiStore.ensureAbis();
+      walletStore.ensureWalletConnected();
+
+      const store = await getUserStore(walletStore.evmAddress as Address);
+      if (store === zeroAddress) {
+        throw new Error("Store not deployed. Please deploy your Store first.");
+      }
+
+      const data = encodeFunctionData({
+        abi: abiStore.getABI("Store"),
+        functionName: "setValue",
+        args: [keccak256(toHex(label)), `${label}.dot`],
+      });
+
+      return ethWrite(store, data);
+    } catch (error) {
+      console.warn("[UserStoreManager:writeNameToStore]", error);
+      throw error;
+    }
+  }
+
   return {
     userStore,
     getUserStore,
@@ -279,6 +386,12 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
     getSubdomains,
     getSubdomainsForAddress,
     checkHandleAvailability,
+    getAuthorizationStatus,
+    authorizeContract,
+    unauthorizeContract,
+    batchAuthChanges,
+    isNameInStore,
+    writeNameToStore,
     encodeKey,
   };
 });

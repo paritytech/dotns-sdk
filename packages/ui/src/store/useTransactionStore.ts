@@ -75,6 +75,35 @@ export const useTransactionStore = defineStore("useTransactionStore", () => {
     }
   }
 
+  async function batchEthTransact(
+    client: IReviveClientWrapper,
+    injected: PolkadotSigner,
+    originSs58: string,
+    calls: { to: Address; value?: bigint; data: `0x${string}` }[],
+  ): Promise<Hash> {
+    try {
+      if (!client) throw new Error("Client not initialised");
+      if (calls.length === 0) throw new Error("No calls provided");
+
+      const batchCalls = calls.map((call) => {
+        if (!call.to) throw new Error("Transaction missing 'to' address");
+        if (!call.data) throw new Error("Transaction missing 'data'");
+        return { dest: call.to, value: call.value ?? 0n, data: call.data };
+      });
+
+      const hash = await client.submitBatchTransaction(batchCalls, originSs58, injected, (status) =>
+        walletStore.setTransactionStatus(status),
+      );
+
+      return hash;
+    } catch (error) {
+      console.warn("[TransactionStore:batchEthTransact] Exception:", error);
+      throw error;
+    } finally {
+      walletStore.setTransactionStatus("idle");
+    }
+  }
+
   async function mapAccount(
     client: IReviveClientWrapper,
     injected: PolkadotSigner,
@@ -104,6 +133,7 @@ export const useTransactionStore = defineStore("useTransactionStore", () => {
     pendingTxs,
     ethCall,
     ethTransact,
+    batchEthTransact,
     mapAccount,
     clearPendingTx,
     getPendingTxStatus,

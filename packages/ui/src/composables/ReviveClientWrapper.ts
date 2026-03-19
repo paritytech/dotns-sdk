@@ -49,6 +49,13 @@ export interface IReviveClientWrapper {
     statusCallback?: (status: TransactionStatus) => void,
   ): Promise<Hash>;
 
+  submitBatchTransaction(
+    calls: { dest: Address; value: bigint; data: Hex }[],
+    signerSubstrateAddress: string,
+    signer: PolkadotSigner,
+    statusCallback?: (status: TransactionStatus) => void,
+  ): Promise<Hash>;
+
   ensureAccountMapped(substrateAddress: string, signer: PolkadotSigner): Promise<void>;
 }
 
@@ -379,6 +386,49 @@ class ClientWrapper {
     return await this.signExtrinsic(extrinsic, signer, setTransactionStatus);
   }
 
+  async batchReviveTx(
+    calls: { dest: Address; value: bigint; data: `0x${string}` }[],
+    originSs58: string,
+    signer: PolkadotSigner,
+    setTransactionStatus: (status: TransactionStatus) => void,
+  ): Promise<Hash> {
+    await this.ensureAccountMapped(originSs58, signer);
+
+    const extrinsics = await Promise.all(
+      calls.map(async (call) => {
+        const gasEstimate = await this.estimateGas(originSs58, call.dest, call.value, call.data);
+
+        if (!gasEstimate.success) {
+          throw new Error(`Contract execution would revert: ${gasEstimate.revertData ?? "0x"}`);
+        }
+
+        const minimumStorageDeposit = 2_000_000_000_000n;
+        let storageDepositLimit =
+          gasEstimate.storageDeposit === 0n
+            ? minimumStorageDeposit
+            : (gasEstimate.storageDeposit * 120n) / 100n;
+
+        if (storageDepositLimit < minimumStorageDeposit) {
+          storageDepositLimit = minimumStorageDeposit;
+        }
+
+        return this.client.tx.Revive.call({
+          dest: Binary.fromHex(call.dest),
+          value: call.value,
+          weight_limit: {
+            proof_size: gasEstimate.gasRequired.proofSize,
+            ref_time: gasEstimate.gasRequired.refTime,
+          },
+          storage_deposit_limit: storageDepositLimit,
+          data: Binary.fromHex(call.data),
+        }).decodedCall;
+      }),
+    );
+
+    const batch = this.client.tx.Utility.batch_all({ calls: extrinsics });
+    return await this.signExtrinsic(batch, signer, setTransactionStatus);
+  }
+
   getClient(): PolkadotApiClient {
     return this.client;
   }
@@ -427,6 +477,20 @@ export class ReviveClientWrapper implements IReviveClientWrapper {
       contractAddress,
       valueInNativeUnits,
       data,
+      signerSubstrateAddress,
+      signer,
+      statusCallback ?? (() => {}),
+    );
+  }
+
+  async submitBatchTransaction(
+    calls: { dest: Address; value: bigint; data: Hex }[],
+    signerSubstrateAddress: string,
+    signer: PolkadotSigner,
+    statusCallback?: (status: TransactionStatus) => void,
+  ): Promise<Hash> {
+    return await this.wrapper.batchReviveTx(
+      calls,
       signerSubstrateAddress,
       signer,
       statusCallback ?? (() => {}),

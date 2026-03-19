@@ -206,3 +206,9 @@ export type AuthorizationState = {
   transactions?: number;
   bytes?: bigint;
 };
+
+export type ContractAuthStatus = {
+  name: string;
+  address: Address;
+  authorized: boolean;
+};

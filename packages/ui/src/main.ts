@@ -8,6 +8,7 @@ import Toast from "vue-toastification";
 import "vue-toastification/dist/index.css";
 import "./toast.css";
 import "./polyfills";
+import { installGlobalErrorHandler } from "./lib/errorHandling";
 
 const toastOptions = {
   position: "top-left",
@@ -25,8 +26,11 @@ const toastOptions = {
   toastClassName: "custom-toast",
 };
 
-createApp(App)
-  .use(createPinia().use(piniaPluginPersistedstate))
-  .use(router)
-  .use(Toast, toastOptions)
-  .mount("#app");
+const app = createApp(App);
+
+app.use(createPinia().use(piniaPluginPersistedstate));
+app.use(router);
+app.use(Toast, toastOptions);
+app.mount("#app");
+
+installGlobalErrorHandler();

@@ -83,14 +83,19 @@ const navItems = ref(
         { name: "Search", path: "/" },
         { name: "Lookup", path: "/lookup" },
         { name: "Profile", path: "/profile" },
+        { name: "Docs", path: "/docs" },
       ]
     : [
         { name: "Search", path: "/" },
         { name: "Lookup", path: "/lookup" },
+        { name: "Docs", path: "/docs" },
       ],
 );
 
-const isActive = (path: string) => route.path === path;
+const isActive = (path: string) => {
+  if (path === "/docs") return route.path.startsWith("/docs");
+  return route.path === path;
+};
 
 const currentYear = new Date().getFullYear();
 
@@ -102,10 +107,12 @@ watch(
           { name: "Search", path: "/" },
           { name: "Lookup", path: "/lookup" },
           { name: "Profile", path: "/profile" },
+          { name: "Docs", path: "/docs" },
         ]
       : [
           { name: "Search", path: "/" },
           { name: "Lookup", path: "/lookup" },
+          { name: "Docs", path: "/docs" },
         ];
   },
 );

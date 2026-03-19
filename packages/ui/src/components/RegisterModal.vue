@@ -24,8 +24,13 @@
             class="bg-dot-surface rounded-2xl shadow-2xl w-full max-w-md p-8 text-center relative"
           >
             <button
-              v-if="wallet.transactionStatus === 'idle'"
-              class="absolute top-4 right-4 text-dot-text-tertiary hover:text-dot-text-secondary transition-colors"
+              class="absolute top-4 right-4 transition-colors"
+              :class="
+                isRegistering
+                  ? 'text-dot-text-tertiary/30 cursor-not-allowed'
+                  : 'text-dot-text-tertiary hover:text-dot-text-secondary cursor-pointer'
+              "
+              :disabled="isRegistering"
               @click="closeModal"
               aria-label="Close registration modal"
             >
@@ -233,7 +238,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from "vue";
+import { ref, watch, computed, onUnmounted } from "vue";
 import { useWalletStore } from "../store/useWalletStore";
 import Icon from "@/components/ui/Icon.vue";
 import Button from "@/components/ui/Button.vue";
@@ -343,8 +348,14 @@ async function startRegistration() {
 }
 
 function closeModal() {
-  if (wallet.transactionStatus === "idle") {
+  if (!isRegistering.value) {
     emit("close");
+  }
+}
+
+function handleEscape(e: KeyboardEvent) {
+  if (e.key === "Escape" && !isRegistering.value) {
+    closeModal();
   }
 }
 
@@ -352,12 +363,19 @@ watch(
   () => props.open,
   async (open) => {
     if (open) {
+      document.addEventListener("keydown", handleEscape);
       await fetchPrice();
       isReserved.value = false;
+    } else {
+      document.removeEventListener("keydown", handleEscape);
     }
   },
   { immediate: true },
 );
+
+onUnmounted(() => {
+  document.removeEventListener("keydown", handleEscape);
+});
 </script>
 
 <style scoped>

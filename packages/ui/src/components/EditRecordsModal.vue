@@ -1,5 +1,5 @@
 <template>
-  <Modal :open="open" size="md" :show-close="false" @close="$emit('close')">
+  <Modal :open="open" size="md" @close="$emit('close')">
     <div class="font-sans text-dot-text-primary">
       <h2 class="text-xl font-semibold mb-4">Edit Profile Records</h2>
 

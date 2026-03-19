@@ -214,6 +214,16 @@ export const useWalletStore = defineStore(
       }
     }
 
+    async function ensureReady(): Promise<void> {
+      if (isConnected.value && (!injected.value || !currentAccount.value)) {
+        const success = await connectWallet();
+        if (!success) {
+          handleDisconnect();
+          throw new Error("Wallet session expired. Please reconnect.");
+        }
+      }
+    }
+
     function getInjected(): any {
       ensureConnected();
       return injected.value;
@@ -263,6 +273,7 @@ export const useWalletStore = defineStore(
       connectWallet,
       handleDisconnect,
       ensureConnected,
+      ensureReady,
       getInjected,
       convertToEVM,
     };

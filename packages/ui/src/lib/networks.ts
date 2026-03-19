@@ -24,7 +24,7 @@ export const SUPPORTED_NETWORKS: Record<number, NetworkConfig & Partial<Deployme
     dotnsReverseResolver: "0x95D57363B491CF743970c640fe419541386ac8BF",
     storeFactory: "0x030296782F4d3046B080BcB017f01837561D9702",
     dotnsRegistrar: "0x329aAA5b6bEa94E750b2dacBa74Bf41291E6c2BD",
-    multiCall: "0x4626bb0aA5261F85ab0e846650B21e98c7eA1C95",
+    multiCall: "0x3E169cb6690E3A592153E0dd0495e8e6e868d0b8",
     popOracle: "0x4e8920B1E69d0cEA9b23CBFC87A17Ee6fE02d2d3",
     dotnsContentResolver: "0x7756DF72CBc7f062e7403cD59e45fBc78bed1cD7",
     ethRPCURL: "https://services.polkadothub-rpc.com/testnet",

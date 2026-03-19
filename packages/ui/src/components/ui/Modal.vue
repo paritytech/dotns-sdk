@@ -22,8 +22,14 @@
           <div v-if="open" :class="computedClass">
             <button
               v-if="showClose"
-              class="absolute top-4 right-4 text-dot-text-tertiary hover:text-dot-text-secondary transition-colors"
-              @click="emit('close')"
+              class="absolute top-4 right-4 transition-colors"
+              :class="
+                busy
+                  ? 'text-dot-text-tertiary/30 cursor-not-allowed'
+                  : 'text-dot-text-tertiary hover:text-dot-text-secondary cursor-pointer'
+              "
+              :disabled="busy"
+              @click="handleCloseClick"
               :aria-label="closeLabel"
             >
               <Icon name="X" size="md" />
@@ -38,7 +44,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, watch, onUnmounted } from "vue";
 import { cn } from "@/lib/utils";
 import Icon from "./Icon.vue";
 
@@ -46,6 +52,7 @@ interface ModalProps {
   open: boolean;
   showClose?: boolean;
   closeOnBackdrop?: boolean;
+  busy?: boolean;
   size?: "sm" | "md" | "lg" | "xl";
   class?: string;
   closeLabel?: string;
@@ -54,6 +61,7 @@ interface ModalProps {
 const props = withDefaults(defineProps<ModalProps>(), {
   showClose: true,
   closeOnBackdrop: true,
+  busy: false,
   size: "md",
   closeLabel: "Close modal",
 });
@@ -61,6 +69,34 @@ const props = withDefaults(defineProps<ModalProps>(), {
 const emit = defineEmits<{
   close: [];
 }>();
+
+function handleEscape(e: KeyboardEvent) {
+  if (e.key === "Escape" && !props.busy && props.closeOnBackdrop) {
+    emit("close");
+  }
+}
+
+function handleCloseClick() {
+  if (!props.busy) {
+    emit("close");
+  }
+}
+
+watch(
+  () => props.open,
+  (isOpen) => {
+    if (isOpen) {
+      document.addEventListener("keydown", handleEscape);
+    } else {
+      document.removeEventListener("keydown", handleEscape);
+    }
+  },
+  { immediate: true },
+);
+
+onUnmounted(() => {
+  document.removeEventListener("keydown", handleEscape);
+});
 
 const sizeClasses = {
   sm: "max-w-sm",
@@ -78,7 +114,7 @@ const computedClass = computed(() =>
 );
 
 function handleBackdropClick() {
-  if (props.closeOnBackdrop) {
+  if (!props.busy && props.closeOnBackdrop) {
     emit("close");
   }
 }

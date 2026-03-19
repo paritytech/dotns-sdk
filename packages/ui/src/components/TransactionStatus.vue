@@ -9,7 +9,7 @@
       <div
         v-if="open"
         class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50"
-        @click.self="$emit('close')"
+        @click.self="handleClose"
       >
         <Transition
           enter-active-class="transform transition duration-300 ease-out"
@@ -24,8 +24,14 @@
             class="bg-dot-surface rounded-2xl shadow-2xl w-full max-w-md p-10 text-center relative"
           >
             <button
-              class="absolute top-5 right-5 text-dot-text-tertiary hover:text-dot-text-secondary transition-colors"
-              @click="$emit('close')"
+              class="absolute top-5 right-5 transition-colors"
+              :class="
+                isPending
+                  ? 'text-dot-text-tertiary/30 cursor-not-allowed'
+                  : 'text-dot-text-tertiary hover:text-dot-text-secondary cursor-pointer'
+              "
+              :disabled="isPending"
+              @click="handleClose"
               aria-label="Close transaction status"
             >
               <Icon name="X" size="md" />
@@ -56,17 +62,39 @@
             </template>
 
             <template v-else-if="transaction && status === 'success'">
-              <div
-                class="w-20 h-20 mx-auto mb-8 flex items-center justify-center bg-success/10 rounded-full"
-              >
-                <span class="text-4xl text-success">&#10003;</span>
+              <div class="w-28 h-28 mx-auto mb-8 flex items-center justify-center">
+                <svg
+                  viewBox="0 0 96 96"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="w-28 h-28"
+                >
+                  <circle
+                    cx="48"
+                    cy="48"
+                    r="44"
+                    stroke="currentColor"
+                    stroke-width="4"
+                    class="text-success animate-draw-circle"
+                    fill="none"
+                  />
+                  <path
+                    d="M30 50l12 12 24-28"
+                    stroke="currentColor"
+                    stroke-width="5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="text-success animate-draw-check"
+                    fill="none"
+                  />
+                </svg>
               </div>
 
               <h2 class="text-2xl font-extrabold text-dot-text-primary mb-2">Congratulations!</h2>
               <p class="text-dot-text-secondary text-sm mb-6">Transaction successful!</p>
 
               <div class="flex flex-col space-y-3">
-                <Button size="lg" variant="primary" full-width @click="$emit('close')">
+                <Button size="lg" variant="primary" full-width @click="emit('close')">
                   Done
                 </Button>
 
@@ -82,7 +110,7 @@
               <div
                 class="w-20 h-20 mx-auto mb-8 flex items-center justify-center bg-error/10 rounded-full"
               >
-                <span class="text-4xl text-error">&#10007;</span>
+                <Icon name="X" size="xl" class="text-error" />
               </div>
 
               <h2 class="text-2xl font-bold text-dot-text-primary mb-2">
@@ -94,7 +122,7 @@
               </p>
 
               <div class="flex flex-col space-y-3">
-                <Button size="lg" variant="primary" full-width @click="$emit('close')">
+                <Button size="lg" variant="primary" full-width @click="emit('close')">
                   Close
                 </Button>
 
@@ -134,9 +162,22 @@ const props = withDefaults(
 );
 
 const networkStore = useNetworkStore();
-defineEmits<{ close: [] }>();
+const emit = defineEmits<{ close: [] }>();
 
 const status = ref<TransactionState>("pending");
+const isPending = computed(() => status.value === "pending");
+
+function handleClose() {
+  if (!isPending.value) {
+    emit("close");
+  }
+}
+
+function handleEscape(e: KeyboardEvent) {
+  if (e.key === "Escape" && !isPending.value) {
+    handleClose();
+  }
+}
 const elapsed = ref(0);
 let timer: number | null | NodeJS.Timeout = null;
 
@@ -179,12 +220,18 @@ watch(
 watch(
   () => props.open,
   (val) => {
-    if (val) startElapsedTimer();
-    else if (timer) clearInterval(timer);
+    if (val) {
+      startElapsedTimer();
+      document.addEventListener("keydown", handleEscape);
+    } else {
+      if (timer) clearInterval(timer);
+      document.removeEventListener("keydown", handleEscape);
+    }
   },
 );
 
 onUnmounted(() => {
   if (timer) clearInterval(timer);
+  document.removeEventListener("keydown", handleEscape);
 });
 </script>

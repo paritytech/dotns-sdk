@@ -1,5 +1,5 @@
 <template>
-  <Modal :open="open" size="md" :show-close="false" @close="handleClose">
+  <Modal :open="open" size="md" :busy="isSubmitting" @close="handleClose">
     <div class="font-sans text-dot-text-primary">
       <h2 class="text-2xl font-bold text-dot-text-primary text-center mb-1">Add Subdomain</h2>
       <p class="text-dot-text-tertiary text-sm text-center mb-6">

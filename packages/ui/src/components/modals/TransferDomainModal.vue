@@ -2,7 +2,7 @@
   <Modal
     :open="open"
     size="md"
-    :show-close="true"
+    :busy="isTransferring"
     close-label="Close transfer modal"
     @close="closeModal"
   >

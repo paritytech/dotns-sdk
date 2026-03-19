@@ -98,6 +98,17 @@
       :transaction="transaction"
       @close="showTransaction = false"
     />
+
+    <AuthorizeStoreModal
+      v-if="authGuard.showAuthModal.value"
+      :open="authGuard.showAuthModal.value"
+      :contracts="authGuard.authStatuses.value"
+      :loading="authGuard.authLoading.value"
+      :progress="authGuard.authProgress.value"
+      :error="authGuard.authError.value"
+      @close="authGuard.handleAuthClose"
+      @submit="authGuard.handleAuthSubmit"
+    />
   </div>
 </template>
 
@@ -106,8 +117,10 @@ import { ref, computed, watch } from "vue";
 import RegisterModal from "../RegisterModal.vue";
 import WaitingPeriod from "./WaitingPeriod.vue";
 import TransactionStatus from "../TransactionStatus.vue";
+import AuthorizeStoreModal from "../modals/AuthorizeStoreModal.vue";
 import Icon from "@/components/ui/Icon.vue";
 import Button from "@/components/ui/Button.vue";
+import { useStoreAuthGuard } from "@/composables/useStoreAuthGuard";
 import {
   type DotNSStatus,
   type TransactionResult,
@@ -124,6 +137,7 @@ import { useWalletStore } from "@/store/useWalletStore";
 const storeManager = useUserStoreManager();
 const domainStore = useDomainStore();
 const userWallet = useWalletStore();
+const authGuard = useStoreAuthGuard();
 
 const searchQuery = ref("");
 const isFocused = ref(false);
@@ -186,7 +200,9 @@ const canRegister = computed(() => {
 
 function registerHandle() {
   if (!canRegister.value) return;
-  showModal.value = true;
+  authGuard.checkAuthAndProceed(() => {
+    showModal.value = true;
+  });
 }
 
 function openWaitingModal(duration: bigint, waitTime: bigint, registration: Registration) {
