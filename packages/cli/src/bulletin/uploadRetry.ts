@@ -81,9 +81,7 @@ export function normalizeUploadMaxRetries(value: number | string | undefined): n
         : Number.NaN;
 
   if (!Number.isFinite(parsed) || parsed < 0) {
-    throw new Error(
-      `maxRetries must be a whole number between 0 and ${MAX_UPLOAD_MAX_RETRIES}`,
-    );
+    throw new Error(`maxRetries must be a whole number between 0 and ${MAX_UPLOAD_MAX_RETRIES}`);
   }
 
   return Math.min(parsed, MAX_UPLOAD_MAX_RETRIES);
@@ -94,9 +92,7 @@ export function isRetryableUploadError(error: unknown): boolean {
   return RETRYABLE_UPLOAD_ERROR_MARKERS.some((marker) => message.includes(marker));
 }
 
-export async function runWithUploadRetries<T>(
-  options: RunWithUploadRetriesOptions<T>,
-): Promise<T> {
+export async function runWithUploadRetries<T>(options: RunWithUploadRetriesOptions<T>): Promise<T> {
   const maxRetries = normalizeUploadMaxRetries(options.maxRetries);
   const totalAttempts = maxRetries + 1;
   const retryBaseDelaysMs = normalizeRetryBaseDelaysMs(options.retryBaseDelaysMs);

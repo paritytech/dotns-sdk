@@ -47,13 +47,25 @@ async function main() {
 
   let cid: string;
 
-  if (!forceChunked && !validated.deferredRead && validated.bytes.length <= MAX_SINGLE_UPLOAD_SIZE_BYTES) {
+  if (
+    !forceChunked &&
+    !validated.deferredRead &&
+    validated.bytes.length <= MAX_SINGLE_UPLOAD_SIZE_BYTES
+  ) {
     cid = await uploadSingleBlock(rpc, signer, validated.bytes, { maxRetries });
   } else {
     const fileSize = validated.fileSize ?? validated.bytes.length;
-    cid = await uploadChunkedBlocks(rpc, signer, resolvedPath, chunkSize, fileSize, substrateAddress, {
-      maxRetries,
-    });
+    cid = await uploadChunkedBlocks(
+      rpc,
+      signer,
+      resolvedPath,
+      chunkSize,
+      fileSize,
+      substrateAddress,
+      {
+        maxRetries,
+      },
+    );
   }
 
   console.log("\n  cid:      ", cid);

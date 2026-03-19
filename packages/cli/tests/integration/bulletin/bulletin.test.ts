@@ -244,12 +244,7 @@ test(
     createPathsForTest("bulletin_upload_directory_parallel");
     const dirPath = await createTestDirectory("test_site_parallel");
 
-    const result = await runBulletinUpload([
-      dirPath,
-      "--concurrency",
-      "3",
-      "--no-history",
-    ]);
+    const result = await runBulletinUpload([dirPath, "--concurrency", "3", "--no-history"]);
 
     expectSuccessfulUpload(result);
     expect(result.combinedOutput).toContain("directory (parallel");

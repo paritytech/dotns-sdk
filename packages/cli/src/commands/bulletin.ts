@@ -104,7 +104,6 @@ function logUploadRetry(
   console.log(chalk.gray(`  retrying in ${(delayMs / 1000).toFixed(delayMs >= 1000 ? 1 : 0)}s`));
 }
 
-
 function isLocalChainEndpoint(rpcUrl: string): boolean {
   return rpcUrl.includes("127.0.0.1") || rpcUrl.includes("localhost");
 }
@@ -351,9 +350,7 @@ export async function authorizeAccount(
       );
       console.log(
         chalk.gray("  bytes:        ") +
-          chalk.white(
-            `${formatBytes(existingBytes)} → ${formatBytes(bytes)}`,
-          ),
+          chalk.white(`${formatBytes(existingBytes)} → ${formatBytes(bytes)}`),
       );
     }
 
@@ -404,10 +401,7 @@ export async function authorizeAccount(
                     console.log(
                       chalk.gray("  transactions: ") + chalk.white(transactions.toLocaleString()),
                     );
-                    console.log(
-                      chalk.gray("  bytes:        ") +
-                        chalk.white(formatBytes(bytes)),
-                    );
+                    console.log(chalk.gray("  bytes:        ") + chalk.white(formatBytes(bytes)));
                     resolve({ txHash, blockHash: event.block.hash });
                   } else {
                     spinner.fail("Authorization not applied");

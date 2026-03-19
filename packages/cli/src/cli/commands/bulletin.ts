@@ -75,7 +75,6 @@ function getMergedOptions(
   return mergedOptions;
 }
 
-
 export type UploadProfiler = {
   onSchedulerState: (state: UploadSchedulerState) => void;
   onWave: (wave: UploadWaveSummary) => void;
@@ -439,9 +438,7 @@ export function attachBulletinCommands(root: Command): void {
 
         await cleanupStaleManifests();
 
-        const validatedPath = await maybeQuiet(jsonOutput, () =>
-          validateAndReadPath(inputPath),
-        );
+        const validatedPath = await maybeQuiet(jsonOutput, () => validateAndReadPath(inputPath));
         const { bytes, isDirectory, resolvedPath, deferredRead, fileSize, fileMtimeMs } =
           validatedPath;
 
@@ -459,13 +456,14 @@ export function attachBulletinCommands(root: Command): void {
 
         const shouldUseChunkedUpload =
           !isDirectory &&
-          (deferredRead || mergedOptions.forceChunked || bytes.length > MAX_SINGLE_UPLOAD_SIZE_BYTES);
-        const effectiveFileSize = isDirectory ? 0 : fileSize ?? bytes.length;
+          (deferredRead ||
+            mergedOptions.forceChunked ||
+            bytes.length > MAX_SINGLE_UPLOAD_SIZE_BYTES);
+        const effectiveFileSize = isDirectory ? 0 : (fileSize ?? bytes.length);
 
         let resumedBlocks: ReturnType<typeof completedBlocksFromManifest> | undefined;
         if (resume && shouldUseChunkedUpload) {
-          const resolvedFileMtimeMs =
-            fileMtimeMs ?? (await filesystem.stat(resolvedPath)).mtimeMs;
+          const resolvedFileMtimeMs = fileMtimeMs ?? (await filesystem.stat(resolvedPath)).mtimeMs;
           const manifestLoadResult = await loadManifestForResume({
             inputPath: resolvedPath,
             fileSize: effectiveFileSize,
@@ -473,7 +471,10 @@ export function attachBulletinCommands(root: Command): void {
             chunkSize: chunkSizeBytes,
           });
 
-          if (manifestLoadResult.manifest && manifestLoadResult.manifest.completedBlocks.length > 0) {
+          if (
+            manifestLoadResult.manifest &&
+            manifestLoadResult.manifest.completedBlocks.length > 0
+          ) {
             resumedBlocks = completedBlocksFromManifest(manifestLoadResult.manifest);
             if (!jsonOutput) {
               console.log(
@@ -505,19 +506,20 @@ export function attachBulletinCommands(root: Command): void {
         const profileOutputOverride = mergedOptions.profileOutput
           ? String(mergedOptions.profileOutput)
           : undefined;
-        const profiler =
-          profileUpload
-            ? createUploadProfiler({
-                sourcePath: resolvedPath,
-                sourceSizeBytes: effectiveFileSize,
-                chunkSizeBytes: shouldUseChunkedUpload ? chunkSizeBytes : Math.max(1, effectiveFileSize),
-                rpc: bulletinRpc,
-                initialConcurrency: shouldUseChunkedUpload ? 1 : 1,
-                maxConcurrency: shouldUseChunkedUpload ? concurrency : 1,
-                outputPath: profileOutputOverride,
-                jsonOutput,
-              })
-            : undefined;
+        const profiler = profileUpload
+          ? createUploadProfiler({
+              sourcePath: resolvedPath,
+              sourceSizeBytes: effectiveFileSize,
+              chunkSizeBytes: shouldUseChunkedUpload
+                ? chunkSizeBytes
+                : Math.max(1, effectiveFileSize),
+              rpc: bulletinRpc,
+              initialConcurrency: shouldUseChunkedUpload ? 1 : 1,
+              maxConcurrency: shouldUseChunkedUpload ? concurrency : 1,
+              outputPath: profileOutputOverride,
+              jsonOutput,
+            })
+          : undefined;
 
         const performUpload = async () => {
           if (isDirectory) {
@@ -575,11 +577,15 @@ export function attachBulletinCommands(root: Command): void {
             console.log(chalk.blue(`\n▶ Uploading directory: ${pathBasename}`));
             console.log(chalk.gray("  path:        ") + chalk.white(resolvedPath));
             console.log(chalk.gray("  rpc:         ") + chalk.white(bulletinRpc));
-            console.log(chalk.gray("  concurrency: ") + chalk.white(`${concurrency}x parallel waves`));
+            console.log(
+              chalk.gray("  concurrency: ") + chalk.white(`${concurrency}x parallel waves`),
+            );
           } else if (shouldUseChunkedUpload) {
             const effectiveSize = fileSize ?? bytes.length;
             const totalChunks = Math.ceil(effectiveSize / chunkSizeBytes);
-            console.log(chalk.blue(`\n▶ Uploading file: ${pathBasename} (${formatBytes(effectiveSize)})`));
+            console.log(
+              chalk.blue(`\n▶ Uploading file: ${pathBasename} (${formatBytes(effectiveSize)})`),
+            );
             console.log(chalk.gray("  path:        ") + chalk.white(resolvedPath));
             console.log(chalk.gray("  rpc:         ") + chalk.white(bulletinRpc));
             console.log(
@@ -589,7 +595,9 @@ export function attachBulletinCommands(root: Command): void {
                 ),
             );
           } else {
-            console.log(chalk.blue(`\n▶ Uploading file: ${pathBasename} (${formatBytes(bytes.length)})`));
+            console.log(
+              chalk.blue(`\n▶ Uploading file: ${pathBasename} (${formatBytes(bytes.length)})`),
+            );
             console.log(chalk.gray("  path:        ") + chalk.white(resolvedPath));
             console.log(chalk.gray("  rpc:         ") + chalk.white(bulletinRpc));
             console.log(chalk.gray("  mode:        ") + chalk.white("single block"));
@@ -653,9 +661,7 @@ export function attachBulletinCommands(root: Command): void {
             console.log(chalk.gray("  profile:     ") + chalk.white(profileReportPath));
             console.log(
               chalk.gray("  throughput:  ") +
-                chalk.white(
-                  `${formatBytes(profileReport.summary.throughputBytesPerSecond)}/s`,
-                ),
+                chalk.white(`${formatBytes(profileReport.summary.throughputBytesPerSecond)}/s`),
             );
             console.log(
               chalk.gray("  peak heap:   ") +
