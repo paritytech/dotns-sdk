@@ -7,6 +7,11 @@ import {
   selectWaveChunks,
   type UploadWaveChunk,
 } from "../../../src/bulletin/store";
+import {
+  isRetryableUploadError as isRetryableTopLevelUploadError,
+  normalizeUploadMaxRetries as normalizeTopLevelUploadMaxRetries,
+  runWithUploadRetries as runTopLevelUploadWithRetries,
+} from "../../../src/bulletin/uploadRetry";
 
 describe("adaptive window controller", () => {
   test("increases by one after two consecutive clean waves", () => {
@@ -141,5 +146,104 @@ describe("wave retry behavior", () => {
     expect(attempts.get(0)).toBe(1);
     expect(attempts.get(1)).toBe(2);
     expect(attempts.get(2)).toBe(1);
+  });
+});
+
+describe("top-level upload retry policy", () => {
+  test("uses the default retry count when unset", () => {
+    expect(normalizeTopLevelUploadMaxRetries(undefined)).toBe(5);
+  });
+
+  test("caps retry count at the hard limit", () => {
+    expect(normalizeTopLevelUploadMaxRetries(99)).toBe(20);
+    expect(normalizeTopLevelUploadMaxRetries("99")).toBe(20);
+  });
+
+  test("rejects invalid retry counts", () => {
+    expect(() => normalizeTopLevelUploadMaxRetries(-1)).toThrow(
+      "maxRetries must be a whole number between 0 and 20",
+    );
+    expect(() => normalizeTopLevelUploadMaxRetries("abc")).toThrow(
+      "maxRetries must be a whole number between 0 and 20",
+    );
+  });
+
+  test("recognises transient Bulletin and transport failures", () => {
+    expect(isRetryableTopLevelUploadError(new Error("Block xyz is not pinned (stop-call)"))).toBe(
+      true,
+    );
+    expect(isRetryableTopLevelUploadError(new Error("WebSocket connection reset by peer"))).toBe(
+      true,
+    );
+    expect(isRetryableTopLevelUploadError(new Error("upload worker exited with SIGKILL"))).toBe(
+      true,
+    );
+  });
+
+  test("does not retry non-transient failures", () => {
+    expect(isRetryableTopLevelUploadError(new Error("Payment required"))).toBe(false);
+    expect(isRetryableTopLevelUploadError(new Error("Account is not authorized"))).toBe(false);
+  });
+
+  test("retries retryable failures until success", async () => {
+    const attempts: number[] = [];
+    const retryDelays: number[] = [];
+    const retryLog: Array<{ retry: number; nextAttempt: number; totalAttempts: number }> = [];
+
+    const result = await runTopLevelUploadWithRetries({
+      maxRetries: 3,
+      retryBaseDelaysMs: [10, 20, 30],
+      sleep: async (delayMs) => {
+        retryDelays.push(delayMs);
+      },
+      onRetry: ({ retry, nextAttempt, totalAttempts }) => {
+        retryLog.push({ retry, nextAttempt, totalAttempts });
+      },
+      execute: async (attempt) => {
+        attempts.push(attempt);
+        if (attempt < 2) {
+          throw new Error("ws connection reset");
+        }
+        return "cid-123";
+      },
+    });
+
+    expect(result).toBe("cid-123");
+    expect(attempts).toEqual([0, 1, 2]);
+    expect(retryDelays).toEqual([10, 20]);
+    expect(retryLog).toEqual([
+      { retry: 1, nextAttempt: 2, totalAttempts: 4 },
+      { retry: 2, nextAttempt: 3, totalAttempts: 4 },
+    ]);
+  });
+
+  test("stops immediately for non-retryable failures", async () => {
+    await expect(
+      runTopLevelUploadWithRetries({
+        maxRetries: 3,
+        sleep: async () => undefined,
+        execute: async () => {
+          throw new Error("Payment required");
+        },
+      }),
+    ).rejects.toThrow("Payment required");
+  });
+
+  test("stops after exhausting the retry budget", async () => {
+    let attempts = 0;
+
+    await expect(
+      runTopLevelUploadWithRetries({
+        maxRetries: 2,
+        retryBaseDelaysMs: [1],
+        sleep: async () => undefined,
+        execute: async () => {
+          attempts += 1;
+          throw new Error("rpc timeout");
+        },
+      }),
+    ).rejects.toThrow("rpc timeout");
+
+    expect(attempts).toBe(3);
   });
 });

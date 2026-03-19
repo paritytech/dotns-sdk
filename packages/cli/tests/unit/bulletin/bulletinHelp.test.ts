@@ -27,6 +27,7 @@ test("bulletin upload help shows all options", async () => {
   expect(result.combinedOutput).toContain("<path>");
   expect(result.combinedOutput).toContain("--bulletin-rpc");
   expect(result.combinedOutput).toContain("--chunk-size");
+  expect(result.combinedOutput).toContain("--max-retries");
   expect(result.combinedOutput).toContain("--force-chunked");
   expect(result.combinedOutput).toContain("--resume");
   expect(result.combinedOutput).toContain("--concurrency");
@@ -48,6 +49,7 @@ test("bulletin upload help shows default values", async () => {
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 
   expect(result.combinedOutput).toContain("wss://paseo-bulletin-rpc.polkadot.io");
+  expect(result.combinedOutput).toContain("5");
 });
 
 test("bulletin authorize help shows all options", async () => {

@@ -13,7 +13,7 @@ import type {
   UploadSchedulerState,
   UploadWaveSummary,
 } from "../../types/types";
-import { formatErrorMessage, formatBytes } from "../../utils/formatting";
+import { formatErrorMessage, formatBytes, formatDuration } from "../../utils/formatting";
 import {
   validateAndReadPath,
   uploadSingleBlock,
@@ -38,11 +38,13 @@ import {
   deleteManifest,
   loadManifestForResume,
 } from "../../bulletin/uploadManifest";
+import { normalizeUploadMaxRetries } from "../../bulletin/uploadRetry";
 import { addAuthOptions } from "./authOptions";
 import { prepareContext } from "../context";
 import {
   DEFAULT_BULLETIN_RPC,
   DEFAULT_CHUNK_SIZE_BYTES,
+  DEFAULT_UPLOAD_MAX_RETRIES,
   DEFAULT_SUDO_KEY_URI,
   DEFAULT_AUTHORIZATION_TRANSACTIONS,
   DEFAULT_AUTHORIZATION_BYTES,
@@ -152,8 +154,10 @@ export function createUploadProfiler(options: UploadProfilerOptions): UploadProf
     clearInterval(timer);
     captureSample();
 
-    const elapsedMs = Math.max(1, Date.now() - startedAtMs);
-    const throughputBytesPerSecond = (options.sourceSizeBytes / elapsedMs) * 1000;
+    const finishedAtMs = Date.now();
+    const finishedAtIso = new Date(finishedAtMs).toISOString();
+    const totalUploadTimeMs = Math.max(1, finishedAtMs - startedAtMs);
+    const throughputBytesPerSecond = (options.sourceSizeBytes / totalUploadTimeMs) * 1000;
     const peakHeapUsed = Math.max(...samples.map((sample) => sample.heapUsed));
     const peakRss = Math.max(...samples.map((sample) => sample.rss));
     const peakArrayBuffers = Math.max(...samples.map((sample) => sample.arrayBuffers));
@@ -167,6 +171,7 @@ export function createUploadProfiler(options: UploadProfilerOptions): UploadProf
         chunkSizeBytes: options.chunkSizeBytes,
         rpc: options.rpc,
         startedAtIso,
+        finishedAtIso,
         heapLimitBytes: v8.getHeapStatistics().heap_size_limit,
         initialConcurrency: options.initialConcurrency,
         maxConcurrency: options.maxConcurrency,
@@ -174,7 +179,9 @@ export function createUploadProfiler(options: UploadProfilerOptions): UploadProf
       samples,
       waves,
       summary: {
-        elapsedMs,
+        totalUploadTimeMs,
+        totalUploadTimeSeconds: totalUploadTimeMs / 1000,
+        elapsedMs: totalUploadTimeMs,
         throughputBytesPerSecond,
         peakHeapUsed,
         peakRss,
@@ -225,12 +232,19 @@ export function createUploadProfiler(options: UploadProfilerOptions): UploadProf
 }
 
 export async function withCapturedConsole<T>(callback: () => Promise<T>): Promise<T> {
+  const MAX_CAPTURED_ENTRIES = 400;
   const captured: string[] = [];
+  const pushCaptured = (value: string) => {
+    captured.push(value);
+    if (captured.length > MAX_CAPTURED_ENTRIES) {
+      captured.splice(0, captured.length - MAX_CAPTURED_ENTRIES);
+    }
+  };
   const capture = (...args: any[]) => {
-    captured.push(args.map(String).join(" "));
+    pushCaptured(args.map(String).join(" "));
   };
   const captureWrite = (chunk: any) => {
-    captured.push(String(chunk));
+    pushCaptured(String(chunk));
     return true;
   };
 
@@ -395,6 +409,11 @@ export function attachBulletinCommands(root: Command): void {
       "Chunk size for large uploads",
       String(DEFAULT_CHUNK_SIZE_BYTES),
     )
+    .option(
+      "--max-retries <n>",
+      "Retry transient upload failures (default: 5, capped at 20)",
+      String(DEFAULT_UPLOAD_MAX_RETRIES),
+    )
     .option("--force-chunked", "Force chunked upload (DAG-PB)", false)
     .option("--concurrency <n>", "Adaptive scheduler max window (default: 4)", "4")
     .option("--print-contenthash", "Also print 0x-prefixed IPFS contenthash for the CID", false)
@@ -430,6 +449,7 @@ export function attachBulletinCommands(root: Command): void {
         const chunkSizeBytes = clampChunkSizeBytes(
           Number(mergedOptions.chunkSize || DEFAULT_CHUNK_SIZE_BYTES),
         );
+        const maxRetries = normalizeUploadMaxRetries(mergedOptions.maxRetries);
         const concurrency = Math.max(
           1,
           Math.min(4, Math.floor(Number(mergedOptions.concurrency || 4))),
@@ -504,6 +524,7 @@ export function attachBulletinCommands(root: Command): void {
             const result = await storeDirectory(bulletinRpc, context.signer, resolvedPath, {
               concurrency,
               accountAddress: context.substrateAddress,
+              maxRetries,
               waitForFinalization: false,
             });
             return { cid: result.storageCid, ipfsCid: result.ipfsCid, size: 0 };
@@ -520,6 +541,7 @@ export function attachBulletinCommands(root: Command): void {
               {
                 completedBlocks: resumedBlocks,
                 concurrency,
+                maxRetries,
                 onSchedulerState: profiler?.onSchedulerState,
                 onWave: profiler?.onWave,
               },
@@ -527,7 +549,9 @@ export function attachBulletinCommands(root: Command): void {
             return { cid: result, ipfsCid: result, size: effectiveFileSize };
           }
 
-          const result = await uploadSingleBlock(bulletinRpc, context.signer, bytes);
+          const result = await uploadSingleBlock(bulletinRpc, context.signer, bytes, {
+            maxRetries,
+          });
           return { cid: result, ipfsCid: result, size: bytes.length };
         };
 
@@ -536,6 +560,8 @@ export function attachBulletinCommands(root: Command): void {
         let uploadSize: number;
         let profileReportPath: string | undefined;
         let profileReport: UploadProfileReport | undefined;
+        const uploadStartedAtMs = Date.now();
+        const uploadStartedAtIso = new Date(uploadStartedAtMs).toISOString();
 
         if (jsonOutput) {
           const uploadResult = await withCapturedConsole(performUpload);
@@ -575,6 +601,11 @@ export function attachBulletinCommands(root: Command): void {
           uploadSize = uploadResult.size;
         }
 
+        const uploadFinishedAtMs = Date.now();
+        const uploadFinishedAtIso = new Date(uploadFinishedAtMs).toISOString();
+        const totalUploadTimeMs = Math.max(1, uploadFinishedAtMs - uploadStartedAtMs);
+        const totalUploadTimeSeconds = totalUploadTimeMs / 1000;
+
         if (profiler) {
           const finalizedProfile = await profiler.finalize(cid, profileOutputOverride);
           profileReport = finalizedProfile.report;
@@ -601,11 +632,18 @@ export function attachBulletinCommands(root: Command): void {
               path: resolvedPath,
               type: isDirectory ? "directory" : "file",
               size: uploadSize,
+              uploadStartedAtIso,
+              uploadFinishedAtIso,
+              totalUploadTimeMs,
+              totalUploadTimeSeconds,
             }),
           );
         } else {
           console.log(chalk.gray("\n  cid:         ") + chalk.cyan(ipfsCid));
           console.log(chalk.gray("  preview:     ") + chalk.blue(previewUrl));
+          console.log(
+            chalk.gray("  total time:  ") + chalk.white(formatDuration(totalUploadTimeSeconds)),
+          );
 
           if (mergedOptions.printContenthash) {
             console.log(chalk.gray("  contenthash: ") + chalk.white(`0x${contenthash}`));

@@ -4,6 +4,7 @@ import { createClient as createPolkadotClient } from "polkadot-api";
 import type { PolkadotClient } from "polkadot-api";
 import { getWsProvider } from "polkadot-api/ws-provider";
 import { withPolkadotSdkCompat } from "polkadot-api/polkadot-sdk-compat";
+import { config as rxjsConfig } from "rxjs";
 import { bulletin } from "@polkadot-api/descriptors";
 import { createRawCid, createDagPbCid, CODEC, HASH } from "./cid";
 import {
@@ -12,6 +13,7 @@ import {
   deleteManifest,
   saveManifest,
 } from "./uploadManifest";
+import { isRetryableUploadError } from "./uploadRetry";
 import type {
   HashingEnumVariant,
   StoreContentParameters,
@@ -31,13 +33,16 @@ const MIN_CHUNK_SIZE_BYTES = 256 * 1024;
 const DEFAULT_CHUNK_SIZE_BYTES = 2 * 1024 * 1024;
 const MAX_CHUNK_SIZE_BYTES = 2 * 1024 * 1024;
 const ADAPTIVE_WINDOW_MIN = 1;
-const ADAPTIVE_WINDOW_DEFAULT_START = 1;
+const ADAPTIVE_WINDOW_START = 1;
 const ADAPTIVE_WINDOW_DEFAULT_MAX = 4;
 const CLEAN_WAVE_DURATION_THRESHOLD_MS = 12_000;
 const SLOW_WAVE_DURATION_THRESHOLD_MS = 25_000;
 const MAX_RETRIES_PER_CHUNK = 3;
 const RETRY_BASE_DELAYS_MS = [200, 400, 800] as const;
-const WAVE_TIMEOUT_MS = 90_000;
+const WAVE_TIMEOUT_MS = 40_000;
+const STORE_CALL_TIMEOUT_MS = 30_000;
+const FETCH_NONCE_TIMEOUT_MS = 15_000;
+let rxUnhandledErrorGuardInstalled = false;
 
 
 export type AdaptiveWindowUpdateInput = {
@@ -106,6 +111,20 @@ function ensureError(error: unknown): Error {
   }
 }
 
+function installRxUnhandledErrorGuard(): void {
+  if (rxUnhandledErrorGuardInstalled) return;
+  rxUnhandledErrorGuardInstalled = true;
+
+  const previousHandler = rxjsConfig.onUnhandledError;
+  rxjsConfig.onUnhandledError = (error: unknown) => {
+    const message = ensureError(error).message.toLowerCase();
+    if (message.includes("unsubscriptionerror") && message.includes("not connected")) {
+      return;
+    }
+    previousHandler?.(error);
+  };
+}
+
 function randomJitterMs(maxJitterMs = 100): number {
   return Math.floor(Math.random() * maxJitterMs);
 }
@@ -130,31 +149,7 @@ function normalizeRpcNonce(result: unknown): number {
 }
 
 function isRetryableSubmissionError(error: unknown): boolean {
-  const message = ensureError(error).message.toLowerCase();
-  const retryableMarkers = [
-    "stale",
-    "ancientbirthblock",
-    "timeout",
-    "timed out",
-    "temporarily",
-    "connection",
-    "network",
-    "socket",
-    "ws",
-    "websocket",
-    "rpc",
-    "pool",
-    "mempool",
-    "priority",
-    "future",
-    "temporarily banned",
-    "reset",
-    "econn",
-    "unavailable",
-    "rate limit",
-  ];
-
-  return retryableMarkers.some((marker) => message.includes(marker));
+  return isRetryableUploadError(error);
 }
 
 function convertHashCodeToEnum(hashCode: number): HashingEnumVariant {
@@ -422,6 +417,7 @@ export async function runWaveWithRetries(parameters: {
 }
 
 export function createBulletinClient(rpc: string): PolkadotClient {
+  installRxUnhandledErrorGuard();
   return createPolkadotClient(withPolkadotSdkCompat(getWsProvider(rpc)));
 }
 
@@ -473,29 +469,59 @@ async function storeContentOnBulletin(
 
   return new Promise((resolve, reject) => {
     let settled = false;
+    let subscription: { unsubscribe: () => void } | undefined;
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(new Error("store-timeout"));
+    }, STORE_CALL_TIMEOUT_MS);
 
-    function cleanup(sub: { unsubscribe: () => void }): void {
-      try { sub.unsubscribe(); } catch { /* client may already be destroyed */ }
+    function cleanup(sub?: { unsubscribe: () => void }): void {
+      clearTimeout(timeout);
+      try { sub?.unsubscribe(); } catch { /* already destroyed */ }
       if (!isExternalClient) {
         try { client.destroy(); } catch { /* already destroyed */ }
       }
     }
 
-    const subscription = storeTransaction
-      .signSubmitAndWatch(signer as never, transactionOptions)
-      .subscribe({
-        next: (event: any) => {
-          if (settled) return;
-          switch (event.type) {
-            case "signed":
-              onProgress?.("signing");
-              break;
-            case "broadcasted":
-              onProgress?.("broadcasting");
-              break;
-            case "txBestBlocksState":
-              onProgress?.("included");
-              if (!waitForFinalization && event.found) {
+    try {
+      subscription = storeTransaction
+        .signSubmitAndWatch(signer as never, transactionOptions)
+        .subscribe({
+          next: (event: any) => {
+            if (settled) return;
+            switch (event.type) {
+              case "signed":
+                onProgress?.("signing");
+                break;
+              case "broadcasted":
+                onProgress?.("broadcasting");
+                break;
+              case "txBestBlocksState":
+                onProgress?.("included");
+                if (!waitForFinalization && event.found) {
+                  settled = true;
+                  if (event.ok) {
+                    const storedEvent = event.events?.find(
+                      (eventItem: { type: string; value: { type: string } }) =>
+                        eventItem.type === "TransactionStorage" && eventItem.value.type === "Stored",
+                    );
+                    const storedIndex = (
+                      storedEvent?.value as { value?: { index?: { toString?: () => string } } }
+                    )?.value?.index?.toString?.();
+                    cleanup(subscription);
+                    resolve({ cid: contentCid, storedIndex, blockHash: event.block?.hash });
+                  } else {
+                    const errorMessage = event.dispatchError
+                      ? formatDispatchError(event.dispatchError)
+                      : "Transaction failed";
+                    cleanup(subscription);
+                    reject(new Error(errorMessage));
+                  }
+                }
+                break;
+              case "finalized":
                 settled = true;
                 if (event.ok) {
                   const storedEvent = event.events?.find(
@@ -505,8 +531,9 @@ async function storeContentOnBulletin(
                   const storedIndex = (
                     storedEvent?.value as { value?: { index?: { toString?: () => string } } }
                   )?.value?.index?.toString?.();
+                  onProgress?.("finalized");
                   cleanup(subscription);
-                  resolve({ cid: contentCid, storedIndex });
+                  resolve({ cid: contentCid, storedIndex, blockHash: event.block?.hash });
                 } else {
                   const errorMessage = event.dispatchError
                     ? formatDispatchError(event.dispatchError)
@@ -514,38 +541,22 @@ async function storeContentOnBulletin(
                   cleanup(subscription);
                   reject(new Error(errorMessage));
                 }
-              }
-              break;
-            case "finalized":
-              settled = true;
-              if (event.ok) {
-                const storedEvent = event.events.find(
-                  (eventItem: { type: string; value: { type: string } }) =>
-                    eventItem.type === "TransactionStorage" && eventItem.value.type === "Stored",
-                );
-                const storedIndex = (
-                  storedEvent?.value as { value?: { index?: { toString?: () => string } } }
-                )?.value?.index?.toString?.();
-                onProgress?.("finalized");
-                cleanup(subscription);
-                resolve({ cid: contentCid, storedIndex, blockHash: event.block?.hash });
-              } else {
-                const errorMessage = event.dispatchError
-                  ? formatDispatchError(event.dispatchError)
-                  : "Transaction failed";
-                cleanup(subscription);
-                reject(new Error(errorMessage));
-              }
-              break;
-          }
-        },
-        error: (error) => {
-          if (settled) return;
-          settled = true;
-          cleanup(subscription);
-          reject(ensureError(error));
-        },
-      });
+                break;
+            }
+          },
+          error: (error) => {
+            if (settled) return;
+            settled = true;
+            cleanup(subscription);
+            reject(ensureError(error));
+          },
+        });
+    } catch (error) {
+      if (settled) return;
+      settled = true;
+      cleanup(subscription);
+      reject(ensureError(error));
+    }
   });
 }
 
@@ -576,7 +587,7 @@ export async function storeChunkedFileToBulletin(
 
   const chunkSize = clampChunkSizeBytes(parameters.chunkSize);
   const maxWindow = sanitizeWindowLimit(parameters.concurrency);
-  let window = 1;
+  let window = Math.min(maxWindow, ADAPTIVE_WINDOW_START);
   let cleanWaveStreak = 0;
 
   const waitForFinalization = parameters.waitForFinalization ?? false;
@@ -602,8 +613,14 @@ export async function storeChunkedFileToBulletin(
   const chunkIterator = streamFileChunks(parameters.filePath, chunkSize)[Symbol.asyncIterator]();
   let reachedEndOfStream = false;
 
-  const sharedClient = parameters.client ?? createBulletinClient(parameters.rpc);
+  let activeClient = parameters.client ?? createBulletinClient(parameters.rpc);
   const ownsClient = !parameters.client;
+
+  const recreateOwnedClient = () => {
+    if (!ownsClient) return;
+    try { activeClient.destroy(); } catch { /* already closed */ }
+    activeClient = createBulletinClient(parameters.rpc);
+  };
 
   const startingNonce = await fetchAccountNonce(parameters.rpc, parameters.accountAddress);
   let nextNonce = startingNonce;
@@ -686,7 +703,7 @@ export async function storeChunkedFileToBulletin(
               codecValue: CODEC.RAW,
               hashCodeValue: HASH.SHA2_256,
               nonce,
-              client: sharedClient,
+              client: activeClient,
               waitForFinalization,
             });
 
@@ -745,10 +762,11 @@ export async function storeChunkedFileToBulletin(
         window = windowUpdate.nextWindow;
       } catch (error) {
         const errorMsg = ensureError(error).message.toLowerCase();
-        const isStall = errorMsg === "wave-timeout";
+        const isStall = errorMsg === "wave-timeout" || errorMsg.includes("store-timeout");
         const isNonceError = errorMsg.includes("stale") || errorMsg.includes("ancientbirthblock");
 
         if (isStall || isNonceError) {
+          recreateOwnedClient();
           nextNonce = await fetchAccountNonce(parameters.rpc, parameters.accountAddress);
           window = Math.max(ADAPTIVE_WINDOW_MIN, Math.floor(window / 2));
           cleanWaveStreak = 0;
@@ -823,7 +841,7 @@ export async function storeChunkedFileToBulletin(
       codecValue: CODEC.DAG_PB,
       hashCodeValue: HASH.SHA2_256,
       nonce: nextNonce,
-      client: sharedClient,
+      client: activeClient,
       waitForFinalization,
     });
 
@@ -836,7 +854,7 @@ export async function storeChunkedFileToBulletin(
     return { rootCid: rootCidString };
   } finally {
     if (ownsClient) {
-      try { sharedClient.destroy(); } catch { /* already closed */ }
+      try { activeClient.destroy(); } catch { /* already closed */ }
     }
   }
 }
@@ -864,8 +882,23 @@ export async function fetchAccountNonce(rpc: string, accountAddress: string): Pr
   return new Promise((resolve, reject) => {
     const websocket = new WebSocketConstructor(rpc);
     const requestId = Date.now();
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try { websocket.close(); } catch { /* ignore */ }
+      reject(new Error("nonce-timeout"));
+    }, FETCH_NONCE_TIMEOUT_MS);
+
+    const finalize = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      callback();
+    };
 
     websocket.onopen = () => {
+      if (settled) return;
       websocket.send(
         JSON.stringify({
           jsonrpc: "2.0",
@@ -878,27 +911,34 @@ export async function fetchAccountNonce(rpc: string, accountAddress: string): Pr
 
     websocket.onmessage = (messageEvent: { data: string | { toString: () => string } }) => {
       try {
+        if (settled) return;
         const messageData =
           typeof messageEvent.data === "string" ? messageEvent.data : messageEvent.data.toString();
         const response = JSON.parse(messageData) as { id?: number; result?: unknown; error?: { message?: string } };
 
         if (response.id === requestId) {
-          websocket.close();
-          if (response.error) {
-            reject(new Error(response.error.message || "Failed to fetch account nonce"));
-          } else {
-            resolve(normalizeRpcNonce(response.result));
-          }
+          finalize(() => {
+            websocket.close();
+            if (response.error) {
+              reject(new Error(response.error.message || "Failed to fetch account nonce"));
+            } else {
+              resolve(normalizeRpcNonce(response.result));
+            }
+          });
         }
       } catch (parseError) {
-        websocket.close();
-        reject(ensureError(parseError));
+        finalize(() => {
+          websocket.close();
+          reject(ensureError(parseError));
+        });
       }
     };
 
     websocket.onerror = () => {
-      websocket.close();
-      reject(new Error(`WebSocket connection to ${rpc} failed`));
+      finalize(() => {
+        websocket.close();
+        reject(new Error(`WebSocket connection to ${rpc} failed`));
+      });
     };
   });
 }
