@@ -80,10 +80,6 @@ export function expirationToISOString(
   return estimateBlockDate(currentBlock, expirationBlock).toISOString();
 }
 
-function isLocalChainEndpoint(rpcUrl: string): boolean {
-  return rpcUrl.includes("127.0.0.1") || rpcUrl.includes("localhost");
-}
-
 async function* traverseDirectoryRecursively(
   directoryPath: string,
 ): AsyncGenerator<{ path: string; content: Uint8Array }> {
@@ -407,26 +403,6 @@ export async function ensureAccountAuthorized(
         `Re-authorize it:\n\n` +
         `  dotns bulletin authorize ${accountAddress}\n`,
     );
-  }
-
-  if (isLocalChainEndpoint(bulletinRpc)) {
-    try {
-      await authorizeAccount({
-        rpc: bulletinRpc,
-        signer,
-        targetAddress: accountAddress,
-      });
-      const refreshed = await checkAuthorization(bulletinRpc, accountAddress);
-      return { expiration: refreshed.expiration, currentBlock: refreshed.currentBlock };
-    } catch (error) {
-      const errorMessage = formatErrorMessage(error);
-
-      if (errorMessage.includes("AlreadyAuthorized") || errorMessage.includes("Sudid")) {
-        return {};
-      }
-
-      console.log(chalk.yellow(`  Authorization warning: ${errorMessage.split("\n")[0]}`));
-    }
   }
 
   throw new Error(
