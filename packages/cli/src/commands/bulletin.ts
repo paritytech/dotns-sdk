@@ -11,6 +11,8 @@ import { importer } from "ipfs-unixfs-importer";
 import type { CID } from "multiformats/cid";
 import { encodeIpfsContenthash } from "../bulletin/cid";
 import { hasIpfsCli, merkleizeWithIpfs, verifyCidResolution } from "../bulletin/ipfs";
+import { completedBlocksFromManifest, loadManifestForResume } from "../bulletin/uploadManifest";
+import { normalizeUploadMaxRetries, runWithUploadRetries } from "../bulletin/uploadRetry";
 import {
   storeSingleFileToBulletin,
   storeChunkedFileToBulletin,
@@ -26,7 +28,9 @@ import type {
   AuthorizationStatus,
   StoreDirectoryOptions,
   StoreDirectoryResult,
+  UploadChunkedBlocksOptions,
   UploadManifestCompletedBlock,
+  UploadSingleBlockOptions,
   UploadSchedulerState,
   UploadWaveSummary,
 } from "../types/types";
@@ -35,6 +39,7 @@ import {
   DEFAULT_AUTHORIZATION_BYTES,
   DEFAULT_VERIFICATION_GATEWAY,
   BULLETIN_BLOCK_TIME_MS,
+  DEFAULT_UPLOAD_MAX_RETRIES,
   MAX_SINGLE_UPLOAD_SIZE_BYTES,
 } from "../utils/constants";
 import { formatErrorMessage, formatBytes, formatDuration } from "../utils/formatting";
@@ -45,6 +50,61 @@ type BlockMetadata = {
   hashCodeValue: number;
   size: number;
 };
+
+function cloneCompletedBlocks(
+  completedBlocks?: Map<number, UploadManifestCompletedBlock>,
+): Map<number, UploadManifestCompletedBlock> | undefined {
+  if (!completedBlocks || completedBlocks.size === 0) {
+    return undefined;
+  }
+
+  return new Map(
+    [...completedBlocks.entries()].map(([index, block]) => [
+      index,
+      { index: block.index, cid: block.cid, length: block.length },
+    ]),
+  );
+}
+
+async function loadCompletedBlocksForRetry(
+  filePath: string,
+  fileSize: number,
+  chunkSize: number,
+  existingBlocks?: Map<number, UploadManifestCompletedBlock>,
+): Promise<Map<number, UploadManifestCompletedBlock> | undefined> {
+  const fileStats = await filesystem.stat(filePath);
+  const mergedCompletedBlocks = cloneCompletedBlocks(existingBlocks) ?? new Map();
+  const manifestLoadResult = await loadManifestForResume({
+    inputPath: filePath,
+    fileSize,
+    fileMtimeMs: fileStats.mtimeMs,
+    chunkSize,
+  });
+
+  if (manifestLoadResult.manifest) {
+    for (const [index, block] of completedBlocksFromManifest(manifestLoadResult.manifest)) {
+      mergedCompletedBlocks.set(index, block);
+    }
+  }
+
+  return mergedCompletedBlocks.size > 0 ? mergedCompletedBlocks : undefined;
+}
+
+function logUploadRetry(
+  label: string,
+  retry: number,
+  totalAttempts: number,
+  delayMs: number,
+  error: unknown,
+): void {
+  const retryableErrorMessage = formatErrorMessage(error).split("\n")[0] ?? String(error);
+  console.log(
+    chalk.yellow(
+      `  ${label} attempt ${retry + 1}/${totalAttempts} failed: ${retryableErrorMessage}`,
+    ),
+  );
+  console.log(chalk.gray(`  retrying in ${(delayMs / 1000).toFixed(delayMs >= 1000 ? 1 : 0)}s`));
+}
 
 
 export function estimateBlockDate(currentBlock: number, targetBlock: number): Date {
@@ -513,32 +573,54 @@ export async function uploadSingleBlock(
   bulletinRpc: string,
   signer: PolkadotSigner,
   fileBytes: Uint8Array,
+  options: UploadSingleBlockOptions = {},
 ): Promise<string> {
-  const spinner = ora("Storing to Bulletin").start();
+  const maxRetries = normalizeUploadMaxRetries(options.maxRetries);
 
   try {
-    const storeResult = await storeSingleFileToBulletin({
-      rpc: bulletinRpc,
-      signer,
-      contentBytes: fileBytes,
-      onProgress: (status) => {
-        spinner.text = `Storing: ${status}`;
+    return await runWithUploadRetries({
+      maxRetries,
+      onRetry: ({ retry, totalAttempts, delayMs, error }) => {
+        logUploadRetry("upload", retry, totalAttempts, delayMs, error);
+      },
+      execute: async (attempt, totalAttempts) => {
+        const spinner = ora(
+          attempt === 0
+            ? "Storing to Bulletin"
+            : `Retrying upload (${attempt + 1}/${totalAttempts})`,
+        ).start();
+
+        try {
+          const storeResult = await storeSingleFileToBulletin({
+            rpc: bulletinRpc,
+            signer,
+            contentBytes: fileBytes,
+            onProgress: (status) => {
+              spinner.text = `Storing: ${status}`;
+            },
+          });
+
+          spinner.succeed("Stored");
+          spinner.info("Verifying upload...");
+          const results = await verifySingleFileCid(storeResult.cid);
+          if (results.resolvable) {
+            console.log(chalk.green("  ✓ CID successfully resolved via gateway"));
+          } else {
+            console.log(chalk.red("  ✗ CID could not be resolved via gateway"));
+          }
+
+          return storeResult.cid;
+        } catch (error) {
+          if (attempt < maxRetries) {
+            spinner.warn("Upload attempt failed");
+          } else {
+            spinner.fail("Upload failed");
+          }
+          throw error;
+        }
       },
     });
-
-    spinner.succeed("Stored");
-    spinner.info("Verifying upload...");
-    const results = await verifySingleFileCid(storeResult.cid);
-    if (results.resolvable) {
-      console.log(chalk.green("  ✓ CID successfully resolved via gateway"));
-    } else {
-      console.log(chalk.red("  ✗ CID could not be resolved via gateway"));
-    }
-
-    return storeResult.cid;
   } catch (error) {
-    spinner.fail("Upload failed");
-
     const errorMessage = formatErrorMessage(error);
     if (errorMessage.includes("Payment")) {
       console.log(chalk.red("\n  Account is not authorized for TransactionStorage."));
@@ -557,85 +639,119 @@ export async function uploadChunkedBlocks(
   chunkSizeBytes: number,
   fileSize: number,
   accountAddress: string,
-  options?: {
-    completedBlocks?: Map<number, UploadManifestCompletedBlock>;
-    concurrency?: number;
-    onSchedulerState?: (state: UploadSchedulerState) => void;
-    onWave?: (wave: UploadWaveSummary) => void;
-  },
+  options: UploadChunkedBlocksOptions = {},
 ): Promise<string> {
   const effectiveChunkSize = clampChunkSizeBytes(chunkSizeBytes);
   const totalChunks = Math.ceil(fileSize / effectiveChunkSize);
-  const concurrency = Math.max(1, Math.min(4, options?.concurrency ?? 4));
-  console.log(
-    chalk.gray("  chunks:   ") +
-      chalk.white(`${totalChunks} (adaptive window 1..${concurrency})`),
-  );
-
-  const startTime = Date.now();
-  let completedCount = 0;
-  let waveStartTime = 0;
-  let spinner = ora(`Waiting for first wave...`).start();
+  const concurrency = Math.max(1, Math.min(4, options.concurrency ?? 4));
+  const maxRetries = normalizeUploadMaxRetries(options.maxRetries);
+  let completedBlocks = cloneCompletedBlocks(options.completedBlocks);
 
   try {
-    const storeResult = await storeChunkedFileToBulletin({
-      rpc: bulletinRpc,
-      signer,
-      filePath,
-      chunkSize: effectiveChunkSize,
-      fileSize,
-      accountAddress,
-      concurrency,
-      completedBlocks: options?.completedBlocks,
-      onSchedulerState: options?.onSchedulerState,
-      onWave: options?.onWave,
-      waitForFinalization: false,
-      onProgress: (currentChunk, totalChunks, status) => {
-        if (status === "uploading-wave") {
-          waveStartTime = Date.now();
-          spinner.text = `Uploading wave starting at chunk ${currentChunk}/${totalChunks}...`;
-          return;
+    return await runWithUploadRetries({
+      maxRetries,
+      onRetry: ({ retry, totalAttempts, delayMs, error }) => {
+        logUploadRetry("chunked upload", retry, totalAttempts, delayMs, error);
+      },
+      execute: async (attempt, totalAttempts) => {
+        if (attempt > 0) {
+          completedBlocks = await loadCompletedBlocksForRetry(
+            filePath,
+            fileSize,
+            effectiveChunkSize,
+            completedBlocks,
+          );
         }
 
-        if (status === "stored") {
-          completedCount++;
+        console.log(
+          chalk.gray("  chunks:   ") +
+            chalk.white(`${totalChunks} (adaptive window 1..${concurrency})`),
+        );
+
+        if (attempt > 0 && completedBlocks && completedBlocks.size > 0) {
+          console.log(
+            chalk.yellow(
+              `  resume:   ${completedBlocks.size}/${totalChunks} chunks already uploaded`,
+            ),
+          );
+        }
+
+        const startTime = Date.now();
+        let completedCount = 0;
+        let waveStartTime = 0;
+        let spinner = ora(
+          attempt === 0
+            ? "Waiting for first wave..."
+            : `Resuming upload (${attempt + 1}/${totalAttempts})...`,
+        ).start();
+
+        try {
+          const storeResult = await storeChunkedFileToBulletin({
+            rpc: bulletinRpc,
+            signer,
+            filePath,
+            chunkSize: effectiveChunkSize,
+            fileSize,
+            accountAddress,
+            concurrency,
+            completedBlocks,
+            onSchedulerState: options.onSchedulerState,
+            onWave: options.onWave,
+            waitForFinalization: false,
+            onProgress: (currentChunk, totalChunkCount, status) => {
+              if (status === "uploading-wave") {
+                waveStartTime = Date.now();
+                spinner.text = `Uploading wave starting at chunk ${currentChunk}/${totalChunkCount}...`;
+                return;
+              }
+
+              if (status === "stored") {
+                completedCount++;
+                const elapsed = (Date.now() - startTime) / 1000;
+                const bytesUploaded = Math.min(fileSize, completedCount * effectiveChunkSize);
+                const throughput = elapsed > 0 ? bytesUploaded / elapsed : 0;
+                const remaining = throughput > 0 ? (fileSize - bytesUploaded) / throughput : 0;
+                const pct = Math.round((completedCount / totalChunks) * 100);
+
+                if (completedCount % concurrency === 0 || completedCount === totalChunks) {
+                  const waveMs = Date.now() - waveStartTime;
+                  spinner.succeed(
+                    `Wave complete — ${completedCount}/${totalChunks} chunks` +
+                      chalk.gray(` (${(waveMs / 1000).toFixed(1)}s)`),
+                  );
+                  spinner = ora(
+                    `${pct}% | ${formatBytes(throughput)}/s | ETA ${formatDuration(remaining)}`,
+                  ).start();
+                }
+                return;
+              }
+
+              if (status === "skipped") {
+                completedCount++;
+                return;
+              }
+
+              spinner.text = `${status} (${currentChunk}/${totalChunkCount})`;
+            },
+          });
+
           const elapsed = (Date.now() - startTime) / 1000;
-          const bytesUploaded = Math.min(fileSize, completedCount * effectiveChunkSize);
-          const throughput = elapsed > 0 ? bytesUploaded / elapsed : 0;
-          const remaining = throughput > 0 ? (fileSize - bytesUploaded) / throughput : 0;
-          const pct = Math.round((completedCount / totalChunks) * 100);
-
-          if (completedCount % concurrency === 0 || completedCount === totalChunks) {
-            const waveMs = Date.now() - waveStartTime;
-            spinner.succeed(
-              `Wave complete — ${completedCount}/${totalChunks} chunks` +
-                chalk.gray(` (${(waveMs / 1000).toFixed(1)}s)`),
-            );
-            spinner = ora(
-              `${pct}% | ${formatBytes(throughput)}/s | ETA ${formatDuration(remaining)}`,
-            ).start();
+          const throughput = elapsed > 0 ? fileSize / elapsed : 0;
+          spinner.succeed(
+            `Uploaded ${totalChunks} chunks (${formatBytes(fileSize)}) in ${formatDuration(elapsed)} — ${formatBytes(throughput)}/s`,
+          );
+          return storeResult.rootCid;
+        } catch (error) {
+          if (attempt < maxRetries) {
+            spinner.warn("Upload attempt failed");
+          } else {
+            spinner.fail("Upload failed");
           }
-          return;
+          throw error;
         }
-
-        if (status === "skipped") {
-          completedCount++;
-          return;
-        }
-
-        spinner.text = `${status} (${currentChunk}/${totalChunks})`;
       },
     });
-
-    const elapsed = (Date.now() - startTime) / 1000;
-    const throughput = elapsed > 0 ? fileSize / elapsed : 0;
-    spinner.succeed(
-      `Uploaded ${totalChunks} chunks (${formatBytes(fileSize)}) in ${formatDuration(elapsed)} — ${formatBytes(throughput)}/s`,
-    );
-    return storeResult.rootCid;
   } catch (error) {
-    spinner.fail("Upload failed");
-
     const errorMessage = formatErrorMessage(error);
     if (errorMessage.includes("Payment")) {
       console.log(chalk.red("\n  Account is not authorized for TransactionStorage."));
@@ -657,6 +773,7 @@ export async function storeDirectory(
     concurrency = 3,
     accountAddress,
     verificationGateway = DEFAULT_VERIFICATION_GATEWAY,
+    maxRetries = DEFAULT_UPLOAD_MAX_RETRIES,
     waitForFinalization = true,
   } = options;
 
@@ -664,74 +781,96 @@ export async function storeDirectory(
     throw new Error("accountAddress is required for directory uploads");
   }
 
-  const startTime = Date.now();
-  let uploadedBytes = 0;
-  let spinner = ora("Merkleizing and uploading directory").start();
+  const normalizedMaxRetries = normalizeUploadMaxRetries(maxRetries);
 
   try {
-    const { rootCid, totalBlocks, totalBytes } = await merkleizeAndUploadDirectory(
-      directoryPath,
-      {
-        rpc: bulletinRpc,
-        signer,
-        accountAddress,
-        concurrency,
-        waitForFinalization,
-        onBlockStored: (meta, completedCount) => {
-          uploadedBytes += meta.size;
-          const elapsed = (Date.now() - startTime) / 1000;
-          const throughput = elapsed > 0 ? uploadedBytes / elapsed : 0;
-
-          if (completedCount % concurrency === 0) {
-            spinner.succeed(
-              `Wave complete — ${completedCount} blocks uploaded` +
-                chalk.gray(` (${formatBytes(throughput)}/s)`),
-            );
-            spinner = ora(`Merkleizing + uploading...`).start();
-          } else {
-            spinner.text = `Block ${completedCount} stored (${meta.cidString.slice(0, 12)}...)`;
-          }
-        },
+    return await runWithUploadRetries({
+      maxRetries: normalizedMaxRetries,
+      onRetry: ({ retry, totalAttempts, delayMs, error }) => {
+        logUploadRetry("directory upload", retry, totalAttempts, delayMs, error);
       },
-    );
+      execute: async (attempt, totalAttempts) => {
+        const startTime = Date.now();
+        let uploadedBytes = 0;
+        let spinner = ora(
+          attempt === 0
+            ? "Merkleizing and uploading directory"
+            : `Retrying directory upload (${attempt + 1}/${totalAttempts})`,
+        ).start();
 
-    const elapsed = (Date.now() - startTime) / 1000;
-    const throughput = elapsed > 0 ? totalBytes / elapsed : 0;
-    spinner.succeed(
-      `Uploaded ${totalBlocks} blocks (${formatBytes(totalBytes)}) in ${formatDuration(elapsed)} — ${formatBytes(throughput)}/s`,
-    );
+        try {
+          const { rootCid, totalBlocks, totalBytes } = await merkleizeAndUploadDirectory(
+            directoryPath,
+            {
+              rpc: bulletinRpc,
+              signer,
+              accountAddress,
+              concurrency,
+              waitForFinalization,
+              onBlockStored: (meta, completedCount) => {
+                uploadedBytes += meta.size;
+                const elapsed = (Date.now() - startTime) / 1000;
+                const throughput = elapsed > 0 ? uploadedBytes / elapsed : 0;
 
-    if (hasIpfsCli()) {
-      try {
-        const ipfsCliResult = merkleizeWithIpfs(directoryPath);
-        if (ipfsCliResult.cid !== rootCid.toString()) {
-          console.log(chalk.yellow("  CID mismatch: IPFS CLI vs local merkleization"));
-          console.log(chalk.red("  IPFS CLI: ") + chalk.white(ipfsCliResult.cid));
-          console.log(chalk.red("  Local:    ") + chalk.white(rootCid.toString()));
+                if (completedCount % concurrency === 0) {
+                  spinner.succeed(
+                    `Wave complete — ${completedCount} blocks uploaded` +
+                      chalk.gray(` (${formatBytes(throughput)}/s)`),
+                  );
+                  spinner = ora("Merkleizing + uploading...").start();
+                } else {
+                  spinner.text = `Block ${completedCount} stored (${meta.cidString.slice(0, 12)}...)`;
+                }
+              },
+            },
+          );
+
+          const elapsed = (Date.now() - startTime) / 1000;
+          const throughput = elapsed > 0 ? totalBytes / elapsed : 0;
+          spinner.succeed(
+            `Uploaded ${totalBlocks} blocks (${formatBytes(totalBytes)}) in ${formatDuration(elapsed)} — ${formatBytes(throughput)}/s`,
+          );
+
+          if (hasIpfsCli()) {
+            try {
+              const ipfsCliResult = merkleizeWithIpfs(directoryPath);
+              if (ipfsCliResult.cid !== rootCid.toString()) {
+                console.log(chalk.yellow("  CID mismatch: IPFS CLI vs local merkleization"));
+                console.log(chalk.red("  IPFS CLI: ") + chalk.white(ipfsCliResult.cid));
+                console.log(chalk.red("  Local:    ") + chalk.white(rootCid.toString()));
+              }
+            } catch {
+              // IPFS CLI verification is optional
+            }
+          }
+
+          console.log(chalk.gray("  root cid: ") + chalk.cyan(rootCid.toString()));
+
+          const verifySpinner = ora("Verifying content resolution").start();
+          const rootCidString = rootCid.toString();
+
+          const rootVerification = await verifyCidResolution(rootCidString, verificationGateway);
+
+          if (rootVerification.resolvable) {
+            verifySpinner.succeed("Root CID resolvable");
+          } else {
+            verifySpinner.warn("Root CID not yet resolvable");
+            console.log(chalk.gray("  gateway:  ") + chalk.white(verificationGateway));
+            console.log(chalk.yellow("  Content may take time to propagate through the network"));
+          }
+
+          return { storageCid: rootCidString, ipfsCid: rootCidString };
+        } catch (error) {
+          if (attempt < normalizedMaxRetries) {
+            spinner.warn("Directory upload attempt failed");
+          } else {
+            spinner.fail("Directory upload failed");
+          }
+          throw error;
         }
-      } catch {
-        // IPFS CLI verification is optional
-      }
-    }
-
-    console.log(chalk.gray("  root cid: ") + chalk.cyan(rootCid.toString()));
-
-    const verifySpinner = ora("Verifying content resolution").start();
-    const rootCidString = rootCid.toString();
-
-    const rootVerification = await verifyCidResolution(rootCidString, verificationGateway);
-
-    if (rootVerification.resolvable) {
-      verifySpinner.succeed("Root CID resolvable");
-    } else {
-      verifySpinner.warn("Root CID not yet resolvable");
-      console.log(chalk.gray("  gateway:  ") + chalk.white(verificationGateway));
-      console.log(chalk.yellow("  Content may take time to propagate through the network"));
-    }
-
-    return { storageCid: rootCidString, ipfsCid: rootCidString };
+      },
+    });
   } catch (error) {
-    spinner.fail("Directory upload failed");
     throw error;
   }
 }

@@ -213,6 +213,8 @@ export type BulletinUploadOptions = {
   bulletinRpc?: string;
   /** Chunk size for large uploads in bytes */
   chunkSize?: string;
+  /** Number of retry attempts after the initial upload attempt */
+  maxRetries?: string;
   /** Force chunked upload mode (DAG-PB) */
   forceChunked?: boolean;
   /** Adaptive scheduler maximum window (default: 4) */
@@ -378,7 +380,25 @@ export type StoreDirectoryResult = {
   ipfsCid: string;
 };
 
-export type StoreDirectoryOptions = {
+export type UploadRetryOptions = {
+  /** Number of retry attempts after the initial upload attempt */
+  maxRetries?: number;
+};
+
+export type UploadSingleBlockOptions = UploadRetryOptions;
+
+export type UploadChunkedBlocksOptions = UploadRetryOptions & {
+  /** Completed chunk metadata keyed by zero-based chunk index (resume support) */
+  completedBlocks?: Map<number, UploadManifestCompletedBlock>;
+  /** Maximum concurrent upload operations */
+  concurrency?: number;
+  /** Callback with adaptive scheduler state snapshots */
+  onSchedulerState?: (state: UploadSchedulerState) => void;
+  /** Callback emitted after each upload wave */
+  onWave?: (wave: UploadWaveSummary) => void;
+};
+
+export type StoreDirectoryOptions = UploadRetryOptions & {
   /** SS58 address for nonce management in parallel mode */
   accountAddress?: string;
   /** Maximum concurrent upload operations */
@@ -747,124 +767,205 @@ export type StoreValueResult = {
 };
 
 export type IsMappedResult = {
+  /** SS58 substrate address that was checked */
   address: string;
+  /** Corresponding EVM address (H160) */
   evmAddress: string;
+  /** Whether the address mapping exists on-chain */
   isMapped: boolean;
 };
 
 export type IsWhitelistedResult = {
+  /** SS58 substrate address that was checked */
   address: string;
+  /** Corresponding EVM address (H160) */
   evmAddress: string;
+  /** Whether the address is on the whitelist */
   isWhitelisted: boolean;
 };
 
 export type WhitelistResult = {
+  /** SS58 substrate address that was whitelisted */
   address: string;
+  /** Corresponding EVM address (H160) */
   evmAddress: string;
+  /** Whether the whitelist operation succeeded */
   whitelisted: boolean;
+  /** Transaction hash of the whitelist extrinsic */
   txHash: string;
 };
 
 export type UploadManifest = {
+  /** Schema version for forward compatibility */
   version: 1;
   /** Stable manifest identifier derived from upload fingerprint */
   id: string;
   /** Fingerprint derived from path + size + mtime + chunk size */
   fingerprint: string;
+  /** Absolute path of the file being uploaded */
   inputPath: string;
+  /** Total file size in bytes */
   fileSize: number;
+  /** File modification time in milliseconds since epoch */
   fileMtimeMs: number;
+  /** Chunk size in bytes used for splitting */
   chunkSize: number;
+  /** Total number of chunks the file was split into */
   totalBlocks: number;
+  /** Metadata for chunks that have been successfully uploaded */
   completedBlocks: UploadManifestCompletedBlock[];
+  /** Root CID of the DAG-PB tree, set after all chunks are stored */
   rootCid?: string;
+  /** ISO timestamp when the manifest was first created */
   createdAtIso: string;
+  /** ISO timestamp of the most recent manifest update */
   updatedAtIso: string;
+  /** Whether the upload is a single file or directory */
   type: "file" | "directory";
 };
 
 export type UploadManifestCompletedBlock = {
   /** Zero-based chunk index */
   index: number;
+  /** Content identifier for this chunk */
   cid: string;
+  /** Byte length of the chunk */
   length: number;
 };
 
 export type UploadManifestIdentity = {
+  /** Absolute path of the file being uploaded */
   inputPath: string;
+  /** Total file size in bytes */
   fileSize: number;
+  /** File modification time in milliseconds since epoch */
   fileMtimeMs: number;
+  /** Chunk size in bytes used for splitting */
   chunkSize: number;
 };
 
 export type UploadManifestLoadResult = {
+  /** Matching manifest for the current upload identity, or null if none found */
   manifest: UploadManifest | null;
   /** Most recent manifest for the same path, but with fingerprint mismatch */
   staleManifest: UploadManifest | null;
 };
 
 export type UploadSchedulerState = {
+  /** Unix timestamp in milliseconds when this snapshot was captured */
   timestampMs: number;
+  /** Current adaptive concurrency window size */
   window: number;
+  /** Total bytes currently being uploaded across all in-flight chunks */
   inFlightBytes: number;
+  /** Number of chunks currently being uploaded in parallel */
   inFlightChunks: number;
+  /** Total number of chunks successfully uploaded so far */
   completedChunks: number;
+  /** Cumulative retry count across all waves */
   retries: number;
 };
 
 export type UploadWaveSummary = {
+  /** Sequential wave number (1-based) */
   wave: number;
+  /** Unix timestamp in milliseconds when the wave started */
   startedAtMs: number;
+  /** Unix timestamp in milliseconds when the wave ended */
   endedAtMs: number;
+  /** Wall-clock duration of the wave in milliseconds */
   durationMs: number;
+  /** Concurrency window size used for this wave */
   window: number;
+  /** Number of chunk uploads attempted in this wave */
   attempted: number;
+  /** Number of chunks successfully stored */
   succeeded: number;
+  /** Number of chunks that failed to store */
   failed: number;
+  /** Number of retries triggered during this wave */
   retries: number;
+  /** True if the wave completed with zero retries under the duration threshold */
   wasClean: boolean;
 };
 
 export type UploadProfileSample = {
+  /** Unix timestamp in milliseconds when this sample was captured */
   timestampMs: number;
+  /** V8 heap used in bytes at sample time */
   heapUsed: number;
+  /** Resident set size in bytes at sample time */
   rss: number;
+  /** ArrayBuffer allocation in bytes at sample time */
   arrayBuffers: number;
+  /** External memory (C++ objects bound to JS) in bytes */
   external: number;
+  /** Total bytes currently being uploaded across in-flight chunks */
   inFlightBytes: number;
+  /** Number of chunks currently being uploaded */
   inFlightChunks: number;
+  /** Current adaptive concurrency window size */
   window: number;
+  /** Total chunks completed at sample time */
   completed: number;
+  /** Cumulative retry count at sample time */
   retries: number;
 };
 
 export type UploadProfileMeta = {
+  /** Absolute path of the file that was uploaded */
   sourcePath: string;
+  /** Total file size in bytes */
   sourceSizeBytes: number;
+  /** Chunk size in bytes used for splitting */
   chunkSizeBytes: number;
+  /** Bulletin RPC endpoint used for the upload */
   rpc: string;
+  /** ISO timestamp when the upload started */
   startedAtIso: string;
+  /** ISO timestamp when the upload finished */
+  finishedAtIso: string;
+  /** V8 heap size limit in bytes */
   heapLimitBytes: number;
+  /** Concurrency window at the start of the upload */
   initialConcurrency: number;
+  /** Maximum concurrency window allowed */
   maxConcurrency: number;
 };
 
 export type UploadProfileSummary = {
+  /** Total upload wall-clock time in milliseconds */
+  totalUploadTimeMs: number;
+  /** Total upload wall-clock time in seconds */
+  totalUploadTimeSeconds: number;
+  /** Alias for totalUploadTimeMs (backward compat) */
   elapsedMs: number;
+  /** Effective throughput in bytes per second */
   throughputBytesPerSecond: number;
+  /** Peak V8 heap usage observed across all samples */
   peakHeapUsed: number;
+  /** Peak resident set size observed across all samples */
   peakRss: number;
+  /** Peak ArrayBuffer allocation observed across all samples */
   peakArrayBuffers: number;
+  /** Peak external memory observed across all samples */
   peakExternal: number;
+  /** Total number of retries across all waves */
   retryCount: number;
+  /** Highest adaptive window size reached during the upload */
   maxWindowReached: number;
+  /** Final root CID of the uploaded content */
   finalCid: string;
 };
 
 export type UploadProfileReport = {
+  /** Upload metadata (source file, RPC, concurrency settings) */
   meta: UploadProfileMeta;
+  /** Periodic memory and scheduler state snapshots */
   samples: UploadProfileSample[];
+  /** Per-wave upload summaries */
   waves: UploadWaveSummary[];
+  /** Aggregated upload statistics with peak values */
   summary: UploadProfileSummary;
 };
 

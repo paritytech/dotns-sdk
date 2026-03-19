@@ -60,12 +60,17 @@ describe("upload profiler", () => {
     const onDisk = JSON.parse(await fs.readFile(writtenPath, "utf8"));
 
     expect(onDisk.meta.sourcePath).toBe("/tmp/example.bin");
+    expect(typeof onDisk.meta.startedAtIso).toBe("string");
+    expect(typeof onDisk.meta.finishedAtIso).toBe("string");
     expect(Array.isArray(onDisk.samples)).toBe(true);
     expect(Array.isArray(onDisk.waves)).toBe(true);
     expect(onDisk.summary.finalCid).toBe("bafyprofilecid");
+    expect(onDisk.summary.totalUploadTimeMs).toBeGreaterThan(0);
+    expect(onDisk.summary.totalUploadTimeSeconds).toBeGreaterThan(0);
 
     const peakHeapFromSamples = Math.max(...report.samples.map((sample) => sample.heapUsed));
     expect(report.summary.peakHeapUsed).toBe(peakHeapFromSamples);
+    expect(report.summary.totalUploadTimeMs).toBe(report.summary.elapsedMs);
     expect(report.samples.length).toBeGreaterThan(0);
   });
 
