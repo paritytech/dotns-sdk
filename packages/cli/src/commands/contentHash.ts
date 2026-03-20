@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import type { Ora } from "ora";
-import { namehash, type Hex, zeroAddress } from "viem";
+import { namehash, type Address, type Hex, zeroAddress } from "viem";
 import type { PolkadotSigner } from "polkadot-api";
 import type { ReviveClientWrapper } from "../client/polkadotClient";
 import { CONTRACTS, DOTNS_REGISTRY_ABI, DOTNS_CONTENT_RESOLVER_ABI } from "../utils/constants";
