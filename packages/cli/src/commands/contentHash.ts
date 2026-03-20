@@ -1,11 +1,12 @@
 import chalk from "chalk";
 import type { Ora } from "ora";
-import { namehash, type Address, type Hex, zeroAddress, checksumAddress } from "viem";
+import { namehash, type Hex, zeroAddress } from "viem";
 import type { PolkadotSigner } from "polkadot-api";
 import type { ReviveClientWrapper } from "../client/polkadotClient";
 import { CONTRACTS, DOTNS_REGISTRY_ABI, DOTNS_CONTENT_RESOLVER_ABI } from "../utils/constants";
 import { performContractCall, submitContractTransaction } from "../utils/contractInteractions";
 import { decodeIpfsContenthash, encodeIpfsContenthash } from "../bulletin/cid";
+import { getResolverNodeInfo, requireResolverAuthorization } from "./resolverAuth";
 
 function decodeContenthashToCid(contenthash: Hex): string {
   if (contenthash === "0x" || contenthash === "0x0" || contenthash.length < 6) {
@@ -92,40 +93,22 @@ export async function setDomainContentHash(
   console.log(chalk.gray("  node:   ") + chalk.white(namehashNode));
   console.log();
 
-  const recordExists = await performContractCall<boolean>(
+  const { exists, owner, caller } = await getResolverNodeInfo(
     clientWrapper,
     originSubstrateAddress,
-    CONTRACTS.DOTNS_REGISTRY,
-    DOTNS_REGISTRY_ABI,
-    "recordExists",
-    [namehashNode],
+    namehashNode,
   );
 
-  const ownerAddress = await performContractCall<Address>(
-    clientWrapper,
-    originSubstrateAddress,
-    CONTRACTS.DOTNS_REGISTRY,
-    DOTNS_REGISTRY_ABI,
-    "owner",
-    [namehashNode],
-  );
-
-  const callerEvmAddress = await clientWrapper.getEvmAddress(originSubstrateAddress);
-
-  console.log(chalk.gray("  exists:  ") + chalk.white(String(recordExists)));
-  console.log(chalk.gray("  owner:   ") + chalk.white(ownerAddress));
-  console.log(chalk.gray("  caller:  ") + chalk.white(callerEvmAddress));
+  console.log(chalk.gray("  exists:  ") + chalk.white(String(exists)));
+  console.log(chalk.gray("  owner:   ") + chalk.white(owner));
+  console.log(chalk.gray("  caller:  ") + chalk.white(caller));
   console.log();
 
-  if (!recordExists || ownerAddress === zeroAddress) {
+  if (!exists) {
     throw new Error(`Domain ${label}.dot is not registered`);
   }
 
-  if (checksumAddress(ownerAddress) !== checksumAddress(callerEvmAddress)) {
-    throw new Error(
-      `You do not own this domain. Owner is ${ownerAddress}, but you are ${callerEvmAddress}`,
-    );
-  }
+  await requireResolverAuthorization(clientWrapper, originSubstrateAddress, owner, caller);
 
   console.log(chalk.gray("  status: ") + chalk.green("Ownership verified"));
   console.log();
