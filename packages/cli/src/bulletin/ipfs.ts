@@ -3,6 +3,7 @@ import { existsSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { MerkleizeResult, VerificationResult, BlockVerificationResult } from "../types/types";
+import { formatErrorMessage } from "../utils/formatting";
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
 const bundledIpfsBinaryPath = join(
@@ -13,7 +14,7 @@ const bundledIpfsBinaryPath = join(
   process.platform === "win32" ? "ipfs.exe" : "ipfs",
 );
 
-const DEFAULT_VERIFICATION_GATEWAY = "https://ipfs.dotspark.app";
+const DEFAULT_VERIFICATION_GATEWAY = "https://paseo-ipfs.polkadot.io";
 const VERIFICATION_TIMEOUT_MILLISECONDS = 30000;
 
 export function findIpfsBinaryPath(): string | null {
@@ -156,7 +157,7 @@ export async function verifyCidResolution(
       statusCode: response.status,
     };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage = formatErrorMessage(error);
 
     return {
       cid: contentCid,

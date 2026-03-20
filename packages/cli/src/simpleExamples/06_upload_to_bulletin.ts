@@ -10,7 +10,7 @@ import {
 } from "../commands/bulletin";
 
 const MAX_SINGLE_UPLOAD_SIZE_BYTES = 8 * 1024 * 1024;
-const DEFAULT_CHUNK_SIZE_BYTES = 4 * 1024 * 1024;
+const DEFAULT_CHUNK_SIZE_BYTES = 2 * 1024 * 1024;
 
 async function main() {
   const filePath = process.env.BULLETIN_FILE ?? "./01_info.ts";

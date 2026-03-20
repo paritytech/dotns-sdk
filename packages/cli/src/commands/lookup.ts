@@ -13,7 +13,7 @@ import {
 } from "../utils/constants";
 import { stripTrailingDigits } from "../utils/validation";
 import { computeDomainTokenId, performContractCall } from "../utils/contractInteractions";
-import { formatNativeBalance, withTimeout } from "../utils/formatting";
+import { formatNativeBalance, withTimeout, formatErrorMessage } from "../utils/formatting";
 import type { DomainLookupResult, BaseNameReservation, DomainOwnership } from "../types/types";
 
 export async function performDomainLookup(
@@ -301,9 +301,7 @@ export async function listMyRegisteredNames(
     }
   } catch (error) {
     valueSpinner.fail("Failed to read from Store");
-    console.log(
-      chalk.yellow(`\n  Error: ${error instanceof Error ? error.message : String(error)}`),
-    );
+    console.log(chalk.yellow(`\n  Error: ${formatErrorMessage(error)}`));
   }
 }
 
@@ -343,7 +341,7 @@ export async function performOwnerOfLookup(
 
     isRegistered = actualOwner !== zeroAddress;
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage = formatErrorMessage(error);
     if (errorMessage.includes("Contract reverted") || errorMessage.includes("does not exist")) {
       actualOwner = zeroAddress;
       isRegistered = false;

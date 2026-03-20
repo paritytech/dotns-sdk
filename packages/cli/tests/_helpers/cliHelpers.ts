@@ -1,5 +1,4 @@
 import { Command, CommanderError } from "commander";
-import { mkdirSync, rmSync } from "node:fs";
 import path from "node:path";
 import { expect } from "bun:test";
 import fs from "node:fs/promises";
@@ -14,6 +13,7 @@ import { attachPopCommands } from "../../src/cli/commands/pop";
 import { attachContentCommands } from "../../src/cli/commands/content";
 import { attachTextCommands } from "../../src/cli/commands/text";
 import { attachStoreCommands } from "../../src/cli/commands/store";
+import { attachAccountCommands } from "../../src/cli/commands/info";
 
 export const HARNESS_SUCCESS_EXIT_CODE = 1;
 export const HARNESS_HELP_SUCCESS_EXIT_CODE = 0;
@@ -41,33 +41,6 @@ class ProcessExitError extends Error {
   }
 }
 
-export type TestKeystorePaths = {
-  temporaryDirectoryPath: string;
-  keystoreDirectoryPath: string;
-};
-
-export function createTestKeystorePaths(testFileUrl: string, testName: string): TestKeystorePaths {
-  const testFilePath = new URL(testFileUrl).pathname;
-
-  const repositoryRootGuess = process.cwd();
-  const testTemporaryRoot = path.join(repositoryRootGuess, "tests", ".tmp");
-
-  const safeTestFileName = path.basename(testFilePath).replaceAll(/[^\w.-]/g, "_");
-  const safeTestName = testName.replaceAll(/[^\w.-]/g, "_");
-
-  const temporaryDirectoryPath = path.join(testTemporaryRoot, safeTestFileName, safeTestName);
-
-  mkdirSync(temporaryDirectoryPath, { recursive: true });
-
-  const keystoreDirectoryPath = path.join(temporaryDirectoryPath, "keystore");
-
-  return { temporaryDirectoryPath, keystoreDirectoryPath };
-}
-
-export function cleanupTestTemporaryDirectory(temporaryDirectoryPath: string): void {
-  rmSync(temporaryDirectoryPath, { recursive: true, force: true });
-}
-
 export function createDotnsTestProgram(): Command {
   const rootCommand = new Command();
   rootCommand.name("dotns");
@@ -82,6 +55,7 @@ export function createDotnsTestProgram(): Command {
   attachContentCommands(rootCommand);
   attachTextCommands(rootCommand);
   attachStoreCommands(rootCommand);
+  attachAccountCommands(rootCommand);
   return rootCommand;
 }
 

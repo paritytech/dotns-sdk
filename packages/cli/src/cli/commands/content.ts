@@ -5,6 +5,7 @@ import { viewDomainContentHash, setDomainContentHash } from "../../commands/cont
 import { addAuthOptions } from "./authOptions";
 import { prepareContext } from "../context";
 import { prepareReadOnlyContext } from "./lookup";
+import { formatErrorMessage } from "../../utils/formatting";
 import ora from "ora";
 
 export interface ContentViewOptions {
@@ -57,9 +58,7 @@ export function attachContentCommands(root: Command) {
         console.log(chalk.green("\n✓ Complete\n"));
         process.exit(0);
       } catch (error) {
-        console.error(
-          chalk.red(`\n✗ Error: ${error instanceof Error ? error.message : String(error)}\n`),
-        );
+        console.error(chalk.red(`\n✗ Error: ${formatErrorMessage(error)}\n`));
         process.exit(1);
       }
     },
@@ -95,9 +94,7 @@ export function attachContentCommands(root: Command) {
         console.log(chalk.green("\n✓ Complete\n"));
         process.exit(0);
       } catch (error) {
-        console.error(
-          chalk.red(`\n✗ Error: ${error instanceof Error ? error.message : String(error)}\n`),
-        );
+        console.error(chalk.red(`\n✗ Error: ${formatErrorMessage(error)}\n`));
         process.exit(1);
       }
     },

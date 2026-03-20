@@ -5,6 +5,7 @@ import { addAuthOptions, getAuthOptions } from "./authOptions";
 import { prepareAssetHubContext } from "../context";
 import { prepareReadOnlyContext, getJsonFlag } from "./lookup";
 import { maybeQuiet } from "./bulletin";
+import { formatErrorMessage } from "../../utils/formatting";
 import {
   getStoreInfo,
   listStoreValues,
@@ -29,7 +30,7 @@ function validateEvmAddress(raw: string): Address {
 
 function handleCommandError(error: unknown, cmd: any): never {
   const jsonOutput = getJsonFlag(cmd);
-  const message = error instanceof Error ? error.message : String(error);
+  const message = formatErrorMessage(error);
 
   if (jsonOutput) {
     console.error(JSON.stringify({ error: message }));

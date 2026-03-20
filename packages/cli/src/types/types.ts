@@ -1,7 +1,7 @@
 import type { Address, Hex } from "viem";
 import type { StoredAuth } from "../cli/keystore/types";
 import type { Ora } from "ora";
-import type { PolkadotSigner, TypedApi } from "polkadot-api";
+import type { PolkadotClient, PolkadotSigner, TypedApi } from "polkadot-api";
 import type { ReviveClientWrapper, PolkadotApiClient } from "../client/polkadotClient";
 import type { Bulletin } from "@polkadot-api/descriptors";
 
@@ -229,8 +229,6 @@ export type BulletinUploadOptions = {
   json: boolean;
   /** Whether to store the current upload to the local history db */
   history: boolean;
-  /**The default sudo key uri */
-  sudoKeyUri: string;
 };
 
 export type BulletinStoreParams = {
@@ -320,14 +318,31 @@ export type PricingAndEligibility = {
 export type AuthorizeAccountOptions = {
   /** Bulletin WebSocket RPC endpoint URL */
   rpc: string;
-  /** Signer with sudo privileges for authorization */
-  sudoSigner: PolkadotSigner;
+  /** Signer with Authorizer privileges */
+  signer: PolkadotSigner;
   /** SS58 address of the account to authorize */
   targetAddress: string;
   /** Maximum number of store transactions allowed */
   transactions?: number;
   /** Maximum bytes allowed to store */
   bytes?: bigint;
+  /** Bypass the existing authorization check and re-submit the extrinsic */
+  force?: boolean;
+};
+
+export type AuthorizationStatus = {
+  /** Whether an authorization entry exists in chain storage */
+  authorized: boolean;
+  /** Remaining transaction allowance */
+  transactions?: number;
+  /** Remaining byte allowance */
+  bytes?: bigint;
+  /** Block number at which the authorization expires */
+  expiration?: number;
+  /** Current chain block number at time of query */
+  currentBlock?: number;
+  /** Whether the current block has passed the expiration block */
+  expired?: boolean;
 };
 
 export type AuthorizeAccountResult = {
@@ -362,6 +377,8 @@ export type StoreDirectoryOptions = {
   concurrency?: number;
   /** Gateway URL for content resolution verification */
   verificationGateway?: string;
+  /** If false, resolve on best-block inclusion instead of finalization. Default: true */
+  waitForFinalization?: boolean;
 };
 
 export type UploadRecord = {
@@ -455,6 +472,10 @@ export type StoreContentParameters = {
   nonce?: number;
   /** Callback for progress updates */
   onProgress?: (status: string) => void;
+  /** Optional shared client — caller owns lifecycle when provided */
+  client?: PolkadotClient;
+  /** If false, resolve on best-block inclusion instead of finalization. Default: true */
+  waitForFinalization?: boolean;
 };
 
 export type StoreSingleFileParameters = {
@@ -466,6 +487,8 @@ export type StoreSingleFileParameters = {
   contentBytes: Uint8Array;
   /** Callback for progress updates */
   onProgress?: (status: string) => void;
+  /** Optional shared client — caller owns lifecycle when provided */
+  client?: PolkadotClient;
 };
 
 export type StoreChunkedFileParameters = {
@@ -477,6 +500,8 @@ export type StoreChunkedFileParameters = {
   contentChunks: Uint8Array[];
   /** Callback for progress updates with chunk position */
   onProgress?: (currentChunk: number, totalChunks: number, status: string) => void;
+  /** Optional shared client — caller owns lifecycle when provided */
+  client?: PolkadotClient;
 };
 
 export type StoreBlockParameters = {
@@ -494,6 +519,10 @@ export type StoreBlockParameters = {
   hashCodeValue: number;
   /** Optional nonce for transaction ordering */
   nonce?: number;
+  /** Optional shared client — caller owns lifecycle when provided */
+  client?: PolkadotClient;
+  /** If false, resolve on best-block inclusion instead of finalization. Default: true */
+  waitForFinalization?: boolean;
 };
 
 export type StoreParameters = {
@@ -691,6 +720,25 @@ export type StoreValueResult = {
   value: string;
   /** Whether a non-empty value exists at this key */
   exists: boolean;
+};
+
+export type IsMappedResult = {
+  address: string;
+  evmAddress: string;
+  isMapped: boolean;
+};
+
+export type IsWhitelistedResult = {
+  address: string;
+  evmAddress: string;
+  isWhitelisted: boolean;
+};
+
+export type WhitelistResult = {
+  address: string;
+  evmAddress: string;
+  whitelisted: boolean;
+  txHash: string;
 };
 
 export type StoreEnsureAuthResult = {

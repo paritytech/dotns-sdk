@@ -1,5 +1,6 @@
 import { Binary } from "@polkadot-api/substrate-bindings";
 import { createClient as createPolkadotClient } from "polkadot-api";
+import type { PolkadotClient } from "polkadot-api";
 import { getWsProvider } from "polkadot-api/ws-provider";
 import { withPolkadotSdkCompat } from "polkadot-api/polkadot-sdk-compat";
 import { bulletin } from "@polkadot-api/descriptors";
@@ -15,6 +16,31 @@ import type {
 } from "../types/types";
 
 const MAXIMUM_TRANSACTION_SIZE = 8 * 1024 * 1024;
+
+function formatDispatchError(dispatchError: { type: string; value?: unknown }): string {
+  if (dispatchError.type === "Module") {
+    const moduleError = dispatchError.value as {
+      type: string;
+      value?: { type: string };
+    };
+    return `Module error: ${moduleError.type}.${moduleError.value?.type || "Unknown"}`;
+  }
+  return dispatchError.type;
+}
+
+function ensureError(error: unknown): Error {
+  if (error instanceof Error) return error;
+  if (typeof error === "string") return new Error(error);
+  try {
+    return new Error(JSON.stringify(error));
+  } catch {
+    return new Error(String(error));
+  }
+}
+
+export function createBulletinClient(rpc: string): PolkadotClient {
+  return createPolkadotClient(withPolkadotSdkCompat(getWsProvider(rpc)));
+}
 
 function convertHashCodeToEnum(hashCode: number): HashingEnumVariant {
   switch (hashCode) {
@@ -44,8 +70,18 @@ export function splitBytesIntoChunks(sourceBytes: Uint8Array, chunkSize: number)
 async function storeContentOnBulletin(
   parameters: StoreContentParameters,
 ): Promise<BulletinStoreResult> {
-  const { rpc, signer, contentBytes, contentCid, codecValue, hashCodeValue, nonce, onProgress } =
-    parameters;
+  const {
+    rpc,
+    signer,
+    contentBytes,
+    contentCid,
+    codecValue,
+    hashCodeValue,
+    nonce,
+    onProgress,
+    client: externalClient,
+    waitForFinalization = true,
+  } = parameters;
 
   if (contentBytes.length > MAXIMUM_TRANSACTION_SIZE) {
     throw new Error(
@@ -53,28 +89,24 @@ async function storeContentOnBulletin(
     );
   }
 
-  const client = createPolkadotClient(withPolkadotSdkCompat(getWsProvider(rpc)));
+  const isExternalClient = !!externalClient;
+  const client = externalClient ?? createBulletinClient(rpc);
   const typedApi = client.getTypedApi(bulletin);
 
-  if (!typedApi.tx.TransactionStorage?.store) {
-    client.destroy();
-    throw new Error("TransactionStorage.store extrinsic is not available on this chain");
+  if (!typedApi.tx.TransactionStorage?.store_with_cid_config) {
+    if (!isExternalClient) client.destroy();
+    throw new Error("TransactionStorage.store_with_cid_config is not available on this chain");
   }
 
-  const storeTransaction = typedApi.tx.TransactionStorage.store({
+  const storeTransaction = typedApi.tx.TransactionStorage.store_with_cid_config({
+    cid: {
+      codec: BigInt(codecValue),
+      hashing: convertHashCodeToEnum(hashCodeValue),
+    },
     data: Binary.fromBytes(contentBytes),
   });
 
-  const transactionOptions: Record<string, unknown> = {
-    customSignedExtensions: {
-      ProvideCidConfig: {
-        value: {
-          codec: BigInt(codecValue),
-          hashing: convertHashCodeToEnum(hashCodeValue),
-        },
-      },
-    },
-  };
+  const transactionOptions: Record<string, unknown> = {};
 
   if (nonce !== undefined) {
     transactionOptions.nonce = nonce;
@@ -94,6 +126,27 @@ async function storeContentOnBulletin(
               break;
             case "txBestBlocksState":
               onProgress?.("included");
+              if (!waitForFinalization && event.found) {
+                if (event.ok) {
+                  const storedEvent = event.events.find(
+                    (eventItem: { type: string; value: { type: string } }) =>
+                      eventItem.type === "TransactionStorage" && eventItem.value.type === "Stored",
+                  );
+                  const storedIndex = (
+                    storedEvent?.value as { value?: { index?: { toString?: () => string } } }
+                  )?.value?.index?.toString?.();
+                  subscription.unsubscribe();
+                  if (!isExternalClient) client.destroy();
+                  resolve({ cid: contentCid, storedIndex });
+                } else {
+                  const errorMessage = event.dispatchError
+                    ? formatDispatchError(event.dispatchError)
+                    : "Transaction failed";
+                  subscription.unsubscribe();
+                  if (!isExternalClient) client.destroy();
+                  reject(new Error(errorMessage));
+                }
+              }
               break;
             case "finalized":
               if (event.ok) {
@@ -106,7 +159,7 @@ async function storeContentOnBulletin(
                 )?.value?.index?.toString?.();
                 onProgress?.("finalized");
                 subscription.unsubscribe();
-                client.destroy();
+                if (!isExternalClient) client.destroy();
                 resolve({ cid: contentCid, storedIndex });
               } else {
                 let errorMessage = "Transaction failed";
@@ -118,7 +171,7 @@ async function storeContentOnBulletin(
                   errorMessage = `Module error: ${moduleError.type}.${moduleError.value?.type || "Unknown"}`;
                 }
                 subscription.unsubscribe();
-                client.destroy();
+                if (!isExternalClient) client.destroy();
                 reject(new Error(errorMessage));
               }
               break;
@@ -126,8 +179,8 @@ async function storeContentOnBulletin(
         },
         error: (error) => {
           subscription.unsubscribe();
-          client.destroy();
-          reject(error);
+          if (!isExternalClient) client.destroy();
+          reject(ensureError(error));
         },
       });
   });
@@ -147,6 +200,7 @@ export async function storeSingleFileToBulletin(
     codecValue: CODEC.RAW,
     hashCodeValue: HASH.SHA2_256,
     onProgress: parameters.onProgress,
+    client: parameters.client,
   });
 }
 
@@ -178,6 +232,7 @@ export async function storeChunkedFileToBulletin(
       contentCid: chunkCidString,
       codecValue: CODEC.RAW,
       hashCodeValue: HASH.SHA2_256,
+      client: parameters.client,
     });
 
     storedChunks.push({ cid: storeResult.cid, length: currentChunk.length });
@@ -210,6 +265,7 @@ export async function storeChunkedFileToBulletin(
     contentCid: rootCidString,
     codecValue: CODEC.DAG_PB,
     hashCodeValue: HASH.SHA2_256,
+    client: parameters.client,
   });
 
   return { rootCid: rootCidString };
@@ -226,6 +282,126 @@ export async function storeBlockToBulletin(
     codecValue: parameters.codecValue,
     hashCodeValue: parameters.hashCodeValue,
     nonce: parameters.nonce,
+    client: parameters.client,
+    waitForFinalization: parameters.waitForFinalization,
+  });
+}
+
+export type BatchBlock = {
+  contentBytes: Uint8Array;
+  contentCid: string;
+  codecValue: number;
+  hashCodeValue: number;
+};
+
+export type StoreBatchParameters = {
+  rpc: string;
+  signer: Parameters<
+    ReturnType<
+      ReturnType<PolkadotClient["getTypedApi"]>["tx"]["Utility"]["batch_all"]
+    >["signSubmitAndWatch"]
+  >[0];
+  blocks: BatchBlock[];
+  nonce?: number;
+  client?: PolkadotClient;
+  waitForFinalization?: boolean;
+  onProgress?: (status: string) => void;
+};
+
+export async function storeBatchedBlocksToBulletin(
+  parameters: StoreBatchParameters,
+): Promise<{ cids: string[] }> {
+  const {
+    rpc,
+    signer,
+    blocks,
+    nonce,
+    client: externalClient,
+    waitForFinalization = true,
+    onProgress,
+  } = parameters;
+
+  const isExternalClient = !!externalClient;
+  const client = externalClient ?? createBulletinClient(rpc);
+  const typedApi = client.getTypedApi(bulletin);
+
+  const calls = blocks.map(
+    (block) =>
+      typedApi.tx.TransactionStorage.store_with_cid_config({
+        cid: {
+          codec: BigInt(block.codecValue),
+          hashing: convertHashCodeToEnum(block.hashCodeValue),
+        },
+        data: Binary.fromBytes(block.contentBytes),
+      }).decodedCall,
+  );
+
+  const batchTransaction = typedApi.tx.Utility.batch_all({ calls });
+
+  const transactionOptions: Record<string, unknown> = {};
+  if (nonce !== undefined) {
+    transactionOptions.nonce = nonce;
+  }
+
+  const cids = blocks.map((b) => b.contentCid);
+
+  return new Promise((resolve, reject) => {
+    const subscription = batchTransaction
+      .signSubmitAndWatch(signer as never, transactionOptions)
+      .subscribe({
+        next: (event) => {
+          switch (event.type) {
+            case "signed":
+              onProgress?.("signing");
+              break;
+            case "broadcasted":
+              onProgress?.("broadcasting");
+              break;
+            case "txBestBlocksState":
+              onProgress?.("included");
+              if (!waitForFinalization && event.found) {
+                if (event.ok) {
+                  subscription.unsubscribe();
+                  if (!isExternalClient) client.destroy();
+                  resolve({ cids });
+                } else {
+                  const errorMessage = event.dispatchError
+                    ? formatDispatchError(event.dispatchError)
+                    : "Batch transaction failed";
+                  subscription.unsubscribe();
+                  if (!isExternalClient) client.destroy();
+                  reject(new Error(errorMessage));
+                }
+              }
+              break;
+            case "finalized":
+              if (event.ok) {
+                onProgress?.("finalized");
+                subscription.unsubscribe();
+                if (!isExternalClient) client.destroy();
+                resolve({ cids });
+              } else {
+                let errorMessage = "Batch transaction failed";
+                if (event.dispatchError?.type === "Module") {
+                  const moduleError = event.dispatchError.value as {
+                    type: string;
+                    value?: { type: string };
+                  };
+                  errorMessage = `Module error: ${moduleError.type}.${moduleError.value?.type || "Unknown"}`;
+                }
+                subscription.unsubscribe();
+                if (!isExternalClient) client.destroy();
+                reject(new Error(errorMessage));
+              }
+              break;
+          }
+        },
+        error: (error) => {
+          subscription.unsubscribe();
+          if (!isExternalClient) client.destroy();
+          reject(ensureError(error));
+        },
+      });
   });
 }
 
@@ -263,13 +439,13 @@ export async function fetchAccountNonce(rpc: string, accountAddress: string): Pr
         }
       } catch (parseError) {
         websocket.close();
-        reject(parseError);
+        reject(ensureError(parseError));
       }
     };
 
-    websocket.onerror = (errorEvent: unknown) => {
+    websocket.onerror = () => {
       websocket.close();
-      reject(errorEvent);
+      reject(new Error(`WebSocket connection to ${rpc} failed`));
     };
   });
 }

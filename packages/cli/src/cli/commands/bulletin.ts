@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import type { BulletinUploadOptions, CommandOptions } from "../../types/types";
+import { formatErrorMessage } from "../../utils/formatting";
 import {
   validateAndReadPath,
   uploadSingleBlock,
@@ -9,6 +10,9 @@ import {
   generateContenthash,
   ensureAccountAuthorized,
   authorizeAccount,
+  checkAuthorization,
+  formatExpirationDisplay,
+  expirationToISOString,
 } from "../../commands/bulletin";
 import {
   addUploadRecord,
@@ -25,12 +29,11 @@ import {
   DEFAULT_BULLETIN_RPC,
   DEFAULT_CHUNK_SIZE_BYTES,
   DEFAULT_SUDO_KEY_URI,
+  DEFAULT_AUTHORIZATION_TRANSACTIONS,
+  DEFAULT_AUTHORIZATION_BYTES,
   MAX_SINGLE_UPLOAD_SIZE_BYTES,
 } from "../../utils/constants";
 import { getJsonFlag } from "./lookup";
-
-const DEFAULT_AUTH_TRANSACTIONS = 1000000;
-const DEFAULT_AUTH_BYTES = BigInt(1099511627776);
 
 function getMergedOptions(
   command: Command | undefined,
@@ -112,6 +115,18 @@ export function maybeQuiet<T>(jsonOutput: boolean, callback: () => Promise<T>): 
   return jsonOutput ? withCapturedConsole(callback) : callback();
 }
 
+async function resolveTargetAddress(
+  positionalAddress: string | undefined,
+  mergedOptions: any,
+  jsonOutput: boolean,
+): Promise<string> {
+  if (positionalAddress) return positionalAddress;
+  const context = await maybeQuiet(jsonOutput, () =>
+    prepareContext({ ...mergedOptions, useBulletin: true }),
+  );
+  return context.substrateAddress;
+}
+
 export function attachBulletinCommands(root: Command): void {
   const bulletinCommand = root
     .command("bulletin")
@@ -126,10 +141,10 @@ export function attachBulletinCommands(root: Command): void {
     .option(
       "--transactions <count>",
       "Number of transactions to authorize",
-      String(DEFAULT_AUTH_TRANSACTIONS),
+      String(DEFAULT_AUTHORIZATION_TRANSACTIONS),
     )
-    .option("--bytes <count>", "Number of bytes to authorize", String(DEFAULT_AUTH_BYTES))
-    .option("--sudo-key-uri <uri>", "Override the sudo signer key URI", DEFAULT_SUDO_KEY_URI)
+    .option("--bytes <count>", "Number of bytes to authorize", String(DEFAULT_AUTHORIZATION_BYTES))
+    .option("--force", "Force re-authorization even if account appears already authorized", false)
     .option("--json", "Output result as JSON (suppresses all other output)", false);
 
   addAuthOptions(authorizeCommand).action(
@@ -139,23 +154,21 @@ export function attachBulletinCommands(root: Command): void {
         const jsonOutput = getJsonFlag(command);
 
         const bulletinRpc = String(mergedOptions.bulletinRpc || DEFAULT_BULLETIN_RPC);
-        const transactions = Number(mergedOptions.transactions || DEFAULT_AUTH_TRANSACTIONS);
-        const bytes = BigInt(mergedOptions.bytes || DEFAULT_AUTH_BYTES);
-        const sudoKeyUri = String(mergedOptions.sudoKeyUri || DEFAULT_SUDO_KEY_URI);
+        const transactions = Number(
+          mergedOptions.transactions || DEFAULT_AUTHORIZATION_TRANSACTIONS,
+        );
+        const bytes = BigInt(mergedOptions.bytes || DEFAULT_AUTHORIZATION_BYTES);
+        const force = Boolean(options.force);
+        const signerKeyUri = String(mergedOptions.keyUri || DEFAULT_SUDO_KEY_URI);
 
-        let targetAddress: string;
+        const targetAddress = await resolveTargetAddress(
+          positionalAddress,
+          mergedOptions,
+          jsonOutput,
+        );
 
-        if (positionalAddress) {
-          targetAddress = positionalAddress;
-        } else {
-          const targetContext = await maybeQuiet(jsonOutput, () =>
-            prepareContext({ ...mergedOptions, useBulletin: true }),
-          );
-          targetAddress = targetContext.substrateAddress;
-        }
-
-        const sudoContext = await withCapturedConsole(() =>
-          prepareContext({ keyUri: sudoKeyUri, useBulletin: true }),
+        const signerContext = await withCapturedConsole(() =>
+          prepareContext({ keyUri: signerKeyUri, useBulletin: true }),
         );
 
         if (!jsonOutput) {
@@ -164,20 +177,23 @@ export function attachBulletinCommands(root: Command): void {
           console.log(chalk.gray("  rpc:          ") + chalk.white(bulletinRpc));
           console.log(chalk.gray("  transactions: ") + chalk.white(transactions.toLocaleString()));
           console.log(chalk.gray("  bytes:        ") + chalk.white(formatBytes(bytes)));
-          console.log(chalk.gray("  sudo:         ") + chalk.yellow(sudoKeyUri));
+          console.log(chalk.gray("  signer:       ") + chalk.yellow(signerKeyUri));
         }
 
         await maybeQuiet(jsonOutput, () =>
           authorizeAccount({
             rpc: bulletinRpc,
-            sudoSigner: sudoContext.signer,
+            signer: signerContext.signer,
             targetAddress,
             transactions,
             bytes,
+            force,
           }),
         );
 
         if (jsonOutput) {
+          const authStatus = await checkAuthorization(bulletinRpc, targetAddress);
+          const expiresAt = expirationToISOString(authStatus.currentBlock, authStatus.expiration);
           console.log(
             JSON.stringify({
               ok: true,
@@ -185,6 +201,7 @@ export function attachBulletinCommands(root: Command): void {
               rpc: bulletinRpc,
               transactions,
               bytes: bytes.toString(),
+              expiresAt,
             }),
           );
         } else {
@@ -194,7 +211,7 @@ export function attachBulletinCommands(root: Command): void {
 
         process.exit(0);
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage = formatErrorMessage(error);
         const jsonOutput = getJsonFlag(command);
 
         if (jsonOutput) {
@@ -210,15 +227,15 @@ export function attachBulletinCommands(root: Command): void {
         if (errorMessage.includes("BadOrigin")) {
           console.error(chalk.red("\n✗ Authorization failed — insufficient privileges"));
           console.error(
-            chalk.yellow("  The sudo signer does not have sudo privileges on this chain."),
+            chalk.yellow("  The signer does not have Authorizer privileges on this chain."),
           );
-          console.error(chalk.gray("  Override with --sudo-key-uri if needed.\n"));
+          console.error(chalk.gray("  Override with --key-uri if needed.\n"));
           process.exit(1);
         }
 
         if (errorMessage.includes("not applied")) {
           console.error(chalk.red(`\n✗ ${errorMessage}`));
-          console.error(chalk.gray("  Override with --sudo-key-uri if needed.\n"));
+          console.error(chalk.gray("  Override with --key-uri if needed.\n"));
           process.exit(1);
         }
 
@@ -239,7 +256,7 @@ export function attachBulletinCommands(root: Command): void {
     )
     .option("--force-chunked", "Force chunked upload (DAG-PB)", false)
     .option("--parallel", "Upload directory blocks in parallel (faster)", false)
-    .option("--concurrency <n>", "Number of parallel uploads (default: 5)", "5")
+    .option("--concurrency <n>", "Number of parallel uploads (default: 10)", "10")
     .option("--print-contenthash", "Also print 0x-prefixed IPFS contenthash for the CID", false)
     .option("--no-history", "Do not save upload to history", true)
     .option("--json", "Output result as JSON (suppresses all other output)", false);
@@ -268,13 +285,13 @@ export function attachBulletinCommands(root: Command): void {
           Number(mergedOptions.chunkSize || DEFAULT_CHUNK_SIZE_BYTES),
         );
         const parallel = Boolean(mergedOptions.parallel);
-        const concurrency = Math.max(1, Number(mergedOptions.concurrency || 5));
+        const concurrency = Math.max(1, Number(mergedOptions.concurrency || 10));
 
         const context = await maybeQuiet(jsonOutput, () =>
           prepareContext({ ...mergedOptions, useBulletin: true }),
         );
 
-        await maybeQuiet(jsonOutput, () =>
+        const authInfo = await maybeQuiet(jsonOutput, () =>
           ensureAccountAuthorized(bulletinRpc, context.signer, context.substrateAddress),
         );
 
@@ -284,6 +301,7 @@ export function attachBulletinCommands(root: Command): void {
               parallel,
               concurrency,
               accountAddress: context.substrateAddress,
+              waitForFinalization: !parallel,
             });
             return { cid: result.storageCid, ipfsCid: result.ipfsCid, size: 0 };
           }
@@ -316,6 +334,15 @@ export function attachBulletinCommands(root: Command): void {
           console.log(chalk.gray("  path:     ") + chalk.white(resolvedPath));
           console.log(chalk.gray("  rpc:      ") + chalk.white(bulletinRpc));
 
+          if (authInfo?.expiration && authInfo.currentBlock) {
+            console.log(
+              chalk.gray("  auth:     ") +
+                chalk.white(
+                  `valid (expires ${formatExpirationDisplay(authInfo.currentBlock, authInfo.expiration)})`,
+                ),
+            );
+          }
+
           if (isDirectory) {
             const mode = parallel ? `directory (parallel, ${concurrency}x)` : "directory";
             console.log(chalk.gray("  mode:     ") + chalk.white(mode));
@@ -345,6 +372,7 @@ export function attachBulletinCommands(root: Command): void {
         });
 
         if (jsonOutput) {
+          const authExpiresAt = expirationToISOString(authInfo?.currentBlock, authInfo?.expiration);
           console.log(
             JSON.stringify({
               cid: ipfsCid,
@@ -353,6 +381,7 @@ export function attachBulletinCommands(root: Command): void {
               path: resolvedPath,
               type: isDirectory ? "directory" : "file",
               size: uploadSize,
+              authorizationExpiresAt: authExpiresAt,
             }),
           );
         } else {
@@ -378,7 +407,7 @@ export function attachBulletinCommands(root: Command): void {
 
         process.exit(0);
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage = formatErrorMessage(error);
         const jsonOutput = getJsonFlag(command);
 
         if (jsonOutput) {
@@ -387,6 +416,101 @@ export function attachBulletinCommands(root: Command): void {
         }
 
         console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
+        process.exit(1);
+      }
+    },
+  );
+
+  const statusCommand = bulletinCommand
+    .command("status [address]")
+    .description("Check authorization status for an account on Bulletin")
+    .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint", DEFAULT_BULLETIN_RPC)
+    .option("--json", "Output result as JSON (suppresses all other output)", false);
+
+  addAuthOptions(statusCommand).action(
+    async (positionalAddress: string | undefined, options: any, command: any) => {
+      try {
+        const mergedOptions = getMergedOptions(command, options);
+        const jsonOutput = getJsonFlag(command);
+        const bulletinRpc = String(mergedOptions.bulletinRpc || DEFAULT_BULLETIN_RPC);
+
+        const targetAddress = await resolveTargetAddress(
+          positionalAddress,
+          mergedOptions,
+          jsonOutput,
+        );
+
+        const authStatus = await checkAuthorization(bulletinRpc, targetAddress);
+
+        if (jsonOutput) {
+          console.log(
+            JSON.stringify({
+              address: targetAddress,
+              rpc: bulletinRpc,
+              authorized: authStatus.authorized,
+              expired: authStatus.expired ?? false,
+              transactions: authStatus.transactions ?? 0,
+              bytes: (authStatus.bytes ?? BigInt(0)).toString(),
+              expiresAt: expirationToISOString(authStatus.currentBlock, authStatus.expiration),
+            }),
+          );
+        } else {
+          console.log(chalk.blue("\n▶ Bulletin Authorization Status"));
+          console.log(chalk.gray("  account:      ") + chalk.cyan(targetAddress));
+          console.log(chalk.gray("  rpc:          ") + chalk.white(bulletinRpc));
+
+          if (!authStatus.authorized) {
+            console.log(chalk.gray("  status:       ") + chalk.red("not authorized"));
+            console.log(
+              chalk.gray("\n  Authorize with: dotns bulletin authorize " + targetAddress + "\n"),
+            );
+          } else {
+            const isExpired = authStatus.expired;
+            const dateDisplay = formatExpirationDisplay(
+              authStatus.currentBlock!,
+              authStatus.expiration!,
+            );
+
+            console.log(
+              chalk.gray("  status:       ") +
+                (isExpired ? chalk.red("expired") : chalk.green("authorized")),
+            );
+            console.log(
+              chalk.gray(isExpired ? "  expired:      " : "  expires:      ") +
+                (isExpired ? chalk.red(dateDisplay) : chalk.white(dateDisplay)),
+            );
+            console.log(
+              chalk.gray("  transactions: ") +
+                chalk.white((authStatus.transactions ?? 0).toLocaleString()),
+            );
+            console.log(
+              chalk.gray("  bytes:        ") +
+                chalk.white(formatBytes(authStatus.bytes ?? BigInt(0))),
+            );
+
+            if (isExpired) {
+              console.log(
+                chalk.gray(
+                  "\n  Re-authorize with: dotns bulletin authorize " + targetAddress + "\n",
+                ),
+              );
+            } else {
+              console.log();
+            }
+          }
+        }
+
+        process.exit(0);
+      } catch (error) {
+        const errorMessage = formatErrorMessage(error);
+        const jsonOutput = getJsonFlag(command);
+
+        if (jsonOutput) {
+          console.error(JSON.stringify({ error: errorMessage }));
+        } else {
+          console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
+        }
+
         process.exit(1);
       }
     },
@@ -438,15 +562,11 @@ export function attachBulletinCommands(root: Command): void {
       const jsonOutput = getJsonFlag(command);
 
       if (jsonOutput) {
-        console.error(
-          JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
-        );
+        console.error(JSON.stringify({ error: formatErrorMessage(error) }));
         process.exit(1);
       }
 
-      console.error(
-        chalk.red(`\n✗ Error: ${error instanceof Error ? error.message : String(error)}\n`),
-      );
+      console.error(chalk.red(`\n✗ Error: ${formatErrorMessage(error)}\n`));
       process.exit(1);
     }
   });
@@ -466,9 +586,7 @@ export function attachBulletinCommands(root: Command): void {
 
         process.exit(0);
       } catch (error) {
-        console.error(
-          chalk.red(`\n✗ Error: ${error instanceof Error ? error.message : String(error)}\n`),
-        );
+        console.error(chalk.red(`\n✗ Error: ${formatErrorMessage(error)}\n`));
         process.exit(1);
       }
     });
@@ -486,9 +604,7 @@ export function attachBulletinCommands(root: Command): void {
 
         process.exit(0);
       } catch (error) {
-        console.error(
-          chalk.red(`\n✗ Error: ${error instanceof Error ? error.message : String(error)}\n`),
-        );
+        console.error(chalk.red(`\n✗ Error: ${formatErrorMessage(error)}\n`));
         process.exit(1);
       }
     });

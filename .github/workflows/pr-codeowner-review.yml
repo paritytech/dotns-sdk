@@ -1,0 +1,41 @@
+name: Request Code Owner Review
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  request-review:
+    if: "!github.event.pull_request.draft"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Request review from code owners
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+            const author = context.payload.pull_request.user.login;
+
+            // Keep this list in sync with .github/CODEOWNERS
+            const codeOwners = [
+              "filvecchiato",
+              "waytwotall",
+              "andrew-ifrita",
+              "corey-hathaway",
+              "sphamjoli",
+            ];
+
+            const reviewers = codeOwners.filter(u => u !== author);
+
+            if (reviewers.length === 0) return;
+
+            await github.rest.pulls.requestReviewers({
+              owner,
+              repo,
+              pull_number,
+              reviewers,
+            });

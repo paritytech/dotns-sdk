@@ -11,23 +11,20 @@ import { importer } from "ipfs-unixfs-importer";
 import { Readable } from "node:stream";
 import type { CID } from "multiformats/cid";
 import { encodeIpfsContenthash } from "../bulletin/cid";
-import {
-  hasIpfsCli,
-  merkleizeWithIpfs,
-  verifyMultipleCids,
-  verifyCidResolution,
-} from "../bulletin/ipfs";
+import { hasIpfsCli, merkleizeWithIpfs, verifyCidResolution } from "../bulletin/ipfs";
 import {
   storeSingleFileToBulletin,
   splitBytesIntoChunks,
   storeChunkedFileToBulletin,
   fetchAccountNonce,
+  createBulletinClient,
   storeBlockToBulletin,
 } from "../bulletin/store";
 import type {
   ValidatePathResult,
   AuthorizeAccountOptions,
   AuthorizeAccountResult,
+  AuthorizationStatus,
   StoreDirectoryOptions,
   StoreDirectoryResult,
 } from "../types/types";
@@ -35,7 +32,9 @@ import {
   DEFAULT_AUTHORIZATION_TRANSACTIONS,
   DEFAULT_AUTHORIZATION_BYTES,
   DEFAULT_VERIFICATION_GATEWAY,
+  BULLETIN_BLOCK_TIME_MS,
 } from "../utils/constants";
+import { formatErrorMessage } from "../utils/formatting";
 
 type MerkleizedBlock = {
   cid: CID;
@@ -55,8 +54,30 @@ function formatBytesAsHumanReadable(bytesValue: bigint): string {
   return `${numericValue.toFixed(2)} ${units[unitIndex]}`;
 }
 
-function isLocalChainEndpoint(rpcUrl: string): boolean {
-  return rpcUrl.includes("127.0.0.1") || rpcUrl.includes("localhost");
+export function estimateBlockDate(currentBlock: number, targetBlock: number): Date {
+  const blockDelta = targetBlock - currentBlock;
+  return new Date(Date.now() + blockDelta * BULLETIN_BLOCK_TIME_MS);
+}
+
+export function formatEstimatedDate(date: Date): string {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const hours = String(date.getUTCHours()).padStart(2, "0");
+  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day} ${hours}:${minutes} UTC`;
+}
+
+export function formatExpirationDisplay(currentBlock: number, expirationBlock: number): string {
+  return `~${formatEstimatedDate(estimateBlockDate(currentBlock, expirationBlock))}`;
+}
+
+export function expirationToISOString(
+  currentBlock: number | undefined,
+  expirationBlock: number | undefined,
+): string | null {
+  if (currentBlock === undefined || expirationBlock === undefined) return null;
+  return estimateBlockDate(currentBlock, expirationBlock).toISOString();
 }
 
 async function* traverseDirectoryRecursively(
@@ -156,73 +177,82 @@ export async function authorizeAccount(
 ): Promise<AuthorizeAccountResult> {
   const {
     rpc,
-    sudoSigner,
+    signer,
     targetAddress,
     transactions = DEFAULT_AUTHORIZATION_TRANSACTIONS,
     bytes = DEFAULT_AUTHORIZATION_BYTES,
+    force = false,
   } = options;
 
-  const spinner = ora("Authorizing account").start();
+  const spinner = ora("Checking authorization status").start();
   let client: PolkadotClient | undefined;
   let txHash = "";
 
   try {
-    client = createClient(withPolkadotSdkCompat(getWsProvider(rpc)));
-    const typedApi = client.getTypedApi(bulletin);
-
-    if (!typedApi.tx.Sudo?.sudo) {
-      throw new Error("Sudo pallet is not available on this chain");
-    }
-
     const existingAuthorization = await checkAuthorization(rpc, targetAddress);
 
     if (existingAuthorization.authorized) {
       const existingTransactions = existingAuthorization.transactions ?? 0;
       const existingBytes = existingAuthorization.bytes ?? BigInt(0);
+      const currentBlock = existingAuthorization.currentBlock ?? 0;
 
-      if (existingTransactions >= transactions && existingBytes >= bytes) {
-        client.destroy();
-        spinner.warn("Account already authorized");
+      if (existingAuthorization.expired) {
+        spinner.warn("Authorization expired");
+        console.log(
+          chalk.gray("  expired:  ") +
+            chalk.red(formatExpirationDisplay(currentBlock, existingAuthorization.expiration!)),
+        );
+        spinner.start("Re-authorizing account");
+      } else if (existingTransactions >= transactions && existingBytes >= bytes) {
+        if (!force) {
+          spinner.warn("Account already authorized");
+          console.log(
+            chalk.gray("  transactions: ") +
+              chalk.white(existingTransactions.toLocaleString()) +
+              chalk.gray(` (requested: ${transactions.toLocaleString()})`),
+          );
+          console.log(
+            chalk.gray("  bytes:        ") +
+              chalk.white(formatBytesAsHumanReadable(existingBytes)) +
+              chalk.gray(` (requested: ${formatBytesAsHumanReadable(bytes)})`),
+          );
+          console.log(
+            chalk.gray("  expires:      ") +
+              chalk.white(formatExpirationDisplay(currentBlock, existingAuthorization.expiration!)),
+          );
+          return { txHash: "", blockHash: "" };
+        }
+        spinner.info("Force re-authorizing account");
+      } else {
+        spinner.info("Upgrading authorization limits");
         console.log(
           chalk.gray("  transactions: ") +
-            chalk.white(existingTransactions.toLocaleString()) +
-            chalk.gray(` (requested: ${transactions.toLocaleString()})`),
+            chalk.white(
+              `${existingTransactions.toLocaleString()} → ${transactions.toLocaleString()}`,
+            ),
         );
         console.log(
           chalk.gray("  bytes:        ") +
-            chalk.white(formatBytesAsHumanReadable(existingBytes)) +
-            chalk.gray(` (requested: ${formatBytesAsHumanReadable(bytes)})`),
+            chalk.white(
+              `${formatBytesAsHumanReadable(existingBytes)} → ${formatBytesAsHumanReadable(bytes)}`,
+            ),
         );
-        return { txHash: "", blockHash: "" };
       }
-
-      spinner.info("Upgrading authorization limits");
-      console.log(
-        chalk.gray("  transactions: ") +
-          chalk.white(
-            `${existingTransactions.toLocaleString()} → ${transactions.toLocaleString()}`,
-          ),
-      );
-      console.log(
-        chalk.gray("  bytes:        ") +
-          chalk.white(
-            `${formatBytesAsHumanReadable(existingBytes)} → ${formatBytesAsHumanReadable(bytes)}`,
-          ),
-      );
+    } else {
+      spinner.text = "Authorizing account";
     }
 
-    const sudoTransaction = typedApi.tx.Sudo.sudo({
-      call: {
-        type: "TransactionStorage",
-        value: {
-          type: "authorize_account",
-          value: { who: targetAddress, transactions, bytes },
-        },
-      },
+    client = createClient(withPolkadotSdkCompat(getWsProvider(rpc)));
+    const typedApi = client.getTypedApi(bulletin);
+
+    const authTransaction = typedApi.tx.TransactionStorage.authorize_account({
+      who: targetAddress,
+      transactions,
+      bytes,
     });
 
     return await new Promise<AuthorizeAccountResult>((resolve, reject) => {
-      const subscription = sudoTransaction.signSubmitAndWatch(sudoSigner).subscribe({
+      const subscription = authTransaction.signSubmitAndWatch(signer).subscribe({
         next: (event) => {
           switch (event.type) {
             case "signed":
@@ -251,6 +281,7 @@ export async function authorizeAccount(
                 .then((verification) => {
                   if (
                     verification.authorized &&
+                    !verification.expired &&
                     (verification.transactions ?? 0) >= transactions &&
                     (verification.bytes ?? BigInt(0)) >= bytes
                   ) {
@@ -263,13 +294,22 @@ export async function authorizeAccount(
                       chalk.gray("  bytes:        ") +
                         chalk.white(formatBytesAsHumanReadable(bytes)),
                     );
+                    console.log(
+                      chalk.gray("  expires:      ") +
+                        chalk.white(
+                          formatExpirationDisplay(
+                            verification.currentBlock ?? 0,
+                            verification.expiration!,
+                          ),
+                        ),
+                    );
                     resolve({ txHash, blockHash: event.block.hash });
                   } else {
                     spinner.fail("Authorization not applied");
                     reject(
                       new Error(
-                        "Sudo extrinsic was finalized but authorization was not applied.\n" +
-                          "The signer likely does not have sudo privileges on this chain.",
+                        "Authorization was finalized but not applied.\n" +
+                          "The signer may not have Authorizer privileges on this chain.",
                       ),
                     );
                   }
@@ -293,7 +333,7 @@ export async function authorizeAccount(
     client?.destroy();
     spinner.fail("Authorization failed");
 
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage = formatErrorMessage(error);
 
     if (errorMessage.includes("AlreadyAuthorized")) {
       console.log(chalk.yellow("  Account is already authorized"));
@@ -301,7 +341,7 @@ export async function authorizeAccount(
     }
 
     if (errorMessage.includes("BadOrigin")) {
-      throw new Error("Authorization failed: The signer does not have sudo privileges.");
+      throw new Error("Authorization failed: The signer does not have Authorizer privileges.");
     }
 
     throw error;
@@ -311,25 +351,34 @@ export async function authorizeAccount(
 export async function checkAuthorization(
   rpc: string,
   accountAddress: string,
-): Promise<{ authorized: boolean; transactions?: number; bytes?: bigint }> {
+): Promise<AuthorizationStatus> {
   const client = createClient(withPolkadotSdkCompat(getWsProvider(rpc)));
 
   try {
     const typedApi = client.getTypedApi(bulletin);
-    const authorizationState = await typedApi.query.TransactionStorage.Authorizations.getValue({
-      type: "Account",
-      value: accountAddress,
-    });
+    const [authorizationState, currentBlock] = await Promise.all([
+      typedApi.query.TransactionStorage.Authorizations.getValue({
+        type: "Account",
+        value: accountAddress,
+      }),
+      typedApi.query.System.Number.getValue(),
+    ]);
 
     if (authorizationState) {
+      const expiration = authorizationState.expiration;
+      const expired = currentBlock >= expiration;
+
       return {
         authorized: true,
         transactions: authorizationState.extent.transactions,
         bytes: authorizationState.extent.bytes,
+        expiration,
+        currentBlock,
+        expired,
       };
     }
 
-    return { authorized: false };
+    return { authorized: false, currentBlock };
   } catch {
     return { authorized: false };
   } finally {
@@ -341,30 +390,19 @@ export async function ensureAccountAuthorized(
   bulletinRpc: string,
   signer: PolkadotSigner,
   accountAddress: string,
-): Promise<void> {
+): Promise<{ expiration?: number; currentBlock?: number }> {
   const authStatus = await checkAuthorization(bulletinRpc, accountAddress);
 
-  if (authStatus.authorized) {
-    return;
+  if (authStatus.authorized && !authStatus.expired) {
+    return { expiration: authStatus.expiration, currentBlock: authStatus.currentBlock };
   }
 
-  if (isLocalChainEndpoint(bulletinRpc)) {
-    try {
-      await authorizeAccount({
-        rpc: bulletinRpc,
-        sudoSigner: signer,
-        targetAddress: accountAddress,
-      });
-      return;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-
-      if (errorMessage.includes("AlreadyAuthorized") || errorMessage.includes("Sudid")) {
-        return;
-      }
-
-      console.log(chalk.yellow(`  Authorization warning: ${errorMessage.split("\n")[0]}`));
-    }
+  if (authStatus.authorized && authStatus.expired) {
+    throw new Error(
+      `Account authorization has expired (${formatExpirationDisplay(authStatus.currentBlock ?? 0, authStatus.expiration!)}).\n` +
+        `Re-authorize it:\n\n` +
+        `  dotns bulletin authorize ${accountAddress}\n`,
+    );
   }
 
   throw new Error(
@@ -404,7 +442,7 @@ export async function uploadSingleBlock(
   } catch (error) {
     spinner.fail("Upload failed");
 
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage = formatErrorMessage(error);
     if (errorMessage.includes("Payment")) {
       console.log(chalk.red("\n  Account is not authorized for TransactionStorage."));
       console.log(chalk.yellow("\n  To authorize your account, run:\n"));
@@ -426,6 +464,8 @@ export async function uploadChunkedBlocks(
 
   const spinner = ora(`Storing chunks (0/${contentChunks.length})`).start();
 
+  const sharedClient = createBulletinClient(bulletinRpc);
+
   try {
     const storeResult = await storeChunkedFileToBulletin({
       rpc: bulletinRpc,
@@ -438,6 +478,7 @@ export async function uploadChunkedBlocks(
           spinner.text = `${status} (${currentChunk}/${totalChunks})`;
         }
       },
+      client: sharedClient,
     });
 
     spinner.succeed("Stored");
@@ -445,7 +486,7 @@ export async function uploadChunkedBlocks(
   } catch (error) {
     spinner.fail("Upload failed");
 
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage = formatErrorMessage(error);
     if (errorMessage.includes("Payment")) {
       console.log(chalk.red("\n  Account is not authorized for TransactionStorage."));
       console.log(chalk.yellow("\n  To authorize your account, run:\n"));
@@ -453,6 +494,8 @@ export async function uploadChunkedBlocks(
     }
 
     throw error;
+  } finally {
+    sharedClient.destroy();
   }
 }
 
@@ -464,9 +507,10 @@ export async function storeDirectory(
 ): Promise<StoreDirectoryResult> {
   const {
     parallel = false,
-    concurrency = 5,
+    concurrency = 10,
     accountAddress,
     verificationGateway = DEFAULT_VERIFICATION_GATEWAY,
+    waitForFinalization = true,
   } = options;
 
   const merkleSpinner = ora("Merkleizing directory").start();
@@ -509,68 +553,60 @@ export async function storeDirectory(
       );
     }
 
+    // The bulletin chain fits ~8 store txs per block (6s block time).
+    // Submit in waves matching chain throughput to avoid AncientBirthBlock errors
+    // from nonces sitting too long in the pool.
+    const WAVE_SIZE = Math.min(concurrency, 8);
     const storeSpinner = ora(`Storing blocks (0/${blocks.length})`).start();
     let completedBlockCount = 0;
 
-    if (parallel && accountAddress) {
-      const startingNonce = await fetchAccountNonce(bulletinRpc, accountAddress);
+    const sharedClient = createBulletinClient(bulletinRpc);
 
-      const blocksWithAssignedNonces = blocks.map((block, index) => ({
-        block,
-        nonce: startingNonce + index,
-      }));
+    try {
+      if (parallel && accountAddress) {
+        // Submit in waves: assign nonces for one wave, submit, wait for all to clear, repeat.
+        for (let waveStart = 0; waveStart < blocks.length; waveStart += WAVE_SIZE) {
+          const waveEnd = Math.min(waveStart + WAVE_SIZE, blocks.length);
+          const waveBlocks = blocks.slice(waveStart, waveEnd);
+          const startingNonce = await fetchAccountNonce(bulletinRpc, accountAddress);
 
-      const processBlockUpload = async (block: MerkleizedBlock, nonce: number) => {
-        const codecValue = block.cid.code;
-        const hashCodeValue = block.cid.multihash.code;
+          const wavePromises = waveBlocks.map((block, index) =>
+            storeBlockToBulletin({
+              rpc: bulletinRpc,
+              signer,
+              contentBytes: block.bytes,
+              contentCid: block.cid.toString(),
+              codecValue: block.cid.code,
+              hashCodeValue: block.cid.multihash.code,
+              nonce: startingNonce + index,
+              client: sharedClient,
+              waitForFinalization,
+            }).then(() => {
+              completedBlockCount++;
+              storeSpinner.text = `Storing blocks (${completedBlockCount}/${blocks.length})`;
+            }),
+          );
 
-        await storeBlockToBulletin({
-          rpc: bulletinRpc,
-          signer,
-          contentBytes: block.bytes,
-          contentCid: block.cid.toString(),
-          codecValue,
-          hashCodeValue,
-          nonce,
-        });
-
-        completedBlockCount++;
-        storeSpinner.text = `Storing blocks (${completedBlockCount}/${blocks.length})`;
-      };
-
-      const pendingQueue = [...blocksWithAssignedNonces];
-      const executingPromises: Promise<void>[] = [];
-
-      while (pendingQueue.length > 0 || executingPromises.length > 0) {
-        while (executingPromises.length < concurrency && pendingQueue.length > 0) {
-          const queueItem = pendingQueue.shift()!;
-          const uploadPromise = processBlockUpload(queueItem.block, queueItem.nonce).then(() => {
-            executingPromises.splice(executingPromises.indexOf(uploadPromise), 1);
+          await Promise.all(wavePromises);
+        }
+      } else {
+        for (const block of blocks) {
+          await storeBlockToBulletin({
+            rpc: bulletinRpc,
+            signer,
+            contentBytes: block.bytes,
+            contentCid: block.cid.toString(),
+            codecValue: block.cid.code,
+            hashCodeValue: block.cid.multihash.code,
+            client: sharedClient,
           });
-          executingPromises.push(uploadPromise);
-        }
 
-        if (executingPromises.length > 0) {
-          await Promise.race(executingPromises);
+          completedBlockCount++;
+          storeSpinner.text = `Storing blocks (${completedBlockCount}/${blocks.length})`;
         }
       }
-    } else {
-      for (const block of blocks) {
-        const codecValue = block.cid.code;
-        const hashCodeValue = block.cid.multihash.code;
-
-        await storeBlockToBulletin({
-          rpc: bulletinRpc,
-          signer,
-          contentBytes: block.bytes,
-          contentCid: block.cid.toString(),
-          codecValue,
-          hashCodeValue,
-        });
-
-        completedBlockCount++;
-        storeSpinner.text = `Storing blocks (${completedBlockCount}/${blocks.length})`;
-      }
+    } finally {
+      sharedClient.destroy();
     }
 
     storeSpinner.succeed("Stored");
@@ -578,15 +614,12 @@ export async function storeDirectory(
     const verifySpinner = ora("Verifying content resolution").start();
     const rootCidString = rootCid.toString();
 
-    const blockCids = blocks.map((block) => block.cid.toString());
-    const verificationResult = await verifyMultipleCids(blockCids, verificationGateway);
+    const rootVerification = await verifyCidResolution(rootCidString, verificationGateway);
 
-    if (verificationResult.missingBlocks.length === 0) {
-      verifySpinner.succeed("All blocks resolvable");
+    if (rootVerification.resolvable) {
+      verifySpinner.succeed("Root CID resolvable");
     } else {
-      verifySpinner.warn(
-        `${verificationResult.missingBlocks.length}/${verificationResult.totalBlocks} blocks not yet resolvable`,
-      );
+      verifySpinner.warn("Root CID not yet resolvable");
       console.log(chalk.gray("  gateway:  ") + chalk.white(verificationGateway));
       console.log(chalk.yellow("  Content may take time to propagate through the network"));
     }

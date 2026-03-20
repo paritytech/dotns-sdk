@@ -3,6 +3,7 @@ import chalk from "chalk";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { ENV, resolveKeystorePath } from "../env";
+import { formatErrorMessage } from "../../utils/formatting";
 import { readLine, readSecret, promptNewPassword, getPasswordForDecrypt } from "../io";
 import { normalizeAccountName } from "../keystore/payload";
 import {
@@ -218,9 +219,7 @@ export function attachAuthCommands(root: Command): void {
         console.log(chalk.gray("  account: ") + chalk.white(accountName));
         process.exit(0);
       } catch (error) {
-        console.error(
-          chalk.red(`\nError: ${error instanceof Error ? error.message : String(error)}\n`),
-        );
+        console.error(chalk.red(`\nError: ${formatErrorMessage(error)}\n`));
         process.exit(1);
       }
     });
@@ -283,9 +282,7 @@ export function attachAuthCommands(root: Command): void {
 
         process.exit(0);
       } catch (error) {
-        console.error(
-          chalk.red(`\nError: ${error instanceof Error ? error.message : String(error)}\n`),
-        );
+        console.error(chalk.red(`\nError: ${formatErrorMessage(error)}\n`));
         process.exit(1);
       }
     });
@@ -311,9 +308,7 @@ export function attachAuthCommands(root: Command): void {
         console.log(chalk.gray("  account: ") + chalk.white(accountName));
         process.exit(0);
       } catch (error) {
-        console.error(
-          chalk.red(`\nError: ${error instanceof Error ? error.message : String(error)}\n`),
-        );
+        console.error(chalk.red(`\nError: ${formatErrorMessage(error)}\n`));
         process.exit(1);
       }
     });
@@ -350,9 +345,7 @@ export function attachAuthCommands(root: Command): void {
         console.log(chalk.gray("  account: ") + chalk.white(accountName));
         process.exit(0);
       } catch (error) {
-        console.error(
-          chalk.red(`\nError: ${error instanceof Error ? error.message : String(error)}\n`),
-        );
+        console.error(chalk.red(`\nError: ${formatErrorMessage(error)}\n`));
         process.exit(1);
       }
     });
@@ -382,9 +375,7 @@ export function attachAuthCommands(root: Command): void {
         console.log(chalk.gray("  dir: ") + chalk.white(keystoreDir));
         process.exit(0);
       } catch (error) {
-        console.error(
-          chalk.red(`\nError: ${error instanceof Error ? error.message : String(error)}\n`),
-        );
+        console.error(chalk.red(`\nError: ${formatErrorMessage(error)}\n`));
         process.exit(1);
       }
     });
