@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/add-to-project@v1.0.2
+        continue-on-error: true
         with:
           project-url: https://github.com/orgs/paritytech/projects/237
           github-token: ${{ secrets.PROJECT_TOKEN }}
