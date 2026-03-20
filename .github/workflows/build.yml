@@ -171,7 +171,7 @@ jobs:
               delete existingDetails[section];
             }
 
-            const order = ["Lint", "Lint (UI)", "Format", "Format (UI)", "Typecheck", "Typecheck (UI)", "Build", "Build (UI)", "Release", "Deploy UI", "Deploy Example", "PR Title", "Labels"];
+            const order = ["Lint", "Lint (UI)", "Format", "Format (UI)", "Typecheck", "Typecheck (UI)", "Build", "Build (UI)", "Test", "Release", "Deploy UI", "Deploy Example", "PR Title", "Labels"];
             const sortedKeys = Object.keys(rows).sort((a, b) => {
               const ai = order.indexOf(a), bi = order.indexOf(b);
               return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
@@ -182,7 +182,7 @@ jobs:
               table += `| ${key} | ${rows[key]} |\n`;
             }
 
-            const detailsOrder = ["Lint", "Lint (UI)", "Format", "Format (UI)", "Typecheck", "Typecheck (UI)", "Build", "Build (UI)", "Release", "Deploy UI", "Deploy Example", "PR Title", "Labels"];
+            const detailsOrder = ["Lint", "Lint (UI)", "Format", "Format (UI)", "Typecheck", "Typecheck (UI)", "Build", "Build (UI)", "Test", "Release", "Deploy UI", "Deploy Example", "PR Title", "Labels"];
             const sortedDetails = Object.keys(existingDetails).sort((a, b) => {
               const ai = detailsOrder.indexOf(a), bi = detailsOrder.indexOf(b);
               return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);

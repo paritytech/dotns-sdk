@@ -105,7 +105,7 @@ jobs:
 
   deploy-production:
     name: Deploy Production
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && !contains(github.ref_name, '-')
     needs: [build]
     uses: ./.github/workflows/deploy.yml
     with:
@@ -314,7 +314,7 @@ jobs:
               ].join("\n");
             }
 
-            const order = ["Lint", "Lint (UI)", "Format", "Format (UI)", "Typecheck", "Typecheck (UI)", "Build", "Build (UI)", "Release", "Deploy UI", "Deploy Example", "PR Title", "Labels"];
+            const order = ["Lint", "Lint (UI)", "Format", "Format (UI)", "Typecheck", "Typecheck (UI)", "Build", "Build (UI)", "Test", "Release", "Deploy UI", "Deploy Example", "PR Title", "Labels"];
             const sortedKeys = Object.keys(rows).sort((a, b) => {
               const ai = order.indexOf(a), bi = order.indexOf(b);
               return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
