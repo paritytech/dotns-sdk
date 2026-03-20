@@ -3,6 +3,7 @@
   "types": [
     "feat",
     "fix",
+    "bug",
     "docs",
     "style",
     "refactor",
@@ -14,6 +15,7 @@
   ],
   "scopes": [
     "cli",
+    "ui",
     "bulletin",
     "auth",
     "register",

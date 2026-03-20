@@ -34,6 +34,10 @@
   color: "c5def5"
   description: "@dotns/cli"
 
+- name: "pkg: ui"
+  color: "c5def5"
+  description: "@dotns/ui"
+
 - name: "P0"
   color: "b60205"
   description: "Critical priority"
