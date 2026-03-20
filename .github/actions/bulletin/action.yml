@@ -43,13 +43,13 @@ runs:
     - name: Authorize account for Bulletin
       shell: bash
       run: |
-        echo "::add-mask::$MNEMONIC"
+        echo "::add-mask::$DOTNS_MNEMONIC"
 
-        ADDRESS=$(dotns account address --mnemonic "$MNEMONIC")
+        ADDRESS=$(dotns account address)
 
         echo "Authorizing ${ADDRESS} for Bulletin TransactionStorage..."
 
-        ARGS=("$ADDRESS" --json --mnemonic "$MNEMONIC")
+        ARGS=("$ADDRESS" --json)
         [[ -n "$BULLETIN_RPC" ]] && ARGS+=(--bulletin-rpc "$BULLETIN_RPC")
 
         OUTPUT=$(dotns bulletin authorize "${ARGS[@]}" 2>&1) || {
@@ -61,16 +61,16 @@ runs:
           fi
         }
       env:
-        MNEMONIC: ${{ inputs.mnemonic }}
+        DOTNS_MNEMONIC: ${{ inputs.mnemonic }}
         BULLETIN_RPC: ${{ inputs.bulletin-rpc }}
 
     - name: Upload to Bulletin
       id: upload
       shell: bash
       run: |
-        echo "::add-mask::$MNEMONIC"
+        echo "::add-mask::$DOTNS_MNEMONIC"
 
-        ARGS=("$BUILD_PATH" --json --mnemonic "$MNEMONIC")
+        ARGS=("$BUILD_PATH" --json)
         [[ -n "$BULLETIN_RPC" ]] && ARGS+=(--bulletin-rpc "$BULLETIN_RPC")
         [[ "$PARALLEL" == "true" ]] && ARGS+=(--parallel --concurrency "$UPLOAD_CONCURRENCY")
 
@@ -97,7 +97,7 @@ runs:
         echo "::error::Upload failed after $MAX_RETRIES attempts"
         exit 1
       env:
-        MNEMONIC: ${{ inputs.mnemonic }}
+        DOTNS_MNEMONIC: ${{ inputs.mnemonic }}
         BULLETIN_RPC: ${{ inputs.bulletin-rpc }}
         BUILD_PATH: ${{ inputs.build-path }}
         PARALLEL: ${{ inputs.parallel }}

@@ -195,7 +195,7 @@ export async function verifyMultipleCids(
 export async function verifyCidWithMultipleGateways(
   contentCid: string,
   gatewayUrls: string[] = [
-    "https://ipfs.dotspark.app",
+    "https://paseo-ipfs.polkadot.io",
     "https://dweb.link",
     "https://cloudflare-ipfs.com",
     "https://w3s.link",

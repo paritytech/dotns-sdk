@@ -16,7 +16,7 @@ export const SUPPORTED_NETWORKS: Record<number, NetworkConfig & Partial<Deployme
       symbol: "PAS",
       decimals: 18,
     },
-    rpcUrls: ["wss://sys.turboflakes.io/asset-hub-paseo"],
+    rpcUrls: ["wss://asset-hub-paseo-rpc.n.dwellir.com"],
     blockExplorerUrls: ["https://assethub-paseo.subscan.io/"],
     dotnsRegistry: "0x4Da0d37aBe96C06ab19963F31ca2DC0412057a6f",
     dotnsRegistrarController: "0xd09e0F1c1E6CE8Cf40df929ef4FC778629573651",

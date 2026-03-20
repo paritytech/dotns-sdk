@@ -23,6 +23,7 @@ jobs:
           types: |
             feat
             fix
+            bug
             docs
             style
             refactor
@@ -32,7 +33,7 @@ jobs:
             perf
             revert
           requireScope: false
-          subjectPattern: ^[a-zA-Z][-a-zA-Z0-9 .,():+]+$
+          subjectPattern: ^[a-zA-Z][-a-zA-Z0-9 .,():+/@#]+$
 
       - name: Process results
         id: result
