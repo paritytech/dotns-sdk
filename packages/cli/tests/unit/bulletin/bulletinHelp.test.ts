@@ -32,6 +32,7 @@ test("bulletin upload help shows all options", async () => {
   expect(result.combinedOutput).toContain("--parallel");
   expect(result.combinedOutput).toContain("--concurrency");
   expect(result.combinedOutput).toContain("--print-contenthash");
+  expect(result.combinedOutput).toContain("--car");
   expect(result.combinedOutput).toContain("--json");
   expect(result.combinedOutput).toContain("--no-history");
 

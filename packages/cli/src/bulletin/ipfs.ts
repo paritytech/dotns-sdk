@@ -42,6 +42,27 @@ export function hasIpfsCli(): boolean {
   return findIpfsBinaryPath() !== null;
 }
 
+export function ensureIpfsInitialized(): string {
+  const binaryPath = findIpfsBinaryPath();
+
+  if (!binaryPath) {
+    throw new Error(
+      "IPFS CLI not found. Install with: bun install\n" +
+        "Or manually from: https://docs.ipfs.tech/install/",
+    );
+  }
+
+  try {
+    // binaryPath is resolved from the bundled or system-installed binary only —
+    // never user-supplied input — so interpolating it here is safe.
+    execSync(`"${binaryPath}" repo stat`, { encoding: "utf-8", stdio: "pipe" });
+  } catch {
+    execSync(`"${binaryPath}" init`, { encoding: "utf-8", stdio: "pipe" });
+  }
+
+  return binaryPath;
+}
+
 export function getIpfsVersion(): string | null {
   const binaryPath = findIpfsBinaryPath();
   if (!binaryPath) {
@@ -55,8 +76,8 @@ export function getIpfsVersion(): string | null {
   }
 }
 
-export function merkleizeWithIpfs(directoryPath: string): MerkleizeResult {
-  const binaryPath = findIpfsBinaryPath();
+export function merkleizeWithIpfs(directoryPath: string, ipfsBinaryPath?: string): MerkleizeResult {
+  const binaryPath = ipfsBinaryPath ?? findIpfsBinaryPath();
 
   if (!binaryPath) {
     throw new Error(
@@ -90,8 +111,11 @@ export function merkleizeWithIpfs(directoryPath: string): MerkleizeResult {
   return { cid: computedCid };
 }
 
-export function merkleizeSingleFileWithIpfs(filePath: string): MerkleizeResult {
-  const binaryPath = findIpfsBinaryPath();
+export function merkleizeSingleFileWithIpfs(
+  filePath: string,
+  ipfsBinaryPath?: string,
+): MerkleizeResult {
+  const binaryPath = ipfsBinaryPath ?? findIpfsBinaryPath();
 
   if (!binaryPath) {
     throw new Error(
@@ -125,8 +149,12 @@ export function merkleizeSingleFileWithIpfs(filePath: string): MerkleizeResult {
   return { cid: computedCid };
 }
 
-export function exportCarFile(contentCid: string, outputFilePath: string): void {
-  const binaryPath = findIpfsBinaryPath();
+export function exportCarFile(
+  contentCid: string,
+  outputFilePath: string,
+  ipfsBinaryPath?: string,
+): void {
+  const binaryPath = ipfsBinaryPath ?? findIpfsBinaryPath();
 
   if (!binaryPath) {
     throw new Error("IPFS CLI not found");

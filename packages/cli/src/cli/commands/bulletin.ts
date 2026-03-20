@@ -6,6 +6,7 @@ import {
   validateAndReadPath,
   uploadSingleBlock,
   uploadChunkedBlocks,
+  storeCar,
   storeDirectory,
   generateContenthash,
   ensureAccountAuthorized,
@@ -258,6 +259,7 @@ export function attachBulletinCommands(root: Command): void {
     .option("--parallel", "Upload directory blocks in parallel (faster)", false)
     .option("--concurrency <n>", "Number of parallel uploads (default: 10)", "10")
     .option("--print-contenthash", "Also print 0x-prefixed IPFS contenthash for the CID", false)
+    .option("--car", "Merkleize with IPFS CLI and upload as a CAR file (directories only)", false)
     .option("--no-history", "Do not save upload to history", true)
     .option("--json", "Output result as JSON (suppresses all other output)", false);
 
@@ -286,6 +288,11 @@ export function attachBulletinCommands(root: Command): void {
         );
         const parallel = Boolean(mergedOptions.parallel);
         const concurrency = Math.max(1, Number(mergedOptions.concurrency || 10));
+        const useCar = Boolean(mergedOptions.car);
+
+        if (useCar && !isDirectory) {
+          throw new Error("--car is only supported for directory uploads");
+        }
 
         const context = await maybeQuiet(jsonOutput, () =>
           prepareContext({ ...mergedOptions, useBulletin: true }),
@@ -297,6 +304,10 @@ export function attachBulletinCommands(root: Command): void {
 
         const performUpload = async () => {
           if (isDirectory) {
+            if (useCar) {
+              return storeCar(bulletinRpc, context.signer, resolvedPath, chunkSizeBytes);
+            }
+
             const result = await storeDirectory(bulletinRpc, context.signer, resolvedPath, {
               parallel,
               concurrency,
@@ -344,7 +355,11 @@ export function attachBulletinCommands(root: Command): void {
           }
 
           if (isDirectory) {
-            const mode = parallel ? `directory (parallel, ${concurrency}x)` : "directory";
+            const mode = useCar
+              ? "car (ipfs cli)"
+              : parallel
+                ? `directory (parallel, ${concurrency}x)`
+                : "directory";
             console.log(chalk.gray("  mode:     ") + chalk.white(mode));
           } else if (mergedOptions.forceChunked || bytes.length > MAX_SINGLE_UPLOAD_SIZE_BYTES) {
             console.log(chalk.gray("  size:     ") + chalk.white(`${bytes.length} bytes`));
@@ -375,7 +390,8 @@ export function attachBulletinCommands(root: Command): void {
           const authExpiresAt = expirationToISOString(authInfo?.currentBlock, authInfo?.expiration);
           console.log(
             JSON.stringify({
-              cid: ipfsCid,
+              cid,
+              ipfsCid: ipfsCid !== cid ? ipfsCid : undefined,
               contenthash,
               preview: previewUrl,
               path: resolvedPath,
@@ -385,7 +401,10 @@ export function attachBulletinCommands(root: Command): void {
             }),
           );
         } else {
-          console.log(chalk.gray("\n  cid:         ") + chalk.cyan(ipfsCid));
+          console.log(chalk.gray("\n  cid:         ") + chalk.cyan(cid));
+          if (ipfsCid !== cid) {
+            console.log(chalk.gray("  ipfs-cid:    ") + chalk.cyan(ipfsCid));
+          }
           console.log(chalk.gray("  preview:     ") + chalk.blue(previewUrl));
 
           if (mergedOptions.printContenthash) {

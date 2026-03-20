@@ -29,6 +29,7 @@ const BULLETIN_TEST_TIMEOUT_MS = 3 * 60_000;
 
 type JsonUploadResult = {
   cid: string;
+  ipfsCid?: string;
   contenthash: string;
   preview: string;
   path: string;
@@ -227,6 +228,47 @@ test(
   },
   { timeout: BULLETIN_TEST_TIMEOUT_MS },
 );
+
+test(
+  "bulletin upload directory with --car",
+  async () => {
+    createPathsForTest("bulletin_upload_directory_car");
+    const dirPath = await createTestDirectory("test_site_car");
+
+    const result = await runBulletinUpload([dirPath, "--car", "--no-history"]);
+
+    expectSuccessfulUpload(result);
+    expect(result.combinedOutput).toContain("car (ipfs cli)");
+    expect(result.combinedOutput).toContain("ipfs-cid:");
+  },
+  { timeout: BULLETIN_TEST_TIMEOUT_MS },
+);
+
+test(
+  "bulletin upload directory --car json output includes ipfsCid",
+  async () => {
+    createPathsForTest("bulletin_upload_directory_car_json");
+    const dirPath = await createTestDirectory("test_site_car_json");
+
+    const result = await runBulletinUpload([dirPath, "--car", "--json", "--no-history"]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+    const parsed = parseJsonUploadResult(result);
+    expect(parsed.cid).toMatch(/^bafy|^bafk/);
+    expect(parsed.ipfsCid).toMatch(/^bafy/);
+    expect(parsed.type).toBe("directory");
+  },
+  { timeout: BULLETIN_TEST_TIMEOUT_MS },
+);
+
+test("bulletin upload --car on a file returns an error", async () => {
+  createPathsForTest("bulletin_upload_car_file_error");
+
+  const result = await runBulletinUpload([spongePath(), "--car", "--no-history"]);
+
+  expect(result.combinedOutput).toContain("--car is only supported for directory uploads");
+  expect(result.combinedOutput).not.toContain("✓ Upload Complete");
+});
 
 test(
   "bulletin upload directory with contenthash",
