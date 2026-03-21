@@ -4,6 +4,7 @@ import { executeRegistration, executeSubnameRegistration } from "./register";
 import { type RegistrationCommandOptions } from "../../types/types";
 import { addAuthOptions, getAuthOptions } from "./authOptions";
 import { formatErrorMessage } from "../../utils/formatting";
+import { ENV } from "../env";
 
 export type RegisterActionOptions = RegistrationCommandOptions & {
   __statusProvided?: boolean;
@@ -25,6 +26,10 @@ export function attachRegisterCommand(root: Command) {
     .option("-o, --owner <address>", "Owner address (EVM or Substrate, or label)")
     .option("--transfer", "Transfer domain after registration", false)
     .option("--to <destination>", "Transfer destination (EVM address, SS58, or domain label)")
+    .option(
+      "--cb, --commitment-buffer <seconds>",
+      `Extra seconds to wait after minCommitmentAge (env: ${ENV.COMMITMENT_BUFFER})`,
+    )
     .action(async (options: RegistrationCommandOptions, cmd: any) => {
       try {
         const merged = { ...options, ...getAuthOptions(cmd) } as RegisterActionOptions;
@@ -33,6 +38,10 @@ export function attachRegisterCommand(root: Command) {
           typeof cmd.optsWithGlobals === "function" ? cmd.optsWithGlobals() : cmd.opts();
 
         merged.__statusProvided = allOpts?.status != null;
+
+        if (allOpts?.commitmentBuffer != null) {
+          process.env[ENV.COMMITMENT_BUFFER] = String(allOpts.commitmentBuffer);
+        }
 
         if (merged.transfer === true && !merged.to) {
           throw new Error("Missing transfer destination: use --to <evm|ss58|label>");

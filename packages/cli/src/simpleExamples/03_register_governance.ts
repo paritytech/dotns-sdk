@@ -37,7 +37,7 @@ async function main() {
   );
 
   await submitCommitment(clientWrapper, substrateAddress, signer, commitment);
-  await waitForMinimumCommitmentAge(clientWrapper, substrateAddress);
+  await waitForMinimumCommitmentAge(clientWrapper, substrateAddress, commitment);
 
   await finalizeGovernanceRegistration(clientWrapper, substrateAddress, signer, registration);
   await verifyDomainOwnership(clientWrapper, substrateAddress, label, evmAddress);
