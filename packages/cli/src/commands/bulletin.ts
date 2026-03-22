@@ -372,8 +372,8 @@ export async function authorizeAccount(
           );
           console.log(
             chalk.gray("  bytes:        ") +
-              chalk.white(formatBytesAsHumanReadable(existingBytes)) +
-              chalk.gray(` (requested: ${formatBytesAsHumanReadable(bytes)})`),
+              chalk.white(formatBytes(existingBytes)) +
+              chalk.gray(` (requested: ${formatBytes(bytes)})`),
           );
           console.log(
             chalk.gray("  expires:      ") +
@@ -393,7 +393,7 @@ export async function authorizeAccount(
         console.log(
           chalk.gray("  bytes:        ") +
             chalk.white(
-              `${formatBytesAsHumanReadable(existingBytes)} → ${formatBytesAsHumanReadable(bytes)}`,
+              `${formatBytes(existingBytes)} → ${formatBytes(bytes)}`,
             ),
         );
       }
