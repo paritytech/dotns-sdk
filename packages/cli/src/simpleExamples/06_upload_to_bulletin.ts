@@ -43,7 +43,7 @@ async function main() {
   console.log("  mode:     ", forceChunked ? "chunked (dag-pb)" : "auto");
   console.log("  retries:  ", maxRetries ?? "default");
 
-  await ensureAccountAuthorized(rpc, signer, substrateAddress);
+  await ensureAccountAuthorized(rpc, substrateAddress);
 
   let cid: string;
 

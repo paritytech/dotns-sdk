@@ -104,7 +104,6 @@ function logUploadRetry(
   console.log(chalk.gray(`  retrying in ${(delayMs / 1000).toFixed(delayMs >= 1000 ? 1 : 0)}s`));
 }
 
-
 export function estimateBlockDate(currentBlock: number, targetBlock: number): Date {
   const blockDelta = targetBlock - currentBlock;
   return new Date(Date.now() + blockDelta * BULLETIN_BLOCK_TIME_MS);
@@ -129,10 +128,6 @@ export function expirationToISOString(
 ): string | null {
   if (currentBlock === undefined || expirationBlock === undefined) return null;
   return estimateBlockDate(currentBlock, expirationBlock).toISOString();
-}
-
-function isLocalChainEndpoint(rpcUrl: string): boolean {
-  return rpcUrl.includes("127.0.0.1") || rpcUrl.includes("localhost");
 }
 
 async function* traverseDirectoryRecursively(
@@ -392,9 +387,7 @@ export async function authorizeAccount(
         );
         console.log(
           chalk.gray("  bytes:        ") +
-            chalk.white(
-              `${formatBytes(existingBytes)} → ${formatBytes(bytes)}`,
-            ),
+            chalk.white(`${formatBytes(existingBytes)} → ${formatBytes(bytes)}`),
         );
       }
     } else {
@@ -449,10 +442,7 @@ export async function authorizeAccount(
                     console.log(
                       chalk.gray("  transactions: ") + chalk.white(transactions.toLocaleString()),
                     );
-                    console.log(
-                      chalk.gray("  bytes:        ") +
-                        chalk.white(formatBytes(bytes)),
-                    );
+                    console.log(chalk.gray("  bytes:        ") + chalk.white(formatBytes(bytes)));
                     console.log(
                       chalk.gray("  expires:      ") +
                         chalk.white(
@@ -547,7 +537,6 @@ export async function checkAuthorization(
 
 export async function ensureAccountAuthorized(
   bulletinRpc: string,
-  signer: PolkadotSigner,
   accountAddress: string,
 ): Promise<{ expiration?: number; currentBlock?: number }> {
   const authStatus = await checkAuthorization(bulletinRpc, accountAddress);

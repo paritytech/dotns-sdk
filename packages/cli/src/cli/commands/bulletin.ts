@@ -516,7 +516,7 @@ export function attachBulletinCommands(root: Command): void {
         );
 
         const authInfo = await maybeQuiet(jsonOutput, () =>
-          ensureAccountAuthorized(bulletinRpc, context.signer, context.substrateAddress),
+          ensureAccountAuthorized(bulletinRpc, context.substrateAddress),
         );
 
         const profileOutputOverride = mergedOptions.profileOutput
