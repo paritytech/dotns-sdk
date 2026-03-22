@@ -4,7 +4,7 @@ import { executeRegistration, executeSubnameRegistration } from "./register";
 import { type RegistrationCommandOptions } from "../../types/types";
 import { addAuthOptions, getAuthOptions } from "./authOptions";
 import { formatErrorMessage } from "../../utils/formatting";
-import { ENV } from "../env";
+import { DEFAULT_COMMITMENT_BUFFER_SECONDS } from "../../utils/constants";
 
 export type RegisterActionOptions = RegistrationCommandOptions & {
   __statusProvided?: boolean;
@@ -12,6 +12,17 @@ export type RegisterActionOptions = RegistrationCommandOptions & {
   to?: string;
   parent?: string;
 };
+
+function resolveCommitmentBuffer(cliValue?: string): number {
+  const raw = cliValue ?? process.env.DOTNS_COMMITMENT_BUFFER;
+  if (raw == null) return DEFAULT_COMMITMENT_BUFFER_SECONDS;
+
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`Invalid commitment buffer "${raw}": must be a non-negative number (seconds)`);
+  }
+  return parsed;
+}
 
 export function attachRegisterCommand(root: Command) {
   const registerCommand = root.command("register").description("Domain registration commands");
@@ -28,7 +39,7 @@ export function attachRegisterCommand(root: Command) {
     .option("--to <destination>", "Transfer destination (EVM address, SS58, or domain label)")
     .option(
       "--cb, --commitment-buffer <seconds>",
-      `Extra seconds to wait after minCommitmentAge (env: ${ENV.COMMITMENT_BUFFER})`,
+      `Extra seconds to wait after minCommitmentAge (default: ${DEFAULT_COMMITMENT_BUFFER_SECONDS}, env: DOTNS_COMMITMENT_BUFFER)`,
     )
     .action(async (options: RegistrationCommandOptions, cmd: any) => {
       try {
@@ -38,10 +49,7 @@ export function attachRegisterCommand(root: Command) {
           typeof cmd.optsWithGlobals === "function" ? cmd.optsWithGlobals() : cmd.opts();
 
         merged.__statusProvided = allOpts?.status != null;
-
-        if (allOpts?.commitmentBuffer != null) {
-          process.env[ENV.COMMITMENT_BUFFER] = String(allOpts.commitmentBuffer);
-        }
+        merged.commitmentBuffer = resolveCommitmentBuffer(allOpts?.commitmentBuffer);
 
         if (merged.transfer === true && !merged.to) {
           throw new Error("Missing transfer destination: use --to <evm|ss58|label>");

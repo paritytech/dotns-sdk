@@ -79,6 +79,8 @@ export type RegistrationCommandOptions = {
   keyUri?: string;
   /** Owner of the new name, can be a substrate address, evm address, or label, undefined means the account making the call */
   owner?: string | Address;
+  /** Extra seconds to wait after minCommitmentAge before attempting registration */
+  commitmentBuffer?: number;
 };
 
 export type LookupCommandOptions = {

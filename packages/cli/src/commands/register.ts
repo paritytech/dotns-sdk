@@ -24,9 +24,9 @@ import {
   POP_RULES_ABI,
   STORE_FACTORY_ABI,
   STORE_ABI,
-  getCommitmentBufferSeconds,
-  COMMITMENT_POLL_INTERVAL_MS,
+  DEFAULT_COMMITMENT_BUFFER_SECONDS,
   COMMITMENT_POLL_TIMEOUT_MS,
+  COMMITMENT_POLL_INTERVAL_MS,
 } from "../utils/constants";
 import { validateDomainLabel, stripTrailingDigits, countTrailingDigits } from "../utils/validation";
 import {
@@ -197,10 +197,12 @@ export async function waitForMinimumCommitmentAge(
   clientWrapper: ReviveClientWrapper,
   originSubstrateAddress: string,
   commitment: Hex,
+  commitmentBuffer?: number,
 ): Promise<void> {
+  const buffer = commitmentBuffer ?? DEFAULT_COMMITMENT_BUFFER_SECONDS;
   const checkSpinner = ora("Reading minimum commitment age").start();
 
-  const [minimumAge, commitTimestamp] = await Promise.all([
+  const [minimumAge, initialCommitTimestamp] = await Promise.all([
     withTimeout(
       performContractCall<bigint | number>(
         clientWrapper,
@@ -228,15 +230,17 @@ export async function waitForMinimumCommitmentAge(
   ]);
 
   const minimumAgeSeconds = typeof minimumAge === "bigint" ? Number(minimumAge) : minimumAge;
-  const commitTime =
-    typeof commitTimestamp === "bigint" ? Number(commitTimestamp) : commitTimestamp;
+  const initialCommitTime =
+    typeof initialCommitTimestamp === "bigint"
+      ? Number(initialCommitTimestamp)
+      : initialCommitTimestamp;
 
-  if (commitTime === 0) {
+  if (initialCommitTime === 0) {
     checkSpinner.fail("Commitment not found on-chain");
     throw new Error("Commitment not found on-chain. It may not have been included in a block yet.");
   }
 
-  const waitSeconds = minimumAgeSeconds + getCommitmentBufferSeconds();
+  const waitSeconds = minimumAgeSeconds + buffer;
   checkSpinner.succeed(`Minimum commitment age: ${chalk.yellow(waitSeconds.toString() + "s")}`);
 
   const waitSpinner = ora(`Waiting for commitment age (${waitSeconds}s)`).start();
@@ -255,7 +259,7 @@ export async function waitForMinimumCommitmentAge(
 
   const pollDeadline = Date.now() + COMMITMENT_POLL_TIMEOUT_MS;
   while (Date.now() < pollDeadline) {
-    const currentCommitTimestamp = await performContractCall<bigint | number>(
+    const polledTimestamp = await performContractCall<bigint | number>(
       clientWrapper,
       originSubstrateAddress,
       CONTRACTS.DOTNS_REGISTRAR_CONTROLLER,
@@ -264,13 +268,12 @@ export async function waitForMinimumCommitmentAge(
       [commitment],
     );
 
-    const currentCommitTime =
-      typeof currentCommitTimestamp === "bigint"
-        ? Number(currentCommitTimestamp)
-        : currentCommitTimestamp;
+    const polledCommitTime =
+      typeof polledTimestamp === "bigint" ? Number(polledTimestamp) : polledTimestamp;
 
-    const nowOnChain = Math.floor(Date.now() / 1000);
-    if (nowOnChain >= currentCommitTime + minimumAgeSeconds) {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+
+    if (polledCommitTime > 0 && nowSeconds - polledCommitTime >= minimumAgeSeconds) {
       waitSpinner.succeed("Commitment age requirement met (verified on-chain)");
       return;
     }
@@ -281,7 +284,7 @@ export async function waitForMinimumCommitmentAge(
 
   waitSpinner.fail("Commitment age verification timed out");
   throw new Error(
-    `Commitment still too new after ${waitSeconds + COMMITMENT_POLL_TIMEOUT_MS / 1000}s. The chain's block timestamps may be advancing slower than expected. Try increasing DOTNS_COMMITMENT_BUFFER.`,
+    `Commitment still too new after ${waitSeconds + COMMITMENT_POLL_TIMEOUT_MS / 1000}s. The chain's block timestamps may be advancing slower than expected. Try increasing --commitment-buffer or DOTNS_COMMITMENT_BUFFER.`,
   );
 }
 

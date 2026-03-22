@@ -132,6 +132,7 @@ export async function executeRegistration(options: Partial<RegisterActionOptions
       evmAddress,
       label,
       transferDestination,
+      options.commitmentBuffer,
     );
   } else {
     await executeRegularRegistration(
@@ -143,6 +144,7 @@ export async function executeRegistration(options: Partial<RegisterActionOptions
       popStatusConfig,
       options.reverse ?? false,
       transferDestination,
+      options.commitmentBuffer,
     );
   }
 
@@ -203,6 +205,7 @@ async function executeGovernanceRegistration(
   evmAddress: Address,
   label: string,
   transferDestination: string | undefined,
+  commitmentBuffer?: number,
 ): Promise<void> {
   console.log(chalk.bold("\n🏛 Governance registration (commit-reveal)\n"));
 
@@ -231,7 +234,7 @@ async function executeGovernanceRegistration(
   );
 
   await step("Waiting commitment age", async () =>
-    waitForMinimumCommitmentAge(clientWrapper, substrateAddress, commitment),
+    waitForMinimumCommitmentAge(clientWrapper, substrateAddress, commitment, commitmentBuffer),
   );
 
   await step("Finalizing registration", async () =>
@@ -274,6 +277,7 @@ async function executeRegularRegistration(
   popStatusConfig: RegistrationPopStatusConfig,
   enableReverseRecord: boolean,
   transferDestination: string | undefined,
+  commitmentBuffer?: number,
 ): Promise<void> {
   console.log(chalk.bold("\n🧾 Regular registration (commit-reveal)\n"));
 
@@ -309,7 +313,7 @@ async function executeRegularRegistration(
   );
 
   await step("Waiting commitment age", async () =>
-    waitForMinimumCommitmentAge(clientWrapper, substrateAddress, commitment),
+    waitForMinimumCommitmentAge(clientWrapper, substrateAddress, commitment, commitmentBuffer),
   );
 
   const pricing: PricingAndEligibility = await step("Pricing and eligibility", async () =>

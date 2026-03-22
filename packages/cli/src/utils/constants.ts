@@ -29,11 +29,15 @@ export const DEFAULT_SUDO_KEY_URI = "//Alice";
 
 export const OPERATION_TIMEOUT_MILLISECONDS = 300_000;
 
-export function getCommitmentBufferSeconds(): number {
-  return Number(process.env.DOTNS_COMMITMENT_BUFFER ?? 6);
-}
-export const COMMITMENT_POLL_INTERVAL_MS = 2_000;
+export const DEFAULT_COMMITMENT_BUFFER_SECONDS = 6;
 export const COMMITMENT_POLL_TIMEOUT_MS = 30_000;
+export const COMMITMENT_POLL_INTERVAL_MS = 2_000;
+
+export function getCommitmentBufferSeconds(): number {
+  const parsed = Number(process.env.DOTNS_COMMITMENT_BUFFER ?? DEFAULT_COMMITMENT_BUFFER_SECONDS);
+  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_COMMITMENT_BUFFER_SECONDS;
+  return parsed;
+}
 
 export const DOTNS_REGISTRAR_CONTROLLER_ABI = DotnsRegistrarController.abi as Abi;
 export const DOTNS_REGISTRY_ABI = DotnsRegistry.abi as Abi;
