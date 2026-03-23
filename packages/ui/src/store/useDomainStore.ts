@@ -23,6 +23,7 @@ import {
   formatNativeBalance,
   formatWeiAsEther,
   normalizeDomainName,
+  ZERO_SUBSTRATE_ADDRESS,
 } from "../utils";
 import {
   type Commitment,
@@ -366,7 +367,6 @@ export const useDomainStore = defineStore("useDomainStore", () => {
 
       networkStore.ensureClient();
       await abiStore.ensureAbis();
-      walletStore.ensureWalletConnected();
 
       const network = networkStore.currentNetwork;
       if (!network?.popOracle) throw new Error("PopOracle not configured");
@@ -381,7 +381,7 @@ export const useDomainStore = defineStore("useDomainStore", () => {
 
       const result = await transactionStore.ethCall(
         client,
-        walletStore.substrateAddress!,
+        walletStore.substrateAddress ?? ZERO_SUBSTRATE_ADDRESS,
         network.popOracle,
         data,
       );
