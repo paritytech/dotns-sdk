@@ -69,10 +69,10 @@ on:
         type: string
 
       upload-concurrency:
-        description: 'Number of parallel block uploads'
+        description: 'Adaptive scheduler max window (max: 4)'
         required: false
         type: number
-        default: 15
+        default: 4
 
       skip-cache:
         description: 'Skip deployment cache and force re-upload'
@@ -130,7 +130,7 @@ jobs:
           sparse-checkout: |
             .github/actions
             packages/cli
-            packages/sdk
+            packages/ui
             package.json
             bun.lock
 
@@ -142,7 +142,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: '1.2.6'
+          bun-version: latest
 
       - name: Download build artifact
         uses: actions/download-artifact@v4

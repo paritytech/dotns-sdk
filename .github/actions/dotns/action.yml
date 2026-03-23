@@ -85,12 +85,12 @@ runs:
       if: steps.check-base.outputs.exists != 'true' && inputs.register-base == 'true'
       shell: bash
       run: |
-        echo "::add-mask::$MNEMONIC"
+        echo "::add-mask::$DOTNS_MNEMONIC"
 
         for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
           echo "Register base attempt $ATTEMPT/$MAX_RETRIES"
 
-          if dotns register domain --name "$BASENAME" --mnemonic "$MNEMONIC" 2>&1; then
+          if dotns register domain --name "$BASENAME" 2>&1; then
             echo "::notice::Base domain ${BASENAME}.dot registered"
             exit 0
           fi
@@ -112,7 +112,7 @@ runs:
         echo "You can also register manually at https://dotns.paseo.li"
         exit 1
       env:
-        MNEMONIC: ${{ inputs.mnemonic }}
+        DOTNS_MNEMONIC: ${{ inputs.mnemonic }}
         BASENAME: ${{ inputs.basename }}
         MAX_RETRIES: ${{ inputs.max-retries }}
         RETRY_DELAY: ${{ inputs.retry-delay }}
@@ -146,12 +146,12 @@ runs:
       if: inputs.mode == 'preview' && steps.check-subname.outputs.exists != 'true'
       shell: bash
       run: |
-        echo "::add-mask::$MNEMONIC"
+        echo "::add-mask::$DOTNS_MNEMONIC"
 
         for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
           echo "Register subname attempt $ATTEMPT/$MAX_RETRIES"
 
-          OUTPUT=$(dotns register subname --name "$SUBNAME" --parent "$BASENAME" --mnemonic "$MNEMONIC" 2>&1) && {
+          OUTPUT=$(dotns register subname --name "$SUBNAME" --parent "$BASENAME" 2>&1) && {
             echo "::notice::Subname ${SUBNAME}.${BASENAME}.dot registered"
             exit 0
           }
@@ -188,7 +188,7 @@ runs:
         echo "  dotns register subname --name $SUBNAME --parent $BASENAME"
         exit 1
       env:
-        MNEMONIC: ${{ inputs.mnemonic }}
+        DOTNS_MNEMONIC: ${{ inputs.mnemonic }}
         SUBNAME: ${{ inputs.subname }}
         BASENAME: ${{ inputs.basename }}
         MAX_RETRIES: ${{ inputs.max-retries }}
@@ -197,9 +197,9 @@ runs:
     - name: Set contenthash
       shell: bash
       run: |
-        echo "::add-mask::$MNEMONIC"
+        echo "::add-mask::$DOTNS_MNEMONIC"
 
-        ARGS=("$DOMAIN" "$CID" --mnemonic "$MNEMONIC")
+        ARGS=("$DOMAIN" "$CID")
         [[ -n "$RPC" ]] && ARGS+=(--rpc "$RPC")
 
         for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
@@ -217,7 +217,7 @@ runs:
         echo "::error::Failed to set contenthash after $MAX_RETRIES attempts"
         exit 1
       env:
-        MNEMONIC: ${{ inputs.mnemonic }}
+        DOTNS_MNEMONIC: ${{ inputs.mnemonic }}
         DOMAIN: ${{ inputs.domain }}
         CID: ${{ inputs.cid }}
         RPC: ${{ inputs.rpc }}

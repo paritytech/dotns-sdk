@@ -17,7 +17,7 @@ export const DEFAULT_UPLOAD_MAX_RETRIES = 5;
 export const MAX_UPLOAD_MAX_RETRIES = 20;
 export const UPLOAD_RETRY_BASE_DELAYS_MS = [1_000, 2_000, 5_000, 10_000] as const;
 export const DEFAULT_AUTHORIZATION_TRANSACTIONS = 1000000;
-export const DEFAULT_AUTHORIZATION_BYTES = BigInt(524288000);
+export const DEFAULT_AUTHORIZATION_BYTES = BigInt(1099511627776);
 export const DEFAULT_VERIFICATION_GATEWAY = "https://paseo-ipfs.polkadot.io";
 export const DOT_NODE: Hex = "0x3fce7d1364a893e213bc4212792b517ffc88f5b13b86c8ef9c8d390c3a1370ce";
 
@@ -29,6 +29,8 @@ export const DEFAULT_MNEMONIC =
   "bottom drive obey lake curtain smoke basket hold race lonely fit walk";
 
 export const DEFAULT_SUDO_KEY_URI = "//Alice";
+
+export const BULLETIN_BLOCK_TIME_MS = 6000;
 
 export const OPERATION_TIMEOUT_MILLISECONDS = 300_000;
 

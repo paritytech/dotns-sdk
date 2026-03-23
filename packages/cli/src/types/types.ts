@@ -211,13 +211,13 @@ export type CommitmentResults = {
 export type BulletinUploadOptions = {
   /** Bulletin WebSocket RPC endpoint */
   bulletinRpc?: string;
-  /** Chunk size for large uploads in bytes */
+  /** Chunk size for large uploads in bytes (default: 2 MB, clamped to 256 KB–2 MB) */
   chunkSize?: string;
   /** Number of retry attempts after the initial upload attempt */
   maxRetries?: string;
   /** Force chunked upload mode (DAG-PB) */
   forceChunked?: boolean;
-  /** Adaptive scheduler maximum window (default: 4) */
+  /** Adaptive scheduler maximum window (default: 4, max: 4) */
   concurrency?: string;
   /** Print IPFS contenthash in addition to CID */
   printContenthash?: boolean;
@@ -332,6 +332,23 @@ export type AuthorizeAccountOptions = {
   transactions?: number;
   /** Maximum bytes allowed to store */
   bytes?: bigint;
+  /** Bypass the existing authorization check and re-submit the extrinsic */
+  force?: boolean;
+};
+
+export type AuthorizationStatus = {
+  /** Whether an authorization entry exists in chain storage */
+  authorized: boolean;
+  /** Remaining transaction allowance */
+  transactions?: number;
+  /** Remaining byte allowance */
+  bytes?: bigint;
+  /** Block number at which the authorization expires */
+  expiration?: number;
+  /** Current chain block number at time of query */
+  currentBlock?: number;
+  /** Whether the current block has passed the expiration block */
+  expired?: boolean;
 };
 
 export type AuthorizeAccountResult = {

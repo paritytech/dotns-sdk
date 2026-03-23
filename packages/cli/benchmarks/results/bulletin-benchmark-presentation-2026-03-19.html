@@ -2,12 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Bulletin Upload Benchmarks</title>
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css"
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
+    <title>Bulletin Upload Benchmarks</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/white.css"
@@ -79,7 +79,6 @@
         color: var(--muted);
       }
 
-
       .panel,
       .metric-card,
       .attribution-card,
@@ -91,7 +90,6 @@
         word-break: break-word;
         min-width: 0;
       }
-
 
       .title-slide {
         min-height: 580px;
@@ -118,15 +116,15 @@
         margin-top: 0.5em;
       }
 
-
       .panel {
         background: var(--paper);
         border: 1px solid var(--line);
         padding: 14px 16px;
         border-radius: 7px;
-        box-shadow: 0 2px 8px rgba(50, 42, 25, 0.06), 0 8px 24px rgba(50, 42, 25, 0.08);
+        box-shadow:
+          0 2px 8px rgba(50, 42, 25, 0.06),
+          0 8px 24px rgba(50, 42, 25, 0.08);
       }
-
 
       .grid-2,
       .grid-3,
@@ -147,19 +145,24 @@
         grid-template-columns: repeat(4, minmax(0, 1fr));
       }
 
-
       .metric-card {
         padding: 14px 16px;
         border: 1px solid var(--line);
         border-radius: 7px;
         display: flex;
         flex-direction: column;
-        box-shadow: 0 2px 8px rgba(50, 42, 25, 0.06), 0 8px 24px rgba(50, 42, 25, 0.08);
-        transition: box-shadow 0.25s ease, transform 0.25s ease;
+        box-shadow:
+          0 2px 8px rgba(50, 42, 25, 0.06),
+          0 8px 24px rgba(50, 42, 25, 0.08);
+        transition:
+          box-shadow 0.25s ease,
+          transform 0.25s ease;
       }
 
       .metric-card:hover {
-        box-shadow: 0 4px 12px rgba(50, 42, 25, 0.08), 0 16px 40px rgba(50, 42, 25, 0.13);
+        box-shadow:
+          0 4px 12px rgba(50, 42, 25, 0.08),
+          0 16px 40px rgba(50, 42, 25, 0.13);
         transform: translateY(-2px);
       }
 
@@ -188,7 +191,6 @@
         margin: 0;
       }
 
-
       .tag {
         display: inline-block;
         padding: 3px 8px;
@@ -214,7 +216,6 @@
         color: var(--red);
       }
 
-
       .tight ul {
         margin-top: 0.4em;
       }
@@ -222,7 +223,6 @@
       .tight li {
         margin-bottom: 0.35em;
       }
-
 
       table.benchmarks {
         width: 100%;
@@ -257,7 +257,6 @@
         background: rgba(220, 236, 223, 0.4);
       }
 
-
       .bars {
         display: grid;
         gap: 10px;
@@ -287,7 +286,6 @@
         transition: width 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
       }
 
-
       .callout {
         padding: 12px 14px;
         background: var(--paper);
@@ -306,7 +304,6 @@
         margin: 0;
       }
 
-
       .flow-diagram {
         display: grid;
         grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -320,7 +317,9 @@
         padding: 14px;
         border: 1px solid var(--line);
         background: linear-gradient(180deg, rgba(255, 254, 250, 0.98), rgba(243, 237, 226, 0.98));
-        box-shadow: 0 2px 8px rgba(50, 42, 25, 0.06), 0 8px 24px rgba(50, 42, 25, 0.08);
+        box-shadow:
+          0 2px 8px rgba(50, 42, 25, 0.06),
+          0 8px 24px rgba(50, 42, 25, 0.08);
         position: relative;
         display: flex;
         flex-direction: column;
@@ -387,7 +386,6 @@
         transform: translateY(-50%) rotate(45deg);
       }
 
-
       .bottleneck-map {
         display: grid;
         gap: 12px;
@@ -403,7 +401,9 @@
         border: 1px solid var(--line);
         border-radius: 7px;
         background: rgba(255, 252, 246, 0.96);
-        box-shadow: 0 2px 8px rgba(50, 42, 25, 0.06), 0 8px 24px rgba(50, 42, 25, 0.08);
+        box-shadow:
+          0 2px 8px rgba(50, 42, 25, 0.06),
+          0 8px 24px rgba(50, 42, 25, 0.08);
       }
 
       .bottleneck-lane.good {
@@ -463,7 +463,6 @@
         line-height: 1.38;
       }
 
-
       .attribution-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -478,12 +477,18 @@
         border-radius: 7px;
         display: flex;
         flex-direction: column;
-        box-shadow: 0 2px 8px rgba(50, 42, 25, 0.06), 0 8px 24px rgba(50, 42, 25, 0.08);
-        transition: box-shadow 0.25s ease, transform 0.25s ease;
+        box-shadow:
+          0 2px 8px rgba(50, 42, 25, 0.06),
+          0 8px 24px rgba(50, 42, 25, 0.08);
+        transition:
+          box-shadow 0.25s ease,
+          transform 0.25s ease;
       }
 
       .attribution-card:hover {
-        box-shadow: 0 4px 12px rgba(50, 42, 25, 0.08), 0 16px 40px rgba(50, 42, 25, 0.13);
+        box-shadow:
+          0 4px 12px rgba(50, 42, 25, 0.08),
+          0 16px 40px rgba(50, 42, 25, 0.13);
         transform: translateY(-2px);
       }
 
@@ -557,7 +562,6 @@
         line-height: 1.32;
       }
 
-
       .glossary-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -570,11 +574,15 @@
         background: rgba(255, 252, 246, 0.97);
         padding: 10px 12px;
         border-radius: 7px;
-        transition: box-shadow 0.25s ease, transform 0.25s ease;
+        transition:
+          box-shadow 0.25s ease,
+          transform 0.25s ease;
       }
 
       .glossary-item:hover {
-        box-shadow: 0 4px 12px rgba(50, 42, 25, 0.08), 0 16px 40px rgba(50, 42, 25, 0.13);
+        box-shadow:
+          0 4px 12px rgba(50, 42, 25, 0.08),
+          0 16px 40px rgba(50, 42, 25, 0.13);
         transform: translateY(-2px);
       }
 
@@ -589,7 +597,6 @@
         line-height: 1.36;
       }
 
-
       .failure {
         font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
         font-size: 0.4em;
@@ -603,10 +610,15 @@
         box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.15);
       }
 
-      .failure .sig { color: #e06c75; }
-      .failure .pin { color: #e5c07b; }
-      .failure .ret { color: #98c379; }
-
+      .failure .sig {
+        color: #e06c75;
+      }
+      .failure .pin {
+        color: #e5c07b;
+      }
+      .failure .ret {
+        color: #98c379;
+      }
 
       .footer-note {
         margin-top: 14px;
@@ -614,18 +626,18 @@
         font-size: 0.38em;
       }
 
-
       .reveal .slides section .fragment {
         opacity: 0;
         transform: translateY(10px);
-        transition: opacity 0.4s ease, transform 0.4s ease;
+        transition:
+          opacity 0.4s ease,
+          transform 0.4s ease;
       }
 
       .reveal .slides section .fragment.visible {
         opacity: 1;
         transform: translateY(0);
       }
-
 
       @media (max-width: 900px) {
         .grid-2,
@@ -650,15 +662,14 @@
   <body>
     <div class="reveal">
       <div class="slides">
-
         <section data-background-gradient="linear-gradient(135deg, #f8f4ec, #eee3d0)">
           <div class="title-slide">
             <div class="eyebrow">Bulletin Upload Benchmarks &bull; 19 March 2026</div>
             <h1>Uploads work through 500MB. 1GB breaks.</h1>
             <p class="standfirst">
-              Small and medium files upload fine. 500MB completes but needs retries.
-              At 1GB the problem is not speed. The chain storage path loses continuity
-              partway through, and the upload fails.
+              Small and medium files upload fine. 500MB completes but needs retries. At 1GB the
+              problem is not speed. The chain storage path loses continuity partway through, and the
+              upload fails.
             </p>
             <div class="footer-note">
               Data: benchmark profiles, consolidated JSON outputs, rerun logs, 1GB resume manifests.
@@ -691,8 +702,8 @@
             </div>
           </div>
           <div class="callout fragment">
-            500MB works. 1GB does not. The bottleneck is not the client or the network.
-            It is the chain storage path losing continuity under sustained load.
+            500MB works. 1GB does not. The bottleneck is not the client or the network. It is the
+            chain storage path losing continuity under sustained load.
           </div>
         </section>
 
@@ -701,7 +712,9 @@
           <div class="glossary-grid">
             <div class="glossary-item">
               <div class="glossary-term">CID</div>
-              <div class="glossary-def">Content identifier. The hash-based address of stored content.</div>
+              <div class="glossary-def">
+                Content identifier. The hash-based address of stored content.
+              </div>
             </div>
             <div class="glossary-item">
               <div class="glossary-term">RSS</div>
@@ -725,11 +738,16 @@
             </div>
             <div class="glossary-item">
               <div class="glossary-term">Retry</div>
-              <div class="glossary-def">A new attempt after a failure, at the upload or benchmark level.</div>
+              <div class="glossary-def">
+                A new attempt after a failure, at the upload or benchmark level.
+              </div>
             </div>
             <div class="glossary-item">
               <div class="glossary-term">Resume manifest</div>
-              <div class="glossary-def">Local record of completed chunks. Lets interrupted uploads continue instead of restarting.</div>
+              <div class="glossary-def">
+                Local record of completed chunks. Lets interrupted uploads continue instead of
+                restarting.
+              </div>
             </div>
           </div>
           <div class="callout">
@@ -828,7 +846,8 @@
               </tbody>
             </table>
             <div class="footer-note">
-              All successful runs recorded <code>maxWindowReached = 1</code>. Serial baseline, no parallelism.
+              All successful runs recorded <code>maxWindowReached = 1</code>. Serial baseline, no
+              parallelism.
             </div>
           </section>
 
@@ -837,43 +856,43 @@
             <div class="bars">
               <div class="bar-row">
                 <div>500KB</div>
-                <div class="bar"><span style="width: 20%;"></span></div>
+                <div class="bar"><span style="width: 20%"></span></div>
                 <div>0.044 MB/s</div>
               </div>
               <div class="bar-row">
                 <div>1MB</div>
-                <div class="bar"><span style="width: 25%;"></span></div>
+                <div class="bar"><span style="width: 25%"></span></div>
                 <div>0.055 MB/s</div>
               </div>
               <div class="bar-row">
                 <div>5MB</div>
-                <div class="bar"><span style="width: 52%;"></span></div>
+                <div class="bar"><span style="width: 52%"></span></div>
                 <div>0.117 MB/s</div>
               </div>
               <div class="bar-row">
                 <div>10MB</div>
-                <div class="bar"><span style="width: 62%;"></span></div>
+                <div class="bar"><span style="width: 62%"></span></div>
                 <div>0.139 MB/s</div>
               </div>
               <div class="bar-row">
                 <div>50MB</div>
-                <div class="bar"><span style="width: 100%;"></span></div>
+                <div class="bar"><span style="width: 100%"></span></div>
                 <div>0.223 MB/s</div>
               </div>
               <div class="bar-row">
                 <div>100MB</div>
-                <div class="bar"><span style="width: 46%;"></span></div>
+                <div class="bar"><span style="width: 46%"></span></div>
                 <div>0.102 MB/s</div>
               </div>
               <div class="bar-row">
                 <div>500MB</div>
-                <div class="bar"><span style="width: 62%;"></span></div>
+                <div class="bar"><span style="width: 62%"></span></div>
                 <div>0.138 MB/s</div>
               </div>
             </div>
             <div class="callout">
-              Throughput peaks at 50MB then drops. Past that point, the question stops being
-              "how fast" and becomes "does it finish at all."
+              Throughput peaks at 50MB then drops. Past that point, the question stops being "how
+              fast" and becomes "does it finish at all."
             </div>
           </section>
         </section>
@@ -892,16 +911,12 @@
               <div class="flow-step">
                 <div class="flow-kicker">Step 2</div>
                 <div class="flow-title">Chunk into blocks</div>
-                <div class="flow-copy">
-                  File split into 2MB blocks. Each block gets a CID.
-                </div>
+                <div class="flow-copy">File split into 2MB blocks. Each block gets a CID.</div>
               </div>
               <div class="flow-step">
                 <div class="flow-kicker">Step 3</div>
                 <div class="flow-title">Store via Bulletin</div>
-                <div class="flow-copy">
-                  Chunks submitted sequentially. Single-wave baseline.
-                </div>
+                <div class="flow-copy">Chunks submitted sequentially. Single-wave baseline.</div>
               </div>
               <div class="flow-step critical">
                 <div class="flow-kicker">Step 4</div>
@@ -948,7 +963,10 @@
                 <div class="lane-state warn">Fragile</div>
                 <div class="lane-copy">
                   <strong>Success depends on retries.</strong>
-                  <span>It finishes, but only because the retry logic catches failures along the way.</span>
+                  <span
+                    >It finishes, but only because the retry logic catches failures along the
+                    way.</span
+                  >
                 </div>
               </div>
               <div class="bottleneck-lane bad fragment">
@@ -956,13 +974,15 @@
                 <div class="lane-state bad">Broken</div>
                 <div class="lane-copy">
                   <strong>Chain continuity collapses.</strong>
-                  <span><code>not pinned</code>, stop-call failure, WebSocket halt, 3x SIGKILL.</span>
+                  <span
+                    ><code>not pinned</code>, stop-call failure, WebSocket halt, 3x SIGKILL.</span
+                  >
                 </div>
               </div>
             </div>
             <div class="callout fragment">
-              The 1GB failure is qualitatively different. It is not "slow." The storage path
-              stops working partway through.
+              The 1GB failure is qualitatively different. It is not "slow." The storage path stops
+              working partway through.
             </div>
           </section>
         </section>
@@ -989,8 +1009,8 @@
             </div>
           </div>
           <div class="callout fragment">
-            The main bottleneck is Bulletin's ability to sustain sequential storage at scale.
-            Memory pressure is a contributing factor, not the root cause.
+            The main bottleneck is Bulletin's ability to sustain sequential storage at scale. Memory
+            pressure is a contributing factor, not the root cause.
           </div>
         </section>
 
@@ -1006,7 +1026,10 @@
                 <div class="confidence high">Strong</div>
               </div>
               <strong>This is where the failure happens.</strong>
-              <p><code>not pinned (stop-call)</code> during a serial 1GB upload. Concurrency is not the cause.</p>
+              <p>
+                <code>not pinned (stop-call)</code> during a serial 1GB upload. Concurrency is not
+                the cause.
+              </p>
             </div>
             <div class="attribution-card secondary fragment">
               <div class="attribution-head">
@@ -1017,7 +1040,10 @@
                 <div class="confidence medium">Moderate</div>
               </div>
               <strong>Transport disruption accompanies the chain failure.</strong>
-              <p><code>WS halt (3)</code> logged alongside the pin error. Contributes, but likely not root cause.</p>
+              <p>
+                <code>WS halt (3)</code> logged alongside the pin error. Contributes, but likely not
+                root cause.
+              </p>
             </div>
             <div class="attribution-card secondary fragment">
               <div class="attribution-head">
@@ -1028,7 +1054,10 @@
                 <div class="confidence medium">Moderate</div>
               </div>
               <strong>Long runs carry real process burden.</strong>
-              <p>Repeated SIGKILL events. RSS 1.3&ndash;1.6 GB. Reduces headroom but does not explain the chain error.</p>
+              <p>
+                Repeated SIGKILL events. RSS 1.3&ndash;1.6 GB. Reduces headroom but does not explain
+                the chain error.
+              </p>
             </div>
             <div class="attribution-card tertiary fragment">
               <div class="attribution-head">
@@ -1039,7 +1068,10 @@
                 <div class="confidence low">Weak</div>
               </div>
               <strong>Not the bottleneck.</strong>
-              <p>Drives 500MB successfully. Main weakness: regenerating the test file resets the resume fingerprint.</p>
+              <p>
+                Drives 500MB successfully. Main weakness: regenerating the test file resets the
+                resume fingerprint.
+              </p>
             </div>
           </div>
           <div class="callout fragment">
@@ -1072,7 +1104,9 @@
 
           <section>
             <h2>1GB Failure Log</h2>
-            <pre class="failure"><span class="ret">retry 1/19</span> after failure: Unknown CLI failure
+            <pre
+              class="failure"
+            ><span class="ret">retry 1/19</span> after failure: Unknown CLI failure
 <span class="sig">error: script "dev" was terminated by signal SIGKILL (Forced quit)</span>
 
 <span class="ret">retry 2/19</span> after failure: Unknown CLI failure
@@ -1155,11 +1189,8 @@
               <li><code>~/.dotns/uploads/ff8a98a28790c8bb.json</code></li>
             </ul>
           </div>
-          <div class="footer-note">
-            Built with <a href="https://revealjs.com">Reveal.js</a>.
-          </div>
+          <div class="footer-note">Built with <a href="https://revealjs.com">Reveal.js</a>.</div>
         </section>
-
       </div>
     </div>
 

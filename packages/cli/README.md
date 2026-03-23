@@ -190,8 +190,8 @@ dotns --password test-password bulletin upload ./image.png --account default
 # Upload directory
 dotns --password test-password bulletin upload ./dist --account default
 
-# Upload directory with concurrency control
-dotns --password test-password bulletin upload ./dist --concurrency 5 --account default
+# Upload directory with concurrency control (max: 4)
+dotns --password test-password bulletin upload ./dist --concurrency 4 --account default
 
 # Force chunked upload for large files (streams from disk, low memory)
 dotns --password test-password bulletin upload ./large-file.zip --force-chunked --chunk-size 1048576 --account default
@@ -236,8 +236,29 @@ dotns --key-uri //Alice bulletin authorize 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC9
 # With custom limits
 dotns --key-uri //Alice bulletin authorize 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty --transactions 500000 --bytes 549755813888
 
+# Force re-authorization
+dotns --key-uri //Alice bulletin authorize 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty --force
+
+# JSON output
+dotns --key-uri //Alice bulletin authorize 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty --json
+
 # Custom RPC
 dotns --key-uri //Alice bulletin authorize 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty --bulletin-rpc wss://paseo-bulletin-rpc.polkadot.io
+```
+
+### Bulletin Status
+
+Check authorization status for an account.
+
+```bash
+# Check status
+dotns bulletin status 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty
+
+# JSON output
+dotns bulletin status 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty --json
+
+# Resolve account from keystore
+dotns --password test-password bulletin status --account default
 ```
 
 ### Account Management

@@ -27,6 +27,9 @@ async function main() {
   const chunkSize = process.env.BULLETIN_CHUNK_SIZE
     ? parseInt(process.env.BULLETIN_CHUNK_SIZE, 10)
     : DEFAULT_CHUNK_SIZE_BYTES;
+  const concurrency = process.env.BULLETIN_CONCURRENCY
+    ? Math.min(4, Math.max(1, parseInt(process.env.BULLETIN_CONCURRENCY, 10)))
+    : undefined;
   const maxRetries = process.env.BULLETIN_MAX_RETRIES
     ? parseInt(process.env.BULLETIN_MAX_RETRIES, 10)
     : undefined;
@@ -43,7 +46,7 @@ async function main() {
   console.log("  mode:     ", forceChunked ? "chunked (dag-pb)" : "auto");
   console.log("  retries:  ", maxRetries ?? "default");
 
-  await ensureAccountAuthorized(rpc, signer, substrateAddress);
+  await ensureAccountAuthorized(rpc, substrateAddress);
 
   let cid: string;
 
@@ -63,6 +66,7 @@ async function main() {
       fileSize,
       substrateAddress,
       {
+        concurrency,
         maxRetries,
       },
     );
