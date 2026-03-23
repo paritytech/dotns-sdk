@@ -4,7 +4,7 @@
     <TopProgress />
     <TransactionTimeline />
 
-    <main class="transition-all duration-300">
+    <main class="transition-all duration-300 pb-12">
       <RouterView />
     </main>
 
