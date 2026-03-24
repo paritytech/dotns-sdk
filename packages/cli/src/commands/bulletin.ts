@@ -716,10 +716,11 @@ export async function uploadChunkedBlocks(
 
                 if (completedCount % concurrency === 0 || completedCount === totalChunks) {
                   const waveMs = Date.now() - waveStartTime;
-                  spinner.succeed(
-                    `Wave complete — ${completedCount}/${totalChunks} chunks` +
-                      chalk.gray(` (${(waveMs / 1000).toFixed(1)}s)`),
-                  );
+                  const waveMessage = `Wave complete — ${completedCount}/${totalChunks} chunks (${(waveMs / 1000).toFixed(1)}s)`;
+                  spinner.succeed(waveMessage);
+                  if (process.env.CI) {
+                    console.log(`[upload] ${waveMessage} | ${pct}% | ${formatBytes(throughput)}/s`);
+                  }
                   spinner = ora(
                     `${pct}% | ${formatBytes(throughput)}/s | ETA ${formatDuration(remaining)}`,
                   ).start();
@@ -814,10 +815,11 @@ export async function storeDirectory(
                 const throughput = elapsed > 0 ? uploadedBytes / elapsed : 0;
 
                 if (completedCount % concurrency === 0) {
-                  spinner.succeed(
-                    `Wave complete — ${completedCount} blocks uploaded` +
-                      chalk.gray(` (${formatBytes(throughput)}/s)`),
-                  );
+                  const waveMessage = `Wave complete — ${completedCount} blocks uploaded (${formatBytes(throughput)}/s)`;
+                  spinner.succeed(waveMessage);
+                  if (process.env.CI) {
+                    console.log(`[upload] ${waveMessage}`);
+                  }
                   spinner = ora("Merkleizing + uploading...").start();
                 } else {
                   spinner.text = `Block ${completedCount} stored (${meta.cidString.slice(0, 12)}...)`;
