@@ -27,9 +27,7 @@ import {
   fetchAccountNonce,
   createBulletinClient,
   storeBlockToBulletin,
-  storeBatchedBlocksToBulletin,
 } from "../bulletin/store";
-import type { BatchBlock } from "../bulletin/store";
 import type {
   ValidatePathResult,
   AuthorizeAccountOptions,
@@ -649,50 +647,52 @@ export async function storeCar(
       chalk.gray("  size:     ") + chalk.white(`${(totalSize / 1024 / 1024).toFixed(2)} MB`),
     );
 
-    // Batch blocks into transactions up to the 8 MB limit.
-    const MAX_BATCH_BYTES = 7 * 1024 * 1024; // leave headroom under 8 MB tx limit
-    const batches: BatchBlock[][] = [];
-    let currentBatch: BatchBlock[] = [];
-    let currentBatchBytes = 0;
-
-    for (const block of blocks) {
-      if (currentBatch.length > 0 && currentBatchBytes + block.bytes.length > MAX_BATCH_BYTES) {
-        batches.push(currentBatch);
-        currentBatch = [];
-        currentBatchBytes = 0;
-      }
-      currentBatch.push({
-        contentBytes: block.bytes,
-        contentCid: block.cidString,
-        codecValue: block.cid.code,
-        hashCodeValue: block.cid.multihash.code,
-      });
-      currentBatchBytes += block.bytes.length;
-    }
-    if (currentBatch.length > 0) {
-      batches.push(currentBatch);
-    }
-
-    console.log(chalk.gray("  batches:  ") + chalk.white(batches.length.toString()));
-
-    const storeSpinner = ora(`Storing batches (0/${batches.length})`).start();
-    let completedBatchCount = 0;
+    const WAVE_SIZE = Math.min(concurrency, 8);
+    const storeSpinner = ora(`Storing blocks (0/${blocks.length})`).start();
+    let completedBlockCount = 0;
     const sharedClient = createBulletinClient(bulletinRpc);
 
     try {
-      for (const batch of batches) {
-        await storeBatchedBlocksToBulletin({
-          rpc: bulletinRpc,
-          signer,
-          blocks: batch,
-          client: sharedClient,
-          onProgress: (status) => {
-            storeSpinner.text = `Storing batches (${completedBatchCount + 1}/${batches.length}) — ${status}`;
-          },
-        });
+      if (parallel && accountAddress) {
+        for (let waveStart = 0; waveStart < blocks.length; waveStart += WAVE_SIZE) {
+          const waveEnd = Math.min(waveStart + WAVE_SIZE, blocks.length);
+          const waveBlocks = blocks.slice(waveStart, waveEnd);
+          const startingNonce = await fetchAccountNonce(bulletinRpc, accountAddress);
 
-        completedBatchCount++;
-        storeSpinner.text = `Storing batches (${completedBatchCount}/${batches.length})`;
+          const wavePromises = waveBlocks.map((block, index) =>
+            storeBlockToBulletin({
+              rpc: bulletinRpc,
+              signer,
+              contentBytes: block.bytes,
+              contentCid: block.cidString,
+              codecValue: block.cid.code,
+              hashCodeValue: block.cid.multihash.code,
+              nonce: startingNonce + index,
+              client: sharedClient,
+              waitForFinalization: false,
+            }).then(() => {
+              completedBlockCount++;
+              storeSpinner.text = `Storing blocks (${completedBlockCount}/${blocks.length})`;
+            }),
+          );
+
+          await Promise.all(wavePromises);
+        }
+      } else {
+        for (const block of blocks) {
+          await storeBlockToBulletin({
+            rpc: bulletinRpc,
+            signer,
+            contentBytes: block.bytes,
+            contentCid: block.cidString,
+            codecValue: block.cid.code,
+            hashCodeValue: block.cid.multihash.code,
+            client: sharedClient,
+          });
+
+          completedBlockCount++;
+          storeSpinner.text = `Storing blocks (${completedBlockCount}/${blocks.length})`;
+        }
       }
     } finally {
       sharedClient.destroy();
