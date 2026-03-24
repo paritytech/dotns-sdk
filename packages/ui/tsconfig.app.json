@@ -1,6 +1,7 @@
 {
   "extends": "@vue/tsconfig/tsconfig.dom.json",
   "compilerOptions": {
+    "ignoreDeprecations": "6.0",
     "target": "ES2023",
 
     "module": "ESNext",
