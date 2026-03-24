@@ -252,6 +252,20 @@ jobs:
           echo "ipfs-cid=$CID" >> "$GITHUB_OUTPUT"
           echo "::notice::CAR file created: $(numfmt --to=iec $SIZE) — IPFS CID: $CID"
 
+      - name: Resolve upload settings
+        id: upload-settings
+        if: steps.cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          EFFECTIVE_UPLOAD_CONCURRENCY="$UPLOAD_CONCURRENCY"
+          if [[ "$MODE" == "preview" && "$EFFECTIVE_UPLOAD_CONCURRENCY" -gt 3 ]]; then
+            EFFECTIVE_UPLOAD_CONCURRENCY=3
+          fi
+          echo "upload-concurrency=$EFFECTIVE_UPLOAD_CONCURRENCY" >> "$GITHUB_OUTPUT"
+        env:
+          MODE: ${{ inputs.mode }}
+          UPLOAD_CONCURRENCY: ${{ inputs.upload-concurrency }}
+
       - name: Upload to Bulletin
         id: bulletin
         if: steps.cache.outputs.cache-hit != 'true'
@@ -260,7 +274,7 @@ jobs:
           mnemonic: ${{ secrets.bulletin-mnemonic || 'bottom drive obey lake curtain smoke basket hold race lonely fit walk' }}
           bulletin-rpc: ${{ inputs.bulletin-rpc }}
           build-path: ${{ inputs.use-car && './build.car' || './build' }}
-          upload-concurrency: ${{ inputs.upload-concurrency }}
+          upload-concurrency: ${{ steps.upload-settings.outputs.upload-concurrency }}
           max-retries: ${{ inputs.max-retries }}
           retry-delay: ${{ inputs.retry-delay }}
 

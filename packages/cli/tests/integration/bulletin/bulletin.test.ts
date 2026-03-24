@@ -395,16 +395,16 @@ function isAuthorizationSufficient(
 }
 
 describe("authorization sufficiency check", () => {
-  test("DEFAULT_AUTHORIZATION_BYTES is 500 MB", () => {
-    expect(DEFAULT_AUTHORIZATION_BYTES).toBe(BigInt(524288000));
+  test("DEFAULT_AUTHORIZATION_BYTES is 1 GB", () => {
+    expect(DEFAULT_AUTHORIZATION_BYTES).toBe(BigInt(1024 * 1024 * 1024));
   });
 
-  test("Paseo account with 196 GB passes sufficiency check against 500 MB default", () => {
+  test("Paseo account with 196 GB passes sufficiency check against 1 GB default", () => {
     const paseoExistingBytes = BigInt(196) * BigInt(1024 * 1024 * 1024);
     expect(isAuthorizationSufficient(1_000_000, paseoExistingBytes)).toBe(true);
   });
 
-  test("Paseo account would have FAILED with old 1 TB default", () => {
+  test("Paseo account would have failed with the old 1 TB default", () => {
     const oldDefaultBytes = BigInt(1099511627776);
     const paseoExistingBytes = BigInt(196) * BigInt(1024 * 1024 * 1024);
 

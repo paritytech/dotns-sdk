@@ -547,6 +547,8 @@ export type StoreContentParameters = {
   onProgress?: (status: string) => void;
   /** Optional shared client — caller owns lifecycle when provided */
   client?: PolkadotClient;
+  /** Optional timeout budget for a single store call */
+  storeTimeoutMs?: number;
   /** If false, resolve on best-block inclusion instead of finalization. Default: true */
   waitForFinalization?: boolean;
 };
@@ -612,6 +614,8 @@ export type StoreBlockParameters = {
   nonce?: number;
   /** Optional shared client — caller owns lifecycle when provided */
   client?: PolkadotClient;
+  /** Optional timeout budget for a single store call */
+  storeTimeoutMs?: number;
   /** If false, resolve on best-block inclusion instead of finalization. Default: true */
   waitForFinalization?: boolean;
 };

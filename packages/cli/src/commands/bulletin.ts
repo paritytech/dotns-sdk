@@ -16,8 +16,13 @@ import {
   verifySingleFileCid,
 } from "../bulletin/ipfs";
 import { completedBlocksFromManifest, loadManifestForResume } from "../bulletin/uploadManifest";
-import { normalizeUploadMaxRetries, runWithUploadRetries } from "../bulletin/uploadRetry";
 import {
+  isRetryableUploadError,
+  normalizeUploadMaxRetries,
+  runWithUploadRetries,
+} from "../bulletin/uploadRetry";
+import {
+  FINAL_STORE_CALL_TIMEOUT_MS,
   storeSingleFileToBulletin,
   storeChunkedFileToBulletin,
   fetchAccountNonce,
@@ -177,13 +182,16 @@ type UploadDeps = {
   onBlockStored?: (meta: BlockMetadata, completedCount: number, totalSoFar: number) => void;
 };
 
+const DIRECTORY_WAVE_RETRY_BASE_DELAYS_MS = [200, 400, 800] as const;
+const MAX_DIRECTORY_WAVE_RETRIES = 3;
+
 async function merkleizeAndUploadDirectory(
   directoryPath: string,
   deps: UploadDeps,
 ): Promise<MerkleizeDirectoryResult> {
   const WAVE_SIZE = deps.concurrency;
   let waveBuffer: WaveBlock[] = [];
-  const sharedClient = createBulletinClient(deps.rpc);
+  let sharedClient = createBulletinClient(deps.rpc);
   let completedCount = 0;
   let totalBytes = 0;
   let rootContentCid: CID | undefined;
@@ -192,56 +200,94 @@ async function merkleizeAndUploadDirectory(
   const uploadedCids = new Set<string>();
   let nextNonce = await fetchAccountNonce(deps.rpc, deps.accountAddress);
 
-  async function flushWave(retryCount = 0): Promise<void> {
+  const recreateSharedClient = () => {
+    try {
+      sharedClient.destroy();
+    } catch {
+      /* already closed */
+    }
+    sharedClient = createBulletinClient(deps.rpc);
+  };
+
+  async function flushWave(options: { isFinalWave?: boolean } = {}): Promise<void> {
     if (waveBuffer.length === 0) return;
 
     const wave = waveBuffer;
     waveBuffer = [];
+    let pendingBlocks = wave;
+    let retryCount = 0;
+    const storeTimeoutMs = options.isFinalWave ? FINAL_STORE_CALL_TIMEOUT_MS : undefined;
 
-    const startingNonce = nextNonce;
-    nextNonce += wave.length;
+    while (pendingBlocks.length > 0) {
+      const startingNonce = nextNonce;
+      nextNonce += pendingBlocks.length;
 
-    try {
-      const wavePromises = wave.map((block, i) =>
-        storeBlockToBulletin({
-          rpc: deps.rpc,
-          signer: deps.signer,
-          contentBytes: block.bytes,
-          contentCid: block.cid.toString(),
-          codecValue: block.cid.code,
-          hashCodeValue: block.cid.multihash.code,
-          nonce: startingNonce + i,
-          client: sharedClient,
-          waitForFinalization: deps.waitForFinalization,
-        }).then(() => {
-          completedCount++;
-          totalBytes += block.bytes.length;
-          deps.onBlockStored?.(
-            {
-              cidString: block.cid.toString(),
+      const results = await Promise.all(
+        pendingBlocks.map(async (block, index) => {
+          try {
+            await storeBlockToBulletin({
+              rpc: deps.rpc,
+              signer: deps.signer,
+              contentBytes: block.bytes,
+              contentCid: block.cid.toString(),
               codecValue: block.cid.code,
               hashCodeValue: block.cid.multihash.code,
-              size: block.bytes.length,
+              nonce: startingNonce + index,
+              client: sharedClient,
+              storeTimeoutMs,
+              waitForFinalization: deps.waitForFinalization,
+            });
+
+            return { block, error: null };
+          } catch (error) {
+            return { block, error };
+          }
+        }),
+      );
+
+      const retryableFailures: WaveBlock[] = [];
+
+      for (const result of results) {
+        if (!result.error) {
+          completedCount++;
+          totalBytes += result.block.bytes.length;
+          deps.onBlockStored?.(
+            {
+              cidString: result.block.cid.toString(),
+              codecValue: result.block.cid.code,
+              hashCodeValue: result.block.cid.multihash.code,
+              size: result.block.bytes.length,
             },
             completedCount,
             completedCount,
           );
-        }),
-      );
+          continue;
+        }
 
-      await Promise.all(wavePromises);
+        if (!isRetryableUploadError(result.error) || retryCount >= MAX_DIRECTORY_WAVE_RETRIES) {
+          throw result.error;
+        }
 
-      for (const block of wave) {
-        blockCache.delete(block.cid.toString());
+        retryableFailures.push(result.block);
       }
-    } catch (error) {
-      const msg = String(error);
-      if ((msg.includes("Stale") || msg.includes("AncientBirthBlock")) && retryCount < 3) {
-        nextNonce = await fetchAccountNonce(deps.rpc, deps.accountAddress);
-        waveBuffer = wave;
-        return flushWave(retryCount + 1);
+
+      if (retryableFailures.length === 0) {
+        for (const block of wave) {
+          blockCache.delete(block.cid.toString());
+        }
+        return;
       }
-      throw error;
+
+      const delayMs =
+        DIRECTORY_WAVE_RETRY_BASE_DELAYS_MS[
+          Math.min(retryCount, DIRECTORY_WAVE_RETRY_BASE_DELAYS_MS.length - 1)
+        ] ?? DIRECTORY_WAVE_RETRY_BASE_DELAYS_MS[DIRECTORY_WAVE_RETRY_BASE_DELAYS_MS.length - 1];
+
+      retryCount += 1;
+      recreateSharedClient();
+      nextNonce = await fetchAccountNonce(deps.rpc, deps.accountAddress);
+      pendingBlocks = retryableFailures;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
 
@@ -287,7 +333,7 @@ async function merkleizeAndUploadDirectory(
       rootContentCid = importedEntry.cid;
     }
 
-    await flushWave();
+    await flushWave({ isFinalWave: true });
   } finally {
     sharedClient.destroy();
     blockCache.clear();

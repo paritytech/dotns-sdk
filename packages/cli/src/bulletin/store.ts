@@ -41,6 +41,7 @@ const MAX_RETRIES_PER_CHUNK = 3;
 const RETRY_BASE_DELAYS_MS = [200, 400, 800] as const;
 const WAVE_TIMEOUT_MS = 60_000;
 const STORE_CALL_TIMEOUT_MS = 60_000;
+export const FINAL_STORE_CALL_TIMEOUT_MS = 180_000;
 const FETCH_NONCE_TIMEOUT_MS = 15_000;
 let rxUnhandledErrorGuardInstalled = false;
 
@@ -438,6 +439,7 @@ async function storeContentOnBulletin(
     nonce,
     onProgress,
     client: externalClient,
+    storeTimeoutMs = STORE_CALL_TIMEOUT_MS,
     waitForFinalization = true,
   } = parameters;
 
@@ -478,7 +480,7 @@ async function storeContentOnBulletin(
       settled = true;
       cleanup();
       reject(new Error("store-timeout"));
-    }, STORE_CALL_TIMEOUT_MS);
+    }, storeTimeoutMs);
 
     function cleanup(sub?: { unsubscribe: () => void }): void {
       clearTimeout(timeout);
@@ -873,6 +875,7 @@ export async function storeChunkedFileToBulletin(
           hashCodeValue: HASH.SHA2_256,
           nonce: nextNonce,
           client: activeClient,
+          storeTimeoutMs: FINAL_STORE_CALL_TIMEOUT_MS,
           waitForFinalization,
         });
         break;
@@ -915,6 +918,7 @@ export async function storeBlockToBulletin(
     nonce: parameters.nonce,
     client: parameters.client,
     waitForFinalization: parameters.waitForFinalization,
+    storeTimeoutMs: parameters.storeTimeoutMs,
   });
 }
 
