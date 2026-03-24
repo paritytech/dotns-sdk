@@ -34,7 +34,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bun install
+          bun install --no-frozen-lockfile
           for pkg in packages/*; do
             [ -f "$pkg/package.json" ] || continue
             grep -q '"file:' "$pkg/package.json" || continue
