@@ -809,7 +809,10 @@ describe("top-level upload retry policy", () => {
     expect(
       formatTransactionWatchFailure({
         type: "invalid",
-        dispatchError: { type: "Module", value: { type: "TransactionStorage", value: { type: "Payment" } } },
+        dispatchError: {
+          type: "Module",
+          value: { type: "TransactionStorage", value: { type: "Payment" } },
+        },
       }),
     ).toContain("Module error");
     expect(

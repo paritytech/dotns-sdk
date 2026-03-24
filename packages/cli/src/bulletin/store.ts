@@ -978,7 +978,11 @@ export type BatchBlock = {
 };
 
 export async function storeBatchToBulletin(parameters: {
-  signer: Parameters<ReturnType<ReturnType<PolkadotClient["getTypedApi"]>["tx"]["Utility"]["batch_all"]>["signSubmitAndWatch"]>[0];
+  signer: Parameters<
+    ReturnType<
+      ReturnType<PolkadotClient["getTypedApi"]>["tx"]["Utility"]["batch_all"]
+    >["signSubmitAndWatch"]
+  >[0];
   blocks: BatchBlock[];
   nonce?: number;
   client: PolkadotClient;
@@ -1019,7 +1023,11 @@ export async function storeBatchToBulletin(parameters: {
     const timeout = setTimeout(() => {
       if (settled) return;
       settled = true;
-      try { subscription?.unsubscribe(); } catch { /* */ }
+      try {
+        subscription?.unsubscribe();
+      } catch {
+        /* */
+      }
       reject(new Error("store-timeout"));
     }, storeTimeoutMs);
 
@@ -1027,7 +1035,11 @@ export async function storeBatchToBulletin(parameters: {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
-      try { subscription?.unsubscribe(); } catch { /* */ }
+      try {
+        subscription?.unsubscribe();
+      } catch {
+        /* */
+      }
       if (error) reject(error);
       else resolve({ cids });
     }
@@ -1039,12 +1051,22 @@ export async function storeBatchToBulletin(parameters: {
           if (event.type === "txBestBlocksState" && event.found) {
             if (!waitForFinalization) {
               if (event.ok) finish();
-              else finish(new Error(event.dispatchError ? formatDispatchError(event.dispatchError) : "Batch failed"));
+              else
+                finish(
+                  new Error(
+                    event.dispatchError ? formatDispatchError(event.dispatchError) : "Batch failed",
+                  ),
+                );
             }
           }
           if (event.type === "finalized") {
             if (event.ok) finish();
-            else finish(new Error(event.dispatchError ? formatDispatchError(event.dispatchError) : "Batch failed"));
+            else
+              finish(
+                new Error(
+                  event.dispatchError ? formatDispatchError(event.dispatchError) : "Batch failed",
+                ),
+              );
           }
         },
         error: (err: unknown) => finish(ensureError(err)),
