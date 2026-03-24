@@ -99,6 +99,7 @@ jobs:
       subname-format: pr-number
       artifact-name: ui-site
       register-base: false
+      cli-source: source
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
       bulletin-mnemonic: ${{ secrets.BULLETIN_MNEMONIC }}
@@ -113,6 +114,7 @@ jobs:
       mode: production
       artifact-name: ui-site
       register-base: false
+      cli-source: source
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
       bulletin-mnemonic: ${{ secrets.BULLETIN_MNEMONIC }}
