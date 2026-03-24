@@ -857,17 +857,32 @@ export async function storeChunkedFileToBulletin(
 
     parameters.onProgress?.(totalChunks, totalChunks, "storing root");
 
-    await storeContentOnBulletin({
-      rpc: parameters.rpc,
-      signer: parameters.signer,
-      contentBytes: dagPbBytes,
-      contentCid: rootCidString,
-      codecValue: CODEC.DAG_PB,
-      hashCodeValue: HASH.SHA2_256,
-      nonce: nextNonce,
-      client: activeClient,
-      waitForFinalization,
-    });
+    const ROOT_MAX_RETRIES = 5;
+    for (let rootAttempt = 1; rootAttempt <= ROOT_MAX_RETRIES; rootAttempt++) {
+      try {
+        if (rootAttempt > 1) {
+          nextNonce = await fetchAccountNonce(parameters.rpc, parameters.accountAddress);
+          recreateOwnedClient();
+        }
+        await storeContentOnBulletin({
+          rpc: parameters.rpc,
+          signer: parameters.signer,
+          contentBytes: dagPbBytes,
+          contentCid: rootCidString,
+          codecValue: CODEC.DAG_PB,
+          hashCodeValue: HASH.SHA2_256,
+          nonce: nextNonce,
+          client: activeClient,
+          waitForFinalization,
+        });
+        break;
+      } catch (rootError) {
+        if (rootAttempt === ROOT_MAX_RETRIES) throw rootError;
+        const delay = rootAttempt * 2000;
+        parameters.onProgress?.(totalChunks, totalChunks, "storing root");
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
 
     manifestState.rootCid = rootCidString;
     await persistManifest(manifestState);
