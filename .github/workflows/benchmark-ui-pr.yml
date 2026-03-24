@@ -2,6 +2,7 @@ name: Benchmark UI Build
 
 on:
   pull_request:
+    types: [opened, synchronize, ready_for_review]
     paths:
       - "packages/ui/**"
       - "package.json"
@@ -17,6 +18,7 @@ concurrency:
 
 jobs:
   benchmark:
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -59,7 +61,7 @@ jobs:
       max-retries: 5
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
-      bulletin-mnemonic: ${{ secrets.BULLETIN_MNEMONIC }}
+      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
 
   report:
     needs: [benchmark, deploy]
