@@ -83,6 +83,7 @@ jobs:
       subname: ${{ inputs.subname }}
       register-base: true
       cli-source: source
+      sdk-ref: ${{ github.head_ref || github.ref }}
       skip-cache: true
       max-retries: 5
     secrets:
