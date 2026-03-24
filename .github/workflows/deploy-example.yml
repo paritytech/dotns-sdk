@@ -14,6 +14,10 @@ permissions:
   contents: read
   pull-requests: write
 
+concurrency:
+  group: deploy-example-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Build Example

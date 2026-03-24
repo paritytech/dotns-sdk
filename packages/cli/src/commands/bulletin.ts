@@ -1,5 +1,51 @@
 import chalk from "chalk";
-import ora from "ora";
+import oraOriginal from "ora";
+
+type CISpinner = {
+  text: string;
+  start: (t?: string) => CISpinner;
+  succeed: (t?: string) => CISpinner;
+  fail: (t?: string) => CISpinner;
+  warn: (t?: string) => CISpinner;
+  stop: () => CISpinner;
+};
+
+function createCISpinner(text?: string): CISpinner {
+  if (text) console.log(`• ${text}`);
+  const self: CISpinner = {
+    set text(value: string) {
+      console.log(`  ${value}`);
+    },
+    get text() {
+      return "";
+    },
+    start(t?: string) {
+      if (t) console.log(`• ${t}`);
+      return self;
+    },
+    succeed(t?: string) {
+      if (t) console.log(`✓ ${t}`);
+      return self;
+    },
+    fail(t?: string) {
+      if (t) console.log(`✗ ${t}`);
+      return self;
+    },
+    warn(t?: string) {
+      if (t) console.log(`⚠ ${t}`);
+      return self;
+    },
+    stop() {
+      return self;
+    },
+  };
+  return self;
+}
+
+function ora(text?: string) {
+  if (process.env.CI) return createCISpinner(text) as ReturnType<typeof oraOriginal>;
+  return oraOriginal(text);
+}
 import { promises as filesystem, createReadStream } from "node:fs";
 import path from "node:path";
 import type { PolkadotClient, PolkadotSigner } from "polkadot-api";
@@ -417,9 +463,11 @@ export async function authorizeAccount(
           switch (event.type) {
             case "signed":
               spinner.text = "Authorization: signing";
+
               break;
             case "broadcasted":
               spinner.text = "Authorization: broadcasting";
+
               txHash = event.txHash;
               break;
             case "txBestBlocksState":
@@ -718,9 +766,6 @@ export async function uploadChunkedBlocks(
                   const waveMs = Date.now() - waveStartTime;
                   const waveMessage = `Wave complete — ${completedCount}/${totalChunks} chunks (${(waveMs / 1000).toFixed(1)}s)`;
                   spinner.succeed(waveMessage);
-                  if (process.env.CI) {
-                    console.log(`[upload] ${waveMessage} | ${pct}% | ${formatBytes(throughput)}/s`);
-                  }
                   spinner = ora(
                     `${pct}% | ${formatBytes(throughput)}/s | ETA ${formatDuration(remaining)}`,
                   ).start();
@@ -817,9 +862,6 @@ export async function storeDirectory(
                 if (completedCount % concurrency === 0) {
                   const waveMessage = `Wave complete — ${completedCount} blocks uploaded (${formatBytes(throughput)}/s)`;
                   spinner.succeed(waveMessage);
-                  if (process.env.CI) {
-                    console.log(`[upload] ${waveMessage}`);
-                  }
                   spinner = ora("Merkleizing + uploading...").start();
                 } else {
                   spinner.text = `Block ${completedCount} stored (${meta.cidString.slice(0, 12)}...)`;
