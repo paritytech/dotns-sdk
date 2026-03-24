@@ -639,6 +639,31 @@ export type StoreParameters = {
   onProgress?: (status: string) => void;
 };
 
+export type TraversedDirectoryFile = {
+  /** Slash-delimited relative path within the uploaded directory */
+  path: string;
+  /** Absolute filesystem path to the file on disk */
+  fullPath: string;
+};
+
+export type StreamedFileChunk = {
+  /** Zero-based chunk index */
+  index: number;
+  /** Raw bytes for this chunk */
+  bytes: Uint8Array;
+  /** Byte length of the chunk */
+  length: number;
+};
+
+export type StoredChunkReference = {
+  /** Zero-based chunk index */
+  index: number;
+  /** Content identifier for this chunk */
+  cid: string;
+  /** Byte length of the chunk */
+  length: number;
+};
+
 export type AuthSource = {
   /** BIP-39 mnemonic phrase used to derive the signing key */
   mnemonic?: string;

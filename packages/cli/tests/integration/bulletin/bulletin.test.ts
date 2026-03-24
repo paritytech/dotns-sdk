@@ -31,6 +31,7 @@ import {
   type UploadWaveChunk,
 } from "../../../src/bulletin/store";
 import {
+  isReconnectRequiredUploadError,
   isRetryableUploadError,
   normalizeUploadMaxRetries,
   runWithUploadRetries,
@@ -788,7 +789,16 @@ describe("top-level upload retry policy", () => {
   test("recognises transient Bulletin and transport failures", () => {
     expect(isRetryableUploadError(new Error("Block xyz is not pinned (stop-call)"))).toBe(true);
     expect(isRetryableUploadError(new Error("WebSocket connection reset by peer"))).toBe(true);
+    expect(isRetryableUploadError(new Error("ChainHead disjointed"))).toBe(true);
     expect(isRetryableUploadError(new Error("upload worker exited with SIGKILL"))).toBe(true);
+  });
+
+  test("routes head and connection failures through reconnect strategy", () => {
+    expect(isReconnectRequiredUploadError(new Error("ChainHead disjointed"))).toBe(true);
+    expect(isReconnectRequiredUploadError(new Error("WebSocket connection reset by peer"))).toBe(
+      true,
+    );
+    expect(isReconnectRequiredUploadError(new Error("store-timeout"))).toBe(false);
   });
 
   test("does not retry non-transient failures", () => {

@@ -24,6 +24,7 @@ const RETRYABLE_UPLOAD_ERROR_MARKERS = [
   "reset",
   "econn",
   "unavailable",
+  "chainhead disjointed",
   "rate limit",
   "stop-call",
   "not pinned",
@@ -33,6 +34,20 @@ const RETRYABLE_UPLOAD_ERROR_MARKERS = [
   "sigkill",
   "resource temporarily unavailable",
 ];
+
+const RECONNECT_REQUIRED_UPLOAD_ERROR_MARKERS = [
+  "chainhead",
+  "connection",
+  "network",
+  "socket",
+  "websocket",
+  "reset",
+  "econn",
+  "closed",
+  "disconnect",
+  "terminated",
+  "aborted",
+] as const;
 
 export type UploadRetryAttemptContext = {
   retry: number;
@@ -90,6 +105,11 @@ export function normalizeUploadMaxRetries(value: number | string | undefined): n
 export function isRetryableUploadError(error: unknown): boolean {
   const message = formatErrorMessage(error).toLowerCase();
   return RETRYABLE_UPLOAD_ERROR_MARKERS.some((marker) => message.includes(marker));
+}
+
+export function isReconnectRequiredUploadError(error: unknown): boolean {
+  const message = formatErrorMessage(error).toLowerCase();
+  return RECONNECT_REQUIRED_UPLOAD_ERROR_MARKERS.some((marker) => message.includes(marker));
 }
 
 export async function runWithUploadRetries<T>(options: RunWithUploadRetriesOptions<T>): Promise<T> {

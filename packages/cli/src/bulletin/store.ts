@@ -13,7 +13,7 @@ import {
   deleteManifest,
   saveManifest,
 } from "./uploadManifest";
-import { isRetryableUploadError } from "./uploadRetry";
+import { isReconnectRequiredUploadError, isRetryableUploadError } from "./uploadRetry";
 import type {
   HashingEnumVariant,
   StoreContentParameters,
@@ -718,6 +718,8 @@ export async function storeChunkedFileToBulletin(
       try {
         const wavePromise = runWaveWithRetries({
           waveChunks,
+          isRetryable: (error) =>
+            isRetryableUploadError(error) && !isReconnectRequiredUploadError(error),
           submitChunk: async (chunk) => {
             const nonce = waveNonces.get(chunk.index)!;
 
@@ -790,8 +792,9 @@ export async function storeChunkedFileToBulletin(
         const errorMsg = ensureError(error).message.toLowerCase();
         const isStall = errorMsg === "wave-timeout" || errorMsg.includes("store-timeout");
         const isNonceError = errorMsg.includes("stale") || errorMsg.includes("ancientbirthblock");
+        const isReconnectRequired = isReconnectRequiredUploadError(error);
 
-        if (isStall || isNonceError) {
+        if (isStall || isNonceError || isReconnectRequired) {
           recreateOwnedClient();
           nextNonce = await fetchAccountNonce(parameters.rpc, parameters.accountAddress);
           window = Math.max(ADAPTIVE_WINDOW_MIN, Math.floor(window / 2));

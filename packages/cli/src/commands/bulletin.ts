@@ -333,6 +333,8 @@ async function merkleizeAndUploadDirectory(
       rootContentCid = importedEntry.cid;
     }
 
+    recreateSharedClient();
+    nextNonce = await fetchAccountNonce(deps.rpc, deps.accountAddress);
     await flushWave({ isFinalWave: true });
   } finally {
     sharedClient.destroy();
