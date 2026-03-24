@@ -166,6 +166,8 @@ export type CommandOptions = {
   keyUri?: string;
 };
 
+export type BulletinReporterMode = "auto" | "interactive" | "stream" | "quiet";
+
 export type AccountInfo = {
   /** Account name (original, not sanitized) */
   name: string;
@@ -235,7 +237,39 @@ export type BulletinUploadOptions = {
   json: boolean;
   /** Whether to store the current upload to the local history db */
   history: boolean;
+  /** Human-readable progress reporter mode */
+  reporter?: BulletinReporterMode;
 };
+
+export type BulletinProgressPhase = "validate" | "authorize" | "upload" | "verify";
+
+export type BulletinProgressState = "start" | "update" | "success" | "warning" | "failure";
+
+export type BulletinProgressEvent = {
+  /** High-level operation currently in progress */
+  phase: BulletinProgressPhase;
+  /** Lifecycle state for the phase */
+  state: BulletinProgressState;
+  /** Human-readable message */
+  message: string;
+};
+
+export type BulletinRetryEvent = {
+  /** Retry domain label */
+  label: string;
+  /** Zero-based retry index */
+  retry: number;
+  /** Total attempts including the initial attempt */
+  totalAttempts: number;
+  /** Delay before the next attempt in milliseconds */
+  delayMs: number;
+  /** Retryable failure summary */
+  errorMessage: string;
+};
+
+export type BulletinPhaseHandler = (event: BulletinProgressEvent) => void;
+
+export type BulletinRetryHandler = (event: BulletinRetryEvent) => void;
 
 export type BulletinStoreParams = {
   /** Bulletin RPC endpoint URL */
@@ -334,6 +368,8 @@ export type AuthorizeAccountOptions = {
   bytes?: bigint;
   /** Bypass the existing authorization check and re-submit the extrinsic */
   force?: boolean;
+  /** Optional human-readable progress callback */
+  onPhase?: BulletinPhaseHandler;
 };
 
 export type AuthorizationStatus = {
@@ -383,15 +419,22 @@ export type StoreDirectoryResult = {
 export type UploadRetryOptions = {
   /** Number of retry attempts after the initial upload attempt */
   maxRetries?: number;
+  /** Callback emitted when a retryable upload error occurs */
+  onRetry?: BulletinRetryHandler;
 };
 
-export type UploadSingleBlockOptions = UploadRetryOptions;
+export type UploadSingleBlockOptions = UploadRetryOptions & {
+  /** Optional human-readable progress callback */
+  onPhase?: BulletinPhaseHandler;
+};
 
 export type UploadChunkedBlocksOptions = UploadRetryOptions & {
   /** Completed chunk metadata keyed by zero-based chunk index (resume support) */
   completedBlocks?: Map<number, UploadManifestCompletedBlock>;
   /** Maximum concurrent upload operations */
   concurrency?: number;
+  /** Optional human-readable progress callback */
+  onPhase?: BulletinPhaseHandler;
   /** Callback with adaptive scheduler state snapshots */
   onSchedulerState?: (state: UploadSchedulerState) => void;
   /** Callback emitted after each upload wave */
@@ -403,6 +446,8 @@ export type StoreDirectoryOptions = UploadRetryOptions & {
   accountAddress?: string;
   /** Maximum concurrent upload operations */
   concurrency?: number;
+  /** Optional human-readable progress callback */
+  onPhase?: BulletinPhaseHandler;
   /** Gateway URL for content resolution verification */
   verificationGateway?: string;
   /** If false, resolve on best-block inclusion instead of finalization. Default: true */

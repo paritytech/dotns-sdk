@@ -7,7 +7,10 @@ import { useBulletinStore } from "@/store/useBulletinStore";
 import { useWalletStore } from "@/store/useWalletStore";
 import Button from "@/components/ui/Button.vue";
 import TransactionStatus from "@/components/TransactionStatus.vue";
+import AuthorizeStoreModal from "@/components/modals/AuthorizeStoreModal.vue";
 import UploadApprovalStepper from "./UploadApprovalStepper.vue";
+import { useStoreAuthGuard } from "@/composables/useStoreAuthGuard";
+import { useUserStoreManager } from "@/store/useUserStoreManager";
 import { encodeForPreview } from "@/lib/preview";
 import type { TransactionResult } from "@/type";
 
@@ -26,6 +29,25 @@ const router = useRouter();
 const toast = useToast();
 const bulletinStore = useBulletinStore();
 const walletStore = useWalletStore();
+const authGuard = useStoreAuthGuard();
+const userStoreManager = useUserStoreManager();
+const cacheToStore = ref(false);
+const hasStore = ref(false);
+
+watch(
+  () => walletStore.isConnected,
+  async (connected) => {
+    if (connected && walletStore.evmAddress) {
+      const store = await userStoreManager.getUserStore(walletStore.evmAddress as `0x${string}`);
+      hasStore.value = store !== "0x0000000000000000000000000000000000000000";
+      cacheToStore.value = hasStore.value;
+    } else {
+      hasStore.value = false;
+      cacheToStore.value = false;
+    }
+  },
+  { immediate: true },
+);
 
 const isDragging = ref(false);
 const selectedFile = ref<File | null>(null);
@@ -331,6 +353,21 @@ function openFileDialog(): void {
   fileInputRef.value?.click();
 }
 
+async function executeUpload(): Promise<void> {
+  if (!selectedFile.value) return;
+
+  try {
+    const result = await bulletinStore.uploadFile(selectedFile.value, {
+      cacheToStore: cacheToStore.value,
+    });
+    emit("upload-complete", result.cid);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Upload failed";
+    toast.error("Upload failed");
+    emit("error", message);
+  }
+}
+
 async function startUpload(): Promise<void> {
   if (!selectedFile.value || !isWalletConnected.value || props.mode !== "file") return;
 
@@ -348,14 +385,7 @@ async function startUpload(): Promise<void> {
     return;
   }
 
-  try {
-    const result = await bulletinStore.uploadFile(selectedFile.value);
-    emit("upload-complete", result.cid);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Upload failed";
-    toast.error("Upload failed");
-    emit("error", message);
-  }
+  await authGuard.checkAuthAndProceed(executeUpload);
 }
 
 function handleTransactionClose(): void {
@@ -470,19 +500,20 @@ function handleTransactionClose(): void {
           </svg>
         </span>
         <div class="flex-1 text-sm leading-relaxed min-w-0">
-          <p class="font-semibold text-dot-accent mb-1">
-            Resume upload: {{ pendingUpload.fileName }}
+          <p class="font-semibold text-dot-accent mb-1 truncate" :title="pendingUpload.fileName">
+            Resume upload
           </p>
           <p class="text-dot-text-secondary">
-            {{ pendingUpload.completedChunks }} of {{ pendingUpload.totalChunks }} chunks already on
-            chain. Drop or select
-            <span class="font-medium text-dot-text-primary">{{ pendingUpload.fileName }}</span>
-            again to pick up where you left off. Completed chunks are skipped automatically.
+            <span class="font-medium text-dot-text-primary break-all">{{
+              pendingUpload.fileName.length > 40
+                ? pendingUpload.fileName.slice(0, 40) + "..."
+                : pendingUpload.fileName
+            }}</span>
+            — {{ pendingUpload.completedChunks }} of {{ pendingUpload.totalChunks }} chunks already
+            on chain. Re-select the same file to resume. Completed chunks are skipped automatically.
           </p>
           <div class="flex flex-col sm:flex-row gap-2 mt-3">
-            <Button size="sm" @click="resumePendingUpload">
-              Re-upload {{ pendingUpload.fileName }}
-            </Button>
+            <Button size="sm" @click="resumePendingUpload"> Select file to resume </Button>
             <Button size="sm" variant="secondary" @click="discardPendingUpload">
               Discard &amp; start fresh
             </Button>
@@ -704,6 +735,43 @@ function handleTransactionClose(): void {
         </div>
       </div>
 
+      <div
+        v-if="selectedFile && !bulletinStore.isUploading && isWalletConnected"
+        class="flex items-center gap-3 rounded-lg border border-dot-border bg-dot-surface px-3 py-2"
+      >
+        <button
+          type="button"
+          class="flex items-center gap-2 text-sm text-left w-full transition-colors cursor-pointer"
+          @click="cacheToStore = !cacheToStore"
+        >
+          <span
+            class="h-4 w-4 shrink-0 rounded border flex items-center justify-center transition-colors"
+            :class="
+              cacheToStore ? 'bg-dot-accent border-dot-accent' : 'border-dot-border bg-dot-surface'
+            "
+          >
+            <svg
+              v-if="cacheToStore"
+              class="h-2.5 w-2.5 text-white"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="3"
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+          </span>
+          <span class="text-dot-text-secondary">
+            Save CID to on-chain Store
+            <span v-if="!hasStore" class="text-dot-text-tertiary">(will deploy a Store)</span>
+          </span>
+        </button>
+      </div>
+
       <Button
         v-if="!bulletinStore.isUploading && bulletinStore.uploadStage !== 'done'"
         @click="startUpload"
@@ -810,6 +878,16 @@ function handleTransactionClose(): void {
       handle="Saving CID to Store"
       :transaction="transaction"
       @close="handleTransactionClose"
+    />
+
+    <AuthorizeStoreModal
+      :open="authGuard.showAuthModal.value"
+      :contracts="authGuard.authStatuses.value"
+      :loading="authGuard.authLoading.value"
+      :progress="authGuard.authProgress.value"
+      :error="authGuard.authError.value"
+      @submit="authGuard.handleAuthSubmit"
+      @close="authGuard.handleAuthClose"
     />
   </div>
 </template>

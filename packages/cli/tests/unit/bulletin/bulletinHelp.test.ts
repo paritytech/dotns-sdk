@@ -12,6 +12,7 @@ test("bulletin help shows commands and description", async () => {
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 
   expect(result.combinedOutput).toContain("Bulletin storage utilities");
+  expect(result.combinedOutput).toContain("--reporter");
   expect(result.combinedOutput).toContain("upload");
   expect(result.combinedOutput).toContain("authorize");
   expect(result.combinedOutput).toContain("status");
@@ -33,6 +34,7 @@ test("bulletin upload help shows all options", async () => {
   expect(result.combinedOutput).toContain("--force-chunked");
   expect(result.combinedOutput).toContain("--resume");
   expect(result.combinedOutput).toContain("--concurrency");
+  expect(result.combinedOutput).toContain("--reporter");
   expect(result.combinedOutput).toContain("--profile-upload");
   expect(result.combinedOutput).toContain("--profile-output");
   expect(result.combinedOutput).toContain("--print-contenthash");
@@ -64,6 +66,7 @@ test("bulletin authorize help shows all options", async () => {
   expect(result.combinedOutput).toContain("--transactions");
   expect(result.combinedOutput).toContain("--bytes");
   expect(result.combinedOutput).toContain("--force");
+  expect(result.combinedOutput).toContain("--reporter");
   expect(result.combinedOutput).toContain("--json");
 
   // Auth options are available for resolving the target address
@@ -131,6 +134,7 @@ test("bulletin status help shows all options", async () => {
   expect(result.combinedOutput).toContain("Check authorization status");
   expect(result.combinedOutput).toContain("[address]");
   expect(result.combinedOutput).toContain("--bulletin-rpc");
+  expect(result.combinedOutput).toContain("--reporter");
   expect(result.combinedOutput).toContain("--json");
   expect(result.combinedOutput).toContain("--keystore-path");
   expect(result.combinedOutput).toContain("--account");
@@ -154,6 +158,7 @@ test("bulletin verify help shows usage", async () => {
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
   expect(result.combinedOutput).toContain("Verify a CID is resolvable via IPFS gateways");
   expect(result.combinedOutput).toContain("<cid>");
+  expect(result.combinedOutput).toContain("--reporter");
   expect(result.combinedOutput).toContain("--json");
 });
 

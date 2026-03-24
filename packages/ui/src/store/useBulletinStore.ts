@@ -414,7 +414,10 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
     return { cid: cidString, length: byteLength };
   }
 
-  async function uploadFile(file: File): Promise<BulletinUploadResult> {
+  async function uploadFile(
+    file: File,
+    options: { cacheToStore?: boolean } = {},
+  ): Promise<BulletinUploadResult> {
     const walletStore = useWalletStore();
 
     resetUploadState();
@@ -490,7 +493,7 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
 
       const verified = uploadVerification.value?.resolvable ?? false;
 
-      if (verified) {
+      if (verified && options.cacheToStore) {
         setStage("caching", "Approve saving the CID to your Store", 97);
         const userStoreManager = useUserStoreManager();
         try {

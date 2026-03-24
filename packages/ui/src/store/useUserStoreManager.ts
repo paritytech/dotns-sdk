@@ -106,7 +106,11 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
       userStore.value = store;
       return store;
     } catch (error) {
-      console.warn("[UserStoreManager:getUserStore]", error);
+      const isZeroData =
+        error instanceof Error && error.message.includes("Cannot decode zero data");
+      if (!isZeroData) {
+        console.warn("[UserStoreManager:getUserStore]", error);
+      }
       userStore.value = zeroAddress;
       return zeroAddress;
     }
@@ -406,15 +410,37 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
     }
   }
 
+  async function ensureStoreDeployed(): Promise<Address> {
+    walletStore.ensureWalletConnected();
+    let store = await getUserStore(walletStore.evmAddress as Address);
+
+    if (store === zeroAddress) {
+      await deployStore();
+      store = await getUserStore(walletStore.evmAddress as Address);
+    }
+
+    if (store === zeroAddress) {
+      throw new Error("Failed to deploy Store contract.");
+    }
+
+    const statuses = await getAuthorizationStatus(store);
+    const unauthorized = statuses.filter((c) => !c.authorized);
+
+    if (unauthorized.length > 0) {
+      await batchAuthChanges(
+        store,
+        unauthorized.map((c) => ({ address: c.address, authorize: true })),
+      );
+    }
+
+    return store;
+  }
+
   async function writeCidToStore(cid: string): Promise<Hash> {
     networkStore.ensureClient();
     await abiStore.ensureAbis();
-    walletStore.ensureWalletConnected();
 
-    const store = await getUserStore(walletStore.evmAddress as Address);
-    if (store === zeroAddress) {
-      throw new Error("Store not deployed. Please deploy your Store first.");
-    }
+    const store = await ensureStoreDeployed();
 
     const key = keccak256(toHex(`${BULLETIN_CID_KEY_PREFIX}${cid}`));
     const data = encodeFunctionData({
@@ -459,6 +485,7 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
     batchAuthChanges,
     isNameInStore,
     writeNameToStore,
+    ensureStoreDeployed,
     writeCidToStore,
     deleteCidFromStore,
     getBulletinUploads,

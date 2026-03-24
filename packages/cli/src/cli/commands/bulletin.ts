@@ -6,6 +6,9 @@ import { createHash } from "node:crypto";
 import v8 from "node:v8";
 import { promises as filesystem } from "node:fs";
 import type {
+  BulletinPhaseHandler,
+  BulletinReporterMode,
+  BulletinRetryHandler,
   BulletinUploadOptions,
   CommandOptions,
   UploadProfileReport,
@@ -43,8 +46,6 @@ import {
   loadManifestForResume,
 } from "../../bulletin/uploadManifest";
 import { verifyCidWithMultipleGateways, verifyCidViaP2P } from "../../bulletin/ipfs";
-import ora from "ora";
-
 function cleanupHeliaAndExit(code: number): never {
   import("../../bulletin/heliaClient")
     .then(({ destroySharedHeliaClient }) => destroySharedHeliaClient())
@@ -67,6 +68,14 @@ import {
 } from "../../utils/constants";
 import { getJsonFlag } from "./lookup";
 import { clampChunkSizeBytes } from "../../bulletin/store";
+import {
+  createCliReporter,
+  resolveReporterMode,
+  withConsoleToStderr,
+  type CliReporter,
+  type ReporterTask,
+  type ResolvedReporterMode,
+} from "../reporter";
 
 function getMergedOptions(
   command: Command | undefined,
@@ -108,6 +117,14 @@ export type UploadProfilerOptions = {
 };
 
 const PROFILE_SAMPLE_INTERVAL_MS = 2_000;
+
+function addReporterOption(command: Command): Command {
+  return command.option(
+    "--reporter <mode>",
+    "Progress reporter: auto, interactive, stream, or quiet",
+    "auto",
+  );
+}
 
 export function createProfileFingerprint(input: string): string {
   return createHash("sha256").update(input).digest("hex").slice(0, 16);
@@ -229,14 +246,6 @@ export function createUploadProfiler(options: UploadProfilerOptions): UploadProf
     onWave: (wave: UploadWaveSummary) => {
       waves.push(wave);
       captureSample();
-      if (!options.jsonOutput) {
-        const seconds = (wave.durationMs / 1000).toFixed(1);
-        console.log(
-          chalk.gray(
-            `  wave #${wave.wave}: ${seconds}s | window=${wave.window} | retries=${wave.retries}`,
-          ),
-        );
-      }
     },
     finalize: summarizeAndWrite,
   };
@@ -294,26 +303,173 @@ export function maybeQuiet<T>(jsonOutput: boolean, callback: () => Promise<T>): 
   return jsonOutput ? withCapturedConsole(callback) : callback();
 }
 
+async function withBulletinHumanOutput<T>(
+  reporterMode: ResolvedReporterMode,
+  callback: () => Promise<T>,
+): Promise<T> {
+  if (reporterMode === "quiet") {
+    return withCapturedConsole(callback);
+  }
+
+  return withConsoleToStderr(callback);
+}
+
 async function resolveTargetAddress(
   positionalAddress: string | undefined,
   mergedOptions: any,
-  jsonOutput: boolean,
+  reporterMode: ResolvedReporterMode,
 ): Promise<string> {
   if (positionalAddress) return positionalAddress;
-  const context = await maybeQuiet(jsonOutput, () =>
+  const context = await withBulletinHumanOutput(reporterMode, () =>
     prepareContext({ ...mergedOptions, useBulletin: true }),
   );
   return context.substrateAddress;
 }
 
+function writeBulletinJson(payload: unknown): void {
+  process.stdout.write(`${JSON.stringify(payload)}\n`);
+}
+
+function writeBulletinJsonError(error: unknown): never {
+  writeBulletinJson({ error: formatErrorMessage(error) });
+  process.exit(1);
+}
+
+function createPhaseHandler(reporter: CliReporter): BulletinPhaseHandler {
+  const tasks = new Map<string, ReporterTask>();
+
+  return (event) => {
+    const key = event.phase;
+    const activeTask = tasks.get(key);
+
+    if (event.state === "start") {
+      activeTask?.stop();
+      tasks.set(key, reporter.task(event.message));
+      return;
+    }
+
+    if (event.state === "update") {
+      if (activeTask) {
+        activeTask.update(event.message);
+      } else {
+        tasks.set(key, reporter.task(event.message));
+      }
+      return;
+    }
+
+    if (event.state === "success") {
+      if (activeTask) {
+        activeTask.succeed(event.message);
+        tasks.delete(key);
+      } else {
+        reporter.success(event.message);
+      }
+      return;
+    }
+
+    if (event.state === "warning") {
+      if (activeTask) {
+        activeTask.warn(event.message);
+        tasks.delete(key);
+      } else {
+        reporter.warn(event.message);
+      }
+      return;
+    }
+
+    if (activeTask) {
+      activeTask.fail(event.message);
+      tasks.delete(key);
+      return;
+    }
+
+    reporter.fail(event.message);
+  };
+}
+
+function createRetryHandler(reporter: CliReporter): BulletinRetryHandler {
+  return ({ label, retry, totalAttempts, delayMs, errorMessage }) => {
+    reporter.warn(`${label} attempt ${retry + 1}/${totalAttempts} failed: ${errorMessage}`);
+    reporter.detail(`retrying in ${(delayMs / 1000).toFixed(delayMs >= 1000 ? 1 : 0)}s`);
+  };
+}
+
+function createChunkedUploadMonitor(
+  reporter: CliReporter,
+  phaseHandler: BulletinPhaseHandler,
+  fileSize: number,
+  chunkSizeBytes: number,
+  totalChunks: number,
+) {
+  const heartbeatIntervalMs = 15_000;
+  let latestState: UploadSchedulerState | null = null;
+  let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
+  const startedAtMs = Date.now();
+
+  const stopHeartbeat = () => {
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = undefined;
+    }
+  };
+
+  const emitHeartbeat = () => {
+    if (!latestState || latestState.inFlightChunks === 0) {
+      stopHeartbeat();
+      return;
+    }
+
+    reporter.detail(
+      `heartbeat | ${latestState.completedChunks}/${totalChunks} chunks | window=${latestState.window} | in-flight=${latestState.inFlightChunks} | bytes=${formatBytes(latestState.inFlightBytes)} | retries=${latestState.retries} | elapsed=${formatDuration((Date.now() - startedAtMs) / 1000)}`,
+    );
+  };
+
+  return {
+    onSchedulerState(state: UploadSchedulerState) {
+      latestState = state;
+
+      if (reporter.mode !== "stream") {
+        return;
+      }
+
+      if (state.inFlightChunks > 0 && !heartbeatTimer) {
+        heartbeatTimer = setInterval(emitHeartbeat, heartbeatIntervalMs);
+        heartbeatTimer.unref?.();
+      } else if (state.inFlightChunks === 0) {
+        stopHeartbeat();
+      }
+    },
+    onWave(wave: UploadWaveSummary) {
+      const completedChunks = latestState?.completedChunks ?? 0;
+      const bytesUploaded = Math.min(fileSize, completedChunks * chunkSizeBytes);
+      const throughputBytesPerSecond =
+        wave.durationMs > 0 ? (wave.succeeded * chunkSizeBytes * 1000) / wave.durationMs : 0;
+      const message =
+        `wave #${wave.wave} complete | ${completedChunks}/${totalChunks} chunks | ` +
+        `${formatBytes(bytesUploaded)}/${formatBytes(fileSize)} | ` +
+        `${(wave.durationMs / 1000).toFixed(1)}s | window=${wave.window} | retries=${wave.retries} | ` +
+        `${formatBytes(throughputBytesPerSecond)}/s`;
+
+      if (reporter.mode === "interactive") {
+        phaseHandler({ phase: "upload", state: "update", message });
+      } else {
+        reporter.line(message);
+      }
+    },
+    stop() {
+      stopHeartbeat();
+    },
+  };
+}
+
 export function attachBulletinCommands(root: Command): void {
-  const bulletinCommand = root
-    .command("bulletin")
-    .description("Bulletin storage utilities")
-    .option("--json", "Output result as JSON (suppresses all other output)", false);
+  const bulletinCommand = addReporterOption(
+    root.command("bulletin").description("Bulletin storage utilities"),
+  ).option("--json", "Write machine-readable JSON to stdout", false);
 
   addAuthOptions(bulletinCommand);
-  const authorizeCommand = bulletinCommand
+  const authorizeCommand = addReporterOption(
+    bulletinCommand
     .command("authorize [address]")
     .description("Authorize an account for Bulletin TransactionStorage")
     .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint", DEFAULT_BULLETIN_RPC)
@@ -324,13 +480,17 @@ export function attachBulletinCommands(root: Command): void {
     )
     .option("--bytes <count>", "Number of bytes to authorize", String(DEFAULT_AUTHORIZATION_BYTES))
     .option("--force", "Force re-authorization even if account appears already authorized", false)
-    .option("--json", "Output result as JSON (suppresses all other output)", false);
+    .option("--json", "Write machine-readable JSON to stdout", false),
+  );
 
   addAuthOptions(authorizeCommand).action(
     async (positionalAddress: string | undefined, options: any, command: any) => {
       try {
         const mergedOptions = getMergedOptions(command, options);
         const jsonOutput = getJsonFlag(command);
+        const reporterMode = resolveReporterMode(mergedOptions.reporter as BulletinReporterMode);
+        const reporter = createCliReporter(mergedOptions.reporter as BulletinReporterMode);
+        const onPhase = createPhaseHandler(reporter);
 
         const bulletinRpc = String(mergedOptions.bulletinRpc || DEFAULT_BULLETIN_RPC);
         const transactions = Number(
@@ -340,19 +500,15 @@ export function attachBulletinCommands(root: Command): void {
         const force = Boolean(options.force);
         const signerKeyUri = String(mergedOptions.keyUri || DEFAULT_SUDO_KEY_URI);
 
-        const resolveSpinner = jsonOutput ? null : ora("Resolving target address...").start();
         const targetAddress = await resolveTargetAddress(
           positionalAddress,
           mergedOptions,
-          jsonOutput,
+          reporterMode,
         );
-        resolveSpinner?.succeed("Target resolved");
 
-        const signerSpinner = jsonOutput ? null : ora("Loading signer keypair...").start();
-        const signerContext = await withCapturedConsole(() =>
+        const signerContext = await withBulletinHumanOutput(reporterMode, () =>
           prepareContext({ keyUri: signerKeyUri, useBulletin: true }),
         );
-        signerSpinner?.succeed("Signer ready");
 
         if (!jsonOutput) {
           console.log(chalk.blue("\n▶ Bulletin Authorize"));
@@ -363,7 +519,7 @@ export function attachBulletinCommands(root: Command): void {
           console.log(chalk.gray("  signer:       ") + chalk.yellow(signerKeyUri));
         }
 
-        await maybeQuiet(jsonOutput, () =>
+        await withBulletinHumanOutput(reporterMode, () =>
           authorizeAccount({
             rpc: bulletinRpc,
             signer: signerContext.signer,
@@ -371,22 +527,21 @@ export function attachBulletinCommands(root: Command): void {
             transactions,
             bytes,
             force,
+            onPhase,
           }),
         );
 
         if (jsonOutput) {
           const authStatus = await checkAuthorization(bulletinRpc, targetAddress);
           const expiresAt = expirationToISOString(authStatus.currentBlock, authStatus.expiration);
-          console.log(
-            JSON.stringify({
-              ok: true,
-              target: targetAddress,
-              rpc: bulletinRpc,
-              transactions,
-              bytes: bytes.toString(),
-              expiresAt,
-            }),
-          );
+          writeBulletinJson({
+            ok: true,
+            target: targetAddress,
+            rpc: bulletinRpc,
+            transactions,
+            bytes: bytes.toString(),
+            expiresAt,
+          });
         } else {
           console.log(chalk.green("\n✓ Authorization Complete"));
           console.log(chalk.gray("  The account can now upload to Bulletin.\n"));
@@ -398,8 +553,7 @@ export function attachBulletinCommands(root: Command): void {
         const jsonOutput = getJsonFlag(command);
 
         if (jsonOutput) {
-          console.error(JSON.stringify({ error: errorMessage }));
-          process.exit(1);
+          writeBulletinJsonError(errorMessage);
         }
 
         if (errorMessage.includes("AlreadyAuthorized")) {
@@ -428,7 +582,8 @@ export function attachBulletinCommands(root: Command): void {
     },
   );
 
-  const uploadCommand = bulletinCommand
+  const uploadCommand = addReporterOption(
+    bulletinCommand
     .command("upload <path>")
     .description("Upload a file or directory to Bulletin and print the resulting CID")
     .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint", DEFAULT_BULLETIN_RPC)
@@ -449,7 +604,8 @@ export function attachBulletinCommands(root: Command): void {
     .option("--profile-upload", "Enable upload profiling and write a JSON report", false)
     .option("--profile-output <path>", "Path to write upload profiling JSON report")
     .option("--no-history", "Do not save upload to history", true)
-    .option("--json", "Output result as JSON (suppresses all other output)", false);
+    .option("--json", "Write machine-readable JSON to stdout", false),
+  );
 
   addAuthOptions(uploadCommand).action(
     async (
@@ -460,6 +616,10 @@ export function attachBulletinCommands(root: Command): void {
       try {
         const mergedOptions = getMergedOptions(command, options);
         const jsonOutput = getJsonFlag(command);
+        const reporterMode = resolveReporterMode(mergedOptions.reporter as BulletinReporterMode);
+        const reporter = createCliReporter(mergedOptions.reporter as BulletinReporterMode);
+        const onPhase = createPhaseHandler(reporter);
+        const onRetry = createRetryHandler(reporter);
 
         if (mergedOptions.mnemonic && mergedOptions.keyUri) {
           throw new Error("Cannot specify both --mnemonic and --key-uri");
@@ -467,7 +627,9 @@ export function attachBulletinCommands(root: Command): void {
 
         await cleanupStaleManifests();
 
-        const validatedPath = await maybeQuiet(jsonOutput, () => validateAndReadPath(inputPath));
+        const validatedPath = await withBulletinHumanOutput(reporterMode, () =>
+          validateAndReadPath(inputPath, onPhase),
+        );
         const { bytes, isDirectory, resolvedPath, fileSize, fileMtimeMs } = validatedPath;
 
         const bulletinRpc = String(mergedOptions.bulletinRpc || DEFAULT_BULLETIN_RPC);
@@ -500,30 +662,22 @@ export function attachBulletinCommands(root: Command): void {
             manifestLoadResult.manifest.completedBlocks.length > 0
           ) {
             resumedBlocks = completedBlocksFromManifest(manifestLoadResult.manifest);
-            if (!jsonOutput) {
-              console.log(
-                chalk.yellow(
-                  `  resuming: ${manifestLoadResult.manifest.completedBlocks.length} blocks already uploaded`,
-                ),
-              );
-            }
+            reporter.warn(
+              `resuming: ${manifestLoadResult.manifest.completedBlocks.length} blocks already uploaded`,
+            );
           } else if (manifestLoadResult.staleManifest) {
-            if (!jsonOutput) {
-              console.log(
-                chalk.yellow(
-                  "  resume notice: file fingerprint changed, starting a fresh upload manifest",
-                ),
-              );
-            }
+            reporter.warn(
+              "resume notice: file fingerprint changed, starting a fresh upload manifest",
+            );
             await deleteManifest(manifestLoadResult.staleManifest);
           }
         }
 
-        const context = await maybeQuiet(jsonOutput, () =>
+        const context = await withBulletinHumanOutput(reporterMode, () =>
           prepareContext({ ...mergedOptions, useBulletin: true }),
         );
 
-        const authInfo = await maybeQuiet(jsonOutput, () =>
+        const authInfo = await withBulletinHumanOutput(reporterMode, () =>
           ensureAccountAuthorized(bulletinRpc, context.substrateAddress),
         );
 
@@ -544,6 +698,19 @@ export function attachBulletinCommands(root: Command): void {
               jsonOutput,
             })
           : undefined;
+        const totalChunks = shouldUseChunkedUpload
+          ? Math.ceil(effectiveFileSize / chunkSizeBytes)
+          : undefined;
+        const chunkedMonitor =
+          shouldUseChunkedUpload && totalChunks
+            ? createChunkedUploadMonitor(
+                reporter,
+                onPhase,
+                effectiveFileSize,
+                chunkSizeBytes,
+                totalChunks,
+              )
+            : null;
 
         const performUpload = async () => {
           if (isDirectory) {
@@ -551,6 +718,8 @@ export function attachBulletinCommands(root: Command): void {
               concurrency,
               accountAddress: context.substrateAddress,
               maxRetries,
+              onPhase,
+              onRetry,
               waitForFinalization: false,
             });
             return { cid: result.storageCid, ipfsCid: result.ipfsCid, size: 0 };
@@ -568,8 +737,16 @@ export function attachBulletinCommands(root: Command): void {
                 completedBlocks: resumedBlocks,
                 concurrency,
                 maxRetries,
-                onSchedulerState: profiler?.onSchedulerState,
-                onWave: profiler?.onWave,
+                onPhase,
+                onRetry,
+                onSchedulerState: (state) => {
+                  profiler?.onSchedulerState(state);
+                  chunkedMonitor?.onSchedulerState(state);
+                },
+                onWave: (wave) => {
+                  profiler?.onWave(wave);
+                  chunkedMonitor?.onWave(wave);
+                },
               },
             );
             return { cid: result, ipfsCid: result, size: effectiveFileSize };
@@ -577,6 +754,8 @@ export function attachBulletinCommands(root: Command): void {
 
           const result = await uploadSingleBlock(bulletinRpc, context.signer, bytes, {
             maxRetries,
+            onPhase,
+            onRetry,
           });
           return { cid: result, ipfsCid: result, size: bytes.length };
         };
@@ -588,24 +767,15 @@ export function attachBulletinCommands(root: Command): void {
         let profileReport: UploadProfileReport | undefined;
         const uploadStartedAtMs = Date.now();
         const uploadStartedAtIso = new Date(uploadStartedAtMs).toISOString();
+        const pathBasename = resolvedPath.split("/").pop() ?? resolvedPath;
 
-        if (jsonOutput) {
-          const uploadResult = await withCapturedConsole(performUpload);
-          cid = uploadResult.cid;
-          ipfsCid = uploadResult.ipfsCid;
-          uploadSize = uploadResult.size;
-        } else {
-          const pathBasename = resolvedPath.split("/").pop() ?? resolvedPath;
+        if (authInfo?.expiration && authInfo.currentBlock) {
+          reporter.detail(
+            `auth: valid (expires ${formatExpirationDisplay(authInfo.currentBlock, authInfo.expiration)})`,
+          );
+        }
 
-          if (authInfo?.expiration && authInfo.currentBlock) {
-            console.log(
-              chalk.gray("  auth:     ") +
-                chalk.white(
-                  `valid (expires ${formatExpirationDisplay(authInfo.currentBlock, authInfo.expiration)})`,
-                ),
-            );
-          }
-
+        if (!jsonOutput) {
           if (isDirectory) {
             console.log(chalk.blue(`\n▶ Uploading directory: ${pathBasename}`));
             console.log(chalk.gray("  path:        ") + chalk.white(resolvedPath));
@@ -614,10 +784,8 @@ export function attachBulletinCommands(root: Command): void {
               chalk.gray("  concurrency: ") + chalk.white(`${concurrency}x parallel waves`),
             );
           } else if (shouldUseChunkedUpload) {
-            const effectiveSize = fileSize ?? bytes.length;
-            const totalChunks = Math.ceil(effectiveSize / chunkSizeBytes);
             console.log(
-              chalk.blue(`\n▶ Uploading file: ${pathBasename} (${formatBytes(effectiveSize)})`),
+              chalk.blue(`\n▶ Uploading file: ${pathBasename} (${formatBytes(effectiveFileSize)})`),
             );
             console.log(chalk.gray("  path:        ") + chalk.white(resolvedPath));
             console.log(chalk.gray("  rpc:         ") + chalk.white(bulletinRpc));
@@ -635,11 +803,15 @@ export function attachBulletinCommands(root: Command): void {
             console.log(chalk.gray("  rpc:         ") + chalk.white(bulletinRpc));
             console.log(chalk.gray("  mode:        ") + chalk.white("single block"));
           }
+        }
 
-          const uploadResult = await performUpload();
+        try {
+          const uploadResult = await withBulletinHumanOutput(reporterMode, performUpload);
           cid = uploadResult.cid;
           ipfsCid = uploadResult.ipfsCid;
           uploadSize = uploadResult.size;
+        } finally {
+          chunkedMonitor?.stop();
         }
 
         const uploadFinishedAtMs = Date.now();
@@ -666,21 +838,19 @@ export function attachBulletinCommands(root: Command): void {
 
         if (jsonOutput) {
           const authExpiresAt = expirationToISOString(authInfo?.currentBlock, authInfo?.expiration);
-          console.log(
-            JSON.stringify({
-              cid: ipfsCid,
-              contenthash,
-              preview: previewUrl,
-              path: resolvedPath,
-              type: isDirectory ? "directory" : "file",
-              size: uploadSize,
-              authorizationExpiresAt: authExpiresAt,
-              uploadStartedAtIso,
-              uploadFinishedAtIso,
-              totalUploadTimeMs,
-              totalUploadTimeSeconds,
-            }),
-          );
+          writeBulletinJson({
+            cid: ipfsCid,
+            contenthash: `0x${contenthash}`,
+            preview: previewUrl,
+            path: resolvedPath,
+            type: isDirectory ? "directory" : "file",
+            size: uploadSize,
+            authorizationExpiresAt: authExpiresAt,
+            uploadStartedAtIso,
+            uploadFinishedAtIso,
+            totalUploadTimeMs,
+            totalUploadTimeSeconds,
+          });
         } else {
           console.log(chalk.gray("\n  cid:         ") + chalk.cyan(ipfsCid));
           console.log(chalk.gray("  preview:     ") + chalk.blue(previewUrl));
@@ -723,8 +893,7 @@ export function attachBulletinCommands(root: Command): void {
         const jsonOutput = getJsonFlag(command);
 
         if (jsonOutput) {
-          console.error(JSON.stringify({ error: errorMessage }));
-          process.exit(1);
+          writeBulletinJsonError(errorMessage);
         }
 
         console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
@@ -733,43 +902,43 @@ export function attachBulletinCommands(root: Command): void {
     },
   );
 
-  const statusCommand = bulletinCommand
+  const statusCommand = addReporterOption(
+    bulletinCommand
     .command("status [address]")
     .description("Check authorization status for an account on Bulletin")
     .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint", DEFAULT_BULLETIN_RPC)
-    .option("--json", "Output result as JSON (suppresses all other output)", false);
+    .option("--json", "Write machine-readable JSON to stdout", false),
+  );
 
   addAuthOptions(statusCommand).action(
     async (positionalAddress: string | undefined, options: any, command: any) => {
       try {
         const mergedOptions = getMergedOptions(command, options);
         const jsonOutput = getJsonFlag(command);
+        const reporterMode = resolveReporterMode(mergedOptions.reporter as BulletinReporterMode);
+        const reporter = createCliReporter(mergedOptions.reporter as BulletinReporterMode);
         const bulletinRpc = String(mergedOptions.bulletinRpc || DEFAULT_BULLETIN_RPC);
 
-        const resolveSpinner = jsonOutput ? null : ora("Resolving account...").start();
         const targetAddress = await resolveTargetAddress(
           positionalAddress,
           mergedOptions,
-          jsonOutput,
+          reporterMode,
         );
-        resolveSpinner?.succeed("Account resolved");
 
-        const statusSpinner = jsonOutput ? null : ora("Checking authorization...").start();
+        const statusTask = reporter.task("Checking authorization");
         const authStatus = await checkAuthorization(bulletinRpc, targetAddress);
-        statusSpinner?.stop();
+        statusTask.succeed("Authorization status read");
 
         if (jsonOutput) {
-          console.log(
-            JSON.stringify({
-              address: targetAddress,
-              rpc: bulletinRpc,
-              authorized: authStatus.authorized,
-              expired: authStatus.expired ?? false,
-              transactions: authStatus.transactions ?? 0,
-              bytes: (authStatus.bytes ?? BigInt(0)).toString(),
-              expiresAt: expirationToISOString(authStatus.currentBlock, authStatus.expiration),
-            }),
-          );
+          writeBulletinJson({
+            address: targetAddress,
+            rpc: bulletinRpc,
+            authorized: authStatus.authorized,
+            expired: authStatus.expired ?? false,
+            transactions: authStatus.transactions ?? 0,
+            bytes: (authStatus.bytes ?? BigInt(0)).toString(),
+            expiresAt: expirationToISOString(authStatus.currentBlock, authStatus.expiration),
+          });
         } else {
           console.log(chalk.blue("\n▶ Bulletin Authorization Status"));
           console.log(chalk.gray("  account:      ") + chalk.cyan(targetAddress));
@@ -822,21 +991,22 @@ export function attachBulletinCommands(root: Command): void {
         const jsonOutput = getJsonFlag(command);
 
         if (jsonOutput) {
-          console.error(JSON.stringify({ error: errorMessage }));
+          writeBulletinJsonError(errorMessage);
         } else {
           console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
+          process.exit(1);
         }
-
-        process.exit(1);
       }
     },
   );
 
-  const historyCommand = bulletinCommand
+  const historyCommand = addReporterOption(
+    bulletinCommand
     .command("history")
     .alias("list")
     .description("List all uploaded CIDs")
-    .option("--json", "Output result as JSON (suppresses all other output)", false);
+    .option("--json", "Write machine-readable JSON to stdout", false),
+  );
 
   historyCommand.action(async (_options: any, command: any) => {
     try {
@@ -844,7 +1014,7 @@ export function attachBulletinCommands(root: Command): void {
       const history = await readHistory();
 
       if (jsonOutput) {
-        console.log(JSON.stringify(history, null, 2));
+        writeBulletinJson(history);
         process.exit(0);
       }
 
@@ -878,8 +1048,7 @@ export function attachBulletinCommands(root: Command): void {
       const jsonOutput = getJsonFlag(command);
 
       if (jsonOutput) {
-        console.error(JSON.stringify({ error: formatErrorMessage(error) }));
-        process.exit(1);
+        writeBulletinJsonError(error);
       }
 
       console.error(chalk.red(`\n✗ Error: ${formatErrorMessage(error)}\n`));
@@ -907,10 +1076,11 @@ export function attachBulletinCommands(root: Command): void {
       }
     });
 
-  bulletinCommand
+  addReporterOption(
+    bulletinCommand
     .command("history:clear")
     .description("Clear all upload history")
-    .action(async () => {
+  ).action(async () => {
       try {
         const count = await clearHistory();
         const historyPath = getHistoryPath();
@@ -925,13 +1095,17 @@ export function attachBulletinCommands(root: Command): void {
       }
     });
 
-  bulletinCommand
+  addReporterOption(
+    bulletinCommand
     .command("verify <cid>")
     .description("Verify a CID is resolvable via IPFS gateways")
-    .option("--json", "Output result as JSON (suppresses all other output)", false)
+    .option("--json", "Write machine-readable JSON to stdout", false),
+  )
     .action(async (cid: string, options: any, command: any) => {
+      const mergedOptions = getMergedOptions(command, options);
       const jsonOutput = getJsonFlag(command) || Boolean(options.json);
-      const p2pSpinner = jsonOutput ? null : ora();
+      const reporter = createCliReporter(mergedOptions.reporter as BulletinReporterMode);
+      const p2pTask = reporter.task("Connecting to Bulletin P2P");
 
       try {
         if (!jsonOutput) {
@@ -939,22 +1113,19 @@ export function attachBulletinCommands(root: Command): void {
           console.log(chalk.gray("  cid: ") + chalk.cyan(cid));
         }
 
-        p2pSpinner?.start("Connecting to Bulletin P2P...");
         const p2pResult = await verifyCidViaP2P(cid);
 
         if (p2pResult.resolvable) {
-          p2pSpinner?.succeed("CID verified via P2P (bitswap)");
+          p2pTask.succeed("CID verified via P2P (bitswap)");
 
-          if (jsonOutput) {
-            console.log(
-              JSON.stringify({
-                cid,
-                resolvable: true,
-                method: "p2p",
-                gateways: [{ gateway: "p2p/bitswap", resolvable: true }],
-              }),
-            );
-          } else {
+        if (jsonOutput) {
+          writeBulletinJson({
+            cid,
+            resolvable: true,
+            method: "p2p",
+            gateways: [{ gateway: "p2p/bitswap", resolvable: true }],
+          });
+        } else {
             console.log(chalk.gray("  ✓ ") + chalk.white("p2p/bitswap"));
             console.log();
           }
@@ -962,9 +1133,9 @@ export function attachBulletinCommands(root: Command): void {
           cleanupHeliaAndExit(0);
         }
 
-        p2pSpinner?.warn("P2P verification failed, falling back to gateways");
+        p2pTask.warn("P2P verification failed, falling back to gateways");
 
-        const gatewaySpinner = jsonOutput ? null : ora("Checking IPFS gateways...").start();
+        const gatewayTask = reporter.task("Checking IPFS gateways");
         const results = await verifyCidWithMultipleGateways(cid);
         const resolvableGateways: string[] = [];
         const failedGateways: string[] = [];
@@ -984,24 +1155,22 @@ export function attachBulletinCommands(root: Command): void {
             statusCode: result.statusCode,
             errorMessage: result.errorMessage,
           }));
-          console.log(
-            JSON.stringify({
-              cid,
-              resolvable: resolvableGateways.length > 0,
-              method: resolvableGateways.length > 0 ? "gateway" : "none",
-              gateways: entries,
-            }),
-          );
+          writeBulletinJson({
+            cid,
+            resolvable: resolvableGateways.length > 0,
+            method: resolvableGateways.length > 0 ? "gateway" : "none",
+            gateways: entries,
+          });
           cleanupHeliaAndExit(resolvableGateways.length > 0 ? 0 : 1);
         }
 
         if (resolvableGateways.length > 0) {
-          gatewaySpinner?.succeed(`CID resolvable on ${resolvableGateways.length} gateway(s)`);
+          gatewayTask.succeed(`CID resolvable on ${resolvableGateways.length} gateway(s)`);
           for (const gw of resolvableGateways) {
             console.log(chalk.gray("  ✓ ") + chalk.white(gw));
           }
         } else {
-          gatewaySpinner?.fail("CID not resolvable on any gateway");
+          gatewayTask.fail("CID not resolvable on any gateway");
         }
 
         if (failedGateways.length > 0 && resolvableGateways.length > 0) {
@@ -1013,14 +1182,14 @@ export function attachBulletinCommands(root: Command): void {
         console.log();
         cleanupHeliaAndExit(resolvableGateways.length > 0 ? 0 : 1);
       } catch (error) {
-        p2pSpinner?.fail("Verification failed");
+        p2pTask.fail("Verification failed");
         const errorMessage = formatErrorMessage(error);
         if (jsonOutput) {
-          console.error(JSON.stringify({ error: errorMessage }));
+          writeBulletinJsonError(errorMessage);
         } else {
           console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
+          cleanupHeliaAndExit(1);
         }
-        cleanupHeliaAndExit(1);
       }
     });
 }
