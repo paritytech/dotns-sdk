@@ -3,10 +3,6 @@ name: Deploy Benchmarks
 on:
   workflow_dispatch:
 
-concurrency:
-  group: bulletin-upload-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
 jobs:
   config:
     runs-on: ubuntu-latest
