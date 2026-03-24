@@ -605,9 +605,7 @@ export async function uploadSingleBlock(
           const verifySpinner = ora("Connecting to Bulletin P2P...").start();
           const verificationResult = await verifySingleFileCid(storeResult.cid);
           if (verificationResult.resolvable) {
-            verifySpinner.succeed(
-              `CID verified via ${verificationResult.gateway}`,
-            );
+            verifySpinner.succeed(`CID verified via ${verificationResult.gateway}`);
           } else {
             verifySpinner.warn("Could not verify CID");
           }

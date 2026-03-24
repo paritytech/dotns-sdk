@@ -43,7 +43,10 @@ async function collectAsyncBytes(
 ): Promise<Uint8Array> {
   const chunks: Uint8Array[] = [];
   const timeout = new Promise<never>((_, reject) => {
-    setTimeout(() => reject(new Error(`P2P fetch timed out after ${timeoutMs / 1000}s`)), timeoutMs);
+    setTimeout(
+      () => reject(new Error(`P2P fetch timed out after ${timeoutMs / 1000}s`)),
+      timeoutMs,
+    );
   });
 
   const iterator = (source as AsyncIterable<Uint8Array>)[Symbol.asyncIterator]();

@@ -996,9 +996,7 @@ export function attachBulletinCommands(root: Command): void {
         }
 
         if (resolvableGateways.length > 0) {
-          gatewaySpinner?.succeed(
-            `CID resolvable on ${resolvableGateways.length} gateway(s)`,
-          );
+          gatewaySpinner?.succeed(`CID resolvable on ${resolvableGateways.length} gateway(s)`);
           for (const gw of resolvableGateways) {
             console.log(chalk.gray("  ✓ ") + chalk.white(gw));
           }

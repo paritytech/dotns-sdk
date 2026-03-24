@@ -1,15 +1,7 @@
 name: Deploy Sized Examples
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - "examples/deploy/**"
-      - "packages/cli/**"
-      - ".github/workflows/deploy-sized-examples.yml"
-      - ".github/workflows/deploy-sized-benchmark-entry.yml"
-      - ".github/workflows/deploy.yml"
-      - ".github/actions/**"
+  workflow_dispatch:
 
 permissions:
   contents: read
