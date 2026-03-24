@@ -470,17 +470,21 @@ export function attachBulletinCommands(root: Command): void {
   addAuthOptions(bulletinCommand);
   const authorizeCommand = addReporterOption(
     bulletinCommand
-    .command("authorize [address]")
-    .description("Authorize an account for Bulletin TransactionStorage")
-    .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint", DEFAULT_BULLETIN_RPC)
-    .option(
-      "--transactions <count>",
-      "Number of transactions to authorize",
-      String(DEFAULT_AUTHORIZATION_TRANSACTIONS),
-    )
-    .option("--bytes <count>", "Number of bytes to authorize", String(DEFAULT_AUTHORIZATION_BYTES))
-    .option("--force", "Force re-authorization even if account appears already authorized", false)
-    .option("--json", "Write machine-readable JSON to stdout", false),
+      .command("authorize [address]")
+      .description("Authorize an account for Bulletin TransactionStorage")
+      .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint", DEFAULT_BULLETIN_RPC)
+      .option(
+        "--transactions <count>",
+        "Number of transactions to authorize",
+        String(DEFAULT_AUTHORIZATION_TRANSACTIONS),
+      )
+      .option(
+        "--bytes <count>",
+        "Number of bytes to authorize",
+        String(DEFAULT_AUTHORIZATION_BYTES),
+      )
+      .option("--force", "Force re-authorization even if account appears already authorized", false)
+      .option("--json", "Write machine-readable JSON to stdout", false),
   );
 
   addAuthOptions(authorizeCommand).action(
@@ -584,27 +588,27 @@ export function attachBulletinCommands(root: Command): void {
 
   const uploadCommand = addReporterOption(
     bulletinCommand
-    .command("upload <path>")
-    .description("Upload a file or directory to Bulletin and print the resulting CID")
-    .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint", DEFAULT_BULLETIN_RPC)
-    .option(
-      "--chunk-size <bytes>",
-      "Chunk size for large uploads (clamped to 256 KB–2 MB)",
-      String(DEFAULT_CHUNK_SIZE_BYTES),
-    )
-    .option(
-      "--max-retries <n>",
-      "Retry transient upload failures (default: 5, capped at 20)",
-      String(DEFAULT_UPLOAD_MAX_RETRIES),
-    )
-    .option("--force-chunked", "Force chunked upload (DAG-PB)", false)
-    .option("--concurrency <n>", "Adaptive scheduler max window (default: 4, max: 4)", "4")
-    .option("--print-contenthash", "Also print 0x-prefixed IPFS contenthash for the CID", false)
-    .option("--resume", "Resume a previously interrupted upload", false)
-    .option("--profile-upload", "Enable upload profiling and write a JSON report", false)
-    .option("--profile-output <path>", "Path to write upload profiling JSON report")
-    .option("--no-history", "Do not save upload to history", true)
-    .option("--json", "Write machine-readable JSON to stdout", false),
+      .command("upload <path>")
+      .description("Upload a file or directory to Bulletin and print the resulting CID")
+      .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint", DEFAULT_BULLETIN_RPC)
+      .option(
+        "--chunk-size <bytes>",
+        "Chunk size for large uploads (clamped to 256 KB–2 MB)",
+        String(DEFAULT_CHUNK_SIZE_BYTES),
+      )
+      .option(
+        "--max-retries <n>",
+        "Retry transient upload failures (default: 5, capped at 20)",
+        String(DEFAULT_UPLOAD_MAX_RETRIES),
+      )
+      .option("--force-chunked", "Force chunked upload (DAG-PB)", false)
+      .option("--concurrency <n>", "Adaptive scheduler max window (default: 4, max: 4)", "4")
+      .option("--print-contenthash", "Also print 0x-prefixed IPFS contenthash for the CID", false)
+      .option("--resume", "Resume a previously interrupted upload", false)
+      .option("--profile-upload", "Enable upload profiling and write a JSON report", false)
+      .option("--profile-output <path>", "Path to write upload profiling JSON report")
+      .option("--no-history", "Do not save upload to history", true)
+      .option("--json", "Write machine-readable JSON to stdout", false),
   );
 
   addAuthOptions(uploadCommand).action(
@@ -904,10 +908,10 @@ export function attachBulletinCommands(root: Command): void {
 
   const statusCommand = addReporterOption(
     bulletinCommand
-    .command("status [address]")
-    .description("Check authorization status for an account on Bulletin")
-    .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint", DEFAULT_BULLETIN_RPC)
-    .option("--json", "Write machine-readable JSON to stdout", false),
+      .command("status [address]")
+      .description("Check authorization status for an account on Bulletin")
+      .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint", DEFAULT_BULLETIN_RPC)
+      .option("--json", "Write machine-readable JSON to stdout", false),
   );
 
   addAuthOptions(statusCommand).action(
@@ -1002,10 +1006,10 @@ export function attachBulletinCommands(root: Command): void {
 
   const historyCommand = addReporterOption(
     bulletinCommand
-    .command("history")
-    .alias("list")
-    .description("List all uploaded CIDs")
-    .option("--json", "Write machine-readable JSON to stdout", false),
+      .command("history")
+      .alias("list")
+      .description("List all uploaded CIDs")
+      .option("--json", "Write machine-readable JSON to stdout", false),
   );
 
   historyCommand.action(async (_options: any, command: any) => {
@@ -1077,46 +1081,43 @@ export function attachBulletinCommands(root: Command): void {
     });
 
   addReporterOption(
-    bulletinCommand
-    .command("history:clear")
-    .description("Clear all upload history")
+    bulletinCommand.command("history:clear").description("Clear all upload history"),
   ).action(async () => {
-      try {
-        const count = await clearHistory();
-        const historyPath = getHistoryPath();
+    try {
+      const count = await clearHistory();
+      const historyPath = getHistoryPath();
 
-        console.log(chalk.green(`\n✓ Cleared ${count} upload(s) from history`));
-        console.log(chalk.gray(`  ${historyPath}\n`));
+      console.log(chalk.green(`\n✓ Cleared ${count} upload(s) from history`));
+      console.log(chalk.gray(`  ${historyPath}\n`));
 
-        process.exit(0);
-      } catch (error) {
-        console.error(chalk.red(`\n✗ Error: ${formatErrorMessage(error)}\n`));
-        process.exit(1);
-      }
-    });
+      process.exit(0);
+    } catch (error) {
+      console.error(chalk.red(`\n✗ Error: ${formatErrorMessage(error)}\n`));
+      process.exit(1);
+    }
+  });
 
   addReporterOption(
     bulletinCommand
-    .command("verify <cid>")
-    .description("Verify a CID is resolvable via IPFS gateways")
-    .option("--json", "Write machine-readable JSON to stdout", false),
-  )
-    .action(async (cid: string, options: any, command: any) => {
-      const mergedOptions = getMergedOptions(command, options);
-      const jsonOutput = getJsonFlag(command) || Boolean(options.json);
-      const reporter = createCliReporter(mergedOptions.reporter as BulletinReporterMode);
-      const p2pTask = reporter.task("Connecting to Bulletin P2P");
+      .command("verify <cid>")
+      .description("Verify a CID is resolvable via IPFS gateways")
+      .option("--json", "Write machine-readable JSON to stdout", false),
+  ).action(async (cid: string, options: any, command: any) => {
+    const mergedOptions = getMergedOptions(command, options);
+    const jsonOutput = getJsonFlag(command) || Boolean(options.json);
+    const reporter = createCliReporter(mergedOptions.reporter as BulletinReporterMode);
+    const p2pTask = reporter.task("Connecting to Bulletin P2P");
 
-      try {
-        if (!jsonOutput) {
-          console.log(chalk.blue("\n▶ Verifying CID"));
-          console.log(chalk.gray("  cid: ") + chalk.cyan(cid));
-        }
+    try {
+      if (!jsonOutput) {
+        console.log(chalk.blue("\n▶ Verifying CID"));
+        console.log(chalk.gray("  cid: ") + chalk.cyan(cid));
+      }
 
-        const p2pResult = await verifyCidViaP2P(cid);
+      const p2pResult = await verifyCidViaP2P(cid);
 
-        if (p2pResult.resolvable) {
-          p2pTask.succeed("CID verified via P2P (bitswap)");
+      if (p2pResult.resolvable) {
+        p2pTask.succeed("CID verified via P2P (bitswap)");
 
         if (jsonOutput) {
           writeBulletinJson({
@@ -1126,70 +1127,70 @@ export function attachBulletinCommands(root: Command): void {
             gateways: [{ gateway: "p2p/bitswap", resolvable: true }],
           });
         } else {
-            console.log(chalk.gray("  ✓ ") + chalk.white("p2p/bitswap"));
-            console.log();
-          }
-
-          cleanupHeliaAndExit(0);
+          console.log(chalk.gray("  ✓ ") + chalk.white("p2p/bitswap"));
+          console.log();
         }
 
-        p2pTask.warn("P2P verification failed, falling back to gateways");
+        cleanupHeliaAndExit(0);
+      }
 
-        const gatewayTask = reporter.task("Checking IPFS gateways");
-        const results = await verifyCidWithMultipleGateways(cid);
-        const resolvableGateways: string[] = [];
-        const failedGateways: string[] = [];
+      p2pTask.warn("P2P verification failed, falling back to gateways");
 
-        for (const [gateway, result] of results) {
-          if (result.resolvable) {
-            resolvableGateways.push(gateway);
-          } else {
-            failedGateways.push(gateway);
-          }
-        }
+      const gatewayTask = reporter.task("Checking IPFS gateways");
+      const results = await verifyCidWithMultipleGateways(cid);
+      const resolvableGateways: string[] = [];
+      const failedGateways: string[] = [];
 
-        if (jsonOutput) {
-          const entries = Array.from(results.entries()).map(([gateway, result]) => ({
-            gateway,
-            resolvable: result.resolvable,
-            statusCode: result.statusCode,
-            errorMessage: result.errorMessage,
-          }));
-          writeBulletinJson({
-            cid,
-            resolvable: resolvableGateways.length > 0,
-            method: resolvableGateways.length > 0 ? "gateway" : "none",
-            gateways: entries,
-          });
-          cleanupHeliaAndExit(resolvableGateways.length > 0 ? 0 : 1);
-        }
-
-        if (resolvableGateways.length > 0) {
-          gatewayTask.succeed(`CID resolvable on ${resolvableGateways.length} gateway(s)`);
-          for (const gw of resolvableGateways) {
-            console.log(chalk.gray("  ✓ ") + chalk.white(gw));
-          }
+      for (const [gateway, result] of results) {
+        if (result.resolvable) {
+          resolvableGateways.push(gateway);
         } else {
-          gatewayTask.fail("CID not resolvable on any gateway");
-        }
-
-        if (failedGateways.length > 0 && resolvableGateways.length > 0) {
-          for (const gw of failedGateways) {
-            console.log(chalk.gray("  ✗ ") + chalk.dim(gw));
-          }
-        }
-
-        console.log();
-        cleanupHeliaAndExit(resolvableGateways.length > 0 ? 0 : 1);
-      } catch (error) {
-        p2pTask.fail("Verification failed");
-        const errorMessage = formatErrorMessage(error);
-        if (jsonOutput) {
-          writeBulletinJsonError(errorMessage);
-        } else {
-          console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
-          cleanupHeliaAndExit(1);
+          failedGateways.push(gateway);
         }
       }
-    });
+
+      if (jsonOutput) {
+        const entries = Array.from(results.entries()).map(([gateway, result]) => ({
+          gateway,
+          resolvable: result.resolvable,
+          statusCode: result.statusCode,
+          errorMessage: result.errorMessage,
+        }));
+        writeBulletinJson({
+          cid,
+          resolvable: resolvableGateways.length > 0,
+          method: resolvableGateways.length > 0 ? "gateway" : "none",
+          gateways: entries,
+        });
+        cleanupHeliaAndExit(resolvableGateways.length > 0 ? 0 : 1);
+      }
+
+      if (resolvableGateways.length > 0) {
+        gatewayTask.succeed(`CID resolvable on ${resolvableGateways.length} gateway(s)`);
+        for (const gw of resolvableGateways) {
+          console.log(chalk.gray("  ✓ ") + chalk.white(gw));
+        }
+      } else {
+        gatewayTask.fail("CID not resolvable on any gateway");
+      }
+
+      if (failedGateways.length > 0 && resolvableGateways.length > 0) {
+        for (const gw of failedGateways) {
+          console.log(chalk.gray("  ✗ ") + chalk.dim(gw));
+        }
+      }
+
+      console.log();
+      cleanupHeliaAndExit(resolvableGateways.length > 0 ? 0 : 1);
+    } catch (error) {
+      p2pTask.fail("Verification failed");
+      const errorMessage = formatErrorMessage(error);
+      if (jsonOutput) {
+        writeBulletinJsonError(errorMessage);
+      } else {
+        console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
+        cleanupHeliaAndExit(1);
+      }
+    }
+  });
 }
