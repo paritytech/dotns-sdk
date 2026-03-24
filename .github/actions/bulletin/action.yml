@@ -42,23 +42,31 @@ runs:
         echo "::add-mask::$DOTNS_MNEMONIC"
 
         ADDRESS=$(dotns account address)
-
         echo "Authorizing ${ADDRESS} for Bulletin TransactionStorage..."
 
-        ARGS=("$ADDRESS" --json)
+        ARGS=("$ADDRESS")
         [[ -n "$BULLETIN_RPC" ]] && ARGS+=(--bulletin-rpc "$BULLETIN_RPC")
 
-        OUTPUT=$(dotns bulletin authorize "${ARGS[@]}" 2>&1) || {
-          if echo "$OUTPUT" | grep -q "AlreadyAuthorized"; then
+        RESULT_FILE=$(mktemp)
+        if dotns bulletin authorize "${ARGS[@]}" 2>&1 | tee "$RESULT_FILE"; then
+          echo "::notice::Account ${ADDRESS} authorized"
+        else
+          if grep -q "AlreadyAuthorized\|already authorized" "$RESULT_FILE"; then
             echo "::notice::Account ${ADDRESS} is already authorized"
           else
-            echo "::error::Authorization failed: $OUTPUT"
+            echo "::error::Authorization failed"
+            cat "$RESULT_FILE"
+            rm -f "$RESULT_FILE"
             exit 1
           fi
-        }
+        fi
+        rm -f "$RESULT_FILE"
       env:
         DOTNS_MNEMONIC: ${{ inputs.mnemonic }}
         BULLETIN_RPC: ${{ inputs.bulletin-rpc }}
+        CI: "true"
+        FORCE_COLOR: "0"
+        NODE_NO_WARNINGS: "1"
 
     - name: Upload to Bulletin
       id: upload
