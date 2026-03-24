@@ -593,9 +593,14 @@ export async function storeCar(
   bulletinRpc: string,
   signer: PolkadotSigner,
   directoryPath: string,
-  _chunkSizeBytes: number,
+  options: {
+    parallel?: boolean;
+    concurrency?: number;
+    accountAddress?: string;
+  } = {},
 ): Promise<{ cid: string; ipfsCid: string; size: number }> {
   const { CarReader } = await import("@ipld/car");
+  const { parallel = false, concurrency = 10, accountAddress } = options;
 
   const ipfsBinaryPath = ensureIpfsInitialized();
 
@@ -642,24 +647,52 @@ export async function storeCar(
       chalk.gray("  size:     ") + chalk.white(`${(totalSize / 1024 / 1024).toFixed(2)} MB`),
     );
 
+    const WAVE_SIZE = Math.min(concurrency, 8);
     const storeSpinner = ora(`Storing blocks (0/${blocks.length})`).start();
     let completedBlockCount = 0;
     const sharedClient = createBulletinClient(bulletinRpc);
 
     try {
-      for (const block of blocks) {
-        await storeBlockToBulletin({
-          rpc: bulletinRpc,
-          signer,
-          contentBytes: block.bytes,
-          contentCid: block.cidString,
-          codecValue: block.cid.code,
-          hashCodeValue: block.cid.multihash.code,
-          client: sharedClient,
-        });
+      if (parallel && accountAddress) {
+        for (let waveStart = 0; waveStart < blocks.length; waveStart += WAVE_SIZE) {
+          const waveEnd = Math.min(waveStart + WAVE_SIZE, blocks.length);
+          const waveBlocks = blocks.slice(waveStart, waveEnd);
+          const startingNonce = await fetchAccountNonce(bulletinRpc, accountAddress);
 
-        completedBlockCount++;
-        storeSpinner.text = `Storing blocks (${completedBlockCount}/${blocks.length})`;
+          const wavePromises = waveBlocks.map((block, index) =>
+            storeBlockToBulletin({
+              rpc: bulletinRpc,
+              signer,
+              contentBytes: block.bytes,
+              contentCid: block.cidString,
+              codecValue: block.cid.code,
+              hashCodeValue: block.cid.multihash.code,
+              nonce: startingNonce + index,
+              client: sharedClient,
+              waitForFinalization: false,
+            }).then(() => {
+              completedBlockCount++;
+              storeSpinner.text = `Storing blocks (${completedBlockCount}/${blocks.length})`;
+            }),
+          );
+
+          await Promise.all(wavePromises);
+        }
+      } else {
+        for (const block of blocks) {
+          await storeBlockToBulletin({
+            rpc: bulletinRpc,
+            signer,
+            contentBytes: block.bytes,
+            contentCid: block.cidString,
+            codecValue: block.cid.code,
+            hashCodeValue: block.cid.multihash.code,
+            client: sharedClient,
+          });
+
+          completedBlockCount++;
+          storeSpinner.text = `Storing blocks (${completedBlockCount}/${blocks.length})`;
+        }
       }
     } finally {
       sharedClient.destroy();

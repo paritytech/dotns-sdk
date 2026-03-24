@@ -289,7 +289,11 @@ export function attachBulletinCommands(root: Command): void {
         const performUpload = async () => {
           if (isDirectory) {
             if (useCar) {
-              return storeCar(bulletinRpc, context.signer, resolvedPath, chunkSizeBytes);
+              return storeCar(bulletinRpc, context.signer, resolvedPath, {
+                parallel,
+                concurrency,
+                accountAddress: context.substrateAddress,
+              });
             }
 
             const result = await storeDirectory(bulletinRpc, context.signer, resolvedPath, {
