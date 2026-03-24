@@ -66,7 +66,7 @@ runs:
       run: |
         echo "::add-mask::$DOTNS_MNEMONIC"
 
-        ARGS=("$BUILD_PATH" --json --resume)
+        ARGS=("$BUILD_PATH" --resume --print-contenthash)
         [[ -n "$BULLETIN_RPC" ]] && ARGS+=(--bulletin-rpc "$BULLETIN_RPC")
         ARGS+=(--concurrency "$UPLOAD_CONCURRENCY")
 
@@ -76,8 +76,8 @@ runs:
           RESULT_FILE=$(mktemp)
           if dotns bulletin upload "${ARGS[@]}" 2>&1 | tee "$RESULT_FILE"; then
             RESULT=$(cat "$RESULT_FILE")
-            CID=$(echo "$RESULT" | jq -r '.cid // empty')
-            CONTENTHASH=$(echo "$RESULT" | jq -r '.contenthash // empty')
+            CID=$(echo "$RESULT" | grep -oP 'cid:\s+\K\S+' | tail -1)
+            CONTENTHASH=$(echo "$RESULT" | grep -oP 'contenthash:\s+\K\S+' | tail -1)
 
             if [[ -n "$CID" ]]; then
               echo "cid=$CID" >> "$GITHUB_OUTPUT"
@@ -102,4 +102,7 @@ runs:
         BUILD_PATH: ${{ inputs.build-path }}
         UPLOAD_CONCURRENCY: ${{ inputs.upload-concurrency }}
         MAX_RETRIES: ${{ inputs.max-retries }}
+        CI: "true"
+        FORCE_COLOR: "0"
+        NODE_NO_WARNINGS: "1"
         RETRY_DELAY: ${{ inputs.retry-delay }}

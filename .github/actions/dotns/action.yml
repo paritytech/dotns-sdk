@@ -116,6 +116,9 @@ runs:
         BASENAME: ${{ inputs.basename }}
         MAX_RETRIES: ${{ inputs.max-retries }}
         RETRY_DELAY: ${{ inputs.retry-delay }}
+        CI: "true"
+        FORCE_COLOR: "0"
+        NODE_NO_WARNINGS: "1"
 
     - name: Check subname existence
       id: check-subname
@@ -193,6 +196,9 @@ runs:
         BASENAME: ${{ inputs.basename }}
         MAX_RETRIES: ${{ inputs.max-retries }}
         RETRY_DELAY: ${{ inputs.retry-delay }}
+        CI: "true"
+        FORCE_COLOR: "0"
+        NODE_NO_WARNINGS: "1"
 
     - name: Set contenthash
       shell: bash
@@ -222,4 +228,7 @@ runs:
         CID: ${{ inputs.cid }}
         RPC: ${{ inputs.rpc }}
         MAX_RETRIES: ${{ inputs.max-retries }}
+        CI: "true"
+        FORCE_COLOR: "0"
+        NODE_NO_WARNINGS: "1"
         RETRY_DELAY: ${{ inputs.retry-delay }}
