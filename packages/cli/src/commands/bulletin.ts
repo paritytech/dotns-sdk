@@ -593,8 +593,10 @@ export async function storeCar(
   bulletinRpc: string,
   signer: PolkadotSigner,
   directoryPath: string,
-  chunkSizeBytes: number,
+  _chunkSizeBytes: number,
 ): Promise<{ cid: string; ipfsCid: string; size: number }> {
+  const { CarReader } = await import("@ipld/car");
+
   const ipfsBinaryPath = ensureIpfsInitialized();
 
   const merkleSpinner = ora("Merkleizing directory with IPFS CLI").start();
@@ -610,12 +612,62 @@ export async function storeCar(
     const carBytes = new Uint8Array(await filesystem.readFile(tempCarPath));
     exportSpinner.succeed(`CAR exported: ${(carBytes.length / 1024 / 1024).toFixed(2)} MB`);
 
-    // Store the CAR bytes as chunked content with a DAG-PB root, mirroring
-    // deploy.js storeChunkedContent — the gateway fetches the DAG-PB root
-    // which links to the raw CAR chunks.
-    const storageCid = await uploadChunkedBlocks(bulletinRpc, signer, carBytes, chunkSizeBytes);
+    // Unpack the CAR and upload each IPFS block individually.
+    // The CAR is only used in transit — on-chain storage mirrors the original
+    // IPFS DAG so no special CAR handling is needed when reading.
+    const reader = await CarReader.fromBytes(carBytes);
+    const roots = await reader.getRoots();
+    const rootCid = roots[0]?.toString();
+    if (!rootCid || rootCid !== ipfsCid) {
+      throw new Error(`CAR root CID mismatch: expected ${ipfsCid}, got ${rootCid ?? "none"}`);
+    }
 
-    return { cid: storageCid, ipfsCid, size: carBytes.length };
+    const blocks: Array<{
+      bytes: Uint8Array;
+      cid: { code: number; multihash: { code: number } };
+      cidString: string;
+    }> = [];
+    let totalSize = 0;
+    for await (const block of reader.blocks()) {
+      blocks.push({
+        bytes: new Uint8Array(block.bytes),
+        cid: block.cid,
+        cidString: block.cid.toString(),
+      });
+      totalSize += block.bytes.length;
+    }
+
+    console.log(chalk.gray("  blocks:   ") + chalk.white(blocks.length.toString()));
+    console.log(
+      chalk.gray("  size:     ") + chalk.white(`${(totalSize / 1024 / 1024).toFixed(2)} MB`),
+    );
+
+    const storeSpinner = ora(`Storing blocks (0/${blocks.length})`).start();
+    let completedBlockCount = 0;
+    const sharedClient = createBulletinClient(bulletinRpc);
+
+    try {
+      for (const block of blocks) {
+        await storeBlockToBulletin({
+          rpc: bulletinRpc,
+          signer,
+          contentBytes: block.bytes,
+          contentCid: block.cidString,
+          codecValue: block.cid.code,
+          hashCodeValue: block.cid.multihash.code,
+          client: sharedClient,
+        });
+
+        completedBlockCount++;
+        storeSpinner.text = `Storing blocks (${completedBlockCount}/${blocks.length})`;
+      }
+    } finally {
+      sharedClient.destroy();
+    }
+
+    storeSpinner.succeed("Stored");
+
+    return { cid: ipfsCid, ipfsCid, size: totalSize };
   } finally {
     await filesystem.unlink(tempCarPath).catch(() => {});
   }
