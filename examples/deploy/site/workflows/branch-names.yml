@@ -24,8 +24,8 @@ on:
         default: false
 
 concurrency:
-  group: bulletin-upload
-  cancel-in-progress: false
+  group: bulletin-upload-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
