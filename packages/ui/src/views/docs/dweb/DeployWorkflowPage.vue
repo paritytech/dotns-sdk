@@ -4,7 +4,7 @@
       <p class="text-sm font-medium text-dot-accent mb-2">Decentralised Web</p>
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">Deploy Workflow</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
-        The DotNS SDK includes a reusable GitHub Actions workflow that automates the entire
+        The DotNS SDK includes a reusable GitHub Actions workflow that automates your full
         deployment pipeline &mdash; build, upload to Bulletin, and set the content hash on your .dot
         domain. It supports both
         <span class="text-dot-text-primary font-medium">preview</span> and
@@ -61,8 +61,8 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Required Secrets</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        The workflow needs two mnemonics stored as GitHub repository secrets. These are used to sign
-        transactions for Bulletin uploads and DotNS content hash updates.
+        The workflow needs two mnemonics (secret recovery phrases) stored as GitHub repository
+        secrets. These sign transactions for Bulletin uploads and DotNS content hash updates.
       </p>
       <div class="overflow-x-auto">
         <table class="w-full text-sm border border-dot-border rounded-lg overflow-hidden">
@@ -155,13 +155,13 @@
         Parallel Uploads &amp; Concurrency
       </h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        For large sites, the workflow supports parallel Bulletin uploads and GitHub Actions
-        concurrency controls to prevent conflicting deployments.
+        For large sites, the workflow supports parallel Bulletin uploads. GitHub Actions concurrency
+        controls prevent conflicting deployments from running at the same time.
       </p>
       <DocCodeBlock :code="parallelCode" lang="yaml" filename="parallel configuration" />
       <DocCallout variant="tip" title="Content-addressable caching">
-        Because Bulletin blocks are content-addressed, uploading the same file twice is a no-op. The
-        workflow skips blocks that already exist on-chain, making incremental deploys fast.
+        Because Bulletin blocks are content-addressed, uploading the same file twice has no effect.
+        The workflow skips blocks that already exist on-chain, making incremental deploys fast.
       </DocCallout>
     </div>
 

@@ -1,10 +1,52 @@
 name: Setup CLI
-description: Build and install the DotNS CLI globally from source
+description: Install the DotNS CLI from the latest release or from source
+
+inputs:
+  source:
+    description: "release or source"
+    required: false
+    default: "release"
 
 runs:
   using: composite
   steps:
+    - name: Download latest CLI release
+      id: download
+      if: inputs.source == 'release'
+      shell: bash
+      run: |
+        set -euo pipefail
+        RELEASE_DIR="${RUNNER_TEMP}/dotns-cli-release"
+        rm -rf "$RELEASE_DIR"
+        mkdir -p "$RELEASE_DIR"
+
+        ASSET_URL=$(
+          curl -fsSL \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            https://api.github.com/repos/paritytech/dotns-sdk/releases/latest |
+            jq -r '.assets[] | select(.name | test("^dotns-cli-.*\\.tgz$")) | .url' |
+            head -n 1
+        )
+
+        if [[ -z "$ASSET_URL" || "$ASSET_URL" == "null" ]]; then
+          echo "::error::Could not find a dotns-cli release tarball in the latest GitHub release."
+          exit 1
+        fi
+
+        TARBALL_PATH="${RELEASE_DIR}/dotns-cli.tgz"
+        curl -fsSL \
+          -H "Accept: application/octet-stream" \
+          -H "Authorization: Bearer ${GH_TOKEN}" \
+          "$ASSET_URL" \
+          -o "$TARBALL_PATH"
+
+        echo "tarball=${TARBALL_PATH}" >> "$GITHUB_OUTPUT"
+      env:
+        GH_TOKEN: ${{ github.token }}
+
     - name: Install dependencies
+      if: inputs.source == 'source'
       shell: bash
       run: |
         set -euo pipefail
@@ -21,16 +63,29 @@ runs:
         done
 
     - name: Build CLI
+      if: inputs.source == 'source'
       shell: bash
       working-directory: packages/cli
       run: bun run build
 
-    - name: Pack and install globally
+    - name: Pack source build
+      if: inputs.source == 'source'
+      id: pack
       shell: bash
       working-directory: packages/cli
       run: |
-        npm pack
-        npm install -g ./dotns-cli-*.tgz
+        TARBALL=$(npm pack | tail -n 1)
+        echo "tarball=${PWD}/${TARBALL}" >> "$GITHUB_OUTPUT"
+
+    - name: Install released CLI
+      if: inputs.source == 'release'
+      shell: bash
+      run: npm install -g "${{ steps.download.outputs.tarball }}"
+
+    - name: Install built CLI
+      if: inputs.source == 'source'
+      shell: bash
+      run: npm install -g "${{ steps.pack.outputs.tarball }}"
 
     - name: Verify
       shell: bash

@@ -4,6 +4,10 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { MerkleizeResult, VerificationResult, BlockVerificationResult } from "../types/types";
 import { formatErrorMessage } from "../utils/formatting";
+async function loadHeliaClient() {
+  const { getSharedHeliaClient } = await import("./heliaClient");
+  return getSharedHeliaClient();
+}
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
 const bundledIpfsBinaryPath = join(
@@ -210,6 +214,38 @@ export async function verifyCidWithMultipleGateways(
   }
 
   return verificationResults;
+}
+
+export async function verifyCidViaP2P(cidString: string): Promise<VerificationResult> {
+  try {
+    const heliaClient = await loadHeliaClient();
+    const fetchResult = await heliaClient.fetchBlock(cidString);
+    return {
+      cid: cidString,
+      resolvable: fetchResult.size > 0,
+      gateway: "p2p/bitswap",
+    };
+  } catch (error) {
+    const errorMessage = formatErrorMessage(error);
+    return {
+      cid: cidString,
+      resolvable: false,
+      gateway: "p2p/bitswap",
+      errorMessage,
+    };
+  }
+}
+
+export async function verifySingleFileCid(
+  contentCid: string,
+  gatewayBaseUrl: string = DEFAULT_VERIFICATION_GATEWAY,
+): Promise<VerificationResult> {
+  const p2pResult = await verifyCidViaP2P(contentCid);
+  if (p2pResult.resolvable) {
+    return p2pResult;
+  }
+
+  return verifyCidResolution(contentCid, gatewayBaseUrl);
 }
 
 export function computeExpectedCidForFile(filePath: string): string | null {

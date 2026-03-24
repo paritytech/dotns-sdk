@@ -4,9 +4,9 @@
       <p class="text-sm font-medium text-dot-accent mb-2">Protocol</p>
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">The .dot Namespace</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
-        Every <span class="text-dot-text-primary font-medium">.dot</span> name is derived from a
-        deterministic hashing scheme. Understanding labels, nodes, and namehashes is the foundation
-        for working with DotNS at the contract level.
+        Every <span class="text-dot-text-primary font-medium">.dot</span> name is turned into a
+        unique identifier through a repeatable hashing process. Understanding labels, nodes, and
+        namehashes is the foundation for working with DotNS at the contract level.
       </p>
     </div>
 
@@ -16,8 +16,8 @@
         A label is the human-readable part of a
         <span class="font-mono text-dot-accent">.dot</span> name. For example, in
         <span class="font-mono text-dot-accent">alice.dot</span>, the label is
-        <span class="font-mono text-dot-text-primary">"alice"</span>. Labels are normalized to
-        lowercase and must contain only alphanumeric characters.
+        <span class="font-mono text-dot-text-primary">"alice"</span>. Labels are always converted to
+        lowercase and must contain only letters and numbers.
       </p>
     </div>
 
@@ -26,8 +26,8 @@
       <p class="text-dot-text-secondary leading-relaxed">
         All <span class="font-mono text-dot-accent">.dot</span> names share a common root hash
         called <span class="font-mono text-dot-text-primary">DOT_NODE</span>. This is the namehash
-        of the top-level <span class="font-mono text-dot-accent">.dot</span> namespace and serves as
-        the parent for all registered names.
+        of the top-level <span class="font-mono text-dot-accent">.dot</span> namespace and acts as
+        the parent for every registered name.
       </p>
       <DocCodeBlock :code="dotNodeCode" lang="text" filename="DOT_NODE" />
     </div>
@@ -54,10 +54,10 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Labelhash</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        The <span class="font-mono text-dot-text-primary">labelhash</span> is simply
-        <span class="font-mono text-dot-accent">keccak256(label)</span>. It is used both for
-        computing the full node and as an input to the registration functions. The ERC721
-        <span class="font-mono text-dot-text-primary">tokenId</span> is the
+        The <span class="font-mono text-dot-text-primary">labelhash</span> is
+        <span class="font-mono text-dot-accent">keccak256(label)</span> &mdash; a one-way hash of
+        the label string. It is used to compute the full node and as an input to registration
+        functions. The ERC721 <span class="font-mono text-dot-text-primary">tokenId</span> is the
         <span class="font-mono text-dot-text-primary">uint256</span> cast of the node.
       </p>
     </div>
@@ -82,9 +82,9 @@
     </div>
 
     <DocCallout variant="tip" title="Deterministic addressing">
-      Because node hashes are computed purely from the label hierarchy, anyone can independently
-      derive the node for any .dot name without querying the chain. This makes off-chain indexing
-      and verification straightforward.
+      Because node hashes are computed purely from the label hierarchy, anyone can derive the node
+      for any .dot name without querying the blockchain. This makes it easy to verify and index
+      names off-chain.
     </DocCallout>
 
     <div class="space-y-4">

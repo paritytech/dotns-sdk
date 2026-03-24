@@ -1,0 +1,166 @@
+name: Deploy Sized Benchmark Entry
+
+on:
+  workflow_call:
+    inputs:
+      size:
+        required: true
+        type: string
+
+      slug:
+        required: true
+        type: string
+
+      subname:
+        required: true
+        type: string
+
+      basename:
+        required: false
+        type: string
+        default: bulletin-benchmarks
+
+      report-artifact-prefix:
+        required: false
+        type: string
+        default: deploy-sized-report
+
+      report-retention-days:
+        required: false
+        type: number
+        default: 7
+
+      benchmark-date:
+        required: false
+        type: string
+        default: ""
+
+      benchmark-timestamp:
+        required: false
+        type: string
+        default: ""
+
+    secrets:
+      dotns-mnemonic:
+        required: true
+
+      bulletin-mnemonic:
+        required: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Generate sized fixture
+        run: |
+          bun examples/deploy/sized-sites/generate.ts \
+            --sizes "${SIZE}" \
+            --output-dir .deploy-sized-fixtures
+        env:
+          SIZE: ${{ inputs.size }}
+
+      - name: Upload sized fixture
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-sized-build-${{ inputs.slug }}
+          path: .deploy-sized-fixtures/${{ inputs.slug }}
+          retention-days: 2
+
+  deploy:
+    needs: build
+    uses: ./.github/workflows/deploy.yml
+    with:
+      basename: ${{ inputs.basename }}
+      artifact-name: deploy-sized-build-${{ inputs.slug }}
+      mode: preview
+      subname: ${{ inputs.subname }}
+      register-base: true
+      cli-source: source
+      skip-cache: true
+      max-retries: 5
+    secrets:
+      dotns-mnemonic: ${{ secrets.dotns-mnemonic }}
+      bulletin-mnemonic: ${{ secrets.bulletin-mnemonic }}
+
+  report:
+    needs: deploy
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build benchmark report
+        shell: bash
+        run: |
+          STATUS="success"
+          FAILURE_STAGE=""
+          if [[ "$DEPLOY_RESULT" != "success" ]]; then
+            STATUS="failed"
+          fi
+
+          mkdir -p benchmark-report
+
+          jq -n \
+            --arg size "$SIZE" \
+            --arg slug "$SLUG" \
+            --arg status "$STATUS" \
+            --arg failureStage "$FAILURE_STAGE" \
+            --arg cid "$CID" \
+            --arg fqdn "$FQDN" \
+            --arg url "$URL" \
+            --arg runUrl "$RUN_URL" \
+            --arg benchmarkDate "$BENCHMARK_DATE" \
+            --arg benchmarkTimestamp "$BENCHMARK_TIMESTAMP" \
+            --argjson duration "$DURATION_SECONDS" \
+            '{
+              size: $size,
+              slug: $slug,
+              status: $status,
+              failureStage: $failureStage,
+              cid: $cid,
+              fqdn: $fqdn,
+              url: $url,
+              runUrl: $runUrl,
+              benchmarkDate: $benchmarkDate,
+              benchmarkTimestamp: $benchmarkTimestamp,
+              durationSeconds: $duration
+            }' > "benchmark-report/${SLUG}.json"
+
+          {
+            echo "## ${SIZE} benchmark"
+            echo ""
+            echo "| Property | Value |"
+            echo "|----------|-------|"
+            echo "| Status | ${STATUS} |"
+            echo "| Duration | ${DURATION_SECONDS}s |"
+            echo "| Domain | \`${FQDN:-n/a}\` |"
+            echo "| CID | \`${CID:-n/a}\` |"
+            echo "| URL | ${URL:-n/a} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          SIZE: ${{ inputs.size }}
+          SLUG: ${{ inputs.slug }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          CID: ${{ needs.deploy.outputs.cid }}
+          FQDN: ${{ needs.deploy.outputs.fqdn }}
+          URL: ${{ needs.deploy.outputs.url }}
+          DURATION_SECONDS: ${{ needs.deploy.outputs.duration-seconds || '0' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          BENCHMARK_DATE: ${{ inputs.benchmark-date }}
+          BENCHMARK_TIMESTAMP: ${{ inputs.benchmark-timestamp }}
+
+      - name: Upload benchmark artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.report-artifact-prefix }}-${{ inputs.slug }}
+          path: benchmark-report/${{ inputs.slug }}.json
+          retention-days: ${{ inputs.report-retention-days }}
+
+      - name: Fail if deploy failed
+        if: needs.deploy.result != 'success'
+        run: exit 1

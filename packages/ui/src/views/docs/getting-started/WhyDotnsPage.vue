@@ -4,9 +4,9 @@
       <p class="text-sm font-medium text-dot-accent mb-2">Introduction</p>
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">Why DotNS</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
-        DotNS is built around a core principle: treat the chain as the database. No servers, no
-        indexers &mdash; every feature has a deterministic query path from a small set of known
-        contracts.
+        DotNS stores everything on chain. There are no servers to maintain and no indexers to run.
+        Every piece of data &mdash; names, addresses, profiles, content hashes &mdash; can be read
+        directly from a small set of known contracts.
       </p>
     </div>
 
@@ -79,26 +79,27 @@
 const principles = [
   {
     icon: "DB",
-    title: "State is the source of truth",
+    title: "On-chain by default",
     description:
-      "Events are for observability only. Every piece of data can be queried directly from contract state without replaying logs.",
+      "All data lives in contract storage and can be read directly. No event replay or external indexers needed.",
   },
   {
     icon: "Q",
-    title: "Deterministic discovery",
+    title: "Easy to find",
     description:
-      "If something is created, store where to find it. No scan-and-reconstruct patterns required.",
+      "Every name, address, and record has a known location on chain. You never have to scan the entire blockchain to find it.",
   },
   {
     icon: "Im",
-    title: "Immutability where it matters",
+    title: "Permanent records",
     description:
-      "Registration records are permanently locked in the user's Store. Domain history cannot be rewritten.",
+      "Once a name is registered, its record is locked in the owner's Store contract. Nobody can alter or delete it.",
   },
   {
     icon: "Bx",
-    title: "Bounded call complexity",
-    description: "Simple keys (node, labelhash, owner) with predictable gas costs.",
+    title: "Predictable costs",
+    description:
+      "Lookups and writes use simple keys, so gas costs stay consistent regardless of how many names exist.",
   },
 ];
 

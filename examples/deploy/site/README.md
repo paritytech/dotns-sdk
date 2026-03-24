@@ -4,6 +4,9 @@ A minimal static site deployed to Polkadot via DotNS.
 
 This example demonstrates using the reusable `deploy.yml` workflow from `dotns-sdk` to upload a static site to the Bulletin chain and bind it to a `.dot` domain.
 
+For repeatable size-based deployment timing, see the sibling example in
+`examples/deploy/sized-sites/`.
+
 ## How it works
 
 The reusable workflow handles everything: Bulletin storage, subname registration, and contenthash binding. The only thing you provide is a build artifact and a mnemonic.

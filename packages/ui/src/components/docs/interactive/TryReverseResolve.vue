@@ -56,8 +56,11 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { useResolverStore } from "@/store/useResolverStore";
-import { useNetworkStore } from "@/store/useNetworkStore";
-import { useAbiStore } from "@/store/useAbiStore";
+import {
+  ensureNetworkReady,
+  formatNetworkError,
+  statusPanelClasses,
+} from "@/lib/docInteractiveHelpers";
 import Button from "@/components/ui/Button.vue";
 import Loader from "@/components/ui/Loader.vue";
 import DocTabs from "../DocTabs.vue";
@@ -65,8 +68,6 @@ import DocCodeBlock from "../DocCodeBlock.vue";
 import type { Address } from "viem";
 
 const resolver = useResolverStore();
-const networkStore = useNetworkStore();
-const abiStore = useAbiStore();
 
 const address = ref("");
 const result = ref<string | null>(null);
@@ -110,16 +111,7 @@ const name = await client.readContract({
 console.log('Primary name:', name ? \`\${name}.dot\` : 'not set')`;
 });
 
-const panelClasses = computed(() => {
-  switch (status.value) {
-    case "error":
-      return "border-error/30 bg-error/5";
-    case "empty":
-      return "border-warning/30 bg-warning/5";
-    default:
-      return "border-dot-border bg-dot-surface";
-  }
-});
+const panelClasses = computed(() => statusPanelClasses(status.value));
 
 async function lookup() {
   const input = address.value.trim();
@@ -137,8 +129,7 @@ async function lookup() {
   status.value = "loading";
 
   try {
-    await networkStore.getClient();
-    await abiStore.ensureAbis();
+    await ensureNetworkReady();
 
     const name = await resolver.resolveAddressToName(input as Address);
     if (name) {
@@ -148,12 +139,7 @@ async function lookup() {
       status.value = "empty";
     }
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    if (msg.includes("Client not initialized") || msg.includes("No valid network")) {
-      error.value = "Network client not ready. Please wait for the app to finish loading.";
-    } else {
-      error.value = msg;
-    }
+    error.value = formatNetworkError(e);
     status.value = "error";
   } finally {
     loading.value = false;

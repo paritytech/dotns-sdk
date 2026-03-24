@@ -37,9 +37,9 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Contract Relationships</h2>
       <p class="text-dot-text-secondary text-sm leading-relaxed">
-        The diagram below illustrates how the contracts interact during registration and resolution.
-        The Controller orchestrates the flow, while the Registry serves as the central source of
-        truth.
+        The diagram below shows how the contracts interact during registration and resolution. The
+        Controller coordinates each step, while the Registry holds the definitive record of who owns
+        each name.
       </p>
 
       <DocDiagramImage
@@ -73,21 +73,21 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Resolution Flow</h2>
       <p class="text-dot-text-secondary text-sm leading-relaxed">
-        Once registered, name resolution is straightforward. The
+        Once registered, name lookup is straightforward. The
         <span class="font-mono text-dot-accent">Registry</span>
-        maps a node to its owner and resolver address. Callers query the
-        <span class="font-mono text-dot-accent">Resolver</span> for forward lookups (name to
-        address), the <span class="font-mono text-dot-accent">ReverseResolver</span> for reverse
-        lookups (address to name), and the
+        maps each node (a unique hash that identifies a name) to its owner and resolver address.
+        Query the <span class="font-mono text-dot-accent">Resolver</span> to convert a name to an
+        address, the <span class="font-mono text-dot-accent">ReverseResolver</span> to convert an
+        address back to a name, and the
         <span class="font-mono text-dot-accent">ContentResolver</span>
-        for text records and content hashes.
+        to read profile records and content hashes.
       </p>
     </div>
 
     <DocCallout variant="info" title="Modular design">
       Each contract can be upgraded independently. The Registry is the only contract that stores
-      ownership data &mdash; resolvers are stateless lookups that can be swapped without migrating
-      names.
+      ownership data &mdash; resolvers hold no state of their own and can be replaced without
+      migrating names.
     </DocCallout>
 
     <div class="border-t border-dot-border pt-6 flex justify-between text-sm">
@@ -111,42 +111,44 @@ import DocDiagramImage from "@/components/docs/DocDiagramImage.vue";
 const contracts = [
   {
     name: "DotnsRegistry",
-    description: "Source of truth for node ownership and resolver addresses.",
+    description: "Central record of who owns each name and which resolver handles it.",
     address: "0x4Da0d37aBe96C06ab19963F31ca2DC0412057a6f",
   },
   {
     name: "DotnsRegistrar",
-    description: "ERC721 NFT that backs permanent .dot name ownership.",
+    description: "ERC721 NFT contract that represents permanent .dot name ownership.",
     address: "0x329aAA5b6bEa94E750b2dacBa74Bf41291E6c2BD",
   },
   {
     name: "DotnsRegistrarController",
-    description: "Orchestrates commit-reveal registration with pricing and PoP checks.",
+    description:
+      "Coordinates the commit-reveal registration flow, including pricing and proof-of-personhood checks.",
     address: "0xd09e0F1c1E6CE8Cf40df929ef4FC778629573651",
   },
   {
     name: "DotnsResolver",
-    description: "Forward resolution: maps a name (node) to an address.",
+    description: "Converts a .dot name into an on-chain address (forward resolution).",
     address: "0x95645C7fD0fF38790647FE13F87Eb11c1DCc8514",
   },
   {
     name: "DotnsReverseResolver",
-    description: "Reverse resolution: maps an address to its primary .dot name.",
+    description: "Converts an address back to its primary .dot name (reverse resolution).",
     address: "0x95D57363B491CF743970c640fe419541386ac8BF",
   },
   {
     name: "DotnsContentResolver",
-    description: "Stores text records (twitter, github, etc.) and IPFS content hashes.",
+    description: "Stores profile text records (Twitter, GitHub, etc.) and IPFS content hashes.",
     address: "0x7756DF72CBc7f062e7403cD59e45fBc78bed1cD7",
   },
   {
     name: "PopRules",
-    description: "Name classification engine and pricing oracle based on proof of personhood.",
+    description: "Classifies names by length and sets pricing based on proof-of-personhood status.",
     address: "0x4e8920B1E69d0cEA9b23CBFC87A17Ee6fE02d2d3",
   },
   {
     name: "StoreFactory",
-    description: "Deploys per-user key-value Store contracts for on-chain registration records.",
+    description:
+      "Deploys a personal key-value Store contract for each user to hold their registration records on-chain.",
     address: "0x030296782F4d3046B080BcB017f01837561D9702",
   },
 ];
@@ -155,27 +157,27 @@ const flowSteps = [
   {
     title: "Controller consults PopRules",
     description:
-      "The Controller calls PopRules to classify the name and determine the required price based on the user's PoP status and name length.",
+      "The Controller calls PopRules to classify the name and calculate the registration price based on the user's proof-of-personhood status and name length.",
   },
   {
     title: "Controller calls Registrar to mint NFT",
     description:
-      "The Registrar mints an ERC721 token representing ownership of the .dot name. The tokenId is derived from the node hash.",
+      "The Registrar mints an ERC721 token (NFT) that represents ownership of the .dot name. The token ID comes from the name's node hash.",
   },
   {
     title: "Registrar updates Registry",
     description:
-      "The Registrar writes the owner and resolver addresses into the Registry for the registered node.",
+      "The Registrar writes the owner and resolver addresses into the Registry for the newly registered name.",
   },
   {
     title: "Controller writes to Store",
     description:
-      "The Controller writes an immutable registration record to the user's per-user Store via StoreFactory.",
+      "The Controller writes a permanent registration record to the user's personal Store contract through StoreFactory.",
   },
   {
     title: "Resolvers become queryable",
     description:
-      "The Resolver, ReverseResolver, and ContentResolver can now serve queries for the newly registered name.",
+      "The Resolver, ReverseResolver, and ContentResolver can now answer queries for the newly registered name.",
   },
 ];
 </script>

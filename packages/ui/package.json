@@ -18,7 +18,14 @@
     "postinstall": "bunx papi"
   },
   "dependencies": {
+    "@chainsafe/libp2p-noise": "^17.0.0",
+    "@chainsafe/libp2p-yamux": "^8.0.1",
     "@dedot/chaintypes": "^0.187.0",
+    "@helia/unixfs": "^7.1.0",
+    "@ipld/dag-pb": "^4.1.5",
+    "@libp2p/websockets": "^10.1.6",
+    "@multiformats/blake2": "^2.0.2",
+    "@multiformats/multiaddr": "^13.0.1",
     "@noble/hashes": "^2.0.1",
     "@polkadot-api/descriptors": "file:.papi/descriptors",
     "@polkadot-api/sdk-ink": "^0.5.1",
@@ -40,6 +47,8 @@
     "clear": "^0.1.0",
     "clsx": "^2.1.1",
     "ethereum-blockies-base64": "^1.0.2",
+    "helia": "^6.0.22",
+    "ipfs-unixfs": "^12.0.0",
     "multiformats": "^13.4.2",
     "pinia": "^2.1.4",
     "pinia-plugin-persistedstate": "^4.7.1",

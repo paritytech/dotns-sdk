@@ -4,24 +4,24 @@
       <p class="text-sm font-medium text-dot-accent mb-2">Protocol</p>
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">Proof of Personhood</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
-        Proof of Personhood (PoP) is DotNS's mechanism for
-        <span class="text-dot-text-primary font-medium">fair name distribution</span>. It prevents
-        Sybil attacks (one entity hoarding thousands of names) so that shorter, more desirable names
-        are priced fairly based on who is registering them.
+        Proof of Personhood (PoP) is how DotNS ensures
+        <span class="text-dot-text-primary font-medium">fair name distribution</span>. It stops a
+        single person or bot from hoarding thousands of names, so shorter, more desirable names are
+        priced fairly based on who is registering them.
       </p>
     </div>
 
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">What is Proof of Personhood?</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        PoP is a way to verify that a registrant is a unique human, not a bot or a wallet farm.
-        DotNS integrates with on-chain identity systems to classify users into tiers. Each tier
-        opens up different name lengths and pricing &mdash; verified humans get access to shorter
-        names and lower (or zero) registration fees.
+        PoP verifies that a person registering a name is a unique human, not a bot or a collection
+        of fake wallets. DotNS connects to on-chain identity systems to place users into tiers. Each
+        tier unlocks different name lengths and pricing &mdash; verified humans get access to
+        shorter names and lower (or zero) registration fees.
       </p>
       <DocCallout variant="info" title="Why does this matter?">
-        Without Sybil resistance, a single entity could register every short .dot name and resell
-        them at inflated prices. PoP keeps desirable names distributed to real users at fair prices,
+        Without this protection, a single entity could register every short .dot name and resell
+        them at inflated prices. PoP keeps desirable names available to real users at fair prices
         and the namespace healthy and accessible.
       </DocCallout>
     </div>
@@ -29,8 +29,8 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">PoP Tiers</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Every name is classified into one of four tiers based on its length and trailing digit
-        pattern. Your PoP status determines which tiers you can register from.
+        Every name falls into one of four tiers based on its length and trailing digit pattern. Your
+        PoP status determines which tiers you can register from.
       </p>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div
@@ -134,7 +134,7 @@
       <h2 class="text-xl font-semibold text-dot-text-primary">Fee Formula</h2>
       <p class="text-dot-text-secondary leading-relaxed">
         The <span class="font-mono text-dot-accent">PopRules</span> contract computes registration
-        prices using a piecewise linear formula. The
+        prices using a stepped linear formula. The
         <span class="font-mono text-dot-accent">startingPrice</span> (currently 0.002 DOT) is set at
         deployment and can be updated by governance.
       </p>
@@ -157,9 +157,9 @@
 
       <DocCallout variant="info" title="Design rationale">
         <ul class="list-disc list-inside space-y-1 text-sm">
-          <li>Linear decay makes shorter names more expensive, deterring name squatting.</li>
+          <li>Shorter names cost more, which discourages name hoarding.</li>
           <li>The floor price keeps long names affordable but not free.</li>
-          <li>PoP bypasses fees entirely, providing Sybil resistance via identity verification.</li>
+          <li>PoP bypasses fees entirely, preventing abuse through identity verification.</li>
           <li>
             <span class="font-mono text-dot-accent">startingPrice</span> is upgradeable &mdash;
             governance can adjust the slope without redeploying.
@@ -185,9 +185,10 @@
       <p class="text-dot-text-secondary leading-relaxed">
         The <span class="font-mono text-dot-accent">PopRules</span> contract analyses each name
         label by splitting it into a
-        <span class="text-dot-text-primary font-medium">base part</span> (non-digit prefix) and
-        <span class="text-dot-text-primary font-medium">trailing digits</span>. The combination
-        determines the classification.
+        <span class="text-dot-text-primary font-medium">base part</span> (the letters before any
+        numbers at the end) and
+        <span class="text-dot-text-primary font-medium">trailing digits</span> (the numbers at the
+        end). The combination determines the classification.
       </p>
       <DocCodeBlock :code="classificationCode" lang="solidity" filename="PopRules.sol" />
       <div class="p-4 border border-dot-border rounded-lg bg-dot-surface space-y-3">
@@ -280,7 +281,7 @@ const tiers = [
   {
     name: "Reserved",
     description:
-      "Names with 5 or fewer base characters. Cannot be registered through normal flow — governance only.",
+      "Names with 5 or fewer base characters. Cannot be registered through the normal flow — governance approval only.",
     requires: "Governance authorisation",
     pricing: "Governance-determined",
     names: "1-5 char base (e.g. alice, bob, dot)",

@@ -139,7 +139,7 @@
     <div class="space-y-6">
       <h2 class="text-xl font-semibold text-dot-text-primary">Command Reference</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        The CLI has 8 command groups. Each section below lists every subcommand with its arguments
+        The CLI has 9 command groups. Each section below lists every subcommand with its arguments
         and options.
       </p>
 
@@ -207,17 +207,23 @@ const installTabs = [
   {
     id: "npm",
     label: "npm",
-    code: "npm install -g https://github.com/paritytech/dotns-sdk/releases/latest/download/dotns-cli.tgz",
+    code:
+      'gh release download --pattern "dotns-cli-*.tgz" --repo paritytech/dotns-sdk\n' +
+      "npm install -g ./dotns-cli-*.tgz",
   },
   {
     id: "bun",
     label: "bun",
-    code: "bun add -g https://github.com/paritytech/dotns-sdk/releases/latest/download/dotns-cli.tgz",
+    code:
+      'gh release download --pattern "dotns-cli-*.tgz" --repo paritytech/dotns-sdk\n' +
+      'bun add -g "$(pwd)/dotns-cli-*.tgz"',
   },
   {
     id: "yarn",
     label: "yarn",
-    code: "yarn global add https://github.com/paritytech/dotns-sdk/releases/latest/download/dotns-cli.tgz",
+    code:
+      'gh release download --pattern "dotns-cli-*.tgz" --repo paritytech/dotns-sdk\n' +
+      "yarn global add ./dotns-cli-*.tgz",
   },
 ];
 
@@ -460,23 +466,24 @@ const commandReference: CmdGroup[] = [
     subcommands: [
       {
         usage: "bulletin authorize [address]",
-        description: "Authorize an account for Bulletin TransactionStorage. Uses sudo by default.",
+        description:
+          "Authorise an account for Bulletin TransactionStorage. Resolves address from keystore if omitted.",
         options: [
           {
             flag: "--bulletin-rpc <wsUrl>",
-            description: 'Bulletin RPC endpoint (default: "wss://bulletin.dotspark.app")',
+            description: 'Bulletin RPC endpoint (default: "wss://paseo-bulletin-rpc.polkadot.io")',
           },
           {
             flag: "--transactions <count>",
-            description: "Number of transactions to authorize (default: 1000000)",
+            description: "Number of transactions to authorise (default: 1,000,000)",
           },
           {
             flag: "--bytes <count>",
-            description: "Number of bytes to authorize (default: ~1 TB)",
+            description: "Number of bytes to authorise (default: 1 GB)",
           },
           {
-            flag: "--sudo-key-uri <uri>",
-            description: 'Override the sudo signer key URI (default: "//Alice")',
+            flag: "--force",
+            description: "Force re-authorisation even if account appears already authorised",
           },
         ],
       },
@@ -499,15 +506,51 @@ const commandReference: CmdGroup[] = [
             description: "Adaptive scheduler max window (default: 4, max: 4)",
           },
           {
+            flag: "--max-retries <n>",
+            description: "Retry transient upload failures (default: 5, capped at 20)",
+          },
+          {
+            flag: "--resume",
+            description: "Resume a previously interrupted chunked upload",
+          },
+          {
             flag: "--print-contenthash",
             description: "Also print the 0x-prefixed IPFS contenthash encoding",
           },
           { flag: "--no-history", description: "Do not save upload to local history" },
+          {
+            flag: "--profile-upload",
+            description: "Enable upload profiling and write a JSON report",
+          },
+          {
+            flag: "--profile-output <path>",
+            description: "Path to write upload profiling JSON report",
+          },
+          { flag: "--json", description: "Output result as JSON" },
         ],
+      },
+      {
+        usage: "bulletin status [address]",
+        description:
+          "Check authorisation status for an account on Bulletin. Shows remaining transactions, bytes, and expiry.",
+        options: [
+          {
+            flag: "--bulletin-rpc <wsUrl>",
+            description: "Bulletin RPC endpoint",
+          },
+          { flag: "--json", description: "Output as JSON" },
+        ],
+      },
+      {
+        usage: "bulletin verify <cid>",
+        description:
+          "Verify a CID is resolvable via IPFS gateways. Checks multiple gateways and reports which ones resolve.",
+        options: [{ flag: "--json", description: "Output as JSON" }],
       },
       {
         usage: "bulletin history",
         description: "List all uploaded CIDs from local history. Alias: list.",
+        options: [{ flag: "--json", description: "Output as JSON" }],
       },
       {
         usage: "bulletin history:remove <cid>",
@@ -521,7 +564,8 @@ const commandReference: CmdGroup[] = [
   },
   {
     name: "account",
-    description: "Account utilities: print addresses, check balances, map Substrate to EVM.",
+    description:
+      "Account utilities: print addresses, check balances, map Substrate to EVM, and manage whitelist status.",
     subcommands: [
       {
         usage: "account address",
@@ -537,12 +581,24 @@ const commandReference: CmdGroup[] = [
         description:
           "Map a Substrate account to its EVM address. Submits the mapping transaction if not already mapped.",
       },
+      {
+        usage: "account is-mapped <address>",
+        description: "Check if a Substrate or EVM address is mapped on-chain. Alias: is.",
+      },
+      {
+        usage: "account is-whitelisted <address>",
+        description: "Check if an address is whitelisted on the DotNS Controller. Alias: iw.",
+      },
+      {
+        usage: "account whitelist <address>",
+        description: "Whitelist an address on the DotNS Controller. Admin only.",
+      },
     ],
   },
   {
     name: "store",
     description:
-      "Manage your on-chain Store: read and write key-value pairs, control write access, and authorize DotNS system contracts.",
+      "Manage your on-chain Store: read and write key-value pairs, control write access, and authorise DotNS system contracts.",
     subcommands: [
       {
         usage: "store info",
@@ -568,11 +624,11 @@ const commandReference: CmdGroup[] = [
       {
         usage: "store check <address>",
         description:
-          "Check whether an EVM address is authorized as a writer or DotNS controller on your Store.",
+          "Check whether an EVM address is authorised as a writer or DotNS controller on your Store.",
       },
       {
         usage: "store authorize <address>",
-        description: "Authorize an EVM address to write to your Store (grants setValueFor access).",
+        description: "Authorise an EVM address to write to your Store (grants setValueFor access).",
       },
       {
         usage: "store unauthorize <address>",
@@ -581,11 +637,11 @@ const commandReference: CmdGroup[] = [
       {
         usage: "store authorize-controller <address>",
         description:
-          "Authorize an address as a DotNS controller. Controllers lock keys permanently on write.",
+          "Authorise an address as a DotNS controller. Controllers lock keys permanently on write.",
       },
       {
         usage: "store unauthorize-controller <address>",
-        description: "Revoke DotNS controller authorization from an address.",
+        description: "Revoke DotNS controller authorisation from an address.",
       },
       {
         usage: "store ensure-auth",
@@ -645,11 +701,26 @@ dotns bulletin upload ./dist
 # Upload a directory with concurrency
 dotns bulletin upload ./dist --concurrency 4
 
+# Resume an interrupted upload
+dotns bulletin upload ./dist --resume
+
+# Verify a CID resolves on IPFS
+dotns bulletin verify bafkrei...
+
+# Check Bulletin authorisation status
+dotns bulletin status
+
+# Authorise an account for Bulletin uploads
+dotns bulletin authorize 5DtFfW...
+
 # Check your account balances
 dotns account info
 
 # Map Substrate → EVM
 dotns account map
+
+# Check if an address is mapped
+dotns account is-mapped 5DtFfW...
 
 # Set PoP status
 dotns pop set lite
@@ -660,7 +731,7 @@ dotns pop info
 # Store: write a key-value pair
 dotns store set my-key "my-value"
 
-# Store: authorize DotNS system contracts
+# Store: authorise DotNS system contracts
 dotns store ensure-auth
 
 # JSON output (pipe to jq)

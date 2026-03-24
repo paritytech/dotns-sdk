@@ -12,9 +12,8 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">How It Works</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        The flow is straightforward. Your website files live on a content-addressed storage network
-        (Bulletin or IPFS). The content hash &mdash; a CID that uniquely identifies your files
-        &mdash; is stored on-chain in the
+        Your website files live on a content-addressed storage network (Bulletin or IPFS). The
+        resulting CID is stored on-chain in the
         <RouterLink
           to="/docs/contracts/content-resolver"
           class="text-dot-accent hover:text-dot-accent-hover"
@@ -34,8 +33,8 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">1. Build Your Site</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Any static site generator works. The output must be a directory of static files (HTML, CSS,
-        JS, images). No server-side rendering &mdash; the gateway serves files as-is.
+        Any static site generator works. The output must be a folder of static files (HTML, CSS, JS,
+        images). The gateway serves files as-is, so server-side rendering is not supported.
       </p>
       <DocCodeBlock :code="buildExamples" lang="bash" filename="Build examples" />
       <DocCallout variant="tip" title="SPA routing">
@@ -81,8 +80,9 @@
           class="font-mono text-dot-accent hover:text-dot-accent-hover"
           >DotnsContentResolver</RouterLink
         >
-        contract. It follows the ENS contenthash encoding:
-        <code class="text-dot-accent">0xe301</code> (IPFS namespace) + the multihash bytes.
+        contract. It uses the ENS contenthash encoding format:
+        <code class="text-dot-accent">0xe301</code> (IPFS namespace prefix) followed by the
+        multihash bytes.
       </p>
       <DocCodeBlock :code="setContentHash" lang="bash" filename="Terminal" />
       <p class="text-dot-text-secondary leading-relaxed">
@@ -109,16 +109,18 @@
       />
     </div>
 
-    <TryItSection title="Try it — Look up a content hash">
-      <TryContentHash />
-    </TryItSection>
+    <DocCallout variant="tip" title="Try it">
+      <RouterLink to="/docs/dweb/hosting" class="text-dot-accent hover:text-dot-accent-hover">
+        Look up a content hash &rarr;
+      </RouterLink>
+    </DocCallout>
 
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Updating Your Site</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Upload the new build, get a new CID, and update the content hash on-chain. Content
-        addressing means the old version is still available at its CID &mdash; you are just changing
-        which version your domain points to. The CLI's
+        Upload the new build, get a new CID, and update the content hash on-chain. Because storage
+        is content-addressed, the old version stays available at its CID &mdash; you are only
+        changing which version your domain points to. The CLI's
         <code class="text-dot-accent">--no-history</code> flag skips local history tracking if you
         do not need it.
       </p>
@@ -145,8 +147,6 @@
 <script setup lang="ts">
 import DocCallout from "@/components/docs/DocCallout.vue";
 import DocCodeBlock from "@/components/docs/DocCodeBlock.vue";
-import TryItSection from "@/components/docs/TryItSection.vue";
-import TryContentHash from "@/components/docs/interactive/TryContentHash.vue";
 
 const buildExamples = `# Vite
 npm run build   # outputs to ./dist

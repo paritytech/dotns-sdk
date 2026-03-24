@@ -985,3 +985,63 @@ export type StoreEnsureAuthResult = {
   /** Transaction hash of the registry authorization, if newly authorized */
   registryTx?: string;
 };
+
+/** EVM address resolved from a Substrate or EVM input */
+export type ResolvedAddress = {
+  /** Checksummed EVM address */
+  evmAddress: Address;
+  /** Original address as provided by the caller */
+  originalAddress: string;
+};
+
+/** Result of merkleizing a directory with IPFS UnixFS */
+export type MerkleizeDirectoryResult = {
+  /** Root CID of the DAG-PB tree */
+  rootCid: import("multiformats/cid").CID;
+  /** Number of blocks in the tree */
+  totalBlocks: number;
+  /** Total size of all blocks in bytes */
+  totalBytes: number;
+};
+
+/** Authorization state for a Bulletin chain account */
+export type AuthorizationState = {
+  /** Block number at which authorization expires */
+  expiration?: number;
+  /** Current block number on the Bulletin chain */
+  currentBlock?: number;
+};
+
+/** Result of verifying a CID against an IPFS gateway */
+export type CidVerificationResult = {
+  /** Whether the gateway returned a successful response */
+  resolvable: boolean;
+  /** Base URL of the gateway that was queried */
+  gateway: string;
+  /** HTTP status code from the gateway, if available */
+  statusCode?: number;
+};
+
+/** Result of deleting a key from a user's Store contract */
+export type StoreDeleteResult = {
+  /** The bytes32 key that was deleted */
+  key: `0x${string}`;
+  /** Whether the deletion was successful */
+  deleted: boolean;
+};
+
+/** Result of finalizing an upload profile report */
+export type UploadProfileResult = {
+  /** The generated upload profile report */
+  report: UploadProfileReport;
+  /** File path where the report was saved */
+  outputPath: string;
+};
+
+/** A block (CID + raw bytes) queued for wave-based upload */
+export type WaveBlock = {
+  /** CID of the block */
+  cid: import("multiformats/cid").CID;
+  /** Raw encoded bytes of the block */
+  bytes: Uint8Array;
+};

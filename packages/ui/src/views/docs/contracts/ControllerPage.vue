@@ -4,10 +4,10 @@
       <p class="text-sm font-medium text-dot-accent mb-2">Contracts</p>
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">DotnsRegistrarController</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
-        The Controller orchestrates the
+        The Controller runs the
         <span class="text-dot-text-primary font-medium">commit-reveal registration flow</span>,
-        enforcing pricing rules and proof-of-personhood checks. It is the primary entry point for
-        registering new .dot names.
+        enforces pricing rules, and checks proof-of-personhood status. This is the main entry point
+        for registering new .dot names.
       </p>
     </div>
 
@@ -49,8 +49,8 @@
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Computes the commitment hash for a registration. Used in the commit step of the
-          commit-reveal flow.
+          Computes the commitment hash for a registration. Call this first to get the hash you will
+          submit in the commit step.
         </p>
         <DocParamTable
           :params="[
@@ -82,8 +82,13 @@
           <DocBadge variant="transaction">transaction</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Submits a commitment hash on-chain. After the minimum commitment age has passed, the
-          registration can be revealed.
+          Submits a commitment hash on-chain. Once the minimum waiting period has passed, you can
+          call
+          <code
+            class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
+            >register</code
+          >
+          to complete the registration.
         </p>
         <DocParamTable
           :params="[
@@ -108,7 +113,7 @@
           <DocBadge variant="transaction">transaction</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Reveals the commitment and registers the name. Must be called after
+          Completes the registration by revealing the commitment. Must be called after
           <code
             class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
             >minCommitmentAge</code
@@ -118,7 +123,8 @@
             class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
             >maxCommitmentAge</code
           >
-          has elapsed since the commit. Payable &mdash; send the registration fee as
+          has elapsed since the commit. This function is payable &mdash; send the registration fee
+          as
           <code
             class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
             >msg.value</code
@@ -150,8 +156,8 @@
           <DocBadge variant="transaction">transaction</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Registers a reserved name. Only callable by the user who reserved the name via PopRules.
-          Bypasses the commit-reveal flow.
+          Registers a reserved name. Only callable by the user who holds the reservation via
+          PopRules. Skips the commit-reveal flow.
         </p>
         <DocParamTable
           :params="[
@@ -208,9 +214,11 @@
       </div>
     </div>
 
-    <TryItSection title="Try it — Check name availability">
-      <TryCheckAvailability />
-    </TryItSection>
+    <DocCallout variant="tip" title="Try it">
+      <RouterLink to="/docs/getting-started" class="text-dot-accent hover:text-dot-accent-hover">
+        Check name availability &rarr;
+      </RouterLink>
+    </DocCallout>
 
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Code Example</h2>
@@ -243,8 +251,6 @@ import DocReturnsTable from "@/components/docs/DocReturnsTable.vue";
 import DocCodeBlock from "@/components/docs/DocCodeBlock.vue";
 import DocCallout from "@/components/docs/DocCallout.vue";
 import DocBadge from "@/components/docs/DocBadge.vue";
-import TryItSection from "@/components/docs/TryItSection.vue";
-import TryCheckAvailability from "@/components/docs/interactive/TryCheckAvailability.vue";
 
 const availableParams = [
   {

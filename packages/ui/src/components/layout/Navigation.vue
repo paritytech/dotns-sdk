@@ -29,12 +29,14 @@ const navItems = ref(
     ? [
         { name: "Search", path: "/" },
         { name: "Lookup", path: "/lookup" },
+        { name: "Upload", path: "/upload" },
         { name: "Profile", path: "/profile" },
         { name: "Docs", path: "/docs" },
       ]
     : [
         { name: "Search", path: "/" },
         { name: "Lookup", path: "/lookup" },
+        { name: "Upload", path: "/upload" },
         { name: "Docs", path: "/docs" },
       ],
 );
@@ -45,12 +47,14 @@ watch(
       ? [
           { name: "Search", path: "/" },
           { name: "Lookup", path: "/lookup" },
+          { name: "Upload", path: "/upload" },
           { name: "Profile", path: "/profile" },
           { name: "Docs", path: "/docs" },
         ]
       : [
           { name: "Search", path: "/" },
           { name: "Lookup", path: "/lookup" },
+          { name: "Upload", path: "/upload" },
           { name: "Docs", path: "/docs" },
         ];
   },

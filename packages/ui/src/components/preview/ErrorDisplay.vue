@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ref } from "vue";
+
 defineProps<{
   message: string;
   cid: string;
@@ -7,6 +9,14 @@ defineProps<{
 const emit = defineEmits<{
   retry: [];
 }>();
+
+const copied = ref(false);
+
+async function copyToClipboard(text: string) {
+  await navigator.clipboard.writeText(text);
+  copied.value = true;
+  setTimeout(() => (copied.value = false), 2000);
+}
 </script>
 
 <template>
@@ -35,8 +45,16 @@ const emit = defineEmits<{
       <p class="text-dot-text-tertiary mb-6">{{ message }}</p>
 
       <div v-if="cid" class="mb-8 p-4 bg-dot-surface border border-dot-border rounded-lg text-left">
-        <p class="text-xs text-dot-text-tertiary mb-1">CID</p>
-        <p class="font-mono text-sm text-dot-text-primary break-all">
+        <div class="flex items-center justify-between mb-1">
+          <p class="text-xs text-dot-text-tertiary">CID</p>
+          <button
+            class="text-xs text-dot-accent hover:text-dot-accent-hover transition-colors cursor-pointer"
+            @click="copyToClipboard(cid)"
+          >
+            {{ copied ? "Copied!" : "Copy" }}
+          </button>
+        </div>
+        <p class="font-mono text-sm text-dot-text-primary break-all select-all">
           {{ cid }}
         </p>
       </div>

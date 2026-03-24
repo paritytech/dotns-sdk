@@ -23,8 +23,8 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">What Happens on Transfer</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        When an ERC721 transfer occurs, the Registrar triggers additional logic beyond the standard
-        token transfer to keep the DotNS state consistent:
+        When an ERC721 transfer happens, the Registrar runs extra steps beyond the standard token
+        transfer to keep DotNS data in sync:
       </p>
       <div class="space-y-3">
         <div
@@ -49,8 +49,8 @@
       <h2 class="text-xl font-semibold text-dot-text-primary">Store Record Migration</h2>
       <p class="text-dot-text-secondary leading-relaxed">
         The Registrar reads the name's label from the sender's Store and writes it to the
-        recipient's Store, so the new owner has the registration record associated with their
-        address. If either party's Store does not exist, the write is silently skipped (no revert).
+        recipient's Store, so the new owner has the registration record linked to their address. If
+        either party does not have a Store deployed, the write is silently skipped (no revert).
       </p>
       <DocCodeBlock
         :code="storeMigrationCode"
@@ -67,7 +67,7 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Transfer Targets</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        You can transfer a .dot name to different types of recipients:
+        You can transfer a .dot name to several types of recipient:
       </p>
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div class="p-5 border border-dot-border rounded-xl bg-dot-surface">
@@ -86,8 +86,8 @@
             <p class="text-sm font-semibold text-dot-text-primary">Substrate Address</p>
           </div>
           <p class="text-xs text-dot-text-secondary leading-relaxed">
-            Transfer to a Substrate (SS58) address. The caller must map the Substrate address to its
-            corresponding EVM address for the on-chain transfer.
+            Transfer to a Substrate (SS58) address. You must convert the Substrate address to its
+            matching EVM address before calling the on-chain transfer.
           </p>
         </div>
         <div class="p-5 border border-dot-border rounded-xl bg-dot-surface">
@@ -96,8 +96,8 @@
             <p class="text-sm font-semibold text-dot-text-primary">.dot Name</p>
           </div>
           <p class="text-xs text-dot-text-secondary leading-relaxed">
-            Transfer to another .dot name. The caller resolves the name to its owner address using
-            the DotnsResolver before executing the transfer.
+            Transfer to another .dot name. Resolve the name to its owner address using the
+            DotnsResolver first, then execute the transfer.
           </p>
         </div>
       </div>
@@ -114,15 +114,15 @@
       <div class="space-y-3">
         <DocCallout variant="warning" title="Reverse record not updated">
           Transferring a name does <strong>not</strong> automatically update the reverse resolver.
-          The sender's reverse record (if set to the transferred name) will become stale. The
-          recipient must manually set their reverse record if they want the name to display for
-          their address.
+          If the sender's reverse record pointed to the transferred name, it will become outdated.
+          The recipient must set their own reverse record if they want the name to display for their
+          address.
         </DocCallout>
         <DocCallout variant="info" title="Approval patterns">
-          Standard ERC721 approval patterns apply. You can use
-          <span class="font-mono">approve(operator, tokenId)</span> for single-token approval or
-          <span class="font-mono">setApprovalForAll(operator, true)</span> for blanket approval.
-          Marketplaces and transfer tools use these patterns.
+          Standard ERC721 approval patterns apply. Use
+          <span class="font-mono">approve(operator, tokenId)</span> to approve a single name or
+          <span class="font-mono">setApprovalForAll(operator, true)</span> to approve all your names
+          at once. Marketplaces and transfer tools rely on these patterns.
         </DocCallout>
       </div>
     </div>
@@ -133,8 +133,8 @@
         The Registrar's transfer hook also updates the
         <span class="font-mono text-dot-accent">DotnsRegistry</span> to reflect the new owner. This
         means <span class="font-mono text-dot-text-primary">registry.owner(node)</span>
-        always returns the current NFT holder's address, keeping the registry in sync with ERC721
-        ownership.
+        always returns the current NFT holder's address, keeping the registry and token ownership in
+        sync.
       </p>
     </div>
 
@@ -176,7 +176,7 @@ const transferSteps = [
   {
     title: "Store record migrated",
     description:
-      "The Registrar reads the name label from the sender's Store and writes it to the recipient's Store. Silently skips if Store doesn't exist.",
+      "The Registrar reads the name label from the sender's Store and writes it to the recipient's Store. Silently skipped if either Store does not exist.",
   },
 ];
 

@@ -257,6 +257,11 @@
   stroke-dasharray: 0 60;
 }
 
+html {
+  background-color: #0f0f0f;
+  overscroll-behavior: none;
+}
+
 /* Dark-theme scrollbar — standard properties only.
    ::-webkit-scrollbar is intentionally omitted because it disables
    overlay scrollbar mode in Chrome, forcing a permanent gutter on

@@ -4,19 +4,19 @@
       <p class="text-sm font-medium text-dot-accent mb-2">Protocol</p>
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">Resolution</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
-        Forward resolution maps a <span class="text-dot-text-primary font-medium">.dot name</span>
-        to an on-chain address. This is the most common operation in the protocol &mdash; it lets
-        wallets, dApps, and users send transactions to human-readable names instead of hex
-        addresses.
+        Forward resolution converts a
+        <span class="text-dot-text-primary font-medium">.dot name</span> into an on-chain address.
+        This is the most common operation in the protocol &mdash; it lets wallets, apps, and users
+        send transactions to human-readable names instead of long hex addresses.
       </p>
     </div>
 
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">How Forward Resolution Works</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        The <span class="font-mono text-dot-accent">DotnsResolver</span> contract exposes a single
-        read function: <span class="font-mono text-dot-text-primary">addressOf(node)</span>. Given a
-        node hash, it returns the address that the name resolves to.
+        The <span class="font-mono text-dot-accent">DotnsResolver</span> contract has one read
+        function: <span class="font-mono text-dot-text-primary">addressOf(node)</span>. Given a node
+        hash (the unique identifier for a name), it returns the address that the name points to.
       </p>
       <DocCodeBlock :code="resolverCode" lang="solidity" filename="DotnsResolver.sol" />
     </div>
@@ -34,9 +34,9 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Full Resolution Example</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Here is a complete example of resolving
+        Below is a complete example of resolving
         <span class="font-mono text-dot-accent">alice.dot</span>
-        from a Solidity contract or off-chain using viem:
+        from a Solidity contract and from a TypeScript client using viem:
       </p>
       <DocCodeBlock :code="solidityExample" lang="solidity" filename="ResolveExample.sol" />
       <DocCodeBlock :code="viemExample" lang="typescript" filename="resolve.ts" />
@@ -64,13 +64,15 @@
     </div>
 
     <DocCallout variant="info" title="No gas required">
-      Forward resolution is a read-only call (<span class="font-mono">view</span> function). It does
-      not cost gas and can be executed off-chain by any client.
+      Forward resolution is a read-only call (<span class="font-mono">view</span> function). It
+      costs no gas fees and any client can run it off-chain.
     </DocCallout>
 
-    <TryItSection title="Try it — Resolve a .dot name">
-      <TryResolveName />
-    </TryItSection>
+    <DocCallout variant="tip" title="Try it">
+      <RouterLink to="/docs/introduction" class="text-dot-accent hover:text-dot-accent-hover">
+        Resolve a .dot name &rarr;
+      </RouterLink>
+    </DocCallout>
 
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Edge Cases</h2>
@@ -122,8 +124,6 @@
 <script setup lang="ts">
 import DocCallout from "@/components/docs/DocCallout.vue";
 import DocCodeBlock from "@/components/docs/DocCodeBlock.vue";
-import TryItSection from "@/components/docs/TryItSection.vue";
-import TryResolveName from "@/components/docs/interactive/TryResolveName.vue";
 
 const resolverCode = `// DotnsResolver — Forward resolution
 function addressOf(bytes32 node) external view returns (address) {

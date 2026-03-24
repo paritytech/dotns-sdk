@@ -52,8 +52,8 @@
       </div>
       <DocCallout variant="tip" title="Plain HTML works too">
         You do not need a build tool. A directory with an
-        <span class="font-mono">index.html</span> file is enough. Just point the CLI at your
-        directory and upload.
+        <span class="font-mono">index.html</span> file is enough. Point the CLI at your directory
+        and upload.
       </DocCallout>
     </div>
 
@@ -87,14 +87,14 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Updating Your Site</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        When you make changes, just rebuild, re-upload, and update the content hash. Previous
-        versions remain accessible by their CID &mdash; nothing is deleted.
+        When you make changes, rebuild, re-upload, and update the content hash. Previous versions
+        remain accessible by their CID &mdash; nothing is deleted.
       </p>
       <DocCodeBlock :code="updateCode" lang="bash" filename="terminal" />
       <DocCallout variant="info" title="Version history">
         Because content is stored by hash, every deployment creates an immutable snapshot. You can
-        always access previous versions of your site by their CID, even after updating the content
-        hash on your .dot name. Your entire site history is preserved on-chain.
+        access previous versions of your site by their CID, even after updating the content hash on
+        your .dot name.
       </DocCallout>
     </div>
 

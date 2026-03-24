@@ -10,6 +10,7 @@ import type {
   StoreValueResult,
   StoreAuthStatus,
   StoreEnsureAuthResult,
+  StoreDeleteResult,
 } from "../types/types";
 
 function normalizeKeyToBytes32(raw: string): `0x${string}` {
@@ -174,7 +175,7 @@ export async function deleteStoreValue(
   signer: PolkadotSigner,
   evmAddress: Address,
   rawKey: string,
-): Promise<{ key: `0x${string}`; deleted: boolean }> {
+): Promise<StoreDeleteResult> {
   const storeAddress = await resolveStoreAddress(clientWrapper, substrateAddress, evmAddress);
   const key = normalizeKeyToBytes32(rawKey);
   const spinner = ora("Deleting Store value").start();

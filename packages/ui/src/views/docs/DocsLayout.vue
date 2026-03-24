@@ -13,7 +13,7 @@
     <DocsMobileSidebar :is-open="mobileOpen" @close="mobileOpen = false" />
 
     <div class="flex-1 min-w-0">
-      <div class="max-w-3xl mx-auto px-6 py-10 lg:mx-0 lg:ml-[calc((100%-48rem-12rem)/2)]">
+      <div class="max-w-3xl mx-auto px-6 py-10 pb-20">
         <div data-docs-content class="overflow-x-hidden">
           <ErrorBoundary>
             <RouterView />

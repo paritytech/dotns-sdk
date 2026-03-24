@@ -5,19 +5,18 @@
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">Gateway</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
         The <span class="font-mono text-dot-accent">dweb-proxy-api</span> is the HTTP gateway that
-        bridges traditional browsers to the decentralised web. It intercepts requests, resolves .dot
+        connects standard browsers to the decentralised web. It receives requests, resolves .dot
         names on-chain, fetches content from decentralised storage, and serves it to the user
-        &mdash; all transparently.
+        &mdash; all without any extra browser setup.
       </p>
     </div>
 
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">How It Works</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        When a request arrives at the gateway, it follows a deterministic resolution pipeline. The
-        gateway extracts the domain name from the HTTP Host header, queries the DotNS contracts for
-        the content hash, and fetches the corresponding content from the appropriate storage
-        backend.
+        When a request arrives at the gateway, it follows a fixed resolution sequence. The gateway
+        reads the domain name from the HTTP Host header, queries the DotNS contracts for the content
+        hash, and fetches the matching content from the right storage backend.
       </p>
       <div class="border border-dot-border rounded-xl overflow-hidden">
         <div
@@ -47,8 +46,8 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Response Headers</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        The gateway adds custom response headers that provide information about the resolution and
-        content source. These are useful for debugging and verifying content integrity.
+        The gateway adds custom response headers with details about the resolution and content
+        source. These help with debugging and verifying content integrity.
       </p>
       <div class="overflow-x-auto">
         <table class="w-full text-sm border border-dot-border rounded-lg overflow-hidden">
@@ -77,8 +76,8 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Supported Protocols</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        The gateway decodes the multicodec prefix of the content hash to determine which storage
-        protocol to use for fetching content. The following protocols are supported:
+        The gateway reads the prefix of the content hash to work out which storage protocol to use.
+        The following protocols are supported:
       </p>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div
@@ -98,12 +97,12 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Path Resolution</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        The gateway supports full path resolution within content-addressed directories. When a
-        request includes a path (e.g., <span class="font-mono text-dot-accent">/about</span>), the
-        gateway traverses the UnixFS directory structure to find the corresponding file.
+        The gateway supports path resolution within content-addressed directories. When a request
+        includes a path (e.g., <span class="font-mono text-dot-accent">/about</span>), the gateway
+        walks through the directory structure to find the matching file.
       </p>
       <DocCodeBlock :code="pathResolutionCode" lang="bash" filename="path resolution examples" />
-      <DocCallout variant="info" title="Fallback behavior">
+      <DocCallout variant="info" title="Fallback behaviour">
         If a path does not match an exact file, the gateway looks for
         <span class="font-mono">index.html</span> in the directory. If the root directory has an
         <span class="font-mono">index.html</span>, it is served as the fallback for all unmatched
@@ -114,16 +113,18 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Caching</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Because content is addressed by hash, the gateway can cache aggressively. Once a CID is
-        fetched, the response can be cached indefinitely &mdash; the content will never change for a
-        given hash. Only the name-to-hash resolution needs to be refreshed periodically.
+        Because content is addressed by hash, the gateway can cache freely. Once a CID is fetched,
+        the response can be cached forever &mdash; the content for a given hash never changes. Only
+        the name-to-hash lookup needs to be refreshed periodically.
       </p>
-      <DocCodeBlock :code="cachingCode" lang="text" filename="cache behavior" />
+      <DocCodeBlock :code="cachingCode" lang="text" filename="cache behaviour" />
     </div>
 
-    <TryItSection title="Try it — Look up a content hash">
-      <TryContentHash />
-    </TryItSection>
+    <DocCallout variant="tip" title="Try it">
+      <RouterLink to="/docs/dweb/hosting" class="text-dot-accent hover:text-dot-accent-hover">
+        Look up a content hash &rarr;
+      </RouterLink>
+    </DocCallout>
 
     <div class="border-t border-dot-border pt-6 flex justify-between text-sm">
       <RouterLink
@@ -145,8 +146,6 @@
 <script setup lang="ts">
 import DocCallout from "@/components/docs/DocCallout.vue";
 import DocCodeBlock from "@/components/docs/DocCodeBlock.vue";
-import TryItSection from "@/components/docs/TryItSection.vue";
-import TryContentHash from "@/components/docs/interactive/TryContentHash.vue";
 
 const resolutionSteps = [
   {
@@ -162,7 +161,7 @@ const resolutionSteps = [
   {
     title: "Protocol Detection",
     description:
-      "The multicodec prefix of the content hash is decoded to determine the storage protocol: IPFS (0xe3), IPNS (0xe5), Bulletin, Arweave (0x0b), or Swarm (0xe4).",
+      "The prefix of the content hash identifies the storage protocol: IPFS (0xe3), IPNS (0xe5), Bulletin, Arweave (0x0b), or Swarm (0xe4).",
   },
   {
     title: "Content Fetch",
@@ -205,7 +204,7 @@ const protocols = [
     name: "IPNS",
     prefix: "0xe5 / ipns://",
     description:
-      "Mutable IPFS pointers that allow updating content without changing the content hash record.",
+      "Mutable pointers to IPFS content, so you can update what a name points to without changing the on-chain record.",
   },
   {
     name: "Bulletin",

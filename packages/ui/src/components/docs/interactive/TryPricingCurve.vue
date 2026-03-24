@@ -280,6 +280,7 @@ import { encodeFunctionData, decodeFunctionResult, zeroAddress } from "viem";
 import { useNetworkStore } from "@/store/useNetworkStore";
 import { useTransactionStore } from "@/store/useTransactionStore";
 import { useAbiStore } from "@/store/useAbiStore";
+import { normalizeNameInput } from "@/lib/docInteractiveHelpers";
 import { ZERO_SUBSTRATE_ADDRESS } from "@/lib/networks";
 import { PopStatus, type PriceWithMeta } from "@/type";
 import { formatWeiAsEther } from "@/lib/currency";
@@ -297,12 +298,7 @@ const fetchStatus = ref<"idle" | "loading" | "result" | "error">("idle");
 const errorMsg = ref("");
 const lastQueried = ref("");
 
-const cleanName = computed(() =>
-  name.value
-    .trim()
-    .replace(/\.dot$/, "")
-    .toLowerCase(),
-);
+const cleanName = computed(() => normalizeNameInput(name.value));
 
 const activeLength = computed(() => cleanName.value.length);
 

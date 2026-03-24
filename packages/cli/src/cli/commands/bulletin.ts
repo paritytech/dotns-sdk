@@ -9,6 +9,7 @@ import type {
   BulletinUploadOptions,
   CommandOptions,
   UploadProfileReport,
+  UploadProfileResult,
   UploadProfileSample,
   UploadSchedulerState,
   UploadWaveSummary,
@@ -41,6 +42,18 @@ import {
   deleteManifest,
   loadManifestForResume,
 } from "../../bulletin/uploadManifest";
+import { verifyCidWithMultipleGateways, verifyCidViaP2P } from "../../bulletin/ipfs";
+import ora from "ora";
+
+function cleanupHeliaAndExit(code: number): never {
+  import("../../bulletin/heliaClient")
+    .then(({ destroySharedHeliaClient }) => destroySharedHeliaClient())
+    .catch(() => {})
+    .finally(() => process.exit(code));
+
+  setTimeout(() => process.exit(code), 500);
+  return undefined as never;
+}
 import { normalizeUploadMaxRetries } from "../../bulletin/uploadRetry";
 import { addAuthOptions } from "./authOptions";
 import { prepareContext } from "../context";
@@ -51,7 +64,6 @@ import {
   DEFAULT_SUDO_KEY_URI,
   DEFAULT_AUTHORIZATION_TRANSACTIONS,
   DEFAULT_AUTHORIZATION_BYTES,
-  MAX_SINGLE_UPLOAD_SIZE_BYTES,
 } from "../../utils/constants";
 import { getJsonFlag } from "./lookup";
 import { clampChunkSizeBytes } from "../../bulletin/store";
@@ -81,10 +93,7 @@ function getMergedOptions(
 export type UploadProfiler = {
   onSchedulerState: (state: UploadSchedulerState) => void;
   onWave: (wave: UploadWaveSummary) => void;
-  finalize: (
-    finalCid: string,
-    overrideOutputPath?: string,
-  ) => Promise<{ report: UploadProfileReport; outputPath: string }>;
+  finalize: (finalCid: string, overrideOutputPath?: string) => Promise<UploadProfileResult>;
 };
 
 export type UploadProfilerOptions = {
@@ -152,7 +161,7 @@ export function createUploadProfiler(options: UploadProfilerOptions): UploadProf
   const summarizeAndWrite = async (
     finalCid: string,
     overrideOutputPath?: string,
-  ): Promise<{ report: UploadProfileReport; outputPath: string }> => {
+  ): Promise<UploadProfileResult> => {
     clearInterval(timer);
     captureSample();
 
@@ -331,15 +340,19 @@ export function attachBulletinCommands(root: Command): void {
         const force = Boolean(options.force);
         const signerKeyUri = String(mergedOptions.keyUri || DEFAULT_SUDO_KEY_URI);
 
+        const resolveSpinner = jsonOutput ? null : ora("Resolving target address...").start();
         const targetAddress = await resolveTargetAddress(
           positionalAddress,
           mergedOptions,
           jsonOutput,
         );
+        resolveSpinner?.succeed("Target resolved");
 
+        const signerSpinner = jsonOutput ? null : ora("Loading signer keypair...").start();
         const signerContext = await withCapturedConsole(() =>
           prepareContext({ keyUri: signerKeyUri, useBulletin: true }),
         );
+        signerSpinner?.succeed("Signer ready");
 
         if (!jsonOutput) {
           console.log(chalk.blue("\n▶ Bulletin Authorize"));
@@ -455,8 +468,7 @@ export function attachBulletinCommands(root: Command): void {
         await cleanupStaleManifests();
 
         const validatedPath = await maybeQuiet(jsonOutput, () => validateAndReadPath(inputPath));
-        const { bytes, isDirectory, resolvedPath, deferredRead, fileSize, fileMtimeMs } =
-          validatedPath;
+        const { bytes, isDirectory, resolvedPath, fileSize, fileMtimeMs } = validatedPath;
 
         const bulletinRpc = String(mergedOptions.bulletinRpc || DEFAULT_BULLETIN_RPC);
         const chunkSizeBytes = clampChunkSizeBytes(
@@ -470,11 +482,7 @@ export function attachBulletinCommands(root: Command): void {
         const resume = Boolean(mergedOptions.resume);
         const profileUpload = Boolean(mergedOptions.profileUpload);
 
-        const shouldUseChunkedUpload =
-          !isDirectory &&
-          (deferredRead ||
-            mergedOptions.forceChunked ||
-            bytes.length > MAX_SINGLE_UPLOAD_SIZE_BYTES);
+        const shouldUseChunkedUpload = !isDirectory;
         const effectiveFileSize = isDirectory ? 0 : (fileSize ?? bytes.length);
 
         let resumedBlocks: ReturnType<typeof completedBlocksFromManifest> | undefined;
@@ -738,13 +746,17 @@ export function attachBulletinCommands(root: Command): void {
         const jsonOutput = getJsonFlag(command);
         const bulletinRpc = String(mergedOptions.bulletinRpc || DEFAULT_BULLETIN_RPC);
 
+        const resolveSpinner = jsonOutput ? null : ora("Resolving account...").start();
         const targetAddress = await resolveTargetAddress(
           positionalAddress,
           mergedOptions,
           jsonOutput,
         );
+        resolveSpinner?.succeed("Account resolved");
 
+        const statusSpinner = jsonOutput ? null : ora("Checking authorization...").start();
         const authStatus = await checkAuthorization(bulletinRpc, targetAddress);
+        statusSpinner?.stop();
 
         if (jsonOutput) {
           console.log(
@@ -910,6 +922,107 @@ export function attachBulletinCommands(root: Command): void {
       } catch (error) {
         console.error(chalk.red(`\n✗ Error: ${formatErrorMessage(error)}\n`));
         process.exit(1);
+      }
+    });
+
+  bulletinCommand
+    .command("verify <cid>")
+    .description("Verify a CID is resolvable via IPFS gateways")
+    .option("--json", "Output result as JSON (suppresses all other output)", false)
+    .action(async (cid: string, options: any, command: any) => {
+      const jsonOutput = getJsonFlag(command) || Boolean(options.json);
+      const p2pSpinner = jsonOutput ? null : ora();
+
+      try {
+        if (!jsonOutput) {
+          console.log(chalk.blue("\n▶ Verifying CID"));
+          console.log(chalk.gray("  cid: ") + chalk.cyan(cid));
+        }
+
+        p2pSpinner?.start("Connecting to Bulletin P2P...");
+        const p2pResult = await verifyCidViaP2P(cid);
+
+        if (p2pResult.resolvable) {
+          p2pSpinner?.succeed("CID verified via P2P (bitswap)");
+
+          if (jsonOutput) {
+            console.log(
+              JSON.stringify({
+                cid,
+                resolvable: true,
+                method: "p2p",
+                gateways: [{ gateway: "p2p/bitswap", resolvable: true }],
+              }),
+            );
+          } else {
+            console.log(chalk.gray("  ✓ ") + chalk.white("p2p/bitswap"));
+            console.log();
+          }
+
+          cleanupHeliaAndExit(0);
+        }
+
+        p2pSpinner?.warn("P2P verification failed, falling back to gateways");
+
+        const gatewaySpinner = jsonOutput ? null : ora("Checking IPFS gateways...").start();
+        const results = await verifyCidWithMultipleGateways(cid);
+        const resolvableGateways: string[] = [];
+        const failedGateways: string[] = [];
+
+        for (const [gateway, result] of results) {
+          if (result.resolvable) {
+            resolvableGateways.push(gateway);
+          } else {
+            failedGateways.push(gateway);
+          }
+        }
+
+        if (jsonOutput) {
+          const entries = Array.from(results.entries()).map(([gateway, result]) => ({
+            gateway,
+            resolvable: result.resolvable,
+            statusCode: result.statusCode,
+            errorMessage: result.errorMessage,
+          }));
+          console.log(
+            JSON.stringify({
+              cid,
+              resolvable: resolvableGateways.length > 0,
+              method: resolvableGateways.length > 0 ? "gateway" : "none",
+              gateways: entries,
+            }),
+          );
+          cleanupHeliaAndExit(resolvableGateways.length > 0 ? 0 : 1);
+        }
+
+        if (resolvableGateways.length > 0) {
+          gatewaySpinner?.succeed(
+            `CID resolvable on ${resolvableGateways.length} gateway(s)`,
+          );
+          for (const gw of resolvableGateways) {
+            console.log(chalk.gray("  ✓ ") + chalk.white(gw));
+          }
+        } else {
+          gatewaySpinner?.fail("CID not resolvable on any gateway");
+        }
+
+        if (failedGateways.length > 0 && resolvableGateways.length > 0) {
+          for (const gw of failedGateways) {
+            console.log(chalk.gray("  ✗ ") + chalk.dim(gw));
+          }
+        }
+
+        console.log();
+        cleanupHeliaAndExit(resolvableGateways.length > 0 ? 0 : 1);
+      } catch (error) {
+        p2pSpinner?.fail("Verification failed");
+        const errorMessage = formatErrorMessage(error);
+        if (jsonOutput) {
+          console.error(JSON.stringify({ error: errorMessage }));
+        } else {
+          console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
+        }
+        cleanupHeliaAndExit(1);
       }
     });
 }

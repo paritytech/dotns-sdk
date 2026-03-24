@@ -15,8 +15,8 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">How It Works</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        The DotNS Deploy Workflow plugs into GitHub Actions. Each PR triggers a preview deploy to a
-        subname; each merge to main triggers a production deploy to the base domain.
+        The DotNS Deploy Workflow plugs into GitHub Actions. Each pull request triggers a preview
+        deploy to a subname. Each merge to main triggers a production deploy to the base domain.
       </p>
       <div class="border border-dot-border rounded-xl overflow-hidden">
         <div
@@ -81,14 +81,14 @@
       <h2 class="text-xl font-semibold text-dot-text-primary">Content-Addressable Caching</h2>
       <p class="text-dot-text-secondary leading-relaxed">
         Because Bulletin uses content-addressed storage, the same file always produces the same CID.
-        The deploy workflow checks which blocks already exist on-chain and skips them. This means
-        incremental deploys are fast &mdash; only new or changed files are uploaded.
+        The deploy workflow checks which blocks already exist on-chain and skips them. This makes
+        incremental deploys fast &mdash; only new or changed files are uploaded.
       </p>
       <DocCodeBlock :code="cachingExample" lang="text" filename="incremental deploy output" />
       <DocCallout variant="tip" title="Cost savings">
-        Content-addressable caching significantly reduces Bulletin transaction costs for incremental
-        deploys. If only a few files change between deploys, only those files incur upload costs.
-        Static assets like images and fonts are uploaded once and reused forever.
+        Content-addressable caching reduces Bulletin transaction costs for incremental deploys. If
+        only a few files change between deploys, only those files incur upload costs. Static assets
+        like images and fonts are uploaded once and reused indefinitely.
       </DocCallout>
     </div>
 

@@ -207,6 +207,10 @@ export type AuthorizationState = {
   bytes?: bigint;
 };
 
+export type BulletinUploadResult = {
+  cid: string;
+};
+
 export type ContractAuthStatus = {
   name: string;
   address: Address;

@@ -1,9 +1,14 @@
 import chalk from "chalk";
 import ora from "ora";
-import { isAddress, getAddress, type Address } from "viem";
+import { isAddress, getAddress } from "viem";
 import type { PolkadotSigner } from "polkadot-api";
 import type { ReviveClientWrapper } from "../client/polkadotClient";
-import type { IsMappedResult, IsWhitelistedResult, WhitelistResult } from "../types/types";
+import type {
+  IsMappedResult,
+  IsWhitelistedResult,
+  WhitelistResult,
+  ResolvedAddress,
+} from "../types/types";
 import { CONTRACTS, DOTNS_REGISTRAR_CONTROLLER_ABI } from "../utils/constants";
 import { performContractCall, submitContractTransaction } from "../utils/contractInteractions";
 import { isValidSubstrateAddress } from "../utils/validation";
@@ -11,7 +16,7 @@ import { isValidSubstrateAddress } from "../utils/validation";
 async function resolveToEvmAddress(
   clientWrapper: ReviveClientWrapper,
   address: string,
-): Promise<{ evmAddress: Address; originalAddress: string }> {
+): Promise<ResolvedAddress> {
   if (isAddress(address)) {
     return Promise.resolve({ evmAddress: getAddress(address), originalAddress: address });
   }

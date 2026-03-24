@@ -10,7 +10,12 @@ import { bulletin } from "@polkadot-api/descriptors";
 import { importer } from "ipfs-unixfs-importer";
 import type { CID } from "multiformats/cid";
 import { encodeIpfsContenthash } from "../bulletin/cid";
-import { hasIpfsCli, merkleizeWithIpfs, verifyCidResolution } from "../bulletin/ipfs";
+import {
+  hasIpfsCli,
+  merkleizeWithIpfs,
+  verifyCidResolution,
+  verifySingleFileCid,
+} from "../bulletin/ipfs";
 import { completedBlocksFromManifest, loadManifestForResume } from "../bulletin/uploadManifest";
 import { normalizeUploadMaxRetries, runWithUploadRetries } from "../bulletin/uploadRetry";
 import {
@@ -31,6 +36,9 @@ import type {
   UploadChunkedBlocksOptions,
   UploadManifestCompletedBlock,
   UploadSingleBlockOptions,
+  MerkleizeDirectoryResult,
+  AuthorizationState,
+  WaveBlock,
 } from "../types/types";
 import {
   DEFAULT_AUTHORIZATION_TRANSACTIONS,
@@ -161,9 +169,9 @@ type UploadDeps = {
 async function merkleizeAndUploadDirectory(
   directoryPath: string,
   deps: UploadDeps,
-): Promise<{ rootCid: CID; totalBlocks: number; totalBytes: number }> {
+): Promise<MerkleizeDirectoryResult> {
   const WAVE_SIZE = deps.concurrency;
-  let waveBuffer: Array<{ cid: CID; bytes: Uint8Array }> = [];
+  let waveBuffer: WaveBlock[] = [];
   const sharedClient = createBulletinClient(deps.rpc);
   let completedCount = 0;
   let totalBytes = 0;
@@ -538,7 +546,7 @@ export async function checkAuthorization(
 export async function ensureAccountAuthorized(
   bulletinRpc: string,
   accountAddress: string,
-): Promise<{ expiration?: number; currentBlock?: number }> {
+): Promise<AuthorizationState> {
   const authStatus = await checkAuthorization(bulletinRpc, accountAddress);
 
   if (authStatus.authorized && !authStatus.expired) {
@@ -593,12 +601,15 @@ export async function uploadSingleBlock(
           });
 
           spinner.succeed("Stored");
-          spinner.info("Verifying upload...");
-          const results = await verifySingleFileCid(storeResult.cid);
-          if (results.resolvable) {
-            console.log(chalk.green("  ✓ CID successfully resolved via gateway"));
+
+          const verifySpinner = ora("Connecting to Bulletin P2P...").start();
+          const verificationResult = await verifySingleFileCid(storeResult.cid);
+          if (verificationResult.resolvable) {
+            verifySpinner.succeed(
+              `CID verified via ${verificationResult.gateway}`,
+            );
           } else {
-            console.log(chalk.red("  ✗ CID could not be resolved via gateway"));
+            verifySpinner.warn("Could not verify CID");
           }
 
           return storeResult.cid;
@@ -867,18 +878,7 @@ export async function storeDirectory(
   }
 }
 
-export async function verifySingleFileCid(
-  contentCid: string,
-  gatewayBaseUrl: string = DEFAULT_VERIFICATION_GATEWAY,
-): Promise<{ resolvable: boolean; gateway: string; statusCode?: number }> {
-  const verificationResult = await verifyCidResolution(contentCid, gatewayBaseUrl);
-
-  return {
-    resolvable: verificationResult.resolvable,
-    gateway: verificationResult.gateway,
-    statusCode: verificationResult.statusCode,
-  };
-}
+export { verifySingleFileCid } from "../bulletin/ipfs";
 
 export function generateContenthash(contentCid: string): string {
   return encodeIpfsContenthash(contentCid);

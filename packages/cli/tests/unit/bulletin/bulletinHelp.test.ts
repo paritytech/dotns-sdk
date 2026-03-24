@@ -18,6 +18,7 @@ test("bulletin help shows commands and description", async () => {
   expect(result.combinedOutput).toContain("history");
   expect(result.combinedOutput).toContain("history:remove");
   expect(result.combinedOutput).toContain("history:clear");
+  expect(result.combinedOutput).toContain("verify");
 });
 
 test("bulletin upload help shows all options", async () => {
@@ -146,4 +147,18 @@ test("bulletin list alias works", async () => {
   const result = await runDotnsCli(["bulletin", "list", "--help"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
   expect(result.combinedOutput).toContain("List all uploaded CIDs");
+});
+
+test("bulletin verify help shows usage", async () => {
+  const result = await runDotnsCli(["bulletin", "verify", "--help"]);
+  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
+  expect(result.combinedOutput).toContain("Verify a CID is resolvable via IPFS gateways");
+  expect(result.combinedOutput).toContain("<cid>");
+  expect(result.combinedOutput).toContain("--json");
+});
+
+test("bulletin help verify shows verify help", async () => {
+  const result = await runDotnsCli(["bulletin", "help", "verify"]);
+  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
+  expect(result.combinedOutput).toContain("Verify a CID is resolvable via IPFS gateways");
 });

@@ -25,6 +25,8 @@ import type { ContractAuthStatus, DotnsAvailability } from "@/type";
 import { useResolverStore } from "./useResolverStore";
 import { useWalletStore } from "./useWalletStore";
 
+const BULLETIN_CID_KEY_PREFIX = "dotns.bulletin.";
+
 export const useUserStoreManager = defineStore("userStoreManager", () => {
   const userStore = ref<Address>(zeroAddress);
   const walletStore = useWalletStore();
@@ -379,6 +381,71 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
     }
   }
 
+  async function getBulletinUploads(): Promise<string[]> {
+    try {
+      networkStore.ensureClient();
+      await abiStore.ensureAbis();
+      walletStore.ensureWalletConnected();
+
+      const store = await getUserStore(walletStore.evmAddress as Address);
+      if (store === zeroAddress) return [];
+
+      const raw = await ethRead(store, "getValues", "Store", []);
+      const allValues = decodeFunctionResult({
+        abi: abiStore.getABI("Store"),
+        functionName: "getValues",
+        data: raw,
+      }) as string[];
+
+      return allValues.filter(
+        (v) => typeof v === "string" && v.startsWith("baf") && !v.includes("."),
+      );
+    } catch (error) {
+      console.warn("[UserStoreManager:getBulletinUploads]", error);
+      return [];
+    }
+  }
+
+  async function writeCidToStore(cid: string): Promise<Hash> {
+    networkStore.ensureClient();
+    await abiStore.ensureAbis();
+    walletStore.ensureWalletConnected();
+
+    const store = await getUserStore(walletStore.evmAddress as Address);
+    if (store === zeroAddress) {
+      throw new Error("Store not deployed. Please deploy your Store first.");
+    }
+
+    const key = keccak256(toHex(`${BULLETIN_CID_KEY_PREFIX}${cid}`));
+    const data = encodeFunctionData({
+      abi: abiStore.getABI("Store"),
+      functionName: "setValue",
+      args: [key, cid],
+    });
+
+    return ethWrite(store, data);
+  }
+
+  async function deleteCidFromStore(cid: string): Promise<Hash> {
+    networkStore.ensureClient();
+    await abiStore.ensureAbis();
+    walletStore.ensureWalletConnected();
+
+    const store = await getUserStore(walletStore.evmAddress as Address);
+    if (store === zeroAddress) {
+      throw new Error("Store not deployed.");
+    }
+
+    const key = keccak256(toHex(`${BULLETIN_CID_KEY_PREFIX}${cid}`));
+    const data = encodeFunctionData({
+      abi: abiStore.getABI("Store"),
+      functionName: "deleteValue",
+      args: [key],
+    });
+
+    return ethWrite(store, data);
+  }
+
   return {
     userStore,
     getUserStore,
@@ -392,6 +459,9 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
     batchAuthChanges,
     isNameInStore,
     writeNameToStore,
+    writeCidToStore,
+    deleteCidFromStore,
+    getBulletinUploads,
     encodeKey,
   };
 });

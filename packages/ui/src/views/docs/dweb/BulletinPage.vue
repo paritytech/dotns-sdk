@@ -6,16 +6,16 @@
       <p class="text-lg text-dot-text-secondary leading-relaxed">
         Bulletin is Polkadot's on-chain IPFS block storage &mdash; a parachain purpose-built for
         storing content-addressed data directly on the network. Unlike traditional IPFS pinning,
-        content stored on Bulletin is guaranteed to be available as long as the chain is live.
+        content stored on Bulletin is available as long as the chain is live.
       </p>
     </div>
 
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">What is Bulletin?</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Bulletin is a Polkadot system parachain that accepts IPFS-formatted blocks as extrinsics and
-        stores them on-chain. Each block is content-addressed &mdash; identified by its CID (Content
-        Identifier) &mdash; and can be retrieved by any node connected to the chain.
+        Bulletin is a Polkadot system parachain that accepts IPFS-formatted blocks as transactions
+        and stores them on-chain. Each block is content-addressed &mdash; identified by its CID
+        (Content Identifier) &mdash; and can be retrieved by any node connected to the chain.
       </p>
       <p class="text-dot-text-secondary leading-relaxed">
         This makes Bulletin the ideal storage backend for DotNS websites: content is permanent,
@@ -61,9 +61,9 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Chunked DAG-PB Upload</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        For larger files, the content is split into chunks and organized into a DAG-PB (Directed
-        Acyclic Graph, Protobuf-encoded) Merkle tree. Each chunk is submitted as a separate
-        extrinsic, and the root CID references the complete file.
+        For larger files, the content is split into chunks and organised into a DAG-PB Merkle tree
+        (a data structure that links chunks together by their hashes). Each chunk is submitted as a
+        separate transaction, and the root CID references the complete file.
       </p>
       <DocCodeBlock :code="chunkedCode" lang="bash" filename="terminal" />
       <DocCallout variant="info" title="DAG-PB format">
@@ -87,11 +87,11 @@
       <h2 class="text-xl font-semibold text-dot-text-primary">Authorisation Model</h2>
       <p class="text-dot-text-secondary leading-relaxed">
         Bulletin uses the <span class="font-mono text-dot-accent">TransactionStorage</span>
-        pallet for authorisation. Accounts must be
-        <span class="text-dot-text-primary font-medium">pre-authorized</span> before they can submit
-        storage extrinsics. An authorized entity (currently root/sudo) calls
+        pallet (a Substrate runtime module) for authorisation. Accounts must be
+        <span class="text-dot-text-primary font-medium">pre-authorised</span> before they can submit
+        storage transactions. A chain administrator calls
         <span class="font-mono text-dot-accent">TransactionStorage.authorize_account</span> to grant
-        an account permission to store a specific number of bytes. Authorization lasts for a fixed
+        an account permission to store a specific number of bytes. Authorisation lasts for a fixed
         period (7 days on Polkadot Bulletin). There are no transaction fees &mdash; the Bulletin
         chain operates with no currency.
       </p>
@@ -155,13 +155,13 @@ const uploadModes = [
   {
     title: "Chunked DAG-PB",
     description:
-      "For larger files. Content is split into chunks, organized into a DAG-PB Merkle tree, and submitted as multiple transactions.",
+      "For larger files. Content is split into chunks, linked together in a Merkle tree, and submitted as multiple transactions.",
     sizeHint: "Best for: large files, images, bundles over 256 KB",
   },
   {
     title: "Directory",
     description:
-      "For multi-file content like websites. All files are packaged into a UnixFS directory structure with a single root CID.",
+      "For multi-file content such as websites. All files are packaged into a directory structure with a single root CID.",
     sizeHint: "Best for: static websites, dApps, multi-file projects",
   },
 ];
@@ -169,11 +169,12 @@ const uploadModes = [
 const authParams = [
   {
     name: "account",
-    description: "SS58 Substrate account that is authorized to submit storage transactions",
+    description:
+      "Substrate account (SS58 format) that is authorised to submit storage transactions",
   },
   {
     name: "authorization_period",
-    description: "Duration an account's authorization remains valid (7 days on Polkadot Bulletin)",
+    description: "Duration an account's authorisation remains valid (7 days on Polkadot Bulletin)",
   },
   {
     name: "max_transaction_size",
@@ -226,7 +227,7 @@ dotns content set mysite bafybeif2uyxcrahg5kkjramreslhmssp4dkexumd7vqp5dmhtrxqjx
 const cliCommands = `# Upload a file or directory to Bulletin
 dotns bulletin upload <path>
 
-# Authorize an account for Bulletin storage
+# Authorise an account for Bulletin storage
 dotns bulletin authorize [address]
 
 # View upload history

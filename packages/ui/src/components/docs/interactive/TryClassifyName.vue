@@ -89,8 +89,12 @@
 import { ref, computed } from "vue";
 import { useDomainStore } from "@/store/useDomainStore";
 import { useWalletStore } from "@/store/useWalletStore";
-import { useNetworkStore } from "@/store/useNetworkStore";
-import { useAbiStore } from "@/store/useAbiStore";
+import {
+  normalizeNameInput,
+  ensureNetworkReady,
+  tierLabel,
+  tierClasses,
+} from "@/lib/docInteractiveHelpers";
 import Button from "@/components/ui/Button.vue";
 import Loader from "@/components/ui/Loader.vue";
 import DocTabs from "../DocTabs.vue";
@@ -98,8 +102,6 @@ import DocCodeBlock from "../DocCodeBlock.vue";
 
 const domain = useDomainStore();
 const walletStore = useWalletStore();
-const networkStore = useNetworkStore();
-const abiStore = useAbiStore();
 
 const name = ref("");
 const result = ref<{ requirement: number; message: string } | null>(null);
@@ -108,11 +110,7 @@ const lastQueried = ref("");
 const status = ref<"idle" | "no-wallet" | "loading" | "result" | "error">("idle");
 
 const viemCode = computed(() => {
-  const label =
-    name.value
-      .trim()
-      .replace(/\.dot$/, "")
-      .toLowerCase() || "alice";
+  const label = normalizeNameInput(name.value) || "alice";
   return `import { createPublicClient, http } from 'viem'
 
 const paseoAssetHub = {
@@ -162,10 +160,7 @@ async function connectWallet() {
 
 function classify() {
   clearTimeout(debounceTimer);
-  const input = name.value
-    .trim()
-    .replace(/\.dot$/, "")
-    .toLowerCase();
+  const input = normalizeNameInput(name.value);
   if (!input) {
     result.value = null;
     status.value = "idle";
@@ -176,8 +171,7 @@ function classify() {
     lastQueried.value = input;
 
     try {
-      await networkStore.getClient();
-      await abiStore.ensureAbis();
+      await ensureNetworkReady();
     } catch {
       error.value = "Network client not ready. Please wait for the app to finish loading.";
       status.value = "error";
@@ -205,36 +199,6 @@ function classify() {
       }
     }
   }, 300);
-}
-
-function tierLabel(s: number): string {
-  switch (s) {
-    case 0:
-      return "No Requirement";
-    case 1:
-      return "PoP Lite";
-    case 2:
-      return "PoP Full";
-    case 3:
-      return "Reserved";
-    default:
-      return "Unknown";
-  }
-}
-
-function tierClasses(s: number): string {
-  switch (s) {
-    case 0:
-      return "bg-success/10 text-success";
-    case 1:
-      return "bg-dot-accent-soft text-dot-accent";
-    case 2:
-      return "bg-warning/10 text-warning";
-    case 3:
-      return "bg-error/10 text-error";
-    default:
-      return "bg-dot-surface-secondary text-dot-text-secondary";
-  }
 }
 
 function trailingDigits(s: string): number {

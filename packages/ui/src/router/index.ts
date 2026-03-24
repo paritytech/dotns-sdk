@@ -25,6 +25,11 @@ const routes = [
     props: true,
   },
   {
+    path: "/upload",
+    name: "Upload",
+    component: lazyLoad(() => import("../views/PreviewView.vue")),
+  },
+  {
     path: "/preview/:encoded?",
     name: "PreviewEncoded",
     component: lazyLoad(() => import("../views/PreviewView.vue")),

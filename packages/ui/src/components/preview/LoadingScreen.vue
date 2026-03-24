@@ -1,4 +1,13 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+withDefaults(
+  defineProps<{
+    message?: string;
+  }>(),
+  {
+    message: "Loading your content preview",
+  },
+);
+</script>
 
 <template>
   <div class="min-h-screen flex flex-col items-center justify-center p-6 bg-dot-bg">
@@ -13,7 +22,7 @@
         </div>
       </div>
 
-      <p class="text-dot-text-tertiary text-lg">Loading your content preview</p>
+      <p class="text-dot-text-tertiary text-lg">{{ message }}</p>
 
       <div class="flex justify-center gap-1.5 mt-6">
         <span

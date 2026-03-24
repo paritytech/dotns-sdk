@@ -1,0 +1,129 @@
+name: Benchmark UI Build
+
+on:
+  pull_request:
+    paths:
+      - "packages/ui/**"
+      - "package.json"
+      - "bun.lockb"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: benchmark-ui-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build UI
+        run: bun run build
+        working-directory: packages/ui
+
+      - name: Upload UI build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-ui-build-${{ github.event.pull_request.number }}
+          path: packages/ui/dist
+          retention-days: 2
+
+  deploy:
+    needs: benchmark
+    uses: ./.github/workflows/deploy.yml
+    with:
+      basename: bulletin-benchmarks
+      artifact-name: pr-ui-build-${{ github.event.pull_request.number }}
+      mode: preview
+      subname: pr${{ github.event.pull_request.number }}-ui
+      register-base: false
+      cli-source: source
+      skip-cache: true
+      max-retries: 5
+    secrets:
+      dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
+      bulletin-mnemonic: ${{ secrets.BULLETIN_MNEMONIC }}
+
+  report:
+    needs: [benchmark, deploy]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Post benchmark comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("node:fs");
+            const path = require("node:path");
+
+            const status = "${{ needs.deploy.result }}" === "success" ? "Passed" : "Failed";
+            const duration = "${{ needs.deploy.outputs.duration-seconds }}" || "0";
+            const cid = "${{ needs.deploy.outputs.cid }}" || "n/a";
+            const fqdn = "${{ needs.deploy.outputs.fqdn }}" || "n/a";
+            const url = "${{ needs.deploy.outputs.url }}" || "";
+
+            const lines = [
+              "## UI Build Benchmark",
+              "",
+              "| Property | Value |",
+              "|----------|-------|",
+              `| Status | ${status} |`,
+              `| Duration | ${duration}s |`,
+              `| Domain | \`${fqdn}\` |`,
+              `| CID | \`${cid.slice(0, 30)}...\` |`,
+            ];
+
+            if (url) {
+              lines.push(`| Preview | [open](${url}) |`);
+            }
+
+            lines.push("");
+            lines.push(`[View workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`);
+
+            const commentMarker = "<!-- ui-benchmark-comment -->";
+            lines.push("");
+            lines.push(commentMarker);
+
+            const body = lines.join("\n");
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.find((c) => c.body?.includes(commentMarker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

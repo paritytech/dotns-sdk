@@ -70,16 +70,18 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { useResolverStore } from "@/store/useResolverStore";
-import { useNetworkStore } from "@/store/useNetworkStore";
-import { useAbiStore } from "@/store/useAbiStore";
+import {
+  normalizeNameInput,
+  ensureNetworkReady,
+  formatNetworkError,
+  statusPanelClasses,
+} from "@/lib/docInteractiveHelpers";
 import Button from "@/components/ui/Button.vue";
 import Loader from "@/components/ui/Loader.vue";
 import DocTabs from "../DocTabs.vue";
 import DocCodeBlock from "../DocCodeBlock.vue";
 
 const resolver = useResolverStore();
-const networkStore = useNetworkStore();
-const abiStore = useAbiStore();
 
 const domain = ref("");
 const key = ref("twitter");
@@ -91,7 +93,7 @@ const lastKey = ref("");
 const status = ref<"idle" | "loading" | "success" | "empty" | "error">("idle");
 
 const viemCode = computed(() => {
-  const label = domain.value.trim().replace(/\.dot$/, "") || "alice";
+  const label = normalizeNameInput(domain.value) || "alice";
   const recordKey = key.value || "twitter";
   return `import { createPublicClient, http, namehash } from 'viem'
 
@@ -132,19 +134,10 @@ const value = await client.readContract({
 console.log(\`\${key} for \${name}.dot:\`, value || 'not set')`;
 });
 
-const panelClasses = computed(() => {
-  switch (status.value) {
-    case "error":
-      return "border-error/30 bg-error/5";
-    case "empty":
-      return "border-warning/30 bg-warning/5";
-    default:
-      return "border-dot-border bg-dot-surface";
-  }
-});
+const panelClasses = computed(() => statusPanelClasses(status.value));
 
 async function getText() {
-  const input = domain.value.trim().replace(/\.dot$/, "");
+  const input = normalizeNameInput(domain.value);
   if (!input) return;
 
   loading.value = true;
@@ -154,18 +147,12 @@ async function getText() {
   status.value = "loading";
 
   try {
-    await networkStore.getClient();
-    await abiStore.ensureAbis();
+    await ensureNetworkReady();
 
     result.value = await resolver.getText(input, key.value);
     status.value = result.value ? "success" : "empty";
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    if (msg.includes("Client not initialized") || msg.includes("No valid network")) {
-      error.value = "Network client not ready. Please wait for the app to finish loading.";
-    } else {
-      error.value = msg;
-    }
+    error.value = formatNetworkError(e);
     status.value = "error";
   } finally {
     loading.value = false;

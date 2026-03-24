@@ -9,7 +9,7 @@
         (<span class="font-mono text-dot-accent">alice.mydao.dot</span>) and services (<span
           class="font-mono text-dot-accent"
           >gov.mydao.dot</span
-        >). Organize your entire organisation under a single, memorable namespace with delegated
+        >). Organise your entire organisation under a single, memorable namespace with delegated
         ownership.
       </p>
     </div>
@@ -111,9 +111,9 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Ownership Delegation</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        The owner of the base domain controls all subnames. However, you can delegate management by
-        approving operators. This is useful for letting DAO multisigs, governance contracts, or
-        trusted members manage subnames independently.
+        The owner of the base domain controls all subnames. You can delegate management by approving
+        operators (addresses allowed to act on your behalf). This is useful for letting DAO
+        multisigs, governance contracts, or trusted members manage subnames independently.
       </p>
       <DocCodeBlock :code="delegationCode" lang="bash" filename="terminal" />
       <DocCallout variant="warning" title="Operator permissions">
@@ -127,7 +127,7 @@
       <h2 class="text-xl font-semibold text-dot-text-primary">Governance Integration</h2>
       <p class="text-dot-text-secondary leading-relaxed">
         By owning the base domain with a multisig or governance contract, your DAO can manage its
-        naming namespace through on-chain governance proposals. Members vote on subname creation,
+        namespace through on-chain governance proposals. Members vote on subname creation,
         delegation changes, and content updates.
       </p>
       <DocCallout variant="tip" title="Multisig ownership">

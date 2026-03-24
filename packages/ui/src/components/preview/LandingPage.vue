@@ -4,15 +4,40 @@ import FileUpload from "./FileUpload.vue";
 
 const activeTab = ref<"file" | "folder">("file");
 const copiedCommand = ref<string | null>(null);
+const selectedPm = ref<"npm" | "yarn" | "bun-mac" | "bun-win">("npm");
+
+const RELEASES_URL = "https://github.com/paritytech/dotns-sdk/releases";
+
+const installCommands = {
+  npm: "npm install -g ./dotns-cli-*.tgz",
+  yarn: "yarn global add ./dotns-cli-*.tgz",
+  "bun-mac": 'bun add -g "$(pwd)/dotns-cli-*.tgz"',
+  "bun-win": 'bun add -g "$PWD\\dotns-cli-*.tgz"',
+};
+
+const pmLabels = {
+  npm: "npm",
+  yarn: "yarn",
+  "bun-mac": "bun (macOS/Linux)",
+  "bun-win": "bun (Windows)",
+};
 
 const commands = {
-  install: "bun add -g @dotns-sdk/cli",
+  download: 'gh release download --pattern "dotns-cli-*.tgz" --repo paritytech/dotns-sdk',
+  install: installCommands[selectedPm.value],
   upload: "dotns bulletin upload ./dist",
 };
 
-async function copyToClipboard(key: "install" | "upload") {
+type CommandKey = "download" | "install" | "upload";
+
+function getCommand(key: CommandKey): string {
+  if (key === "install") return installCommands[selectedPm.value];
+  return commands[key];
+}
+
+async function copyToClipboard(key: CommandKey) {
   try {
-    await navigator.clipboard.writeText(commands[key]);
+    await navigator.clipboard.writeText(getCommand(key));
     copiedCommand.value = key;
     setTimeout(() => {
       copiedCommand.value = null;
@@ -54,110 +79,169 @@ function handleUploadError(message: string) {
           </div>
 
           <div class="space-y-3">
-            <div class="bg-dot-bg border border-dot-border rounded group">
-              <div class="flex items-center justify-between px-3 py-2 border-b border-dot-border">
-                <div class="flex items-center gap-1.5">
-                  <span class="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-dot-border"></span>
-                  <span class="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-dot-border"></span>
-                  <span class="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-dot-border"></span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="text-dot-text-tertiary text-xs">bash</span>
-                  <button
-                    @click="copyToClipboard('install')"
-                    class="p-1 rounded text-dot-text-tertiary hover:text-dot-text-secondary hover:bg-dot-surface-secondary transition-colors"
-                    title="Copy command"
+            <!-- Step 1: Download -->
+            <div class="bg-dot-bg border border-dot-border rounded">
+              <div class="flex items-center justify-between px-3 py-1.5 border-b border-dot-border">
+                <span class="text-dot-text-tertiary text-xs">1. Download</span>
+                <button
+                  @click="copyToClipboard('download')"
+                  class="p-1 rounded text-dot-text-tertiary hover:text-dot-text-secondary shrink-0"
+                  title="Copy"
+                >
+                  <svg
+                    v-if="copiedCommand === 'download'"
+                    class="w-3.5 h-3.5 text-green-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
                   >
-                    <svg
-                      v-if="copiedCommand === 'install'"
-                      class="w-4 h-4 text-green-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                    <svg
-                      v-else
-                      class="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                      />
-                    </svg>
-                  </button>
-                </div>
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  <svg
+                    v-else
+                    class="w-3.5 h-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                    />
+                  </svg>
+                </button>
               </div>
-              <div class="p-3 sm:p-4 font-mono text-xs sm:text-sm overflow-x-auto">
+              <div class="px-3 py-2 font-mono text-xs overflow-x-auto">
                 <span class="text-dot-text-tertiary select-none">$ </span>
-                <span class="text-dot-text-secondary">bun add </span>
-                <span class="text-dot-text-primary">-g @dotns-sdk/cli</span>
+                <span class="text-dot-text-secondary">gh release download -p </span>
+                <span class="text-dot-text-primary">"*.tgz" -R paritytech/dotns-sdk</span>
               </div>
             </div>
 
-            <div class="bg-dot-bg border border-dot-border rounded group">
-              <div class="flex items-center justify-between px-3 py-2 border-b border-dot-border">
-                <div class="flex items-center gap-1.5">
-                  <span class="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-dot-border"></span>
-                  <span class="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-dot-border"></span>
-                  <span class="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-dot-border"></span>
+            <!-- Step 2: Install with PM selector -->
+            <div class="bg-dot-bg border border-dot-border rounded">
+              <div class="flex items-center justify-between px-3 py-1.5 border-b border-dot-border">
+                <div class="flex items-center gap-2 overflow-x-auto">
+                  <span class="text-dot-text-tertiary text-xs shrink-0">2. Install</span>
+                  <div class="flex gap-1">
+                    <button
+                      v-for="(label, key) in pmLabels"
+                      :key="key"
+                      @click="selectedPm = key"
+                      class="px-1.5 py-0.5 rounded text-[10px] transition-colors whitespace-nowrap"
+                      :class="[
+                        selectedPm === key
+                          ? 'bg-dot-surface-secondary text-dot-text-primary'
+                          : 'text-dot-text-tertiary hover:text-dot-text-secondary',
+                      ]"
+                    >
+                      {{ label }}
+                    </button>
+                  </div>
                 </div>
-                <div class="flex items-center gap-2">
-                  <span class="text-dot-text-tertiary text-xs">bash</span>
-                  <button
-                    @click="copyToClipboard('upload')"
-                    class="p-1 rounded text-dot-text-tertiary hover:text-dot-text-secondary hover:bg-dot-surface-secondary transition-colors"
-                    title="Copy command"
+                <button
+                  @click="copyToClipboard('install')"
+                  class="p-1 rounded text-dot-text-tertiary hover:text-dot-text-secondary shrink-0"
+                  title="Copy"
+                >
+                  <svg
+                    v-if="copiedCommand === 'install'"
+                    class="w-3.5 h-3.5 text-green-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
                   >
-                    <svg
-                      v-if="copiedCommand === 'upload'"
-                      class="w-4 h-4 text-green-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                    <svg
-                      v-else
-                      class="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                      />
-                    </svg>
-                  </button>
-                </div>
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  <svg
+                    v-else
+                    class="w-3.5 h-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                    />
+                  </svg>
+                </button>
               </div>
-              <div class="p-3 sm:p-4 font-mono text-xs sm:text-sm overflow-x-auto">
+              <div class="px-3 py-2 font-mono text-xs overflow-x-auto">
+                <span class="text-dot-text-tertiary select-none">$ </span>
+                <span class="text-dot-text-secondary">{{ installCommands[selectedPm] }}</span>
+              </div>
+            </div>
+
+            <!-- Step 3: Upload -->
+            <div class="bg-dot-bg border border-dot-border rounded">
+              <div class="flex items-center justify-between px-3 py-1.5 border-b border-dot-border">
+                <span class="text-dot-text-tertiary text-xs">3. Upload</span>
+                <button
+                  @click="copyToClipboard('upload')"
+                  class="p-1 rounded text-dot-text-tertiary hover:text-dot-text-secondary shrink-0"
+                  title="Copy"
+                >
+                  <svg
+                    v-if="copiedCommand === 'upload'"
+                    class="w-3.5 h-3.5 text-green-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  <svg
+                    v-else
+                    class="w-3.5 h-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <div class="px-3 py-2 font-mono text-xs overflow-x-auto">
                 <span class="text-dot-text-tertiary select-none">$ </span>
                 <span class="text-dot-text-secondary">dotns bulletin upload </span>
                 <span class="text-dot-text-primary">./dist</span>
               </div>
             </div>
           </div>
+
+          <a
+            :href="RELEASES_URL"
+            target="_blank"
+            rel="noopener"
+            class="block text-center text-dot-accent text-xs hover:underline mt-3"
+          >
+            View all releases on GitHub
+          </a>
         </div>
 
         <div class="bg-dot-surface border border-dot-border rounded-lg p-4 sm:p-6">

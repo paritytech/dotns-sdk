@@ -52,16 +52,15 @@
         Step 2: Upload to Bulletin or IPFS
       </h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Upload your build output to a decentralised storage backend. Bulletin is the recommended
-        choice for Polkadot-native hosting, as content is stored directly on-chain and is always
-        available.
+        Upload your build output to decentralised storage. Bulletin is the recommended choice for
+        Polkadot-native hosting because content is stored directly on-chain and is always available.
       </p>
       <DocCodeBlock :code="uploadBulletinCode" lang="bash" filename="upload via CLI (Bulletin)" />
       <DocCodeBlock :code="uploadIpfsCode" lang="bash" filename="upload via CLI (IPFS)" />
       <DocCallout variant="tip" title="Bulletin vs IPFS">
-        Bulletin stores content on Polkadot's parachain &mdash; it is always available without
-        relying on pinning services. IPFS is a good choice if you already have pinning
-        infrastructure or want compatibility with the broader IPFS ecosystem.
+        Bulletin stores content on a Polkadot parachain &mdash; always available without relying on
+        external pinning services. IPFS is a good choice if you already use IPFS pinning or want
+        compatibility with the broader IPFS ecosystem.
       </DocCallout>
     </div>
 
@@ -128,13 +127,12 @@ const steps = [
   },
   {
     title: "Upload to Bulletin or IPFS",
-    description:
-      "Push your build output to decentralised storage and receive a content hash (CID).",
+    description: "Push your build output to decentralised storage and receive a CID.",
   },
   {
     title: "Set the content hash",
     description:
-      "Link your .dot name to the content hash by calling setContenthash on the ContentResolver.",
+      "Link your .dot name to the CID by calling setContenthash on the ContentResolver contract.",
   },
   {
     title: "Access via gateway",

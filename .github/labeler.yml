@@ -38,6 +38,14 @@
   - changed-files:
       - any-glob-to-any-file: "packages/cli/tests/**"
 
+"scope: benchmark":
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/workflows/benchmark-*.yml"
+          - ".github/workflows/daily-deploy-sized-benchmarks.yml"
+          - ".github/workflows/deploy-sized-benchmark-entry.yml"
+          - "examples/deploy/sized-sites/**"
+
 "dependencies":
   - changed-files:
       - any-glob-to-any-file:

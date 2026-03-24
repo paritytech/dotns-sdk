@@ -396,7 +396,7 @@
             </thead>
             <tbody class="divide-y divide-dot-border bg-dot-surface">
               <tr
-                v-for="domain in allDomains"
+                v-for="domain in paginatedDomains"
                 :key="domain.name"
                 class="hover:bg-dot-surface-secondary"
               >
@@ -431,6 +431,13 @@
             </tbody>
           </table>
         </div>
+        <TablePagination
+          v-model="whoisPage"
+          :total-items="allDomains.length"
+          :page-size="whoisPageSize"
+          item-label="domain"
+          @update:page-size="whoisPageSize = $event"
+        />
       </section>
     </div>
 
@@ -481,6 +488,7 @@ import { useNetworkStore } from "@/store/useNetworkStore";
 import { useUserStoreManager } from "@/store/useUserStoreManager";
 import { useResolverStore } from "@/store/useResolverStore";
 import Button from "@/components/ui/Button.vue";
+import TablePagination from "@/components/ui/TablePagination.vue";
 
 const route = useRoute();
 const wallet = useWalletStore();
@@ -502,6 +510,13 @@ const url = ref<string | null>(null);
 const description = ref<string | null>(null);
 const records = ref<Record<string, string>>({});
 const allDomains = ref<MyDomain[]>([]);
+const whoisPage = ref(1);
+const whoisPageSize = ref(10);
+
+const paginatedDomains = computed(() => {
+  const start = (whoisPage.value - 1) * whoisPageSize.value;
+  return allDomains.value.slice(start, start + whoisPageSize.value);
+});
 
 const showEditModal = ref(false);
 const showTxStatus = ref(false);
