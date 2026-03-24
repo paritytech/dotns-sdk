@@ -202,6 +202,7 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
   const chunksCompleted = ref(0);
   const chunksTotal = ref(0);
   const storeTransactionHash = ref<string | null>(null);
+  const cachingEnabled = ref(false);
 
   function resetUploadState(): void {
     isUploading.value = false;
@@ -214,6 +215,7 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
     chunksCompleted.value = 0;
     chunksTotal.value = 0;
     storeTransactionHash.value = null;
+    cachingEnabled.value = false;
     window.onbeforeunload = null;
   }
 
@@ -422,6 +424,7 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
 
     resetUploadState();
     isUploading.value = true;
+    cachingEnabled.value = Boolean(options.cacheToStore);
     window.onbeforeunload = () => "Upload in progress. Are you sure you want to leave?";
 
     let hadError = false;
@@ -645,6 +648,7 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
     chunksCompleted,
     chunksTotal,
     storeTransactionHash,
+    cachingEnabled,
     maxTxSizeBytes: MAX_TX_SIZE,
     chunkSizeBytes: CHUNK_SIZE,
     browserUploadLimitBytes: MAX_BROWSER_UPLOAD_SIZE,

@@ -89,11 +89,12 @@ watch(
       transaction.value = { hash: zeroHash, status: undefined };
       showTransaction.value = true;
     }
-    if (stage === "done" && showTransaction.value) {
+    if (stage === "done") {
       transaction.value = {
         hash: (bulletinStore.storeTransactionHash as `0x${string}`) || zeroHash,
         status: true,
       };
+      showTransaction.value = true;
     }
     if (stage === "error" && showTransaction.value) {
       transaction.value = { hash: zeroHash, status: false };
@@ -269,22 +270,6 @@ const approvalStepStates = computed(() => {
       status,
     };
   });
-});
-const verificationMessage = computed(() => {
-  const verification = bulletinStore.uploadVerification;
-  if (!verification) {
-    return null;
-  }
-
-  if (verification.resolvable) {
-    try {
-      return `Verified via ${new URL(verification.gateway).host}`;
-    } catch {
-      return `Verified via ${verification.gateway}`;
-    }
-  }
-
-  return "Stored on Bulletin. IPFS gateway verification may still be propagating.";
 });
 
 function handleDragOver(event: DragEvent): void {
@@ -781,19 +766,6 @@ function handleTransactionClose(): void {
       >
         {{ exceedsBrowserLimit ? "Use CLI for This Upload" : "Upload to Bulletin Chain" }}
       </Button>
-
-      <div
-        v-if="bulletinStore.uploadStage === 'done' && bulletinStore.uploadedCid"
-        class="bg-green-500/10 border border-green-500/20 rounded-lg p-3"
-      >
-        <p class="text-green-400 text-sm font-medium mb-1">Upload complete</p>
-        <p class="text-dot-text-tertiary text-xs font-mono break-all">
-          {{ bulletinStore.uploadedCid }}
-        </p>
-        <p v-if="verificationMessage" class="text-dot-text-tertiary text-xs mt-2">
-          {{ verificationMessage }}
-        </p>
-      </div>
     </div>
 
     <div

@@ -1,7 +1,6 @@
 {
   "extends": "@vue/tsconfig/tsconfig.dom.json",
   "compilerOptions": {
-    "ignoreDeprecations": "6.0",
     "target": "ES2023",
 
     "module": "ESNext",
@@ -9,9 +8,8 @@
 
     "lib": ["DOM", "DOM.Iterable", "ES2023"],
 
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     },
 
     "types": ["vite/client"],

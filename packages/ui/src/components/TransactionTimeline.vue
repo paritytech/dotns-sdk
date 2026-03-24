@@ -68,11 +68,11 @@ const DEFAULT_STEPS = [
   { key: "finalized", label: "Finalized" },
 ];
 
-const BULLETIN_STEPS = [
+const BULLETIN_STEPS = computed(() => [
   ...DEFAULT_STEPS,
   { key: "verifying", label: "Verifying" },
-  { key: "caching", label: "Caching" },
-];
+  { key: "caching", label: bulletinStore.cachingEnabled ? "Caching" : "Caching (off)" },
+]);
 
 const REJECTION_MARKERS = ["cancelled", "rejected", "denied"];
 
@@ -83,17 +83,19 @@ function isUserRejection(errorMessage: string): boolean {
 
 const isBulletinUpload = computed(() => {
   const stage = uploadStage.value;
-  if (stage === "idle" || stage === "done") return false;
+  if (stage === "idle") return false;
+  if (stage === "done") return true;
   if (stage === "error") return isUserRejection(bulletinStore.statusMessage);
   return true;
 });
 
-const activeSteps = computed(() => (isBulletinUpload.value ? BULLETIN_STEPS : DEFAULT_STEPS));
+const activeSteps = computed(() => (isBulletinUpload.value ? BULLETIN_STEPS.value : DEFAULT_STEPS));
 
 const activeStatus = computed(() => {
   if (!isBulletinUpload.value) return transactionStatus.value;
 
   const stage = uploadStage.value;
+  if (stage === "done") return "done";
   if (stage === "error") return lastActiveStep.value;
   if (stage === "verifying") return "verifying";
   if (stage === "caching") return "caching";
@@ -113,6 +115,7 @@ watch(activeStatus, (newStatus) => {
 const activeOrder = computed(() => activeSteps.value.map((s) => s.key));
 
 function isCompleted(stepKey: string): boolean {
+  if (activeStatus.value === "done") return true;
   const order = activeOrder.value;
   return order.indexOf(activeStatus.value) > order.indexOf(stepKey);
 }
