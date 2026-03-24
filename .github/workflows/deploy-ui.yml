@@ -16,6 +16,10 @@ permissions:
   contents: read
   pull-requests: write
 
+concurrency:
+  group: bulletin-upload
+  cancel-in-progress: false
+
 jobs:
   build:
     name: Build UI
@@ -102,7 +106,7 @@ jobs:
       cli-source: source
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
-      bulletin-mnemonic: ${{ secrets.BULLETIN_MNEMONIC }}
+      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
 
   deploy-production:
     name: Deploy Production
@@ -117,7 +121,7 @@ jobs:
       cli-source: source
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
-      bulletin-mnemonic: ${{ secrets.BULLETIN_MNEMONIC }}
+      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
 
   comment:
     name: Update PR Comment

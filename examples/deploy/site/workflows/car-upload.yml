@@ -19,6 +19,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: bulletin-upload
+  cancel-in-progress: false
+
 jobs:
   build:
     name: Build

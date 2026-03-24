@@ -15,6 +15,10 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: bulletin-upload
+  cancel-in-progress: false
+
 jobs:
   build:
     name: Build

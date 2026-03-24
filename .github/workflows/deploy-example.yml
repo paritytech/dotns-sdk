@@ -14,6 +14,10 @@ permissions:
   contents: read
   pull-requests: write
 
+concurrency:
+  group: bulletin-upload
+  cancel-in-progress: false
+
 jobs:
   build:
     name: Build Example
@@ -104,7 +108,7 @@ jobs:
       sdk-ref: ${{ github.event.pull_request.head.sha }}
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
-      bulletin-mnemonic: ${{ secrets.BULLETIN_MNEMONIC }}
+      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
 
   comment:
     name: Update PR Comment

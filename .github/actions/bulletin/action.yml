@@ -66,27 +66,31 @@ runs:
       run: |
         echo "::add-mask::$DOTNS_MNEMONIC"
 
-        ARGS=("$BUILD_PATH" --json)
+        ARGS=("$BUILD_PATH" --json --resume)
         [[ -n "$BULLETIN_RPC" ]] && ARGS+=(--bulletin-rpc "$BULLETIN_RPC")
         ARGS+=(--concurrency "$UPLOAD_CONCURRENCY")
 
         for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
           echo "Upload attempt $ATTEMPT/$MAX_RETRIES"
 
-          if RESULT=$(dotns bulletin upload "${ARGS[@]}" 2>&1); then
-            CID=$(echo "$RESULT" | jq -r '.cid')
-            CONTENTHASH=$(echo "$RESULT" | jq -r '.contenthash')
+          RESULT_FILE=$(mktemp)
+          if dotns bulletin upload "${ARGS[@]}" 2>&1 | tee "$RESULT_FILE"; then
+            RESULT=$(cat "$RESULT_FILE")
+            CID=$(echo "$RESULT" | jq -r '.cid // empty')
+            CONTENTHASH=$(echo "$RESULT" | jq -r '.contenthash // empty')
 
-            if [[ -n "$CID" && "$CID" != "null" ]]; then
+            if [[ -n "$CID" ]]; then
               echo "cid=$CID" >> "$GITHUB_OUTPUT"
               echo "contenthash=$CONTENTHASH" >> "$GITHUB_OUTPUT"
               echo "::notice::Uploaded CID: $CID"
+              rm -f "$RESULT_FILE"
               exit 0
             fi
           fi
 
           echo "::warning::Upload attempt $ATTEMPT failed"
-          echo "$RESULT"
+          cat "$RESULT_FILE"
+          rm -f "$RESULT_FILE"
           [[ "$ATTEMPT" -lt "$MAX_RETRIES" ]] && sleep "$RETRY_DELAY"
         done
 
