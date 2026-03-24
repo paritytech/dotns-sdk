@@ -602,7 +602,7 @@ export function attachBulletinCommands(root: Command): void {
         String(DEFAULT_UPLOAD_MAX_RETRIES),
       )
       .option("--force-chunked", "Force chunked upload (DAG-PB)", false)
-      .option("--concurrency <n>", "Adaptive scheduler max window (default: 4, max: 4)", "4")
+      .option("--concurrency <n>", "Adaptive scheduler max window (default: 16, max: 64)", "16")
       .option("--print-contenthash", "Also print 0x-prefixed IPFS contenthash for the CID", false)
       .option("--resume", "Resume a previously interrupted upload", false)
       .option("--profile-upload", "Enable upload profiling and write a JSON report", false)
@@ -643,7 +643,7 @@ export function attachBulletinCommands(root: Command): void {
         const maxRetries = normalizeUploadMaxRetries(mergedOptions.maxRetries);
         const concurrency = Math.max(
           1,
-          Math.min(4, Math.floor(Number(mergedOptions.concurrency || 4))),
+          Math.min(64, Math.floor(Number(mergedOptions.concurrency || 16))),
         );
         const resume = Boolean(mergedOptions.resume);
         const profileUpload = Boolean(mergedOptions.profileUpload);

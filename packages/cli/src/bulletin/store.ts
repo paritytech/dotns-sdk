@@ -970,6 +970,91 @@ export async function storeBlockToBulletin(
   });
 }
 
+export type BatchBlock = {
+  contentBytes: Uint8Array;
+  contentCid: string;
+  codecValue: number;
+  hashCodeValue: number;
+};
+
+export async function storeBatchToBulletin(parameters: {
+  signer: Parameters<ReturnType<ReturnType<PolkadotClient["getTypedApi"]>["tx"]["Utility"]["batch_all"]>["signSubmitAndWatch"]>[0];
+  blocks: BatchBlock[];
+  nonce?: number;
+  client: PolkadotClient;
+  waitForFinalization?: boolean;
+  storeTimeoutMs?: number;
+}): Promise<{ cids: string[] }> {
+  const {
+    signer,
+    blocks,
+    nonce,
+    client,
+    waitForFinalization = false,
+    storeTimeoutMs = STORE_CALL_TIMEOUT_MS,
+  } = parameters;
+
+  const typedApi = client.getTypedApi(bulletin);
+  const calls = blocks.map(
+    (block) =>
+      typedApi.tx.TransactionStorage.store_with_cid_config({
+        cid: {
+          codec: BigInt(block.codecValue),
+          hashing: convertHashCodeToEnum(block.hashCodeValue),
+        },
+        data: Binary.fromBytes(block.contentBytes),
+      }).decodedCall,
+  );
+
+  const batchTx = typedApi.tx.Utility.batch_all({ calls });
+  const txOptions: Record<string, unknown> = {};
+  if (nonce !== undefined) txOptions.nonce = nonce;
+
+  const cids = blocks.map((b) => b.contentCid);
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let subscription: { unsubscribe: () => void } | undefined;
+
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try { subscription?.unsubscribe(); } catch { /* */ }
+      reject(new Error("store-timeout"));
+    }, storeTimeoutMs);
+
+    function finish(error?: Error): void {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      try { subscription?.unsubscribe(); } catch { /* */ }
+      if (error) reject(error);
+      else resolve({ cids });
+    }
+
+    try {
+      subscription = batchTx.signSubmitAndWatch(signer as never, txOptions).subscribe({
+        next: (event: any) => {
+          if (settled) return;
+          if (event.type === "txBestBlocksState" && event.found) {
+            if (!waitForFinalization) {
+              if (event.ok) finish();
+              else finish(new Error(event.dispatchError ? formatDispatchError(event.dispatchError) : "Batch failed"));
+            }
+          }
+          if (event.type === "finalized") {
+            if (event.ok) finish();
+            else finish(new Error(event.dispatchError ? formatDispatchError(event.dispatchError) : "Batch failed"));
+          }
+        },
+        error: (err: unknown) => finish(ensureError(err)),
+      });
+    } catch (err) {
+      finish(ensureError(err));
+    }
+  });
+}
+
 export async function fetchAccountNonce(rpc: string, accountAddress: string): Promise<number> {
   const WebSocketConstructor = globalThis.WebSocket ?? (await import("ws")).default;
 

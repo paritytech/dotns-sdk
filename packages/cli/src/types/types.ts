@@ -442,15 +442,11 @@ export type UploadChunkedBlocksOptions = UploadRetryOptions & {
 };
 
 export type StoreDirectoryOptions = UploadRetryOptions & {
-  /** SS58 address for nonce management in parallel mode */
   accountAddress?: string;
-  /** Maximum concurrent upload operations */
   concurrency?: number;
-  /** Optional human-readable progress callback */
+  chunkSizeBytes?: number;
   onPhase?: BulletinPhaseHandler;
-  /** Gateway URL for content resolution verification */
   verificationGateway?: string;
-  /** If false, resolve on best-block inclusion instead of finalization. Default: true */
   waitForFinalization?: boolean;
 };
 
