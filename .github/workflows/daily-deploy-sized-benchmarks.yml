@@ -78,7 +78,7 @@ jobs:
       benchmark-timestamp: ${{ needs.gate.outputs.benchmark-timestamp }}
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
-      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
+      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC_BENCHMARK }}
 
   issue:
     name: Publish Benchmark Issue

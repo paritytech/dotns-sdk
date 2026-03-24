@@ -57,7 +57,7 @@ jobs:
       max-retries: 5
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
-      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
+      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC_BENCHMARK }}
 
   report:
     needs: [benchmark, deploy]

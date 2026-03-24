@@ -104,7 +104,7 @@ jobs:
       sdk-ref: ${{ github.event.pull_request.head.sha }}
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
-      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
+      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC_DEPLOY_EXAMPLE }}
 
   comment:
     name: Update PR Comment

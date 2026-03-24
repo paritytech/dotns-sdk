@@ -102,7 +102,7 @@ jobs:
       cli-source: source
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
-      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
+      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC_DEPLOY_UI }}
 
   deploy-production:
     name: Deploy Production
@@ -117,7 +117,7 @@ jobs:
       cli-source: source
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
-      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
+      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC_DEPLOY_UI }}
 
   comment:
     name: Update PR Comment

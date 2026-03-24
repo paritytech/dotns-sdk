@@ -123,7 +123,7 @@ jobs:
       benchmark-timestamp: ${{ needs.parse.outputs.benchmark-timestamp }}
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
-      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
+      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC_BENCHMARK }}
 
   build-ui:
     needs: [parse, authorize]
@@ -171,7 +171,7 @@ jobs:
       max-retries: 5
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
-      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
+      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC_BENCHMARK }}
 
   report-ui:
     needs: [parse, deploy-ui]
