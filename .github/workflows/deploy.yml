@@ -141,6 +141,8 @@ jobs:
           sparse-checkout: |
             .github/actions
             packages/cli
+            packages/ui/package.json
+            packages/ui/.papi
             package.json
             bun.lock
 
