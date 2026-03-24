@@ -251,9 +251,12 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
     "mempool",
     "priority",
     "future",
+    "dropped",
     "reset",
     "econn",
     "unavailable",
+    "chainhead disjointed",
+    "chainhead stopped",
     "rate limit",
     "stop-call",
     "not pinned",
@@ -427,7 +430,6 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
     cachingEnabled.value = Boolean(options.cacheToStore);
     window.onbeforeunload = () => "Upload in progress. Are you sure you want to leave?";
 
-    let hadError = false;
     const globalTimeout = setTimeout(() => {
       if (isUploading.value) {
         uploadError.value =
@@ -516,7 +518,6 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
       setStage("done", "Upload complete!", 100);
       return result;
     } catch (error) {
-      hadError = true;
       const err = ensureError(error);
       const friendlyMessage = formatTransactionError(err);
       setStage("error", friendlyMessage, 0);
@@ -524,7 +525,7 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
       throw err;
     } finally {
       clearTimeout(globalTimeout);
-      cleanup(hadError);
+      cleanup();
     }
   }
 
@@ -629,10 +630,8 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
     return { cid: preparedRoot.cid };
   }
 
-  function cleanup(hadError: boolean): void {
-    if (hadError) {
-      destroyBulletinClient();
-    }
+  function cleanup(): void {
+    destroyBulletinClient();
     isUploading.value = false;
     window.onbeforeunload = null;
   }

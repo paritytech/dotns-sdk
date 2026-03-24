@@ -620,6 +620,17 @@ export type StoreBlockParameters = {
   waitForFinalization?: boolean;
 };
 
+export type TransactionWatchFailureEvent = {
+  /** Event type emitted by transactionWatch */
+  type: string;
+  /** Optional dispatch error reported by the node */
+  dispatchError?: { type: string; value?: unknown };
+  /** Optional free-form error payload reported by the client */
+  error?: unknown;
+  /** Optional reason string reported by the node */
+  reason?: string;
+};
+
 export type StoreParameters = {
   /** Bulletin RPC endpoint URL */
   rpcEndpoint: string;

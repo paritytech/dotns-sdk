@@ -111,18 +111,29 @@ function ensureError(error: unknown): Error {
   }
 }
 
+function isBenignClientDestroyError(error: unknown): boolean {
+  const message = ensureError(error).message.toLowerCase();
+  return (
+    message.includes("chainhead disjointed") ||
+    message.includes("chainhead stopped") ||
+    (message.includes("unsubscriptionerror") && message.includes("not connected"))
+  );
+}
+
 function installRxUnhandledErrorGuard(): void {
   if (rxUnhandledErrorGuardInstalled) return;
   rxUnhandledErrorGuardInstalled = true;
 
   const previousHandler = rxjsConfig.onUnhandledError;
   rxjsConfig.onUnhandledError = (error: unknown) => {
-    const message = ensureError(error).message.toLowerCase();
-    if (message.includes("unsubscriptionerror") && message.includes("not connected")) {
-      return;
-    }
+    if (isBenignClientDestroyError(error)) return;
     previousHandler?.(error);
   };
+
+  process.on("unhandledRejection", (reason: unknown) => {
+    if (isBenignClientDestroyError(reason)) return;
+    throw reason;
+  });
 }
 
 function randomJitterMs(maxJitterMs = 100): number {
@@ -421,6 +432,40 @@ export async function runWaveWithRetries(parameters: {
   return { retries, retryableFailures, attemptedSubmissions };
 }
 
+export function destroyBulletinClient(
+  client: Pick<PolkadotClient, "destroy"> | undefined | null,
+): void {
+  if (!client) return;
+  try {
+    client.destroy();
+  } catch {
+    /* benign — chainhead disjointed or already closed */
+  }
+}
+
+export type TransactionWatchFailureEvent = {
+  type: string;
+  dispatchError?: { type: string; value?: unknown };
+  error?: unknown;
+  reason?: string;
+};
+
+export function formatTransactionWatchFailure(
+  event: TransactionWatchFailureEvent,
+  fallbackMessage = `Transaction ${event.type}`,
+): string {
+  if (event.dispatchError) {
+    return formatDispatchError(event.dispatchError);
+  }
+  if (event.error !== undefined) {
+    return ensureError(event.error).message;
+  }
+  if (event.reason) {
+    return event.reason;
+  }
+  return fallbackMessage;
+}
+
 export function createBulletinClient(rpc: string): PolkadotClient {
   installRxUnhandledErrorGuard();
   return createPolkadotClient(withPolkadotSdkCompat(getWsProvider(rpc)));
@@ -478,7 +523,7 @@ async function storeContentOnBulletin(
     const timeout = setTimeout(() => {
       if (settled) return;
       settled = true;
-      cleanup();
+      cleanup(subscription);
       reject(new Error("store-timeout"));
     }, storeTimeoutMs);
 

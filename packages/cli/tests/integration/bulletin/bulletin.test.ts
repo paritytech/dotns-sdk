@@ -25,6 +25,8 @@ import {
   buildOrderedStoredChunks,
   clampChunkSizeBytes,
   computeNextAdaptiveWindow,
+  destroyBulletinClient,
+  formatTransactionWatchFailure,
   runWaveWithRetries,
   selectWaveChunks,
   storeSingleFileToBulletin,
@@ -790,15 +792,50 @@ describe("top-level upload retry policy", () => {
     expect(isRetryableUploadError(new Error("Block xyz is not pinned (stop-call)"))).toBe(true);
     expect(isRetryableUploadError(new Error("WebSocket connection reset by peer"))).toBe(true);
     expect(isRetryableUploadError(new Error("ChainHead disjointed"))).toBe(true);
+    expect(isRetryableUploadError(new Error("Transaction dropped"))).toBe(true);
     expect(isRetryableUploadError(new Error("upload worker exited with SIGKILL"))).toBe(true);
   });
 
   test("routes head and connection failures through reconnect strategy", () => {
     expect(isReconnectRequiredUploadError(new Error("ChainHead disjointed"))).toBe(true);
+    expect(isReconnectRequiredUploadError(new Error("ChainHead stopped"))).toBe(true);
     expect(isReconnectRequiredUploadError(new Error("WebSocket connection reset by peer"))).toBe(
       true,
     );
     expect(isReconnectRequiredUploadError(new Error("store-timeout"))).toBe(false);
+  });
+
+  test("formats watched transaction failures from dispatch errors and drop events", () => {
+    expect(
+      formatTransactionWatchFailure({
+        type: "invalid",
+        dispatchError: { type: "Module", value: { type: "TransactionStorage", value: { type: "Payment" } } },
+      }),
+    ).toContain("Module error");
+    expect(
+      formatTransactionWatchFailure({
+        type: "dropped",
+        reason: "pool limit exceeded",
+      }),
+    ).toBe("pool limit exceeded");
+  });
+
+  test("suppresses benign client teardown errors but preserves unexpected ones", () => {
+    expect(() =>
+      destroyBulletinClient({
+        destroy() {
+          throw new Error("ChainHead disjointed");
+        },
+      }),
+    ).not.toThrow();
+
+    expect(() =>
+      destroyBulletinClient({
+        destroy() {
+          throw new Error("unexpected destroy failure");
+        },
+      }),
+    ).toThrow("unexpected destroy failure");
   });
 
   test("does not retry non-transient failures", () => {
