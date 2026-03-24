@@ -73,6 +73,8 @@ runs:
       id: pack
       shell: bash
       working-directory: packages/cli
+      env:
+        NODE_NO_WARNINGS: "1"
       run: |
         TARBALL=$(npm pack | tail -n 1)
         echo "tarball=${PWD}/${TARBALL}" >> "$GITHUB_OUTPUT"
