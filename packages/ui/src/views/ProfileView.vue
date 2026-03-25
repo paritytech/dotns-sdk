@@ -784,7 +784,7 @@ async function loadDomains() {
 
       if (type === "TLD" && !isOwner) continue;
 
-      let popRequirement: NameRequirement | null = null;
+      let popRequirement: NameRequirement | undefined;
       try {
         const { tldLabel } = parseDotName(name);
         if (tldLabel) popRequirement = await domainStore.classifyName(tldLabel);
