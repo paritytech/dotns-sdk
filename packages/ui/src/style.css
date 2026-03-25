@@ -257,16 +257,22 @@
   stroke-dasharray: 0 60;
 }
 
-html {
+html,
+body {
   background-color: #0f0f0f;
   overscroll-behavior: none;
 }
 
-/* Dark-theme scrollbar — standard properties only.
-   ::-webkit-scrollbar is intentionally omitted because it disables
-   overlay scrollbar mode in Chrome, forcing a permanent gutter on
-   every overflow:auto element even when content fits. Chrome 121+
-   supports scrollbar-color natively with overlay behaviour intact. */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: #44403c transparent;

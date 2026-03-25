@@ -148,20 +148,41 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="min-h-screen">
+  <div class="min-h-screen bg-dot-bg">
     <LandingPage v-if="!encodedParam" />
 
-    <LoadingScreen v-else-if="isLoading" :message="loadingMessage" />
+    <Transition name="preview-fade" mode="out-in">
+      <LoadingScreen v-if="encodedParam && isLoading" :message="loadingMessage" key="loading" />
 
-    <ErrorDisplay v-else-if="error" :message="error" :cid="cid || ''" @retry="handleRetry" />
+      <ErrorDisplay
+        v-else-if="encodedParam && error"
+        :message="error"
+        :cid="cid || ''"
+        key="error"
+        @retry="handleRetry"
+      />
 
-    <ContentDisplay
-      v-else-if="contentUrl && contentType"
-      :url="contentUrl"
-      :content-type="contentType"
-      :blob="contentBlob"
-      :cid="cid || ''"
-      :gateway-url="gatewayUrl"
-    />
+      <ContentDisplay
+        v-else-if="encodedParam && contentUrl && contentType"
+        :url="contentUrl"
+        :content-type="contentType"
+        :blob="contentBlob"
+        :cid="cid || ''"
+        :gateway-url="gatewayUrl"
+        key="content"
+      />
+    </Transition>
   </div>
 </template>
+
+<style scoped>
+.preview-fade-enter-active,
+.preview-fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.preview-fade-enter-from,
+.preview-fade-leave-to {
+  opacity: 0;
+}
+</style>

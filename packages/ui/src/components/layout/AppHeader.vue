@@ -16,7 +16,7 @@
 
         <button
           @click="$emit('toggle-menu')"
-          class="md:hidden p-2 rounded-lg text-dot-text-secondary hover:bg-dot-surface-secondary transition-colors"
+          class="md:hidden p-2 rounded-lg text-dot-text-secondary hover:bg-dot-surface-secondary transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/20 focus-visible:ring-offset-2 focus-visible:ring-offset-dot-bg"
           aria-label="Toggle menu"
         >
           <Icon name="Menu" size="lg" />

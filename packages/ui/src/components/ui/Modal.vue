@@ -107,7 +107,7 @@ const sizeClasses = {
 
 const computedClass = computed(() =>
   cn(
-    "bg-dot-surface rounded-2xl shadow-2xl w-full p-8 relative",
+    "bg-dot-surface border border-dot-border rounded-2xl shadow-2xl w-full p-6 relative",
     sizeClasses[props.size],
     props.class,
   ),

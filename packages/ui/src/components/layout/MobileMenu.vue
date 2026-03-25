@@ -32,7 +32,7 @@
             <span class="text-xl font-bold text-dot-text-primary">Menu</span>
             <button
               @click="$emit('close')"
-              class="p-2 rounded-lg text-dot-text-secondary hover:bg-dot-surface-secondary transition-colors"
+              class="p-2 rounded-lg text-dot-text-secondary hover:bg-dot-surface-secondary transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/20 focus-visible:ring-offset-2 focus-visible:ring-offset-dot-bg"
               aria-label="Close menu"
             >
               <Icon name="X" size="lg" />
@@ -44,10 +44,10 @@
               v-for="item in navItems"
               :key="item.name"
               :to="item.path"
-              class="block w-full text-left px-4 py-3 rounded-lg text-sm font-medium mb-2 transition-all duration-200"
+              class="block w-full text-left px-4 py-3 rounded-lg text-sm font-medium mb-1 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/20 focus-visible:ring-offset-2 focus-visible:ring-offset-dot-bg"
               :class="
                 isActive(item.path)
-                  ? 'bg-dot-surface-secondary text-dot-text-primary'
+                  ? 'bg-dot-surface-secondary text-dot-accent'
                   : 'text-dot-text-secondary hover:bg-dot-surface-secondary hover:text-dot-text-primary'
               "
               @click="$emit('close')"
@@ -57,7 +57,7 @@
           </nav>
 
           <div class="p-4 border-t border-dot-border text-center text-xs text-dot-text-tertiary">
-            © {{ currentYear }} Dotns
+            &copy; {{ currentYear }} Dotns
           </div>
         </div>
       </div>
@@ -66,9 +66,9 @@
 </template>
 
 <script setup lang="ts">
-import { useWalletStore } from "@/store/useWalletStore";
-import { ref, watch } from "vue";
+import { computed } from "vue";
 import { useRoute } from "vue-router";
+import { useWalletStore } from "@/store/useWalletStore";
 import Icon from "@/components/ui/Icon.vue";
 
 defineProps<{ isOpen: boolean }>();
@@ -77,22 +77,17 @@ defineEmits<{ close: [] }>();
 const route = useRoute();
 const wallet = useWalletStore();
 
-const navItems = ref(
-  wallet.isConnected
-    ? [
-        { name: "Search", path: "/" },
-        { name: "Lookup", path: "/lookup" },
-        { name: "Upload", path: "/upload" },
-        { name: "Profile", path: "/profile" },
-        { name: "Docs", path: "/docs" },
-      ]
-    : [
-        { name: "Search", path: "/" },
-        { name: "Lookup", path: "/lookup" },
-        { name: "Upload", path: "/upload" },
-        { name: "Docs", path: "/docs" },
-      ],
-);
+const baseItems = [
+  { name: "Search", path: "/" },
+  { name: "Lookup", path: "/lookup" },
+  { name: "Upload", path: "/upload" },
+];
+
+const navItems = computed(() => [
+  ...baseItems,
+  ...(wallet.isConnected ? [{ name: "Profile", path: "/profile" }] : []),
+  { name: "Docs", path: "/docs" },
+]);
 
 const isActive = (path: string) => {
   if (path === "/docs") return route.path.startsWith("/docs");
@@ -100,24 +95,4 @@ const isActive = (path: string) => {
 };
 
 const currentYear = new Date().getFullYear();
-
-watch(
-  () => wallet.isConnected,
-  (isConnected: boolean) => {
-    navItems.value = isConnected
-      ? [
-          { name: "Search", path: "/" },
-          { name: "Lookup", path: "/lookup" },
-          { name: "Upload", path: "/upload" },
-          { name: "Profile", path: "/profile" },
-          { name: "Docs", path: "/docs" },
-        ]
-      : [
-          { name: "Search", path: "/" },
-          { name: "Lookup", path: "/lookup" },
-          { name: "Upload", path: "/upload" },
-          { name: "Docs", path: "/docs" },
-        ];
-  },
-);
 </script>

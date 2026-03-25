@@ -8,7 +8,7 @@
       <button
         v-for="tab in tabs"
         :key="tab.id"
-        class="px-6 py-3 text-sm font-medium transition-colors relative"
+        class="relative px-4 py-2 text-sm font-medium transition-colors duration-200"
         :class="
           activeTab === tab.id
             ? 'text-dot-accent'
@@ -17,195 +17,421 @@
         @click="activeTab = tab.id"
       >
         {{ tab.label }}
-        <div
-          v-if="activeTab === tab.id"
-          class="absolute bottom-0 left-0 right-0 h-0.5 bg-dot-accent"
+        <span
+          class="absolute bottom-0 left-0 right-0 h-0.5 bg-dot-accent transition-transform duration-200 origin-left"
+          :class="activeTab === tab.id ? 'scale-x-100' : 'scale-x-0'"
         />
       </button>
     </div>
 
-    <div v-show="activeTab === 'domains'">
-      <div class="mb-6 flex justify-between items-center flex-wrap gap-4">
-        <input
-          v-model="searchQuery"
-          type="text"
-          placeholder="Search domains..."
-          class="border border-dot-border rounded-lg px-4 py-2 w-full sm:w-1/3 bg-dot-surface text-dot-text-primary focus:ring-2 focus:ring-dot-accent/20 focus:outline-none"
-          :disabled="isLoading"
-        />
-        <div class="flex gap-3" v-if="tlds.length > 0">
-          <Button @click="openAddSubdomains" :disabled="isLoading"> Add Subdomain </Button>
-          <Button
-            variant="secondary"
-            @click="openTransferModal"
-            :disabled="isLoading || transferableTlds.length === 0"
-          >
-            Transfer Domain
-          </Button>
-        </div>
-      </div>
-
-      <div
-        v-if="isLoading"
-        class="overflow-x-auto border border-dot-border rounded-xl shadow-sm animate-pulse"
-      >
-        <table class="min-w-full divide-y divide-dot-border text-sm">
-          <thead class="bg-dot-surface-secondary">
-            <tr>
-              <th v-for="i in 6" :key="i" class="px-6 py-3 text-left">
-                <div class="h-4 bg-dot-border rounded w-24"></div>
-              </th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-dot-border bg-dot-surface">
-            <tr v-for="i in 5" :key="i" class="animate-pulse">
-              <td v-for="j in 6" :key="j" class="px-6 py-3">
-                <div class="h-4 bg-dot-border rounded w-20"></div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div
-        v-else-if="allDomains.length === 0"
-        class="border border-dot-border rounded-xl shadow-sm p-16 text-center"
-      >
-        <svg
-          class="w-16 h-16 mx-auto mb-4 text-dot-text-tertiary"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1.5"
-            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+    <Transition name="tab-fade" mode="out-in">
+      <div v-if="activeTab === 'domains'" key="domains">
+        <div class="mb-3 flex justify-between items-center flex-wrap gap-3">
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Search domains..."
+            class="border border-dot-border rounded-lg px-4 py-2 w-full sm:w-1/3 bg-dot-surface text-dot-text-primary placeholder:text-dot-text-tertiary focus:ring-2 focus:ring-dot-accent/20 focus:outline-none transition-colors"
+            :disabled="isLoading"
           />
-        </svg>
-        <h3 class="text-lg font-medium text-dot-text-primary mb-2">No domains found</h3>
-        <p class="text-dot-text-tertiary mb-6">Register your first domain to get started</p>
-        <Button @click="router.replace('/')">Register Domain</Button>
-      </div>
+          <div v-if="tlds.length > 0" class="flex gap-3">
+            <Button @click="openAddSubdomains" :disabled="isLoading">Add Subdomain</Button>
+            <Button
+              variant="secondary"
+              @click="openTransferModal"
+              :disabled="isLoading || transferableTlds.length === 0"
+            >
+              Transfer Domain
+            </Button>
+          </div>
+        </div>
 
-      <div v-else class="overflow-x-auto border border-dot-border rounded-xl shadow-sm">
-        <div class="overflow-x-auto">
+        <div
+          v-if="isLoading"
+          class="overflow-x-auto border border-dot-border rounded-xl shadow-sm animate-pulse"
+        >
           <table class="min-w-full divide-y divide-dot-border text-sm">
             <thead class="bg-dot-surface-secondary">
               <tr>
-                <th class="px-6 py-3 text-left font-semibold text-dot-text-secondary">Domain</th>
-                <th class="px-6 py-3 text-left font-semibold text-dot-text-secondary">Type</th>
-                <th class="px-6 py-3 text-left font-semibold text-dot-text-secondary">
-                  <div class="flex items-center gap-2">
-                    <span>PoP Requirement</span>
-
-                    <div class="relative inline-flex items-center">
-                      <button
-                        ref="headerInfoButton"
-                        type="button"
-                        class="inline-flex items-center"
-                        aria-label="Proof of Personhood info"
-                        @mouseenter="showHeaderTooltip"
-                        @mouseleave="hideHeaderTooltip"
-                        @focus="showHeaderTooltip"
-                        @blur="hideHeaderTooltip"
-                      >
-                        <Icon
-                          name="Info"
-                          size="sm"
-                          class="text-dot-text-tertiary hover:text-dot-text-secondary cursor-help"
-                        />
-                      </button>
-
-                      <Teleport to="body">
-                        <div
-                          v-if="headerTooltipVisible"
-                          ref="headerTooltipRef"
-                          class="fixed z-[99999] pointer-events-none"
-                          :style="headerTooltipStyle"
-                        >
-                          <div
-                            class="px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg max-w-xs"
-                          >
-                            <p class="font-semibold mb-1">Proof of Personhood (PoP)</p>
-                            <p class="mb-2">
-                              Verification system that confirms unique human identity without
-                              revealing personal information.
-                            </p>
-                            <ul class="space-y-1 text-left">
-                              <li>
-                                • <span class="font-medium">Pop Full:</span>
-                                Complete verification
-                              </li>
-                              <li>
-                                • <span class="font-medium">Pop Lite:</span> Basic verification
-                              </li>
-                              <li>
-                                • <span class="font-medium">No Status:</span>
-                                Unverified
-                              </li>
-                              <li>
-                                • <span class="font-medium">Reserved:</span>
-                                Governance only
-                              </li>
-                            </ul>
-                          </div>
-                        </div>
-                      </Teleport>
-                    </div>
-                  </div>
+                <th v-for="i in 5" :key="i" class="px-4 py-2.5 text-left">
+                  <div class="h-4 bg-dot-border rounded w-24" />
                 </th>
-                <th class="px-6 py-3 text-left font-semibold text-dot-text-secondary">Status</th>
-                <th class="px-6 py-3 text-left font-semibold text-dot-text-secondary">Actions</th>
               </tr>
             </thead>
-
             <tbody class="divide-y divide-dot-border bg-dot-surface">
-              <tr
-                v-for="domain in paginatedDomains"
-                :key="domain.name"
-                class="hover:bg-dot-surface-secondary"
-              >
-                <td class="px-6 py-4 font-medium text-dot-text-primary">
-                  {{ domain.name }}
+              <tr v-for="i in 5" :key="i" class="animate-pulse">
+                <td v-for="j in 5" :key="j" class="px-4 py-2.5">
+                  <div class="h-4 bg-dot-border rounded w-20" />
                 </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
-                <td class="px-6 py-4">
-                  <span
-                    class="px-2 py-1 text-xs rounded-full"
-                    :class="
-                      domain.type === 'TLD'
-                        ? 'bg-dot-border-strong text-dot-text-primary border border-dot-border'
-                        : 'bg-dot-border text-dot-text-secondary border border-dot-border'
-                    "
+        <div
+          v-else-if="allDomains.length === 0"
+          class="border border-dot-border rounded-xl bg-dot-surface p-8 text-center"
+        >
+          <div
+            class="w-10 h-10 mx-auto mb-3 rounded-full bg-dot-surface-secondary flex items-center justify-center"
+          >
+            <svg
+              class="w-5 h-5 text-dot-text-tertiary"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              />
+            </svg>
+          </div>
+          <h3 class="text-sm font-medium text-dot-text-primary mb-1">No domains yet</h3>
+          <p class="text-dot-text-tertiary text-sm mb-4 max-w-sm mx-auto">
+            Register your first domain to start building your decentralized identity.
+          </p>
+          <Button @click="router.replace('/')">Register Domain</Button>
+        </div>
+
+        <div v-else class="border border-dot-border rounded-xl shadow-sm overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-dot-border text-sm">
+              <thead class="bg-dot-surface-secondary">
+                <tr>
+                  <th
+                    class="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold text-dot-text-secondary"
                   >
-                    {{ domain.type }}
-                  </span>
-                </td>
+                    Domain
+                  </th>
+                  <th
+                    class="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold text-dot-text-secondary"
+                  >
+                    Type
+                  </th>
+                  <th
+                    class="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold text-dot-text-secondary"
+                  >
+                    <div class="flex items-center gap-2">
+                      <span>PoP Requirement</span>
+                      <div class="relative inline-flex items-center">
+                        <button
+                          ref="headerInfoButton"
+                          type="button"
+                          class="inline-flex items-center"
+                          aria-label="Proof of Personhood info"
+                          @mouseenter="showHeaderTooltip"
+                          @mouseleave="hideHeaderTooltip"
+                          @focus="showHeaderTooltip"
+                          @blur="hideHeaderTooltip"
+                        >
+                          <Icon
+                            name="Info"
+                            size="sm"
+                            class="text-dot-text-tertiary hover:text-dot-text-secondary cursor-help transition-colors"
+                          />
+                        </button>
+                        <Teleport to="body">
+                          <div
+                            v-if="headerTooltipVisible"
+                            ref="headerTooltipRef"
+                            class="fixed z-[99999] pointer-events-none"
+                            :style="headerTooltipStyle"
+                          >
+                            <div
+                              class="px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg max-w-xs"
+                            >
+                              <p class="font-semibold mb-1">Proof of Personhood (PoP)</p>
+                              <p class="mb-2">
+                                Verification system that confirms unique human identity without
+                                revealing personal information.
+                              </p>
+                              <ul class="space-y-1 text-left">
+                                <li>
+                                  <span class="font-medium">Pop Full:</span>
+                                  Complete verification
+                                </li>
+                                <li>
+                                  <span class="font-medium">Pop Lite:</span> Basic verification
+                                </li>
+                                <li>
+                                  <span class="font-medium">No Status:</span>
+                                  Unverified
+                                </li>
+                                <li>
+                                  <span class="font-medium">Reserved:</span>
+                                  Governance only
+                                </li>
+                              </ul>
+                            </div>
+                          </div>
+                        </Teleport>
+                      </div>
+                    </div>
+                  </th>
+                  <th
+                    class="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold text-dot-text-secondary"
+                  >
+                    Status
+                  </th>
+                  <th
+                    class="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold text-dot-text-secondary"
+                  >
+                    Actions
+                  </th>
+                </tr>
+              </thead>
 
-                <td class="px-6 py-4">
-                  <div v-if="domain.popRequirement" class="flex items-center gap-2">
+              <tbody class="divide-y divide-dot-border bg-dot-surface">
+                <tr
+                  v-for="domain in paginatedDomains"
+                  :key="domain.name"
+                  class="hover:bg-dot-surface-secondary transition-colors duration-150"
+                >
+                  <td class="px-4 py-2.5 font-medium text-dot-text-primary whitespace-nowrap">
+                    {{ domain.name }}
+                  </td>
+
+                  <td class="px-4 py-2.5">
                     <span
-                      class="text-xs px-2 py-1 rounded-full"
-                      :class="popStatusBadgeClass(domain.popRequirement.requirement)"
+                      class="inline-flex px-2.5 py-0.5 text-xs rounded-full border border-dot-border"
+                      :class="
+                        domain.type === 'TLD'
+                          ? 'bg-dot-border-strong text-dot-text-primary'
+                          : 'bg-transparent text-dot-text-secondary'
+                      "
                     >
-                      {{ PopStatusLabels[domain.popRequirement.requirement] }}
+                      {{ domain.type }}
                     </span>
+                  </td>
 
-                    <div class="relative inline-flex items-center">
+                  <td class="px-4 py-2.5">
+                    <div v-if="domain.popRequirement" class="flex items-center gap-2">
+                      <span
+                        class="text-xs px-2 py-1 rounded-full"
+                        :class="popStatusBadgeClass(domain.popRequirement.requirement)"
+                      >
+                        {{ PopStatusLabels[domain.popRequirement.requirement] }}
+                      </span>
+
+                      <div class="relative inline-flex items-center">
+                        <button
+                          :ref="(el) => setRowInfoButton(domain.name, el)"
+                          type="button"
+                          class="inline-flex items-center"
+                          aria-label="PoP requirement details"
+                          @mouseenter="showRowTooltip(domain.name)"
+                          @mouseleave="hideRowTooltip(domain.name)"
+                          @focus="showRowTooltip(domain.name)"
+                          @blur="hideRowTooltip(domain.name)"
+                        >
+                          <svg
+                            class="w-4 h-4 text-dot-text-tertiary hover:text-dot-text-secondary cursor-help transition-colors"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
+                          </svg>
+                        </button>
+
+                        <Teleport to="body">
+                          <div
+                            v-if="activeRowTooltip === domain.name"
+                            :ref="(el) => setRowTooltipRef(domain.name, el)"
+                            class="fixed z-[99999] pointer-events-none"
+                            :style="rowTooltipStyles[domain.name] || {}"
+                          >
+                            <div
+                              class="px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg whitespace-normal max-w-xs"
+                            >
+                              <p class="font-semibold mb-1">
+                                {{ PopStatusLabels[domain.popRequirement.requirement] }}
+                              </p>
+                              <p>{{ domain.popRequirement.message }}</p>
+                            </div>
+                          </div>
+                        </Teleport>
+                      </div>
+                    </div>
+
+                    <span v-else class="text-xs text-dot-text-tertiary">Loading...</span>
+                  </td>
+
+                  <td class="px-4 py-2.5">
+                    <span
+                      class="inline-flex px-2.5 py-0.5 text-xs rounded-full border border-dot-border"
+                      :class="
+                        domain.isOwner
+                          ? 'bg-dot-border-strong text-dot-text-primary'
+                          : 'bg-transparent text-dot-text-tertiary'
+                      "
+                    >
+                      {{ domain.isOwner ? "Active" : "Not Owner" }}
+                    </span>
+                  </td>
+
+                  <td class="px-4 py-2.5">
+                    <div class="flex items-center gap-2">
+                      <Button size="sm" @click="openRecordEditor(domain.name)">Edit</Button>
+                      <Button size="sm" variant="secondary" @click="openResolve(domain.name)">
+                        Resolve
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <TablePagination
+            v-model="currentPage"
+            :total-items="filteredDomains.length"
+            :page-size="itemsPerPage"
+            item-label="domain"
+            @update:page-size="itemsPerPage = $event"
+          />
+        </div>
+      </div>
+
+      <div v-else key="bulletin">
+        <div
+          class="mb-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3"
+        >
+          <p class="text-dot-text-tertiary text-sm">
+            Content you've uploaded to the Bulletin chain
+          </p>
+          <div class="flex gap-2">
+            <Button size="sm" variant="secondary" @click="showAddCidForm = !showAddCidForm">
+              Add CID
+            </Button>
+            <Button size="sm" @click="router.push('/upload')">Upload</Button>
+          </div>
+        </div>
+
+        <Transition name="slide-fade">
+          <div
+            v-if="showAddCidForm"
+            class="mb-3 rounded-xl border border-dot-border bg-dot-surface p-3"
+          >
+            <form class="flex flex-col sm:flex-row gap-2" @submit.prevent="handleAddCid">
+              <input
+                v-model="addCidInput"
+                type="text"
+                placeholder="Enter a CID (e.g. bafybeif2uy...)"
+                class="flex-1 bg-dot-bg border border-dot-border rounded-lg px-3 py-2 text-sm font-mono text-dot-text-primary placeholder:text-dot-text-tertiary placeholder:font-sans focus:outline-none focus:border-dot-accent focus:ring-1 focus:ring-dot-accent/30 transition-colors"
+              />
+              <div class="flex gap-2">
+                <Button size="sm" type="submit" :disabled="!isValidCid(addCidInput) || isAddingCid">
+                  {{ isAddingCid ? "Saving..." : "Save to Store" }}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  type="button"
+                  @click="
+                    showAddCidForm = false;
+                    addCidInput = '';
+                  "
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+            <p v-if="addCidInput && !isValidCid(addCidInput)" class="text-xs text-error mt-2">
+              Enter a valid CID starting with "baf"
+            </p>
+          </div>
+        </Transition>
+
+        <div v-if="isLoadingUploads" class="border border-dot-border rounded-xl p-8">
+          <div class="animate-pulse space-y-4">
+            <div class="h-4 bg-dot-border rounded w-1/3" />
+            <div class="h-4 bg-dot-border rounded w-1/2" />
+            <div class="h-4 bg-dot-border rounded w-2/5" />
+          </div>
+        </div>
+
+        <div
+          v-else-if="bulletinUploads.length === 0"
+          class="border border-dot-border rounded-xl bg-dot-surface p-8 text-center"
+        >
+          <div
+            class="w-10 h-10 mx-auto mb-3 rounded-full bg-dot-surface-secondary flex items-center justify-center"
+          >
+            <svg
+              class="w-5 h-5 text-dot-text-tertiary"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+              />
+            </svg>
+          </div>
+          <h3 class="text-sm font-medium text-dot-text-primary mb-1">No uploads yet</h3>
+          <p class="text-dot-text-tertiary text-sm mb-4 max-w-sm mx-auto">
+            Upload content to the Bulletin chain and manage it here.
+          </p>
+          <Button @click="router.push('/upload')">Upload Content</Button>
+        </div>
+
+        <div v-else class="border border-dot-border rounded-xl shadow-sm overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-dot-border text-sm">
+              <thead class="bg-dot-surface-secondary">
+                <tr>
+                  <th
+                    class="px-4 py-2.5 text-left text-xs uppercase tracking-wider font-semibold text-dot-text-secondary"
+                  >
+                    CID
+                  </th>
+                  <th
+                    class="px-4 py-2.5 text-right text-xs uppercase tracking-wider font-semibold text-dot-text-secondary"
+                  >
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-dot-border bg-dot-surface">
+                <tr
+                  v-for="cid in paginatedUploads"
+                  :key="cid"
+                  class="hover:bg-dot-surface-secondary transition-colors duration-150"
+                >
+                  <td class="px-4 py-2.5">
+                    <div class="flex items-center gap-2 min-w-0">
+                      <span
+                        class="font-mono text-xs text-dot-text-primary truncate hidden sm:inline"
+                        :title="cid"
+                      >
+                        {{ cid.slice(0, 20) }}...{{ cid.slice(-8) }}
+                      </span>
+                      <span
+                        class="font-mono text-xs text-dot-text-primary truncate sm:hidden"
+                        :title="cid"
+                      >
+                        {{ cid.slice(0, 12) }}...{{ cid.slice(-4) }}
+                      </span>
                       <button
-                        :ref="(el) => setRowInfoButton(domain.name, el)"
-                        type="button"
-                        class="inline-flex items-center"
-                        aria-label="PoP requirement details"
-                        @mouseenter="showRowTooltip(domain.name)"
-                        @mouseleave="hideRowTooltip(domain.name)"
-                        @focus="showRowTooltip(domain.name)"
-                        @blur="hideRowTooltip(domain.name)"
+                        class="shrink-0 p-1 rounded hover:bg-dot-surface-secondary text-dot-text-tertiary hover:text-dot-text-primary transition-colors cursor-pointer"
+                        :title="cidCopied === cid ? 'Copied!' : 'Copy CID'"
+                        @click="copyCid(cid)"
                       >
                         <svg
-                          class="w-4 h-4 text-dot-text-tertiary hover:text-dot-text-secondary cursor-help"
+                          v-if="cidCopied !== cid"
+                          class="w-3.5 h-3.5"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -214,242 +440,65 @@
                             stroke-linecap="round"
                             stroke-linejoin="round"
                             stroke-width="2"
-                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                          />
+                        </svg>
+                        <svg
+                          v-else
+                          class="w-3.5 h-3.5 text-success"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M5 13l4 4L19 7"
                           />
                         </svg>
                       </button>
-
-                      <Teleport to="body">
-                        <div
-                          v-if="activeRowTooltip === domain.name"
-                          :ref="(el) => setRowTooltipRef(domain.name, el)"
-                          class="fixed z-[99999] pointer-events-none"
-                          :style="rowTooltipStyles[domain.name] || {}"
-                        >
-                          <div
-                            class="px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg whitespace-normal max-w-xs"
-                          >
-                            <p class="font-semibold mb-1">
-                              {{ PopStatusLabels[domain.popRequirement.requirement] }}
-                            </p>
-                            <p>{{ domain.popRequirement.message }}</p>
-                          </div>
-                        </div>
-                      </Teleport>
                     </div>
-                  </div>
-
-                  <span v-else class="text-xs text-dot-text-tertiary">Loading...</span>
-                </td>
-
-                <td class="px-6 py-4">
-                  <span
-                    class="px-2 py-1 text-xs rounded-full"
-                    :class="
-                      domain.isOwner
-                        ? 'bg-dot-border-strong text-dot-text-primary border border-dot-border'
-                        : 'bg-dot-surface-secondary text-dot-text-tertiary border border-dot-border'
-                    "
-                  >
-                    {{ domain.isOwner ? "Active" : "Not Owner" }}
-                  </span>
-                </td>
-
-                <td class="px-6 py-4">
-                  <div class="flex gap-2">
-                    <Button size="sm" @click="openRecordEditor(domain.name)"> Edit </Button>
-                    <Button size="sm" variant="secondary" @click="openResolve(domain.name)">
-                      Resolve
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <TablePagination
-          v-model="currentPage"
-          :total-items="filteredDomains.length"
-          :page-size="itemsPerPage"
-          item-label="domain"
-          @update:page-size="itemsPerPage = $event"
-        />
-      </div>
-    </div>
-
-    <div v-show="activeTab === 'bulletin'">
-      <div class="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <p class="text-dot-text-tertiary text-sm">Content you've uploaded to the Bulletin chain</p>
-        <div class="flex gap-2">
-          <Button size="sm" variant="secondary" @click="showAddCidForm = !showAddCidForm">
-            Add CID
-          </Button>
-          <Button size="sm" @click="router.push('/upload')">Upload</Button>
-        </div>
-      </div>
-
-      <div
-        v-if="showAddCidForm"
-        class="mb-4 rounded-xl border border-dot-border bg-dot-surface p-4"
-      >
-        <form class="flex flex-col sm:flex-row gap-2" @submit.prevent="handleAddCid">
-          <input
-            v-model="addCidInput"
-            type="text"
-            placeholder="Enter a CID (e.g. bafybeif2uy...)"
-            class="flex-1 bg-dot-bg border border-dot-border rounded-lg px-3 py-2 text-sm text-dot-text-primary placeholder:text-dot-text-tertiary focus:outline-none focus:border-dot-accent focus:ring-1 focus:ring-dot-accent/30"
-          />
-          <div class="flex gap-2">
-            <Button size="sm" type="submit" :disabled="!isValidCid(addCidInput) || isAddingCid">
-              {{ isAddingCid ? "Saving..." : "Save to Store" }}
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              type="button"
-              @click="
-                showAddCidForm = false;
-                addCidInput = '';
-              "
-            >
-              Cancel
-            </Button>
+                  </td>
+                  <td class="px-4 py-2.5">
+                    <div class="flex items-center justify-end gap-2">
+                      <Button size="sm" @click="router.push(`/preview/${encodeForPreview(cid)}`)">
+                        Preview
+                      </Button>
+                      <Button size="sm" variant="secondary" as-child>
+                        <a
+                          :href="`https://paseo-ipfs.polkadot.io/ipfs/${cid}`"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          IPFS
+                        </a>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        :disabled="deletingCid === cid"
+                        @click="handleDeleteCid(cid)"
+                      >
+                        {{ deletingCid === cid ? "Removing..." : "Remove" }}
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-        </form>
-        <p v-if="addCidInput && !isValidCid(addCidInput)" class="text-xs text-error mt-2">
-          Enter a valid CID starting with "baf"
-        </p>
-      </div>
 
-      <div v-if="isLoadingUploads" class="border border-dot-border rounded-xl shadow-sm p-8">
-        <div class="animate-pulse space-y-3">
-          <div class="h-4 bg-dot-border rounded w-1/3"></div>
-          <div class="h-4 bg-dot-border rounded w-1/2"></div>
-        </div>
-      </div>
-
-      <div
-        v-else-if="bulletinUploads.length === 0"
-        class="border border-dot-border rounded-xl shadow-sm p-12 text-center"
-      >
-        <svg
-          class="w-12 h-12 mx-auto mb-3 text-dot-text-tertiary"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1.5"
-            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+          <TablePagination
+            v-model="bulletinPage"
+            :total-items="bulletinUploads.length"
+            :page-size="bulletinPageSize"
+            item-label="upload"
+            @update:page-size="bulletinPageSize = $event"
           />
-        </svg>
-        <p class="text-dot-text-tertiary mb-4">No uploads yet</p>
-        <Button @click="router.push('/upload')">Upload Content</Button>
-      </div>
-
-      <div v-else class="border border-dot-border rounded-xl shadow-sm overflow-hidden">
-        <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-dot-border text-sm">
-            <thead class="bg-dot-surface-secondary">
-              <tr>
-                <th class="px-4 sm:px-6 py-3 text-left font-semibold text-dot-text-secondary">
-                  CID
-                </th>
-                <th class="px-4 sm:px-6 py-3 text-left font-semibold text-dot-text-secondary">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-dot-border bg-dot-surface">
-              <tr v-for="cid in paginatedUploads" :key="cid" class="hover:bg-dot-surface-secondary">
-                <td class="px-4 sm:px-6 py-4">
-                  <div class="flex items-center gap-2">
-                    <span
-                      class="font-mono text-xs text-dot-text-primary hidden sm:inline"
-                      :title="cid"
-                    >
-                      {{ cid.slice(0, 20) }}...{{ cid.slice(-8) }}
-                    </span>
-                    <span class="font-mono text-xs text-dot-text-primary sm:hidden" :title="cid">
-                      {{ cid.slice(0, 12) }}...{{ cid.slice(-4) }}
-                    </span>
-                    <button
-                      class="text-dot-text-tertiary hover:text-dot-text-primary transition-colors cursor-pointer shrink-0"
-                      :title="cidCopied === cid ? 'Copied!' : 'Copy CID'"
-                      @click="copyCid(cid)"
-                    >
-                      <svg
-                        v-if="cidCopied !== cid"
-                        class="w-3.5 h-3.5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                        />
-                      </svg>
-                      <svg
-                        v-else
-                        class="w-3.5 h-3.5 text-success"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                    </button>
-                  </div>
-                </td>
-                <td class="px-4 sm:px-6 py-4">
-                  <div class="flex gap-2">
-                    <Button size="sm" @click="router.push(`/preview/${encodeForPreview(cid)}`)">
-                      Preview
-                    </Button>
-                    <Button size="sm" variant="secondary" as-child>
-                      <a
-                        :href="`https://paseo-ipfs.polkadot.io/ipfs/${cid}`"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        IPFS
-                      </a>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      :disabled="deletingCid === cid"
-                      @click="handleDeleteCid(cid)"
-                    >
-                      {{ deletingCid === cid ? "Removing..." : "Remove" }}
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
         </div>
-
-        <TablePagination
-          v-model="bulletinPage"
-          :total-items="bulletinUploads.length"
-          :page-size="bulletinPageSize"
-          item-label="upload"
-          @update:page-size="bulletinPageSize = $event"
-        />
       </div>
-    </div>
+    </Transition>
 
     <AddSubdomainModal
       :open="showAddModal?.open || false"
@@ -596,7 +645,6 @@ const resolverStore = useResolverStore();
 const userStoreManager = useUserStoreManager();
 const domainStore = useDomainStore();
 
-// Header tooltip (single instance)
 const {
   visible: headerTooltipVisible,
   buttonRef: headerInfoButton,
@@ -606,11 +654,9 @@ const {
   hide: hideHeaderTooltip,
 } = useTooltip();
 
-// Suppress unused variable warnings for template refs
 void headerInfoButton;
 void headerTooltipRef;
 
-// Row tooltips (multiple instances)
 const {
   activeId: activeRowTooltip,
   setButtonRef: setRowInfoButton,
@@ -805,3 +851,42 @@ async function loadBulletinUploads() {
   }
 }
 </script>
+
+<style scoped>
+.tab-fade-enter-active,
+.tab-fade-leave-active {
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+
+.tab-fade-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+.tab-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.slide-fade-enter-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease,
+    max-height 0.2s ease;
+}
+
+.slide-fade-leave-active {
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease,
+    max-height 0.15s ease;
+}
+
+.slide-fade-enter-from,
+.slide-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+</style>

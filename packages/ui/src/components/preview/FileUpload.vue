@@ -554,7 +554,7 @@ function handleTransactionClose(): void {
   <div class="space-y-4">
     <div
       v-if="!isWalletConnected"
-      class="border border-dot-border border-dashed rounded-lg p-4 sm:p-6 text-center"
+      class="border border-dot-border border-dashed rounded-lg p-4 text-center"
     >
       <svg
         class="w-8 h-8 mx-auto mb-3 text-dot-text-tertiary"
@@ -578,16 +578,20 @@ function handleTransactionClose(): void {
         selectedFolderFiles.length === 0 &&
         bulletinStore.uploadStage === 'idle'
       "
-      class="border border-dashed rounded-lg p-4 sm:p-6 text-center cursor-pointer transition-colors"
+      class="group border border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-dot-bg"
       :class="[
         isDragging
           ? 'border-dot-accent bg-dot-accent/5'
           : 'border-dot-border hover:border-dot-border-strong',
       ]"
+      tabindex="0"
+      role="button"
       @dragover="handleDragOver"
       @dragleave="handleDragLeave"
       @drop="handleFolderDrop"
       @click="openFileDialog"
+      @keydown.enter="openFileDialog"
+      @keydown.space.prevent="openFileDialog"
     >
       <input
         ref="folderInputRef"
@@ -597,7 +601,7 @@ function handleTransactionClose(): void {
         @change="handleFolderInput"
       />
       <svg
-        class="w-8 h-8 mx-auto mb-3 text-dot-text-tertiary"
+        class="w-8 h-8 mx-auto mb-3 text-dot-text-tertiary transition-colors duration-200 group-hover:text-dot-text-secondary"
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"
@@ -641,7 +645,7 @@ function handleTransactionClose(): void {
         <button
           v-if="!bulletinStore.isUploading"
           @click="removeFolderSelection"
-          class="p-1 rounded text-dot-text-tertiary hover:text-dot-text-secondary hover:bg-dot-surface-secondary transition-colors"
+          class="min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg text-dot-text-tertiary hover:text-dot-text-secondary hover:bg-dot-surface-secondary transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/40"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -656,46 +660,46 @@ function handleTransactionClose(): void {
 
       <div v-if="uploadPlan" class="grid gap-3 sm:grid-cols-3">
         <div class="rounded-lg border border-dot-border bg-dot-surface p-3">
-          <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-dot-text-tertiary">
+          <p class="text-[10px] font-semibold uppercase tracking-wider text-dot-text-tertiary">
             Folder limit
           </p>
-          <p class="mt-2 text-sm font-medium text-dot-text-primary">
+          <p class="mt-1 text-sm font-medium text-dot-text-primary tabular-nums">
             {{ browserFolderLimitLabel }}
           </p>
         </div>
 
         <div class="rounded-lg border border-dot-border bg-dot-surface p-3">
-          <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-dot-text-tertiary">
+          <p class="text-[10px] font-semibold uppercase tracking-wider text-dot-text-tertiary">
             Wallet approvals
           </p>
-          <p class="mt-2 text-sm font-medium text-dot-text-primary">
+          <p class="mt-1 text-sm font-medium text-dot-text-primary tabular-nums">
             {{ uploadPlan?.totalApprovalCount ?? 0 }}
           </p>
         </div>
 
         <div class="rounded-lg border border-dot-border bg-dot-surface p-3">
-          <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-dot-text-tertiary">
+          <p class="text-[10px] font-semibold uppercase tracking-wider text-dot-text-tertiary">
             Upload mode
           </p>
-          <p class="mt-2 text-sm font-medium text-dot-text-primary">Folder as CAR</p>
+          <p class="mt-1 text-sm font-medium text-dot-text-primary">Folder as CAR</p>
         </div>
       </div>
 
       <div
         v-if="exceedsFolderLimit"
-        class="rounded-lg border border-red-500/30 bg-red-500/10 p-3 space-y-2"
+        class="rounded-lg border border-error/30 bg-error/10 p-3 space-y-2"
       >
-        <p class="text-sm font-medium text-red-400">Browser folder limit reached</p>
+        <p class="text-sm font-medium text-error">Browser folder limit reached</p>
         <p class="text-xs text-dot-text-secondary">
           This folder is {{ bulletinStore.formatBytes(folderTotalSize) }}. Browser folder uploads
           are limited to {{ browserFolderLimitLabel }} to keep memory usage manageable. Use the CLI
-          with <code class="text-dot-accent">--as-car</code> for anything larger.
+          with <code class="text-dot-accent font-mono">--as-car</code> for anything larger.
         </p>
         <a
           :href="RELEASES_URL"
           target="_blank"
           rel="noopener"
-          class="inline-flex h-9 items-center justify-center rounded-lg border border-dot-border px-3 text-xs font-medium text-dot-text-primary transition-colors hover:bg-dot-surface-secondary"
+          class="inline-flex min-h-11 items-center justify-center rounded-lg border border-dot-border px-4 text-xs font-medium text-dot-text-primary transition-colors duration-200 ease-out hover:bg-dot-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/40"
         >
           Install the CLI
         </a>
@@ -718,26 +722,26 @@ function handleTransactionClose(): void {
 
         <button
           type="button"
-          class="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm text-left w-full transition-colors"
+          class="flex items-center gap-3 rounded-lg border min-h-11 px-3 py-2 text-sm text-left w-full transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/40"
           :class="
             acceptedApprovalPrompt
               ? 'border-dot-accent/40 bg-dot-accent/5 text-dot-text-primary cursor-default'
-              : 'border-dot-border bg-dot-bg text-dot-text-secondary hover:border-dot-accent/30 cursor-pointer'
+              : 'border-dot-border bg-dot-bg text-dot-text-secondary hover:border-dot-border-strong cursor-pointer'
           "
           :disabled="acceptedApprovalPrompt"
           @click="!acceptedApprovalPrompt && (acceptedApprovalPrompt = true)"
         >
           <span
-            class="h-4 w-4 shrink-0 rounded border flex items-center justify-center transition-colors"
+            class="h-4 w-4 shrink-0 rounded border flex items-center justify-center transition-colors duration-200"
             :class="
               acceptedApprovalPrompt
-                ? 'bg-dot-accent border-dot-accent'
+                ? 'bg-dot-text-primary border-dot-text-primary'
                 : 'border-dot-border bg-dot-surface'
             "
           >
             <svg
               v-if="acceptedApprovalPrompt"
-              class="h-2.5 w-2.5 text-white"
+              class="h-2.5 w-2.5 text-dot-bg"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -775,10 +779,13 @@ function handleTransactionClose(): void {
             {{ bulletinStore.statusMessage }}
           </p>
           <div class="flex items-center gap-2 shrink-0">
-            <span v-if="bulletinStore.chunksTotal > 1" class="text-dot-text-tertiary text-xs">
+            <span
+              v-if="bulletinStore.chunksTotal > 1"
+              class="text-dot-text-tertiary text-xs tabular-nums"
+            >
               {{ bulletinStore.chunksCompleted }}/{{ bulletinStore.chunksTotal }}
             </span>
-            <span class="text-dot-text-tertiary text-xs">
+            <span class="text-dot-text-tertiary text-xs tabular-nums">
               {{ bulletinStore.uploadProgress }}%
             </span>
           </div>
@@ -787,22 +794,24 @@ function handleTransactionClose(): void {
 
       <div
         v-if="selectedFolderFiles.length > 0 && !bulletinStore.isUploading && isWalletConnected"
-        class="flex items-center gap-3 rounded-lg border border-dot-border bg-dot-surface px-3 py-2"
+        class="rounded-lg border border-dot-border bg-dot-surface px-3 py-2"
       >
         <button
           type="button"
-          class="flex items-center gap-2 text-sm text-left w-full transition-colors cursor-pointer"
+          class="flex items-center gap-3 text-sm text-left w-full min-h-11 transition-colors duration-200 ease-out cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/40 rounded-lg"
           @click="cacheToStore = !cacheToStore"
         >
           <span
-            class="h-4 w-4 shrink-0 rounded border flex items-center justify-center transition-colors"
+            class="h-4 w-4 shrink-0 rounded border flex items-center justify-center transition-colors duration-200"
             :class="
-              cacheToStore ? 'bg-dot-accent border-dot-accent' : 'border-dot-border bg-dot-surface'
+              cacheToStore
+                ? 'bg-dot-text-primary border-dot-text-primary'
+                : 'border-dot-border bg-dot-surface'
             "
           >
             <svg
               v-if="cacheToStore"
-              class="h-2.5 w-2.5 text-white"
+              class="h-2.5 w-2.5 text-dot-bg"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -822,20 +831,22 @@ function handleTransactionClose(): void {
         </button>
       </div>
 
-      <Button
-        v-if="!bulletinStore.isUploading && bulletinStore.uploadStage !== 'done'"
-        @click="startUpload"
-        :disabled="!canUpload"
-        variant="primary"
-        :full-width="true"
-      >
-        {{ exceedsFolderLimit ? "Use CLI for This Upload" : "Upload Folder to Bulletin Chain" }}
-      </Button>
+      <div class="flex justify-end">
+        <Button
+          v-if="!bulletinStore.isUploading && bulletinStore.uploadStage !== 'done'"
+          @click="startUpload"
+          :disabled="!canUpload"
+          variant="primary"
+          size="sm"
+        >
+          {{ exceedsFolderLimit ? "Use CLI for This Upload" : "Upload Folder to Bulletin Chain" }}
+        </Button>
+      </div>
     </div>
 
     <div
       v-else-if="pendingUpload"
-      class="rounded-xl border border-dot-accent/30 bg-dot-accent-soft p-4"
+      class="rounded-lg border border-dot-accent/30 bg-dot-accent-soft p-3"
     >
       <div class="flex items-start gap-3">
         <span class="mt-0.5 shrink-0 text-dot-accent">
@@ -854,7 +865,10 @@ function handleTransactionClose(): void {
           </svg>
         </span>
         <div class="flex-1 text-sm leading-relaxed min-w-0">
-          <p class="font-semibold text-dot-accent mb-1 truncate" :title="pendingUpload.fileName">
+          <p
+            class="font-semibold text-dot-text-primary mb-1 truncate"
+            :title="pendingUpload.fileName"
+          >
             Resume upload
           </p>
           <p class="text-dot-text-secondary">
@@ -878,20 +892,24 @@ function handleTransactionClose(): void {
 
     <div
       v-else-if="!selectedFile && bulletinStore.uploadStage === 'idle'"
-      class="border border-dashed rounded-lg p-4 sm:p-6 text-center cursor-pointer transition-colors"
+      class="group border border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-dot-bg"
       :class="[
         isDragging
           ? 'border-dot-accent bg-dot-accent/5'
           : 'border-dot-border hover:border-dot-border-strong',
       ]"
+      tabindex="0"
+      role="button"
       @dragover="handleDragOver"
       @dragleave="handleDragLeave"
       @drop="handleDrop"
       @click="openFileDialog"
+      @keydown.enter="openFileDialog"
+      @keydown.space.prevent="openFileDialog"
     >
       <input ref="fileInputRef" type="file" class="hidden" @change="handleFileInput" />
       <svg
-        class="w-8 h-8 mx-auto mb-3 text-dot-text-tertiary"
+        class="w-8 h-8 mx-auto mb-3 text-dot-text-tertiary transition-colors duration-200 group-hover:text-dot-text-secondary"
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"
@@ -930,20 +948,18 @@ function handleTransactionClose(): void {
         </svg>
         <div class="flex-1 min-w-0">
           <p class="text-dot-text-primary text-sm truncate">{{ selectedFile.name }}</p>
-          <p class="text-dot-text-tertiary text-xs">
+          <p class="text-dot-text-tertiary text-xs tabular-nums">
             {{ bulletinStore.formatBytes(selectedFile.size) }}
-            <span v-if="uploadPlan" class="text-dot-text-tertiary">
+            <span v-if="uploadPlan">
               &middot; {{ uploadPlan?.totalApprovalCount ?? 0 }} approvals
             </span>
-            <span v-if="isChunked" class="text-dot-text-tertiary">
-              &middot; {{ uploadPlan?.chunkCount ?? 0 }} chunks
-            </span>
+            <span v-if="isChunked"> &middot; {{ uploadPlan?.chunkCount ?? 0 }} chunks </span>
           </p>
         </div>
         <button
           v-if="!bulletinStore.isUploading"
           @click="removeFile"
-          class="p-1 rounded text-dot-text-tertiary hover:text-dot-text-secondary hover:bg-dot-surface-secondary transition-colors"
+          class="min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg text-dot-text-tertiary hover:text-dot-text-secondary hover:bg-dot-surface-secondary transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/40"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -958,28 +974,28 @@ function handleTransactionClose(): void {
 
       <div v-if="uploadPlan" class="grid gap-3 sm:grid-cols-3">
         <div class="rounded-lg border border-dot-border bg-dot-surface p-3">
-          <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-dot-text-tertiary">
+          <p class="text-[10px] font-semibold uppercase tracking-wider text-dot-text-tertiary">
             Browser limit
           </p>
-          <p class="mt-2 text-sm font-medium text-dot-text-primary">
+          <p class="mt-1 text-sm font-medium text-dot-text-primary tabular-nums">
             {{ browserUploadLimitLabel }}
           </p>
         </div>
 
         <div class="rounded-lg border border-dot-border bg-dot-surface p-3">
-          <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-dot-text-tertiary">
+          <p class="text-[10px] font-semibold uppercase tracking-wider text-dot-text-tertiary">
             Wallet approvals
           </p>
-          <p class="mt-2 text-sm font-medium text-dot-text-primary">
+          <p class="mt-1 text-sm font-medium text-dot-text-primary tabular-nums">
             {{ uploadPlan?.totalApprovalCount ?? 0 }}
           </p>
         </div>
 
         <div class="rounded-lg border border-dot-border bg-dot-surface p-3">
-          <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-dot-text-tertiary">
+          <p class="text-[10px] font-semibold uppercase tracking-wider text-dot-text-tertiary">
             Upload mode
           </p>
-          <p class="mt-2 text-sm font-medium text-dot-text-primary">
+          <p class="mt-1 text-sm font-medium text-dot-text-primary">
             {{ isChunked ? "Chunked file upload" : "Single file upload" }}
           </p>
         </div>
@@ -987,19 +1003,20 @@ function handleTransactionClose(): void {
 
       <div
         v-if="exceedsBrowserLimit"
-        class="rounded-lg border border-red-500/30 bg-red-500/10 p-3 space-y-2"
+        class="rounded-lg border border-error/30 bg-error/10 p-3 space-y-2"
       >
-        <p class="text-sm font-medium text-red-400">Browser upload limit reached</p>
+        <p class="text-sm font-medium text-error">Browser upload limit reached</p>
         <p class="text-xs text-dot-text-secondary">
           This file is {{ bulletinStore.formatBytes(selectedFile.size) }}. Browser uploads are
           limited to {{ browserUploadLimitLabel }} to keep approvals and memory usage manageable.
-          Use the CLI with <code class="text-dot-accent">--as-car</code> for anything larger.
+          Use the CLI with <code class="text-dot-accent font-mono">--as-car</code> for anything
+          larger.
         </p>
         <a
           :href="RELEASES_URL"
           target="_blank"
           rel="noopener"
-          class="inline-flex h-9 items-center justify-center rounded-lg border border-dot-border px-3 text-xs font-medium text-dot-text-primary transition-colors hover:bg-dot-surface-secondary"
+          class="inline-flex min-h-11 items-center justify-center rounded-lg border border-dot-border px-4 text-xs font-medium text-dot-text-primary transition-colors duration-200 ease-out hover:bg-dot-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/40"
         >
           Install the CLI
         </a>
@@ -1022,26 +1039,26 @@ function handleTransactionClose(): void {
 
         <button
           type="button"
-          class="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm text-left w-full transition-colors"
+          class="flex items-center gap-3 rounded-lg border min-h-11 px-3 py-2 text-sm text-left w-full transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/40"
           :class="
             acceptedApprovalPrompt
               ? 'border-dot-accent/40 bg-dot-accent/5 text-dot-text-primary cursor-default'
-              : 'border-dot-border bg-dot-bg text-dot-text-secondary hover:border-dot-accent/30 cursor-pointer'
+              : 'border-dot-border bg-dot-bg text-dot-text-secondary hover:border-dot-border-strong cursor-pointer'
           "
           :disabled="acceptedApprovalPrompt"
           @click="!acceptedApprovalPrompt && (acceptedApprovalPrompt = true)"
         >
           <span
-            class="h-4 w-4 shrink-0 rounded border flex items-center justify-center transition-colors"
+            class="h-4 w-4 shrink-0 rounded border flex items-center justify-center transition-colors duration-200"
             :class="
               acceptedApprovalPrompt
-                ? 'bg-dot-accent border-dot-accent'
+                ? 'bg-dot-text-primary border-dot-text-primary'
                 : 'border-dot-border bg-dot-surface'
             "
           >
             <svg
               v-if="acceptedApprovalPrompt"
-              class="h-2.5 w-2.5 text-white"
+              class="h-2.5 w-2.5 text-dot-bg"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -1079,10 +1096,13 @@ function handleTransactionClose(): void {
             {{ bulletinStore.statusMessage }}
           </p>
           <div class="flex items-center gap-2 shrink-0">
-            <span v-if="bulletinStore.chunksTotal > 1" class="text-dot-text-tertiary text-xs">
+            <span
+              v-if="bulletinStore.chunksTotal > 1"
+              class="text-dot-text-tertiary text-xs tabular-nums"
+            >
               {{ bulletinStore.chunksCompleted }}/{{ bulletinStore.chunksTotal }}
             </span>
-            <span class="text-dot-text-tertiary text-xs">
+            <span class="text-dot-text-tertiary text-xs tabular-nums">
               {{ bulletinStore.uploadProgress }}%
             </span>
           </div>
@@ -1091,22 +1111,24 @@ function handleTransactionClose(): void {
 
       <div
         v-if="selectedFile && !bulletinStore.isUploading && isWalletConnected"
-        class="flex items-center gap-3 rounded-lg border border-dot-border bg-dot-surface px-3 py-2"
+        class="rounded-lg border border-dot-border bg-dot-surface px-3 py-2"
       >
         <button
           type="button"
-          class="flex items-center gap-2 text-sm text-left w-full transition-colors cursor-pointer"
+          class="flex items-center gap-3 text-sm text-left w-full min-h-11 transition-colors duration-200 ease-out cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/40 rounded-lg"
           @click="cacheToStore = !cacheToStore"
         >
           <span
-            class="h-4 w-4 shrink-0 rounded border flex items-center justify-center transition-colors"
+            class="h-4 w-4 shrink-0 rounded border flex items-center justify-center transition-colors duration-200"
             :class="
-              cacheToStore ? 'bg-dot-accent border-dot-accent' : 'border-dot-border bg-dot-surface'
+              cacheToStore
+                ? 'bg-dot-text-primary border-dot-text-primary'
+                : 'border-dot-border bg-dot-surface'
             "
           >
             <svg
               v-if="cacheToStore"
-              class="h-2.5 w-2.5 text-white"
+              class="h-2.5 w-2.5 text-dot-bg"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -1126,22 +1148,24 @@ function handleTransactionClose(): void {
         </button>
       </div>
 
-      <Button
-        v-if="!bulletinStore.isUploading && bulletinStore.uploadStage !== 'done'"
-        @click="startUpload"
-        :disabled="!canUpload"
-        variant="primary"
-        :full-width="true"
-      >
-        {{ exceedsBrowserLimit ? "Use CLI for This Upload" : "Upload to Bulletin Chain" }}
-      </Button>
+      <div class="flex justify-end">
+        <Button
+          v-if="!bulletinStore.isUploading && bulletinStore.uploadStage !== 'done'"
+          @click="startUpload"
+          :disabled="!canUpload"
+          variant="primary"
+          size="sm"
+        >
+          {{ exceedsBrowserLimit ? "Use CLI for This Upload" : "Upload to Bulletin Chain" }}
+        </Button>
+      </div>
     </div>
 
     <div
       v-if="bulletinStore.uploadError"
-      class="bg-red-500/10 border border-red-500/20 rounded-lg p-3 space-y-2"
+      class="bg-error/10 border border-error/20 rounded-lg p-3 space-y-2"
     >
-      <p class="text-red-400 text-sm">{{ bulletinStore.uploadError }}</p>
+      <p class="text-error text-sm">{{ bulletinStore.uploadError }}</p>
       <div
         v-if="
           bulletinStore.uploadError.includes('authorized') ||
@@ -1156,23 +1180,23 @@ function handleTransactionClose(): void {
             :href="RELEASES_URL"
             target="_blank"
             rel="noopener"
-            class="text-dot-accent hover:underline"
+            class="text-dot-accent hover:text-dot-accent-hover hover:underline transition-colors duration-200"
             >Install the CLI</a
           >
           then run:
         </p>
-        <div class="flex items-center gap-2 bg-dot-bg rounded px-2 py-1.5 mt-1">
+        <div class="flex items-center gap-2 bg-dot-bg rounded-lg px-3 py-2 mt-1">
           <code class="font-mono text-dot-text-secondary text-xs flex-1 break-all">
             {{ authorizeCommand }}
           </code>
           <button
             @click="copyAuthorizeCommand"
-            class="p-1 rounded text-dot-text-tertiary hover:text-dot-text-secondary shrink-0 transition-colors"
+            class="min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg text-dot-text-tertiary hover:text-dot-text-secondary transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/40"
             title="Copy command"
           >
             <svg
               v-if="copiedAuthorize"
-              class="w-3.5 h-3.5 text-green-400"
+              class="w-4 h-4 text-success"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -1184,7 +1208,7 @@ function handleTransactionClose(): void {
                 d="M5 13l4 4L19 7"
               />
             </svg>
-            <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
@@ -1196,7 +1220,7 @@ function handleTransactionClose(): void {
         </div>
         <router-link
           to="/docs/dweb/bulletin"
-          class="text-dot-accent hover:underline inline-block mt-1"
+          class="text-dot-accent hover:text-dot-accent-hover hover:underline transition-colors duration-200 inline-block mt-1"
         >
           Learn more about authorization
         </router-link>
@@ -1208,7 +1232,7 @@ function handleTransactionClose(): void {
             bulletinStore.resetUploadState();
           }
         "
-        class="text-dot-text-secondary text-xs hover:text-dot-text-primary transition-colors"
+        class="text-dot-text-secondary text-xs hover:text-dot-text-primary transition-colors duration-200 ease-out min-h-11 inline-flex items-center"
       >
         Try again
       </button>

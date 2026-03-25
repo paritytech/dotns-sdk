@@ -1,7 +1,7 @@
 <template>
   <div class="relative font-sans">
     <div
-      class="relative transition-all duration-300 flex items-center rounded-2xl"
+      class="relative transition-all duration-300 flex items-center rounded-xl"
       :class="['border bg-dot-surface shadow-sm w-full', borderClass]"
     >
       <div class="flex items-center justify-center pl-4 pr-3 h-full">
@@ -26,7 +26,7 @@
           @input="handleInput"
           type="text"
           placeholder="Search for your dot handle..."
-          class="w-full py-4 pr-16 text-lg bg-transparent border-none focus:outline-none placeholder-dot-text-tertiary transition-colors duration-200"
+          class="w-full py-2.5 pr-16 text-sm bg-transparent border-none focus:outline-none placeholder-dot-text-tertiary transition-colors duration-200"
           :class="{
             'text-dot-text-primary': !status,
             'text-success placeholder-success/60': status === 'available',
@@ -34,7 +34,7 @@
           }"
         />
         <span
-          class="absolute right-4 top-1/2 -translate-y-1/2 text-lg font-medium pointer-events-none transition-colors duration-200"
+          class="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-medium pointer-events-none transition-colors duration-200"
           :class="{
             'text-dot-text-tertiary': !status,
             'text-success': status === 'available',
@@ -59,9 +59,9 @@
       </div>
     </div>
 
-    <div v-if="status && !isLoading" class="mt-[2%] text-center transition-all duration-200">
+    <div v-if="status && !isLoading" class="mt-2 text-center transition-all duration-200">
       <p
-        class="text-sm font-medium mb-3"
+        class="text-xs font-medium mb-2"
         :class="status === 'available' ? 'text-success' : 'text-error'"
       >
         {{ statusMessage }}
@@ -70,7 +70,7 @@
       <Button
         v-if="status === 'available' && canRegister"
         variant="primary"
-        size="lg"
+        size="sm"
         @click="registerHandle"
       >
         Register Handle
@@ -250,6 +250,6 @@ function handleBlur() {
 const borderClass = computed(() => {
   if (status.value === "available") return "border-success focus-within:border-success";
   if (status.value === "taken") return "border-error focus-within:border-error";
-  return "border-dot-border focus-within:border-dot-border-strong focus-within:ring-2 focus-within:ring-dot-accent/20";
+  return "border-dot-border focus-within:border-dot-border-strong focus-within:ring-1 focus-within:ring-dot-border-strong";
 });
 </script>

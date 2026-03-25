@@ -8,19 +8,17 @@
         <p class="text-sm font-medium text-dot-text-primary">
           {{ completedCount >= steps.length ? "All approvals completed" : "Approval plan" }}
         </p>
-        <p class="text-xs text-dot-text-tertiary mt-0.5">
+        <p class="text-xs text-dot-text-tertiary mt-1">
           {{ completedCount }} of {{ steps.length }} wallet
           {{ steps.length === 1 ? "approval" : "approvals" }}
         </p>
       </div>
-      <div class="text-right">
-        <p class="text-xs font-medium text-dot-text-primary tabular-nums">
-          {{ Math.round((completedCount / steps.length) * 100) }}%
-        </p>
-      </div>
+      <p class="text-xs font-medium text-dot-text-primary tabular-nums">
+        {{ Math.round((completedCount / steps.length) * 100) }}%
+      </p>
     </div>
 
-    <div class="w-full bg-dot-border rounded-full h-1.5 overflow-hidden">
+    <div class="w-full bg-dot-surface-secondary rounded-full h-1.5 overflow-hidden">
       <div
         class="h-full rounded-full transition-all duration-500 ease-out"
         :class="completedCount >= steps.length ? 'bg-success' : 'bg-dot-accent'"
@@ -32,12 +30,12 @@
       <div
         v-for="step in steps"
         :key="step.key"
-        class="flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors"
+        class="flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors duration-200 ease-out min-h-[28px]"
         :class="pillClass(step.status)"
         :title="step.label"
       >
         <span class="h-1.5 w-1.5 shrink-0 rounded-full" :class="dotClass(step.status)" />
-        <span class="truncate max-w-[7rem]">{{ step.shortLabel }}</span>
+        <span class="truncate max-w-28">{{ step.shortLabel }}</span>
       </div>
     </div>
 
@@ -48,7 +46,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from "vue";
+import { computed } from "vue";
 
 type StepStatus = "done" | "active" | "pending";
 
@@ -83,10 +81,4 @@ function dotClass(status: StepStatus): string {
   if (status === "active") return "bg-dot-accent animate-pulse-dot";
   return "bg-dot-border-strong";
 }
-
-watch(
-  () => [props.steps.length, props.activeIndex, props.completedCount],
-  () => {},
-  { immediate: true },
-);
 </script>

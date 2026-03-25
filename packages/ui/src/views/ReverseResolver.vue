@@ -1,15 +1,13 @@
 <template>
-  <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24 font-sans text-center">
+  <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 font-sans text-center">
     <Transition name="fade">
-      <div v-if="!isNavigating" class="mb-12 animate-fade-in">
-        <h1
-          class="text-4xl sm:text-5xl md:text-6xl font-serif font-extrabold text-dot-text-primary mb-4"
-        >
+      <div v-if="!isNavigating" class="mb-6 animate-fade-in">
+        <h1 class="text-xl sm:text-2xl font-serif font-extrabold text-dot-text-primary mb-2">
           Whois <span class="text-dot-accent">.dot</span> Lookup
         </h1>
-        <p class="text-lg sm:text-xl text-dot-text-secondary max-w-2xl mx-auto">
+        <p class="text-sm text-dot-text-secondary max-w-2xl mx-auto">
           Search for any
-          <span class="font-semibold text-primary">.dot</span> handle to see who owns it on
+          <span class="font-semibold text-dot-accent">.dot</span> handle to see who owns it on
           Polkadot.
         </p>
       </div>
@@ -17,7 +15,7 @@
 
     <div>
       <div
-        class="relative transition-all duration-300 flex items-center rounded-2xl border bg-dot-surface shadow-sm w-full"
+        class="relative transition-all duration-300 flex items-center rounded-xl border bg-dot-surface shadow-sm w-full"
         :class="borderClass"
       >
         <div class="flex items-center justify-center pl-4 pr-3 h-full">
@@ -33,7 +31,7 @@
             @blur="handleBlur"
             type="text"
             placeholder="Search for a dot handle..."
-            class="w-full py-4 pr-16 text-lg bg-transparent border-none focus:outline-none placeholder-dot-text-tertiary transition-colors duration-200"
+            class="w-full py-2.5 pr-16 text-sm bg-transparent border-none focus:outline-none placeholder-dot-text-tertiary transition-colors duration-200"
             :class="{
               'text-dot-text-primary': !status,
               'text-success placeholder-success/60': status === 'available',
@@ -41,7 +39,7 @@
             }"
           />
           <span
-            class="absolute right-4 top-1/2 -translate-y-1/2 text-lg font-medium pointer-events-none"
+            class="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-medium pointer-events-none"
             :class="{
               'text-dot-text-tertiary': !status,
               'text-success': status === 'available',
@@ -53,83 +51,39 @@
         </div>
 
         <div class="absolute right-14 top-1/2 -translate-y-1/2">
-          <svg
+          <Icon
             v-if="isLoading"
-            class="animate-spin h-5 w-5 text-dot-text-secondary"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              class="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              stroke-width="4"
-            />
-            <path
-              class="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 
-                 0 5.373 0 12h4zm2 5.291A7.962 
-                 7.962 0 014 12H0c0 3.042 
-                 1.135 5.824 3 7.938l3-2.647z"
-            />
-          </svg>
-
-          <svg
-            v-else-if="status === 'available'"
-            class="h-6 w-6 text-success"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M5 13l4 4L19 7"
-            />
-          </svg>
-
-          <svg
-            v-else-if="status === 'taken'"
-            class="h-6 w-6 text-error"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
+            name="Spinner"
+            size="md"
+            class="animate-spin text-dot-text-secondary"
+          />
+          <Icon v-else-if="status === 'available'" name="Check" size="lg" class="text-success" />
+          <Icon v-else-if="status === 'taken'" name="X" size="lg" class="text-error" />
         </div>
       </div>
 
       <Transition name="fade">
-        <div v-if="!isLoading && status" class="mt-8 text-center">
+        <div v-if="!isLoading && status" class="mt-3 text-center">
           <div
             v-if="status === 'available'"
-            class="p-6 bg-green-500/10 border border-green-500/20 rounded-2xl"
+            class="p-3 bg-success/10 border border-success/20 rounded-xl"
           >
-            <p class="text-green-400 font-medium text-lg">This handle is available!</p>
-            <p class="text-green-500 mt-2 text-sm">No owner found on the registry.</p>
+            <p class="text-success font-medium text-sm">This handle is available!</p>
+            <p class="text-success/70 mt-1 text-xs">No owner found on the registry.</p>
           </div>
 
           <div
             v-else-if="status === 'taken'"
-            class="p-6 bg-dot-surface-secondary border border-dot-border rounded-2xl cursor-pointer"
+            class="p-3 bg-dot-surface-secondary border border-dot-border rounded-xl cursor-pointer hover:border-dot-border-strong transition-colors duration-150 group"
             @click="navigateToProfile"
           >
-            <p class="text-dot-text-primary font-medium text-lg mb-2">
+            <p class="text-dot-text-primary font-medium text-sm mb-1">
               {{ searchQuery }}.dot is already taken
             </p>
-            <p class="text-dot-text-tertiary text-sm mt-1">
-              Click to view {{ searchQuery }}.dot profile →
+            <p
+              class="text-dot-text-tertiary text-xs group-hover:text-dot-text-secondary transition-colors"
+            >
+              Click to view {{ searchQuery }}.dot profile &rarr;
             </p>
           </div>
         </div>
@@ -200,6 +154,6 @@ async function navigateToProfile() {
 const borderClass = computed(() => {
   if (status.value === "available") return "border-success focus-within:border-success";
   if (status.value === "taken") return "border-error focus-within:border-error";
-  return "border-dot-border focus-within:border-dot-border-strong focus-within:ring-2 focus-within:ring-dot-accent/20";
+  return "border-dot-border focus-within:border-dot-border-strong focus-within:ring-1 focus-within:ring-dot-border-strong";
 });
 </script>
