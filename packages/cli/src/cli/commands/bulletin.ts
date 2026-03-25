@@ -587,7 +587,11 @@ export function attachBulletinCommands(root: Command): void {
         String(DEFAULT_UPLOAD_MAX_RETRIES),
       )
       .option("--force-chunked", "Force chunked upload (DAG-PB)", false)
-      .option("--as-car", "Merkleize directory in-memory and upload individual blocks (no external IPFS binary needed)", false)
+      .option(
+        "--as-car",
+        "Merkleize directory in-memory and upload individual blocks (no external IPFS binary needed)",
+        false,
+      )
       .option("--concurrency <n>", "Adaptive scheduler max window (default: 16, max: 64)", "16")
       .option("--print-contenthash", "Also print 0x-prefixed IPFS contenthash for the CID", false)
       .option("--resume", "Resume a previously interrupted upload", false)
@@ -725,7 +729,10 @@ export function attachBulletinCommands(root: Command): void {
               },
             };
 
-            async function* walkDirectory(dir: string, base: string): AsyncIterable<{ path: string; content: any }> {
+            async function* walkDirectory(
+              dir: string,
+              base: string,
+            ): AsyncIterable<{ path: string; content: any }> {
               const entries = await filesystem.readdir(dir, { withFileTypes: true });
               for (const entry of entries) {
                 const full = path.join(dir, entry.name);
@@ -749,7 +756,11 @@ export function attachBulletinCommands(root: Command): void {
 
             if (!rootCid) throw new Error("Merkleization produced no root CID");
 
-            onPhase?.({ phase: "merkleize", state: "success", message: `Root CID: ${rootCid} (${blocks.size} blocks)` });
+            onPhase?.({
+              phase: "merkleize",
+              state: "success",
+              message: `Root CID: ${rootCid} (${blocks.size} blocks)`,
+            });
             onPhase?.({ phase: "export", state: "start", message: "Packing blocks into CAR file" });
 
             const { CarWriter } = await import("@ipld/car");
@@ -775,7 +786,11 @@ export function attachBulletinCommands(root: Command): void {
             blocks.clear();
 
             const carStat = await filesystem.stat(carPath);
-            onPhase?.({ phase: "export", state: "success", message: `CAR file: ${formatBytes(carStat.size)}` });
+            onPhase?.({
+              phase: "export",
+              state: "success",
+              message: `CAR file: ${formatBytes(carStat.size)}`,
+            });
 
             try {
               const carCid = await uploadChunkedBlocks(
@@ -917,7 +932,11 @@ export function attachBulletinCommands(root: Command): void {
           profileReportPath = finalizedProfile.outputPath;
         }
 
-        onPhase({ phase: "verify", state: "start", message: "Verifying content on Bulletin P2P..." });
+        onPhase({
+          phase: "verify",
+          state: "start",
+          message: "Verifying content on Bulletin P2P...",
+        });
         let verified = false;
         try {
           const p2pResult = await verifyCidViaP2P(ipfsCid);
@@ -930,13 +949,25 @@ export function attachBulletinCommands(root: Command): void {
         }
 
         if (!verified) {
-          onPhase({ phase: "verify", state: "update", message: "P2P unavailable, checking IPFS gateways..." });
+          onPhase({
+            phase: "verify",
+            state: "update",
+            message: "P2P unavailable, checking IPFS gateways...",
+          });
           const gatewayResults = await verifyCidWithMultipleGateways(ipfsCid);
           const resolvable = Array.from(gatewayResults.values()).some((r) => r.resolvable);
           if (resolvable) {
-            onPhase({ phase: "verify", state: "success", message: "Content verified via IPFS gateway" });
+            onPhase({
+              phase: "verify",
+              state: "success",
+              message: "Content verified via IPFS gateway",
+            });
           } else {
-            onPhase({ phase: "verify", state: "warning", message: "Content not yet resolvable — it may still be propagating" });
+            onPhase({
+              phase: "verify",
+              state: "warning",
+              message: "Content not yet resolvable — it may still be propagating",
+            });
           }
         }
 
@@ -1006,7 +1037,11 @@ export function attachBulletinCommands(root: Command): void {
               password: mergedOptions.password,
             });
 
-            onPhase({ phase: "cache", state: "update", message: "Saving CID to on-chain Store..." });
+            onPhase({
+              phase: "cache",
+              state: "update",
+              message: "Saving CID to on-chain Store...",
+            });
             await cacheCidToStore({
               cid: ipfsCid,
               clientWrapper: assetHubContext.clientWrapper,
@@ -1016,7 +1051,11 @@ export function attachBulletinCommands(root: Command): void {
             });
             onPhase({ phase: "cache", state: "success", message: "CID saved to Store" });
           } catch (cacheError) {
-            onPhase({ phase: "cache", state: "warning", message: `CID caching failed: ${formatErrorMessage(cacheError)}` });
+            onPhase({
+              phase: "cache",
+              state: "warning",
+              message: `CID caching failed: ${formatErrorMessage(cacheError)}`,
+            });
           }
         }
 

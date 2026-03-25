@@ -245,7 +245,14 @@ export type BulletinUploadOptions = {
   asCar?: boolean;
 };
 
-export type BulletinProgressPhase = "validate" | "authorize" | "upload" | "verify" | "merkleize" | "export" | "cache";
+export type BulletinProgressPhase =
+  | "validate"
+  | "authorize"
+  | "upload"
+  | "verify"
+  | "merkleize"
+  | "export"
+  | "cache";
 
 export type BulletinProgressState = "start" | "update" | "success" | "warning" | "failure";
 
