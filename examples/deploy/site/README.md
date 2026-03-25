@@ -47,9 +47,16 @@ All inputs accepted by the reusable `deploy.yml` workflow:
 | `rpc` | CLI default | DotNS chain WebSocket RPC endpoint override |
 | `use-car` | `false` | Merkleize with IPFS CLI and upload as a CAR file instead of individual blocks |
 | `upload-concurrency` | `4` | Adaptive scheduler max window (max: 4) |
+| `cache` | `false` | Write uploaded CID to on-chain Store on Asset Hub (requires PAS balance) |
 | `skip-cache` | `false` | Skip deployment cache and force re-upload |
 | `max-retries` | `3` | Max retry attempts per step for transient RPC failures |
 | `retry-delay` | `15` | Seconds to wait between retries |
+
+## Cache to Store
+
+The `cache-to-store.yml` workflow shows how to persist the uploaded CID to your on-chain Store contract by passing `cache: true` to the reusable workflow. The Store lives on Asset Hub (Paseo), not on Bulletin, so the wallet behind `DOTNS_MNEMONIC` must hold sufficient PAS balance on Asset Hub to cover the transaction. If the Store has not been deployed yet, the CLI will attempt to deploy one automatically, which requires additional balance.
+
+When the balance is insufficient the upload still completes successfully; only the Store write is skipped with a warning in the workflow logs.
 
 ## Project structure
 
@@ -61,6 +68,7 @@ examples/deploy/site/
 │   ├── deploy.yml                # Production deploy (push to main)
 │   ├── preview.yml               # PR previews + production on merge
 │   ├── branch-names.yml          # Branch-name subnames + manual dispatch
+│   ├── cache-to-store.yml          # Write CID to on-chain Store after upload
 │   ├── car-upload.yml             # CAR-based upload (IPFS merkleization)
 │   ├── custom-rpc.yml            # Custom RPC endpoints (local chain)
 │   └── mono-repo.yml             # Multiple apps from a monorepo

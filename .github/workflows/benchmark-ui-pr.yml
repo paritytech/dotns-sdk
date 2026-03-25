@@ -56,7 +56,7 @@ jobs:
       mode: preview
       subname: pr${{ github.event.pull_request.number }}-ui
       register-base: false
-      cli-source: source
+      cli-source: release
       sdk-ref: ${{ github.head_ref || github.ref }}
       skip-cache: true
       max-retries: 5
@@ -135,7 +135,7 @@ jobs:
               `|----------|-------|`,
               `| Duration | ${duration}s |`,
               `| Domain | \`${fqdn}\` |`,
-              `| CID | \`${cid.length > 30 ? cid.slice(0, 30) + "..." : cid}\` |`,
+              `| CID | \`${cid}\` |`,
               previewUrl ? `| Preview | [open](${previewUrl}) |` : null,
               `| Workflow | [view](${runUrl}) |`,
             ].filter(Boolean).join("\n");

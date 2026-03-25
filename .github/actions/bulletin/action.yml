@@ -24,6 +24,10 @@ inputs:
     description: 'Seconds to wait between retries'
     required: false
     default: '15'
+  cache:
+    description: 'Write uploaded CID to on-chain Store after upload'
+    required: false
+    default: 'false'
 
 outputs:
   cid:
@@ -86,6 +90,7 @@ runs:
         fi
         [[ -n "$BULLETIN_RPC" ]] && ARGS+=(--bulletin-rpc "$BULLETIN_RPC")
         ARGS+=(--concurrency "$UPLOAD_CONCURRENCY")
+        [[ "$CACHE" == "true" ]] && ARGS+=(--cache)
 
         if run_dotns_with_retry \
           "Upload build to Bulletin" \
@@ -124,3 +129,4 @@ runs:
         FORCE_COLOR: "0"
         NODE_NO_WARNINGS: "1"
         RETRY_DELAY: ${{ inputs.retry-delay }}
+        CACHE: ${{ inputs.cache }}
