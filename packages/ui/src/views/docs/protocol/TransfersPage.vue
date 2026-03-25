@@ -6,16 +6,25 @@
       <p class="text-lg text-dot-text-secondary leading-relaxed">
         DotNS names are <span class="text-dot-text-primary font-medium">ERC721 NFTs</span>, which
         means they can be transferred using the standard
-        <span class="font-mono text-dot-accent">safeTransferFrom</span> function. When a name is
-        transferred, the protocol automatically updates the Store records for both parties.
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+          >safeTransferFrom</code
+        >
+        function. When a name is transferred, the protocol automatically updates the Store records
+        for both parties.
       </p>
     </div>
 
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Standard ERC721 Transfer</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        The <span class="font-mono text-dot-accent">DotnsRegistrar</span> implements the full ERC721
-        interface. You can transfer a .dot name using any standard NFT transfer method:
+        The
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+          >DotnsRegistrar</code
+        >
+        implements the full ERC721 interface. You can transfer a .dot name using any standard NFT
+        transfer method:
       </p>
       <DocCodeBlock :code="transferCode" lang="solidity" filename="transfer" />
     </div>
@@ -76,8 +85,12 @@
             <p class="text-sm font-semibold text-dot-text-primary">EVM Address</p>
           </div>
           <p class="text-xs text-dot-text-secondary leading-relaxed">
-            Transfer directly to any <span class="font-mono">0x...</span> Ethereum-compatible
-            address on the Polkadot EVM layer.
+            Transfer directly to any
+            <code
+              class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+              >0x...</code
+            >
+            Ethereum-compatible address on the Polkadot EVM layer.
           </p>
         </div>
         <div class="p-5 border border-dot-border rounded-xl bg-dot-surface">
@@ -120,9 +133,36 @@
         </DocCallout>
         <DocCallout variant="info" title="Approval patterns">
           Standard ERC721 approval patterns apply. Use
-          <span class="font-mono">approve(operator, tokenId)</span> to approve a single name or
-          <span class="font-mono">setApprovalForAll(operator, true)</span> to approve all your names
-          at once. Marketplaces and transfer tools rely on these patterns.
+          <code
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+            >approve(operator, tokenId)</code
+          >
+          to approve a single name or
+          <code
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+            >setApprovalForAll(operator, true)</code
+          >
+          to approve all your names at once. Marketplaces and transfer tools rely on these patterns.
+        </DocCallout>
+        <DocCallout variant="warning" title="Store ownership transfer is irreversible">
+          The StoreFactory's
+          <code
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+            >transferOwnership</code
+          >
+          function can transfer Store ownership to
+          <code
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+            >address(0)</code
+          >, effectively burning the Store. All locked entries become permanently orphaned. Name
+          tokens themselves cannot be burned &mdash; the Registrar does not expose a burn function.
+          On ERC-721 transfer, the
+          <code
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+            >_update</code
+          >
+          hook writes the label to the recipient's Store only when both sender and recipient are
+          non-zero addresses.
         </DocCallout>
       </div>
     </div>
@@ -131,8 +171,15 @@
       <h2 class="text-xl font-semibold text-dot-text-primary">Registry Ownership Update</h2>
       <p class="text-dot-text-secondary leading-relaxed">
         The Registrar's transfer hook also updates the
-        <span class="font-mono text-dot-accent">DotnsRegistry</span> to reflect the new owner. This
-        means <span class="font-mono text-dot-text-primary">registry.owner(node)</span>
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+          >DotnsRegistry</code
+        >
+        to reflect the new owner. This means
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+          >registry.owner(node)</code
+        >
         always returns the current NFT holder's address, keeping the registry and token ownership in
         sync.
       </p>

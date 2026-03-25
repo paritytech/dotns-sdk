@@ -1,5 +1,5 @@
 <template>
-  <div class="border border-dot-border rounded-xl bg-dot-surface overflow-hidden">
+  <div class="my-6 border border-dot-border rounded-xl bg-dot-surface overflow-hidden">
     <div class="flex items-center justify-between px-3 py-2 border-b border-dot-border">
       <p class="text-xs font-medium text-dot-text-tertiary">{{ caption }}</p>
       <div class="flex items-center gap-1">

@@ -1,6 +1,6 @@
 <template>
-  <div class="my-4">
-    <div class="flex border-b border-dot-border overflow-x-auto">
+  <div class="my-6">
+    <div class="flex gap-1 border-b border-dot-border overflow-x-auto">
       <button
         v-for="(tab, i) in tabs"
         :key="tab"
@@ -15,7 +15,7 @@
         {{ tab }}
       </button>
     </div>
-    <div class="mt-3">
+    <div class="mt-3 p-4 min-h-[12rem]">
       <slot :name="`tab-${activeIndex}`" />
     </div>
   </div>

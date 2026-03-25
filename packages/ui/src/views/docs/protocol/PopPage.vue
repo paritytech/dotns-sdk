@@ -222,6 +222,15 @@
       </div>
     </div>
 
+    <div class="space-y-4">
+      <h2 class="text-xl font-semibold text-dot-text-primary">PoP Precompile</h2>
+      <div
+        class="flex items-center justify-center py-16 border border-dot-border rounded-lg bg-dot-surface"
+      >
+        <p class="text-dot-text-tertiary text-sm">Coming soon</p>
+      </div>
+    </div>
+
     <div class="border-t border-dot-border pt-6 flex justify-between text-sm">
       <RouterLink
         to="/docs/protocol/content"

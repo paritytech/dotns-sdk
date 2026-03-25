@@ -58,9 +58,18 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Making a Commitment</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        The <span class="font-mono text-dot-accent">makeCommitment</span> function is a
-        <span class="font-mono text-dot-text-primary">pure</span> function that generates a hash
-        from the registration parameters. It does not write to storage and can be called off-chain.
+        The
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+          >makeCommitment</code
+        >
+        function is a
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+          >pure</code
+        >
+        function that generates a hash from the registration parameters. It does not write to
+        storage and can be called off-chain.
       </p>
       <DocCodeBlock
         :code="makeCommitmentCode"
@@ -72,9 +81,13 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Committing</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        The <span class="font-mono text-dot-accent">commit</span> function stores the commitment
-        hash along with the current block timestamp. This establishes your priority claim to the
-        name.
+        The
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+          >commit</code
+        >
+        function stores the commitment hash along with the current block timestamp. This establishes
+        your priority claim to the name.
       </p>
       <DocCodeBlock :code="commitCode" lang="solidity" filename="commit" />
     </div>
@@ -88,10 +101,16 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Registering</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        The <span class="font-mono text-dot-accent">register</span> function reveals the name and
-        completes registration. It requires
-        <span class="font-mono text-dot-text-primary">msg.value &gt;= price</span>, where the price
-        is determined by
+        The
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+          >register</code
+        >
+        function reveals the name and completes registration. It requires
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+          >msg.value &gt;= price</code
+        >, where the price is determined by
         <RouterLink
           to="/docs/contracts/pop-rules"
           class="text-dot-accent hover:text-dot-accent-hover"
@@ -105,9 +124,17 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Registration Struct</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        The <span class="font-mono text-dot-accent">register</span> function takes a
-        <span class="font-mono text-dot-text-primary">Registration</span> struct containing all
-        parameters needed to complete the registration:
+        The
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+          >register</code
+        >
+        function takes a
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+          >Registration</code
+        >
+        struct containing all parameters needed to complete the registration:
       </p>
       <DocCodeBlock :code="registrationStructCode" lang="solidity" filename="Registration struct" />
     </div>
@@ -130,8 +157,11 @@
         >
         (typically names with a base length of 5 or fewer characters). These names cannot be
         registered through the normal commit-reveal flow. Instead, they use a governance path via
-        <span class="font-mono text-dot-accent">registerReserved</span>, which requires the caller
-        to be <span class="text-dot-text-primary font-medium">whitelisted</span> on the Controller
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+          >registerReserved</code
+        >, which requires the caller to be
+        <span class="text-dot-text-primary font-medium">whitelisted</span> on the Controller
         contract.
       </p>
       <p class="text-dot-text-secondary leading-relaxed">
@@ -159,7 +189,10 @@
         >
         on GitHub with your address and use case. Once approved, the protocol will whitelist your
         address and you can register the reserved name via
-        <span class="font-mono">registerReserved</span>.
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+          >registerReserved</code
+        >.
       </DocCallout>
     </div>
 
