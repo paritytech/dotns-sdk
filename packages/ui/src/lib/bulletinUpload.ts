@@ -1,11 +1,13 @@
 import { CID } from "multiformats/cid";
 import { create as createMultihashDigest } from "multiformats/hashes/digest";
 import { sha256 } from "@noble/hashes/sha2.js";
+import type { PreparedBlock } from "./bulletinUploadWorkerProtocol";
 
 export const BULLETIN_RPC = "wss://paseo-bulletin-rpc.polkadot.io";
 export const MAX_TX_SIZE = 8 * 1024 * 1024;
 export const CHUNK_SIZE = 2 * 1024 * 1024;
 export const MAX_BROWSER_UPLOAD_SIZE = 5 * 1024 * 1024;
+export const BROWSER_FOLDER_LIMIT = 5 * 1024 * 1024;
 export const CODEC_RAW = 0x55;
 export const CODEC_DAG_PB = 0x70;
 export const HASH_SHA2_256 = 0x12;
@@ -25,10 +27,12 @@ export type UploadApprovalPlan = {
   totalApprovalCount: number;
 };
 
-let dagRootBuilder: Promise<{
+type DagRootBuilder = {
   dagPbModule: typeof import("@ipld/dag-pb");
   UnixFS: typeof import("ipfs-unixfs").UnixFS;
-}> | null = null;
+};
+
+let dagRootBuilder: Promise<DagRootBuilder> | null = null;
 
 export function createCid(data: Uint8Array, codec: number): CID {
   const hash = sha256(data);
@@ -80,9 +84,7 @@ async function getDagRootBuilder() {
   return dagRootBuilder;
 }
 
-export async function createDagRoot(
-  completedChunks: CompletedChunk[],
-): Promise<{ cid: string; bytes: Uint8Array }> {
+export async function createDagRoot(completedChunks: CompletedChunk[]): Promise<PreparedBlock> {
   const { dagPbModule, UnixFS } = await getDagRootBuilder();
   const blockSizes = completedChunks.map((chunk) => BigInt(chunk.length));
   const unixfsFileData = new UnixFS({ type: "file", blockSizes });

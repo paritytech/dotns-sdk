@@ -189,12 +189,12 @@ astro build
 # Example with Vite
 npm run build`;
 
-const uploadCode = `# Upload the build output to Bulletin
-dotns bulletin upload ./public
+const uploadCode = `# Upload the build output to Bulletin (recommended: --as-car)
+dotns bulletin upload ./public --as-car
 
 # Output:
-# Scanning directory: 18 files (1.2 MB)
-# Uploading...
+# Merkleising directory: 18 files (1.2 MB)
+# Uploading CAR...
 # Root CID: bafybeif2uyxcrahg5kkjramreslhmssp4dkexumd7vqp5dmhtrxqjxngle`;
 
 const setHashCode = `# Set the content hash on your .dot name
@@ -212,8 +212,8 @@ hugo new posts/hello-world.md
 # 2. Build the site
 hugo --minify
 
-# 3. Upload to Bulletin
-dotns bulletin upload ./public
+# 3. Upload to Bulletin (--as-car for fast directory upload)
+dotns bulletin upload ./public --as-car
 # Root CID: bafybeif2uyxcrahg5kkjramreslhmssp4dkexumd7vqp5dmhtrxqjxngle
 
 # 4. Set the content hash
@@ -225,7 +225,7 @@ const updateCode = `# Make changes to your site, then rebuild
 hugo --minify
 
 # Re-upload (only changed files are uploaded thanks to content-addressable caching)
-dotns bulletin upload ./public
+dotns bulletin upload ./public --as-car
 # New Root CID: bafybeiabcdef...
 
 # Update the content hash

@@ -18,6 +18,8 @@ import {
   authorizeDotnsController,
   unauthorizeDotnsController,
   ensureStoreAuthorizations,
+  listStoreNames,
+  listStoreCids,
 } from "../../commands/storeManagement";
 import type { LookupActionOptions } from "../../types/types";
 
@@ -98,6 +100,78 @@ export function attachStoreCommands(root: Command): void {
         console.log(JSON.stringify({ values: result }));
       } else {
         console.log(chalk.green("\n✓ Store values listed\n"));
+      }
+
+      process.exit(0);
+    } catch (error) {
+      handleCommandError(error, cmd);
+    }
+  });
+
+  const namesCommand = storeCommand
+    .command("names")
+    .description("List all .dot names in your Store")
+    .option("--json", "Output result as JSON", false);
+
+  addAuthOptions(namesCommand).action(async (options: any, cmd: any) => {
+    try {
+      const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
+      const jsonOutput = getJsonFlag(cmd);
+
+      const { clientWrapper, account, evmAddress } = await maybeQuiet(jsonOutput, () =>
+        prepareReadOnlyContext(merged),
+      );
+
+      const names = await listStoreNames(clientWrapper, account.address, evmAddress as Address);
+
+      if (jsonOutput) {
+        console.log(JSON.stringify({ names }));
+      } else {
+        if (names.length === 0) {
+          console.log(chalk.gray("\n  No names found in Store\n"));
+        } else {
+          console.log(chalk.green(`\n✓ ${names.length} name(s) found\n`));
+          for (const name of names) {
+            console.log(chalk.gray("  • ") + chalk.cyan(name));
+          }
+          console.log();
+        }
+      }
+
+      process.exit(0);
+    } catch (error) {
+      handleCommandError(error, cmd);
+    }
+  });
+
+  const cidsCommand = storeCommand
+    .command("cids")
+    .description("List all uploaded CIDs in your Store")
+    .option("--json", "Output result as JSON", false);
+
+  addAuthOptions(cidsCommand).action(async (options: any, cmd: any) => {
+    try {
+      const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
+      const jsonOutput = getJsonFlag(cmd);
+
+      const { clientWrapper, account, evmAddress } = await maybeQuiet(jsonOutput, () =>
+        prepareReadOnlyContext(merged),
+      );
+
+      const cids = await listStoreCids(clientWrapper, account.address, evmAddress as Address);
+
+      if (jsonOutput) {
+        console.log(JSON.stringify({ cids }));
+      } else {
+        if (cids.length === 0) {
+          console.log(chalk.gray("\n  No CIDs found in Store\n"));
+        } else {
+          console.log(chalk.green(`\n✓ ${cids.length} CID(s) found\n`));
+          for (const cid of cids) {
+            console.log(chalk.gray("  • ") + chalk.cyan(cid));
+          }
+          console.log();
+        }
       }
 
       process.exit(0);

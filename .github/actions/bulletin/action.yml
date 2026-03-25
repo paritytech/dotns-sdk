@@ -81,6 +81,9 @@ runs:
 
         RESULT_FILE=$(mktemp)
         ARGS=(bulletin upload "$BUILD_PATH" --resume --print-contenthash --json --reporter stream)
+        if [[ -d "$BUILD_PATH" ]]; then
+          ARGS+=(--as-car)
+        fi
         [[ -n "$BULLETIN_RPC" ]] && ARGS+=(--bulletin-rpc "$BULLETIN_RPC")
         ARGS+=(--concurrency "$UPLOAD_CONCURRENCY")
 

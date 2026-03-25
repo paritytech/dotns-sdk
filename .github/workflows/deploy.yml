@@ -56,7 +56,7 @@ on:
         default: 'paritytech/dotns-sdk'
 
       use-car:
-        description: 'Merkleize with IPFS CLI and upload as a CAR file instead of individual blocks'
+        description: '(legacy, ignored) The CLI now merkleizes in-memory via --as-car'
         required: false
         type: boolean
         default: false
@@ -231,27 +231,6 @@ jobs:
           echo "cid=$CID" >> "$GITHUB_OUTPUT"
           echo "::notice::Cache hit — reusing CID: $CID"
 
-      - name: Setup IPFS Kubo
-        if: inputs.use-car && steps.cache.outputs.cache-hit != 'true'
-        uses: ipfs/download-ipfs-distribution-action@v1
-        with:
-          name: kubo
-          version: v0.33.2
-
-      - name: Initialize IPFS
-        if: inputs.use-car && steps.cache.outputs.cache-hit != 'true'
-        run: ipfs init
-
-      - name: Merkleize into CAR file
-        id: car
-        if: inputs.use-car && steps.cache.outputs.cache-hit != 'true'
-        run: |
-          CID=$(ipfs add -Q -r --cid-version=1 --raw-leaves --pin=false ./build)
-          ipfs dag export "$CID" > build.car
-          SIZE=$(stat --printf='%s' build.car)
-          echo "ipfs-cid=$CID" >> "$GITHUB_OUTPUT"
-          echo "::notice::CAR file created: $(numfmt --to=iec $SIZE) — IPFS CID: $CID"
-
       - name: Resolve upload settings
         id: upload-settings
         if: steps.cache.outputs.cache-hit != 'true'
@@ -273,7 +252,7 @@ jobs:
         with:
           mnemonic: ${{ secrets.bulletin-mnemonic || 'bottom drive obey lake curtain smoke basket hold race lonely fit walk' }}
           bulletin-rpc: ${{ inputs.bulletin-rpc }}
-          build-path: ${{ inputs.use-car && './build.car' || './build' }}
+          build-path: ./build
           upload-concurrency: ${{ steps.upload-settings.outputs.upload-concurrency }}
           max-retries: ${{ inputs.max-retries }}
           retry-delay: ${{ inputs.retry-delay }}

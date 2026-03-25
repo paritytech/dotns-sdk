@@ -11,6 +11,7 @@ import type {
   StoreAuthStatus,
   StoreEnsureAuthResult,
   StoreDeleteResult,
+  CacheCidToStoreOptions,
 } from "../types/types";
 
 function normalizeKeyToBytes32(raw: string): `0x${string}` {
@@ -104,6 +105,52 @@ export async function listStoreValues(
   }
 
   return [...values];
+}
+
+export async function listStoreNames(
+  clientWrapper: ReviveClientWrapper,
+  originSubstrateAddress: string,
+  evmAddress: Address,
+): Promise<string[]> {
+  const storeAddress = await resolveStoreAddress(clientWrapper, originSubstrateAddress, evmAddress);
+  const spinner = ora("Reading Store names").start();
+
+  const values = await performContractCall<readonly string[]>(
+    clientWrapper,
+    originSubstrateAddress,
+    storeAddress,
+    STORE_ABI,
+    "getValues",
+    [],
+  );
+
+  const names = values.filter((value) => value.endsWith(".dot"));
+  spinner.succeed(`Found ${names.length} name(s)`);
+
+  return [...names];
+}
+
+export async function listStoreCids(
+  clientWrapper: ReviveClientWrapper,
+  originSubstrateAddress: string,
+  evmAddress: Address,
+): Promise<string[]> {
+  const storeAddress = await resolveStoreAddress(clientWrapper, originSubstrateAddress, evmAddress);
+  const spinner = ora("Reading Store CIDs").start();
+
+  const values = await performContractCall<readonly string[]>(
+    clientWrapper,
+    originSubstrateAddress,
+    storeAddress,
+    STORE_ABI,
+    "getValues",
+    [],
+  );
+
+  const cids = values.filter((value) => value.startsWith("baf"));
+  spinner.succeed(`Found ${cids.length} CID(s)`);
+
+  return [...cids];
 }
 
 export async function getStoreValue(
@@ -459,4 +506,16 @@ export async function ensureStoreAuthorizations(
   }
 
   return result;
+}
+
+export async function cacheCidToStore(options: CacheCidToStoreOptions): Promise<void> {
+  const storeKey = `dotns.bulletin.${options.cid}`;
+  await setStoreValue(
+    options.clientWrapper,
+    options.substrateAddress,
+    options.signer,
+    options.evmAddress,
+    storeKey,
+    options.cid,
+  );
 }

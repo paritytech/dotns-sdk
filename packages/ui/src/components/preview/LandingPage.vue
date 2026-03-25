@@ -1,12 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { useRouter } from "vue-router";
-import { useToast } from "vue-toastification";
-import { encodeForPreview } from "@/lib/preview";
 import FileUpload from "./FileUpload.vue";
-
-const router = useRouter();
-const toast = useToast();
 const activeTab = ref<"file" | "folder">("file");
 const copiedCommand = ref<string | null>(null);
 const selectedPm = ref<"npm" | "yarn" | "bun-mac" | "bun-win">("npm");
@@ -52,11 +46,7 @@ async function copyToClipboard(key: CommandKey) {
   }
 }
 
-function handleUploadComplete(cid: string) {
-  const encoded = encodeForPreview(cid);
-  toast.success("Upload complete! Redirecting to preview...");
-  router.push({ path: `/preview/${encoded}` });
-}
+function handleUploadComplete() {}
 
 function handleUploadError(message: string) {
   console.error("Upload error:", message);

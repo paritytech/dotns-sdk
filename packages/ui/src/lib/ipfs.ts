@@ -6,11 +6,11 @@ const IPFS_VERIFICATION_TIMEOUT_MS = 15_000;
 const P2P_FETCH_TIMEOUT_MS = 10_000;
 
 export const IPFS_GATEWAYS = [
-  BULLETIN_VERIFICATION_GATEWAY,
   "https://dweb.link",
   "https://cloudflare-ipfs.com",
   "https://w3s.link",
   "https://ipfs.io",
+  BULLETIN_VERIFICATION_GATEWAY,
 ] as const;
 
 export type CidVerificationResult = {

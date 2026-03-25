@@ -1,17 +1,24 @@
-import { createHelia, type Helia } from "helia";
-import { unixfs } from "@helia/unixfs";
+import type { Helia } from "helia";
 import { CID } from "multiformats/cid";
-import { multiaddr } from "@multiformats/multiaddr";
-import { blake2b256 } from "@multiformats/blake2/blake2b";
-import { sha256 } from "multiformats/hashes/sha2";
-import { from as hasherFrom } from "multiformats/hashes/hasher";
-import { keccak_256 } from "@noble/hashes/sha3.js";
 
-const keccak256Hasher = hasherFrom({
-  name: "keccak-256",
-  code: 0x1b,
-  encode: (input: Uint8Array) => keccak_256(input),
-});
+let keccak256Hasher: Awaited<ReturnType<typeof createKeccakHasher>> | null = null;
+
+async function createKeccakHasher() {
+  const { from: hasherFrom } = await import("multiformats/hashes/hasher");
+  const { keccak_256 } = await import("@noble/hashes/sha3.js");
+  return hasherFrom({
+    name: "keccak-256",
+    code: 0x1b,
+    encode: (input: Uint8Array) => keccak_256(input),
+  });
+}
+
+async function getKeccakHasher() {
+  if (!keccak256Hasher) {
+    keccak256Hasher = await createKeccakHasher();
+  }
+  return keccak256Hasher;
+}
 
 const PASEO_BULLETIN_PEERS = [
   "/dns4/paseo-bulletin-collator-node-0.parity-testnet.parity.io/tcp/443/wss/p2p/12D3KooWRuKisocQ2Z5hBZagV5YGxJMYuW13xT42sUiUCWf5bRtu",
@@ -89,10 +96,18 @@ export class BulletinHeliaClient {
   async initialize(): Promise<void> {
     if (this.helia) return;
 
+    const [{ createHelia }, { multiaddr }, { blake2b256 }, { sha256 }] = await Promise.all([
+      import("helia"),
+      import("@multiformats/multiaddr"),
+      import("@multiformats/blake2/blake2b"),
+      import("multiformats/hashes/sha2"),
+    ]);
+
+    const keccak = await getKeccakHasher();
     const allowedPeerIds = extractAllowedPeerIds(this.peerAddresses);
 
     this.helia = await createHelia({
-      hashers: [blake2b256, sha256, keccak256Hasher],
+      hashers: [blake2b256, sha256, keccak],
       routers: [],
       libp2p: {
         connectionGater: {
@@ -139,6 +154,7 @@ export class BulletinHeliaClient {
     await this.initialize();
 
     const cid = CID.parse(cidString);
+    const { unixfs } = await import("@helia/unixfs");
     const fs = unixfs(this.helia!);
     const chunks: Uint8Array[] = [];
 

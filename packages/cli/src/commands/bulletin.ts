@@ -45,6 +45,8 @@ import type {
   WaveBlock,
   BulletinPhaseHandler,
   BulletinRetryHandler,
+  UploadDeps,
+  FlushWaveOptions,
 } from "../types/types";
 import {
   DEFAULT_AUTHORIZATION_TRANSACTIONS,
@@ -55,13 +57,6 @@ import {
   MAX_SINGLE_UPLOAD_SIZE_BYTES,
 } from "../utils/constants";
 import { formatErrorMessage, formatBytes, formatDuration } from "../utils/formatting";
-
-type BlockMetadata = {
-  cidString: string;
-  codecValue: number;
-  hashCodeValue: number;
-  size: number;
-};
 
 function emitPhase(
   onPhase: BulletinPhaseHandler | undefined,
@@ -173,15 +168,6 @@ async function* traverseDirectoryRecursively(
   }
 }
 
-type UploadDeps = {
-  rpc: string;
-  signer: PolkadotSigner;
-  accountAddress: string;
-  concurrency: number;
-  waitForFinalization: boolean;
-  onBlockStored?: (meta: BlockMetadata, completedCount: number, totalSoFar: number) => void;
-};
-
 const DIRECTORY_WAVE_RETRY_BASE_DELAYS_MS = [200, 400, 800] as const;
 const MAX_DIRECTORY_WAVE_RETRIES = 3;
 
@@ -191,26 +177,36 @@ async function merkleizeAndUploadDirectory(
 ): Promise<MerkleizeDirectoryResult> {
   const WAVE_SIZE = deps.concurrency;
   let waveBuffer: WaveBlock[] = [];
-  let sharedClient = createBulletinClient(deps.rpc);
+  let sharedClient: ReturnType<typeof createBulletinClient> | null = null;
   let completedCount = 0;
   let totalBytes = 0;
   let rootContentCid: CID | undefined;
 
   const blockCache = new Map<string, Uint8Array>();
   const uploadedCids = new Set<string>();
-  let nextNonce = await fetchAccountNonce(deps.rpc, deps.accountAddress);
+  let nextNonce = -1;
+
+  const ensureClient = async () => {
+    if (!sharedClient) {
+      sharedClient = createBulletinClient(deps.rpc);
+      nextNonce = await fetchAccountNonce(deps.rpc, deps.accountAddress);
+    }
+    return sharedClient;
+  };
 
   const recreateSharedClient = () => {
     try {
-      sharedClient.destroy();
+      sharedClient?.destroy();
     } catch {
       /* already closed */
     }
     sharedClient = createBulletinClient(deps.rpc);
   };
 
-  async function flushWave(options: { isFinalWave?: boolean } = {}): Promise<void> {
+  async function flushWave(options: FlushWaveOptions = {}): Promise<void> {
     if (waveBuffer.length === 0) return;
+
+    await ensureClient();
 
     const wave = waveBuffer;
     waveBuffer = [];
@@ -233,7 +229,7 @@ async function merkleizeAndUploadDirectory(
               codecValue: block.cid.code,
               hashCodeValue: block.cid.multihash.code,
               nonce: startingNonce + index,
-              client: sharedClient,
+              client: sharedClient!,
               storeTimeoutMs,
               waitForFinalization: deps.waitForFinalization,
             });
@@ -337,7 +333,7 @@ async function merkleizeAndUploadDirectory(
     nextNonce = await fetchAccountNonce(deps.rpc, deps.accountAddress);
     await flushWave({ isFinalWave: true });
   } finally {
-    sharedClient.destroy();
+    if (sharedClient) (sharedClient as ReturnType<typeof createBulletinClient>).destroy();
     blockCache.clear();
   }
 

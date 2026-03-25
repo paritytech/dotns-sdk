@@ -10,6 +10,7 @@ import { useUserStoreManager } from "./useUserStoreManager";
 import type { BulletinUploadResult } from "@/type";
 import { verifyCidViaP2P, verifyCidWithGateways, type CidVerificationResult } from "@/lib/ipfs";
 import {
+  BROWSER_FOLDER_LIMIT,
   BULLETIN_RPC,
   CHUNK_SIZE,
   CODEC_DAG_PB,
@@ -22,6 +23,12 @@ import {
   isBrowserUploadSizeAllowed,
   type CompletedChunk,
 } from "@/lib/bulletinUpload";
+import type {
+  FolderFileEntry,
+  PendingUploadInfo,
+  PreparedChunk,
+  StorePreparedResult,
+} from "@/lib/bulletinUploadWorkerProtocol";
 import { BulletinUploadWorkerClient } from "@/lib/bulletinUploadWorker";
 
 const STORE_TIMEOUT_MS = 120_000;
@@ -156,11 +163,7 @@ function getPendingResumeState(): ResumeState | null {
   }
 }
 
-function getPendingUploadInfo(): {
-  fileName: string;
-  completedChunks: number;
-  totalChunks: number;
-} | null {
+function getPendingUploadInfo(): PendingUploadInfo | null {
   const state = getPendingResumeState();
   if (!state || state.completedChunks.length === 0) return null;
   const fileName = state.fileKey.split(":")[0] ?? "Unknown file";
@@ -265,6 +268,40 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
     "terminated",
     "resource temporarily unavailable",
   ];
+
+  async function verifyUploadedCid(cid: string): Promise<boolean> {
+    setStage("verifying", "Verifying content across P2P and gateways...", 95);
+
+    const p2pPromise = verifyCidViaP2P(cid)
+      .then((ok): CidVerificationResult | null =>
+        ok ? { cid, gateway: "p2p", url: `p2p://${cid}`, resolvable: true } : null,
+      )
+      .catch(() => null);
+
+    const gatewayPromise = verifyCidWithGateways(cid)
+      .then((r) => (r.resolvable ? r : null))
+      .catch(() => null);
+
+    const raceResult = await Promise.race([
+      p2pPromise.then((r) => r ?? new Promise<never>(() => {})),
+      gatewayPromise.then((r) => r ?? new Promise<never>(() => {})),
+      Promise.all([p2pPromise, gatewayPromise]).then(([p2p, gw]) => p2p ?? gw),
+    ]);
+
+    if (raceResult?.resolvable) {
+      uploadVerification.value = raceResult;
+      setStage("verifying", `CID verified via ${getGatewayHost(raceResult.gateway)}`, 96);
+      return true;
+    }
+
+    uploadVerification.value = { cid, gateway: "", url: "", resolvable: false };
+    setStage(
+      "verifying",
+      `Content uploaded but not yet resolvable. Verify with: dotns bulletin verify ${cid}`,
+      96,
+    );
+    return false;
+  }
 
   function isRetryableError(error: unknown): boolean {
     const msg = ensureError(error).message.toLowerCase();
@@ -396,8 +433,8 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
     signMessage: string,
     progress: number,
     codec: number,
-    prepare: () => Promise<{ cid: string; bytes: Uint8Array; length: number }>,
-  ): Promise<{ cid: string; length: number }> {
+    prepare: () => Promise<PreparedChunk>,
+  ): Promise<StorePreparedResult> {
     setStage(prepareStage, prepareMessage, progress);
     const prepared = await prepare();
     const cidString = prepared.cid;
@@ -461,42 +498,7 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
           : uploadSingleFile(file, typedApi, signer, uploadWorker),
       );
 
-      setStage("verifying", "Verifying CID via Bulletin P2P...", 95);
-
-      let p2pVerified = false;
-      try {
-        p2pVerified = await verifyCidViaP2P(result.cid);
-      } catch (p2pError) {
-        console.warn("[BulletinStore] P2P verification failed:", p2pError);
-      }
-
-      if (p2pVerified) {
-        uploadVerification.value = {
-          cid: result.cid,
-          gateway: "p2p",
-          url: `p2p://${result.cid}`,
-          resolvable: true,
-        };
-        setStage("verifying", "CID verified via Bulletin P2P", 96);
-      } else {
-        setStage("verifying", "P2P unavailable, verifying via IPFS gateways...", 95);
-        uploadVerification.value = await verifyCidWithGateways(result.cid);
-
-        if (uploadVerification.value.resolvable) {
-          setStage(
-            "verifying",
-            `CID resolved via ${getGatewayHost(uploadVerification.value.gateway)}`,
-            96,
-          );
-        } else {
-          console.warn(
-            "[BulletinStore] CID not yet resolvable via IPFS gateways:",
-            uploadVerification.value,
-          );
-        }
-      }
-
-      const verified = uploadVerification.value?.resolvable ?? false;
+      const verified = await verifyUploadedCid(result.cid);
 
       if (verified && options.cacheToStore) {
         setStage("caching", "Approve saving the CID to your Store", 97);
@@ -630,6 +632,141 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
     return { cid: preparedRoot.cid };
   }
 
+  async function readFolderFiles(files: File[]): Promise<FolderFileEntry[]> {
+    const entries: FolderFileEntry[] = [];
+
+    for (const file of files) {
+      const relativePath = file.webkitRelativePath || file.name;
+      const content = await file.arrayBuffer();
+      entries.push({ relativePath, content });
+    }
+
+    return entries;
+  }
+
+  async function uploadFolder(
+    files: File[],
+    options: { cacheToStore?: boolean } = {},
+  ): Promise<BulletinUploadResult> {
+    const walletStore = useWalletStore();
+
+    resetUploadState();
+    isUploading.value = true;
+    cachingEnabled.value = Boolean(options.cacheToStore);
+    window.onbeforeunload = () => "Upload in progress. Are you sure you want to leave?";
+
+    const globalTimeout = setTimeout(() => {
+      if (isUploading.value) {
+        uploadError.value =
+          "Upload timed out after 5 minutes. Try again or use the CLI for large folders.";
+        uploadStage.value = "error";
+        isUploading.value = false;
+        window.onbeforeunload = null;
+      }
+    }, UPLOAD_GLOBAL_TIMEOUT_MS);
+
+    try {
+      const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+
+      if (totalSize > BROWSER_FOLDER_LIMIT) {
+        throw new Error(
+          `Browser folder uploads are limited to ${formatBytes(BROWSER_FOLDER_LIMIT)}. Use the CLI with --as-car for larger directories.`,
+        );
+      }
+
+      if (totalSize === 0) {
+        throw new Error("Cannot upload an empty folder.");
+      }
+
+      walletStore.ensureConnected();
+      const signer = walletStore.getInjected();
+
+      setStage("preparing", "Connecting to Bulletin chain...", 2);
+      const bulletinClient = getBulletinClient();
+      const typedApi = bulletinClient.getTypedApi(bulletin);
+
+      setStage("preparing", "Reading folder contents...", 4);
+      const folderFileEntries = await readFolderFiles(files);
+
+      setStage("preparing", "Merkleising folder into CAR...", 5);
+
+      const result = await withUploadWorker(async (uploadWorker) => {
+        const { rootCid, blocks } = await uploadWorker.prepareFolderBlocks(folderFileEntries);
+
+        const { CarWriter } = await import("@ipld/car");
+        const { CID } = await import("multiformats/cid");
+
+        const rootCidParsed = CID.parse(rootCid);
+        const { writer, out } = CarWriter.create([rootCidParsed]);
+
+        const carChunks: Uint8Array[] = [];
+        const collectOutput = (async () => {
+          for await (const chunk of out) {
+            carChunks.push(chunk);
+          }
+        })();
+
+        for (const block of blocks) {
+          await writer.put({ cid: CID.parse(block.cid), bytes: new Uint8Array(block.buffer) });
+        }
+        await writer.close();
+        await collectOutput;
+
+        let carLength = 0;
+        for (const chunk of carChunks) carLength += chunk.byteLength;
+        const carBytes = new Uint8Array(carLength);
+        let offset = 0;
+        for (const chunk of carChunks) {
+          carBytes.set(chunk, offset);
+          offset += chunk.byteLength;
+        }
+
+        setStage("preparing", `CAR ready (${formatBytes(carLength)})`, 15);
+        await yieldToBrowser();
+
+        const carFile = new File([carBytes], `folder-${rootCid}.car`, {
+          type: "application/vnd.ipld.car",
+        });
+
+        await uploadChunkedFile(carFile, typedApi, signer, uploadWorker);
+
+        return { cid: rootCid, ipfsCid: rootCid };
+      });
+
+      const verified = await verifyUploadedCid(result.cid);
+
+      if (verified && options.cacheToStore) {
+        setStage("caching", "Approve saving the CID to your Store", 97);
+        const userStoreManager = useUserStoreManager();
+        try {
+          const txHash = await userStoreManager.writeCidToStore(result.ipfsCid);
+          storeTransactionHash.value = txHash;
+        } catch (cacheError) {
+          console.warn("[BulletinStore] CID caching failed, upload still succeeded:", cacheError);
+        }
+      } else {
+        setStage(
+          "verifying",
+          `Content uploaded but not yet resolvable. Verify with: dotns bulletin verify ${result.cid}`,
+          96,
+        );
+      }
+
+      setStage("done", "Folder upload complete!", 100);
+      uploadedCid.value = result.ipfsCid;
+      return { cid: result.ipfsCid };
+    } catch (error) {
+      const err = ensureError(error);
+      const friendlyMessage = formatTransactionError(err);
+      setStage("error", friendlyMessage, 0);
+      uploadError.value = friendlyMessage;
+      throw err;
+    } finally {
+      clearTimeout(globalTimeout);
+      cleanup();
+    }
+  }
+
   function cleanup(): void {
     destroyBulletinClient();
     isUploading.value = false;
@@ -651,12 +788,14 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
     maxTxSizeBytes: MAX_TX_SIZE,
     chunkSizeBytes: CHUNK_SIZE,
     browserUploadLimitBytes: MAX_BROWSER_UPLOAD_SIZE,
+    browserFolderLimitBytes: BROWSER_FOLDER_LIMIT,
     getUploadApprovalPlan,
     isBrowserUploadSizeAllowed,
     getPendingUploadInfo,
     clearResumeState,
     resetUploadState,
     uploadFile,
+    uploadFolder,
     formatBytes,
   };
 });

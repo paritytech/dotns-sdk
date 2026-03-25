@@ -239,9 +239,13 @@ export type BulletinUploadOptions = {
   history: boolean;
   /** Human-readable progress reporter mode */
   reporter?: BulletinReporterMode;
+  /** Write the CID to the user's on-chain Store after upload */
+  cache?: boolean;
+  /** Merkleize directory in-memory and upload as a single CAR file */
+  asCar?: boolean;
 };
 
-export type BulletinProgressPhase = "validate" | "authorize" | "upload" | "verify";
+export type BulletinProgressPhase = "validate" | "authorize" | "upload" | "verify" | "merkleize" | "export" | "cache";
 
 export type BulletinProgressState = "start" | "update" | "success" | "warning" | "failure";
 
@@ -1125,4 +1129,49 @@ export type WaveBlock = {
   cid: import("multiformats/cid").CID;
   /** Raw encoded bytes of the block */
   bytes: Uint8Array;
+};
+
+export type CacheCidToStoreOptions = {
+  cid: string;
+  clientWrapper: ReviveClientWrapper;
+  signer: PolkadotSigner;
+  substrateAddress: string;
+  evmAddress: Address;
+};
+
+export type BlockMetadata = {
+  cidString: string;
+  codecValue: number;
+  hashCodeValue: number;
+  size: number;
+};
+
+export type UploadDeps = {
+  rpc: string;
+  signer: PolkadotSigner;
+  accountAddress: string;
+  concurrency: number;
+  waitForFinalization: boolean;
+  onBlockStored?: (meta: BlockMetadata, completedCount: number, totalSoFar: number) => void;
+};
+
+export type FlushWaveOptions = {
+  isFinalWave?: boolean;
+};
+
+export type UploadProfiler = {
+  onSchedulerState: (state: UploadSchedulerState) => void;
+  onWave: (wave: UploadWaveSummary) => void;
+  finalize: (finalCid: string, overrideOutputPath?: string) => Promise<UploadProfileResult>;
+};
+
+export type UploadProfilerOptions = {
+  sourcePath: string;
+  sourceSizeBytes: number;
+  chunkSizeBytes: number;
+  rpc: string;
+  initialConcurrency: number;
+  maxConcurrency: number;
+  outputPath?: string;
+  jsonOutput: boolean;
 };

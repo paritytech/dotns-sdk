@@ -11,6 +11,8 @@ import type {
   BulletinRetryHandler,
   BulletinUploadOptions,
   CommandOptions,
+  UploadProfiler,
+  UploadProfilerOptions,
   UploadProfileReport,
   UploadProfileResult,
   UploadProfileSample,
@@ -98,23 +100,6 @@ function getMergedOptions(
 
   return mergedOptions;
 }
-
-export type UploadProfiler = {
-  onSchedulerState: (state: UploadSchedulerState) => void;
-  onWave: (wave: UploadWaveSummary) => void;
-  finalize: (finalCid: string, overrideOutputPath?: string) => Promise<UploadProfileResult>;
-};
-
-export type UploadProfilerOptions = {
-  sourcePath: string;
-  sourceSizeBytes: number;
-  chunkSizeBytes: number;
-  rpc: string;
-  initialConcurrency: number;
-  maxConcurrency: number;
-  outputPath?: string;
-  jsonOutput: boolean;
-};
 
 const PROFILE_SAMPLE_INTERVAL_MS = 2_000;
 
@@ -602,12 +587,14 @@ export function attachBulletinCommands(root: Command): void {
         String(DEFAULT_UPLOAD_MAX_RETRIES),
       )
       .option("--force-chunked", "Force chunked upload (DAG-PB)", false)
+      .option("--as-car", "Merkleize directory in-memory and upload individual blocks (no external IPFS binary needed)", false)
       .option("--concurrency <n>", "Adaptive scheduler max window (default: 16, max: 64)", "16")
       .option("--print-contenthash", "Also print 0x-prefixed IPFS contenthash for the CID", false)
       .option("--resume", "Resume a previously interrupted upload", false)
       .option("--profile-upload", "Enable upload profiling and write a JSON report", false)
       .option("--profile-output <path>", "Path to write upload profiling JSON report")
       .option("--no-history", "Do not save upload to history", true)
+      .option("--cache", "Write the CID to the user's on-chain Store after upload", false)
       .option("--json", "Write machine-readable JSON to stdout", false),
   );
 
@@ -716,7 +703,108 @@ export function attachBulletinCommands(root: Command): void {
               )
             : null;
 
+        const asCar = Boolean(options.asCar);
+
         const performUpload = async () => {
+          if (isDirectory && asCar) {
+            onPhase?.({ phase: "merkleize", state: "start", message: "Merkleizing directory" });
+
+            const { importer } = await import("ipfs-unixfs-importer");
+            const { createReadStream } = await import("node:fs");
+
+            const blocks = new Map<string, { cid: any; bytes: Uint8Array }>();
+            const blockstore = {
+              put: async (cid: any, bytes: Uint8Array) => {
+                blocks.set(cid.toString(), { cid, bytes });
+                return cid;
+              },
+              get: async (cid: any) => {
+                const block = blocks.get(cid.toString());
+                if (!block) throw new Error(`Block not found: ${cid}`);
+                return block.bytes;
+              },
+            };
+
+            async function* walkDirectory(dir: string, base: string): AsyncIterable<{ path: string; content: any }> {
+              const entries = await filesystem.readdir(dir, { withFileTypes: true });
+              for (const entry of entries) {
+                const full = path.join(dir, entry.name);
+                const rel = path.join(base, entry.name);
+                if (entry.isDirectory()) {
+                  yield* walkDirectory(full, rel);
+                } else {
+                  yield { path: rel, content: createReadStream(full) };
+                }
+              }
+            }
+
+            let rootCid: any;
+            for await (const entry of importer(walkDirectory(resolvedPath, ""), blockstore, {
+              wrapWithDirectory: true,
+              cidVersion: 1,
+              rawLeaves: true,
+            })) {
+              rootCid = entry.cid;
+            }
+
+            if (!rootCid) throw new Error("Merkleization produced no root CID");
+
+            onPhase?.({ phase: "merkleize", state: "success", message: `Root CID: ${rootCid} (${blocks.size} blocks)` });
+            onPhase?.({ phase: "export", state: "start", message: "Packing blocks into CAR file" });
+
+            const { CarWriter } = await import("@ipld/car");
+            const { Readable } = await import("node:stream");
+
+            const tmpDir = os.tmpdir();
+            const carPath = path.join(tmpDir, `dotns-${rootCid}.car`);
+
+            const { writer, out } = CarWriter.create([rootCid]);
+            const carStream = Readable.from(out);
+            const writeStream = (await import("node:fs")).createWriteStream(carPath);
+            const pipelineFinished = new Promise<void>((resolve, reject) => {
+              carStream.pipe(writeStream);
+              writeStream.on("finish", resolve);
+              writeStream.on("error", reject);
+            });
+
+            for (const [, block] of blocks) {
+              await writer.put(block);
+            }
+            await writer.close();
+            await pipelineFinished;
+            blocks.clear();
+
+            const carStat = await filesystem.stat(carPath);
+            onPhase?.({ phase: "export", state: "success", message: `CAR file: ${formatBytes(carStat.size)}` });
+
+            try {
+              const carCid = await uploadChunkedBlocks(
+                bulletinRpc,
+                context.signer,
+                carPath,
+                chunkSizeBytes,
+                carStat.size,
+                context.substrateAddress,
+                {
+                  concurrency,
+                  maxRetries,
+                  onPhase,
+                  onRetry,
+                  onSchedulerState: (state) => {
+                    profiler?.onSchedulerState(state);
+                  },
+                  onWave: (wave) => {
+                    profiler?.onWave(wave);
+                  },
+                },
+              );
+
+              return { cid: carCid, ipfsCid: rootCid.toString(), size: carStat.size };
+            } finally {
+              await filesystem.unlink(carPath).catch(() => {});
+            }
+          }
+
           if (isDirectory) {
             const result = await storeDirectory(bulletinRpc, context.signer, resolvedPath, {
               concurrency,
@@ -829,6 +917,29 @@ export function attachBulletinCommands(root: Command): void {
           profileReportPath = finalizedProfile.outputPath;
         }
 
+        onPhase({ phase: "verify", state: "start", message: "Verifying content on Bulletin P2P..." });
+        let verified = false;
+        try {
+          const p2pResult = await verifyCidViaP2P(ipfsCid);
+          if (p2pResult.resolvable) {
+            onPhase({ phase: "verify", state: "success", message: "Content verified via P2P" });
+            verified = true;
+          }
+        } catch {
+          /* P2P verification failed, try gateways */
+        }
+
+        if (!verified) {
+          onPhase({ phase: "verify", state: "update", message: "P2P unavailable, checking IPFS gateways..." });
+          const gatewayResults = await verifyCidWithMultipleGateways(ipfsCid);
+          const resolvable = Array.from(gatewayResults.values()).some((r) => r.resolvable);
+          if (resolvable) {
+            onPhase({ phase: "verify", state: "success", message: "Content verified via IPFS gateway" });
+          } else {
+            onPhase({ phase: "verify", state: "warning", message: "Content not yet resolvable — it may still be propagating" });
+          }
+        }
+
         const contenthash = generateContenthash(cid);
 
         const previewUrl = getPreviewUrl({
@@ -879,6 +990,34 @@ export function attachBulletinCommands(root: Command): void {
           }
 
           console.log(chalk.green("\n✓ Upload Complete\n"));
+        }
+
+        if (options.cache) {
+          onPhase({ phase: "cache", state: "start", message: "Connecting to Asset Hub..." });
+          try {
+            const { cacheCidToStore } = await import("../../commands/storeManagement");
+            const { prepareAssetHubContext } = await import("../context");
+            const assetHubContext = await prepareAssetHubContext({
+              rpc: process.env.DOTNS_RPC,
+              mnemonic: mergedOptions.mnemonic,
+              keyUri: mergedOptions.keyUri,
+              keystorePath: mergedOptions.keystorePath,
+              account: mergedOptions.account,
+              password: mergedOptions.password,
+            });
+
+            onPhase({ phase: "cache", state: "update", message: "Saving CID to on-chain Store..." });
+            await cacheCidToStore({
+              cid: ipfsCid,
+              clientWrapper: assetHubContext.clientWrapper,
+              signer: assetHubContext.signer,
+              substrateAddress: assetHubContext.substrateAddress,
+              evmAddress: assetHubContext.evmAddress,
+            });
+            onPhase({ phase: "cache", state: "success", message: "CID saved to Store" });
+          } catch (cacheError) {
+            onPhase({ phase: "cache", state: "warning", message: `CID caching failed: ${formatErrorMessage(cacheError)}` });
+          }
         }
 
         if (mergedOptions.history !== false) {

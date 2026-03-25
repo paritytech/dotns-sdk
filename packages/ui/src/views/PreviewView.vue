@@ -84,25 +84,27 @@ async function fetchContent() {
     let type = "application/octet-stream";
     let resolvedUrl = "";
 
-    loadingMessage.value = "Connecting to Bulletin P2P...";
+    loadingMessage.value = "Fetching content from IPFS gateways...";
     try {
-      const p2pResult = await fetchCidFromP2P(cid.value);
-      type = detectMimeType(p2pResult.data);
-      blob = new Blob([new Uint8Array(p2pResult.data) as unknown as BlobPart], { type });
-      resolvedUrl = `p2p://${cid.value}`;
-    } catch {
-      /* noop */
-    }
-
-    if (!blob) {
-      loadingMessage.value = "Fetching content from IPFS gateways...";
       const resolvedContent = await fetchCidFromGateways(cid.value);
       type = resolvedContent.response.headers.get("content-type") || "application/octet-stream";
       blob = await resolvedContent.response.blob();
       resolvedUrl = resolvedContent.url;
+    } catch {
+      /* gateway fetch failed */
     }
 
-    loadingMessage.value = "Fetching content...";
+    if (!blob) {
+      loadingMessage.value = "Connecting to Bulletin P2P...";
+      try {
+        const p2pResult = await fetchCidFromP2P(cid.value);
+        type = detectMimeType(p2pResult.data);
+        blob = new Blob([new Uint8Array(p2pResult.data) as unknown as BlobPart], { type });
+        resolvedUrl = `https://paseo-ipfs.polkadot.io/ipfs/${cid.value}/`;
+      } catch {
+        /* P2P fetch failed */
+      }
+    }
     contentType.value = type;
     contentBlob.value = blob;
     contentUrl.value = URL.createObjectURL(blob);

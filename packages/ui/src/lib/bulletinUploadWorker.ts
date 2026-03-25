@@ -2,13 +2,18 @@ import type {
   BulletinUploadWorkerRequest,
   BulletinUploadWorkerRequestInput,
   BulletinUploadWorkerResponse,
+  BulletinUploadWorkerSuccessResponse,
+  FolderFileEntry,
+  PreparedBlock,
+  PreparedChunk,
+  PrepareFolderCarSuccessResponse,
   PrepareRootSuccessResponse,
   PrepareSliceSuccessResponse,
 } from "./bulletinUploadWorkerProtocol";
 import type { CompletedChunk } from "./bulletinUpload";
 
 type PendingRequest = {
-  resolve: (response: PrepareSliceSuccessResponse | PrepareRootSuccessResponse) => void;
+  resolve: (response: BulletinUploadWorkerSuccessResponse) => void;
   reject: (error: Error) => void;
 };
 
@@ -33,7 +38,7 @@ export class BulletinUploadWorkerClient {
     };
   }
 
-  async prepareFile(file: File, codec: number): Promise<{ cid: string; bytes: Uint8Array }> {
+  async prepareFile(file: File, codec: number): Promise<PreparedBlock> {
     return this.prepareSlice(file, 0, file.size, codec);
   }
 
@@ -42,14 +47,14 @@ export class BulletinUploadWorkerClient {
     start: number,
     end: number,
     codec: number,
-  ): Promise<{ cid: string; bytes: Uint8Array; length: number }> {
-    const response = await this.post({
+  ): Promise<PreparedChunk> {
+    const response = (await this.post({
       type: "prepare-slice",
       file,
       start,
       end,
       codec,
-    });
+    })) as PrepareSliceSuccessResponse;
 
     return {
       cid: response.cid,
@@ -58,19 +63,24 @@ export class BulletinUploadWorkerClient {
     };
   }
 
-  async prepareRoot(
-    chunks: CompletedChunk[],
-  ): Promise<{ cid: string; bytes: Uint8Array; length: number }> {
-    const response = await this.post({
+  async prepareRoot(chunks: CompletedChunk[]): Promise<PreparedChunk> {
+    const response = (await this.post({
       type: "prepare-root",
       chunks,
-    });
+    })) as PrepareRootSuccessResponse;
 
     return {
       cid: response.cid,
       bytes: new Uint8Array(response.buffer),
       length: response.length,
     };
+  }
+
+  async prepareFolderBlocks(files: FolderFileEntry[]): Promise<PrepareFolderCarSuccessResponse> {
+    return (await this.post({
+      type: "prepare-folder-car",
+      files,
+    })) as PrepareFolderCarSuccessResponse;
   }
 
   destroy(): void {
@@ -82,7 +92,7 @@ export class BulletinUploadWorkerClient {
 
   private post(
     message: BulletinUploadWorkerRequestInput,
-  ): Promise<PrepareSliceSuccessResponse | PrepareRootSuccessResponse> {
+  ): Promise<BulletinUploadWorkerSuccessResponse> {
     if (this.destroyed) {
       return Promise.reject(new Error("Upload worker is no longer available."));
     }

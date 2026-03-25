@@ -48,7 +48,9 @@
       <h2 class="text-xl font-semibold text-dot-text-primary">2. Upload to Bulletin</h2>
       <p class="text-dot-text-secondary leading-relaxed">
         Bulletin is Polkadot's on-chain IPFS block storage. Your files are stored permanently on the
-        Bulletin parachain. The CLI handles chunking, parallel uploads, and CID generation.
+        Bulletin parachain. Pass <code class="text-dot-accent">--as-car</code> to merkleise the
+        directory in-memory and upload it as a chunked CAR file &mdash; this is significantly faster
+        than per-block uploads and requires no external IPFS binary (Kubo).
       </p>
       <DocCodeBlock :code="uploadCode" lang="bash" filename="Terminal" />
       <p class="text-dot-text-secondary leading-relaxed">
@@ -157,19 +159,23 @@ astro build     # outputs to ./dist
 # Next.js (static export)
 next build && next export   # outputs to ./out`;
 
-const uploadCode = `# Upload your build directory to Bulletin
-dotns bulletin upload ./dist --print-contenthash --concurrency 4
+const uploadCode = `# Upload your build directory to Bulletin (recommended: --as-car)
+dotns bulletin upload ./dist --as-car --print-contenthash --concurrency 4
 
 # Output:
-# Uploaded 42 files (128 KB)
+# Merkleising directory: 42 files (128 KB)
+# Uploading CAR...
 # CID: bafybeif7ztnhq5dtmz3brhb4vkqdmfe...
 # Content hash: 0xe3010170122046d...`;
 
-const ipfsUpload = `# Upload to IPFS via CLI
+const ipfsUpload = `# Upload to IPFS via CLI (requires Kubo or another IPFS binary)
 ipfs add -r ./dist --cid-version 1
 
 # Or use a pinning service
-npx w3 up ./dist`;
+npx w3 up ./dist
+
+# Tip: \`dotns bulletin upload --as-car\` produces the same root CID
+# as \`ipfs add\` without requiring a local Kubo installation`;
 
 const setContentHash = `# Set the content hash for your domain
 dotns content set yourname bafybeif7ztnhq5dtmz3brhb4vkqdmfe...
@@ -197,7 +203,7 @@ const updateCode = `# Rebuild
 npm run build
 
 # Re-upload (content-addressable — only changed blocks are new)
-dotns bulletin upload ./dist --print-contenthash
+dotns bulletin upload ./dist --as-car --print-contenthash
 
 # Update the on-chain pointer
 dotns content set yourname <new-cid>`;

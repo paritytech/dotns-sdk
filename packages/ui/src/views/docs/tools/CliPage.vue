@@ -497,6 +497,16 @@ const commandReference: CmdGroup[] = [
             description: "Bulletin RPC endpoint",
           },
           {
+            flag: "--as-car",
+            description:
+              "Merkleise directory in-memory and upload as a chunked CAR file. Significantly faster than per-block uploads (~2 min vs ~22 min for 16 MB). Content resolves on IPFS gateways. No external IPFS binary needed.",
+          },
+          {
+            flag: "--cache",
+            description:
+              "Write the uploaded CID to the user's on-chain Store contract after upload",
+          },
+          {
             flag: "--chunk-size <bytes>",
             description: "Chunk size for large uploads (default: 2 MB, clamped to 256 KB–2 MB)",
           },
@@ -648,6 +658,16 @@ const commandReference: CmdGroup[] = [
         description:
           "Grant the DotNS system contracts writer and controller access on your Store. Idempotent — safe to run multiple times.",
       },
+      {
+        usage: "store names",
+        description: "List all .dot names held in your Store.",
+        options: [{ flag: "--json", description: "Output as JSON" }],
+      },
+      {
+        usage: "store cids",
+        description: "List all uploaded CIDs held in your Store.",
+        options: [{ flag: "--json", description: "Output as JSON" }],
+      },
     ],
   },
 ];
@@ -698,11 +718,17 @@ dotns text set alice email "alice@example.com"
 # Upload to Bulletin
 dotns bulletin upload ./dist
 
-# Upload a directory with concurrency
-dotns bulletin upload ./dist --concurrency 4
+# Upload a directory as chunked CAR (recommended — fast, no Kubo needed)
+dotns bulletin upload ./dist --as-car
+
+# Upload a directory as chunked CAR with concurrency
+dotns bulletin upload ./dist --as-car --concurrency 4
+
+# Upload and cache the CID in your on-chain Store contract
+dotns bulletin upload ./dist --as-car --cache
 
 # Resume an interrupted upload
-dotns bulletin upload ./dist --resume
+dotns bulletin upload ./dist --as-car --resume
 
 # Verify a CID resolves on IPFS
 dotns bulletin verify bafkrei...
@@ -730,6 +756,12 @@ dotns pop info
 
 # Store: write a key-value pair
 dotns store set my-key "my-value"
+
+# Store: list all .dot names
+dotns store names
+
+# Store: list all uploaded CIDs
+dotns store cids
 
 # Store: authorise DotNS system contracts
 dotns store ensure-auth

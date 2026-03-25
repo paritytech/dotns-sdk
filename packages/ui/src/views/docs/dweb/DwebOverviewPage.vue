@@ -156,7 +156,8 @@ const storageBackends = [
   {
     protocol: "Bulletin",
     prefix: "bulletin://",
-    description: "Polkadot's on-chain IPFS block storage for permanent availability",
+    description:
+      "Polkadot's on-chain IPFS block storage for permanent availability. Use --as-car for fast chunked CAR directory uploads",
   },
   {
     protocol: "Arweave",
