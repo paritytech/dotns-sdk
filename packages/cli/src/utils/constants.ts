@@ -70,4 +70,7 @@ export const CONTRACTS = {
 
   /** Proof of Personhood RULES - verifies eligibility and pricing */
   DOTNS_RULES: "0x4e8920B1E69d0cEA9b23CBFC87A17Ee6fE02d2d3" as Address,
+
+  /** Multicall3 - batch read contract calls */
+  MULTICALL3: "0x807A65D3F3020011Fe0A61723d51362556C14ffd" as Address,
 } as const satisfies Record<string, Address>;

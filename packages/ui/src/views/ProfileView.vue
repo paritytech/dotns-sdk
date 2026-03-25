@@ -551,14 +551,14 @@ import ResolveIPFSModal from "../components/modals/ResolveIPFSModal.vue";
 import TransactionStatus from "../components/TransactionStatus.vue";
 import { useStoreAuthGuard } from "@/composables/useStoreAuthGuard";
 import type { MyDomain, TransactionResult, NameRequirement } from "@/type";
-import { getAddress, zeroHash, zeroAddress } from "viem";
+import { zeroHash, type Address } from "viem";
 import { useRouter } from "vue-router";
 import { useResolverStore } from "@/store/useResolverStore";
 import { useUserStoreManager } from "@/store/useUserStoreManager";
 import { useDomainStore } from "@/store/useDomainStore";
 import { PopStatusLabels } from "@/type";
 import { popStatusBadgeClass } from "@/lib/uiHelpers";
-import { useTooltip, useTooltipManager } from "@/composables";
+import { useTooltip, useTooltipManager, useMulticallOwnership } from "@/composables";
 import Icon from "@/components/ui/Icon.vue";
 import Button from "@/components/ui/Button.vue";
 import TablePagination from "@/components/ui/TablePagination.vue";
@@ -644,6 +644,7 @@ const selectedDomain = ref("");
 const resolverStore = useResolverStore();
 const userStoreManager = useUserStoreManager();
 const domainStore = useDomainStore();
+const { batchVerifyOwnership } = useMulticallOwnership();
 
 const {
   visible: headerTooltipVisible,
@@ -684,28 +685,6 @@ function getDotLevel(name: string) {
 
 function getType(name: string) {
   return getDotLevel(name) === 1 ? "TLD" : "Subdomain";
-}
-
-async function isCurrentUserOwner(name: string, type: "TLD" | "Subdomain"): Promise<boolean> {
-  if (!wallet.evmAddress) return false;
-
-  if (type === "Subdomain") {
-    try {
-      const currentOwner = await resolverStore.getOwnerOfDomain(name);
-      if (!currentOwner || currentOwner === zeroAddress) return true;
-      return getAddress(wallet.evmAddress) === getAddress(currentOwner);
-    } catch {
-      return true;
-    }
-  }
-
-  try {
-    const currentOwner = await resolverStore.getOwnerOfDomain(name);
-    if (!currentOwner || currentOwner === zeroAddress) return false;
-    return getAddress(wallet.evmAddress) === getAddress(currentOwner);
-  } catch {
-    return false;
-  }
 }
 
 watch(
@@ -790,45 +769,43 @@ async function loadDomains() {
 
   try {
     const names = await userStoreManager.getSubdomains();
+    if (names.length === 0) {
+      allDomains.value = [];
+      tlds.value = [];
+      return;
+    }
 
-    const results = (await Promise.all(
-      names.map(async (name) => {
-        try {
-          const type = getType(name) as "TLD" | "Subdomain";
-          const isOwner = await isCurrentUserOwner(name, type);
+    const ownershipMap = await batchVerifyOwnership(names, wallet.evmAddress as Address);
 
-          if (type === "TLD" && !isOwner) return null;
+    const verified: MyDomain[] = [];
+    for (const name of names) {
+      const type = getType(name) as "TLD" | "Subdomain";
+      const isOwner = ownershipMap.get(name) ?? false;
 
-          let popRequirement: NameRequirement | null = null;
-          try {
-            const { tldLabel } = parseDotName(name);
-            if (tldLabel) popRequirement = await domainStore.classifyName(tldLabel);
-          } catch (error) {
-            console.warn(`Failed to fetch PoP requirement for ${name}:`, error);
-          }
+      if (type === "TLD" && !isOwner) continue;
 
-          return {
-            name,
-            type,
-            isOwner,
-            needsResolver: false,
-            popRequirement,
-            expiry: "",
-            statusIcon: "check",
-            statusLabel: isOwner ? "Active" : "Not Owner",
-          };
-        } catch (error) {
-          console.warn(`Failed to process domain ${name}:`, error);
-          return null;
-        }
-      }),
-    )) as Array<(MyDomain & { popRequirement: NameRequirement | null }) | null>;
+      let popRequirement: NameRequirement | null = null;
+      try {
+        const { tldLabel } = parseDotName(name);
+        if (tldLabel) popRequirement = await domainStore.classifyName(tldLabel);
+      } catch (error) {
+        console.warn(`Failed to fetch PoP requirement for ${name}:`, error);
+      }
 
-    allDomains.value = results.filter(
-      (d): d is MyDomain & { popRequirement: NameRequirement | null } => d !== null,
-    );
+      verified.push({
+        name,
+        type,
+        isOwner,
+        needsResolver: false,
+        popRequirement,
+        expiry: "",
+        statusIcon: "check",
+        statusLabel: isOwner ? "Active" : "Not Owner",
+      });
+    }
 
-    tlds.value = allDomains.value.filter((d) => d.type === "TLD" && d.isOwner).map((d) => d.name);
+    allDomains.value = verified;
+    tlds.value = verified.filter((d) => d.type === "TLD" && d.isOwner).map((d) => d.name);
   } catch (error) {
     console.warn("Failed to load domains:", error);
     allDomains.value = [];

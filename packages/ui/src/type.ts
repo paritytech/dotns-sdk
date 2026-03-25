@@ -157,6 +157,17 @@ export type MulticallCall = {
   callData: `0x${string}`;
 };
 
+export type Aggregate3Call = {
+  target: Address;
+  allowFailure: boolean;
+  callData: `0x${string}`;
+};
+
+export type Aggregate3Result = {
+  success: boolean;
+  returnData: `0x${string}`;
+};
+
 export type DotnsAvailability = {
   owner: Address;
   available: boolean;

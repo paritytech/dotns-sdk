@@ -1114,6 +1114,19 @@ export type CidVerificationResult = {
   statusCode?: number;
 };
 
+/** A single call descriptor for Multicall3.aggregate3 */
+export type Multicall3Call = {
+  target: Address;
+  allowFailure: boolean;
+  callData: Hex;
+};
+
+/** A single result from Multicall3.aggregate3 */
+export type Multicall3Result = {
+  success: boolean;
+  returnData: Hex;
+};
+
 /** Result of deleting a key from a user's Store contract */
 export type StoreDeleteResult = {
   /** The bytes32 key that was deleted */

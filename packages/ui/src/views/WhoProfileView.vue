@@ -381,69 +381,83 @@
       </section>
 
       <section
-        v-if="allDomains.length > 0"
+        v-if="isVerifyingDomains || allDomains.length > 0"
         class="bg-dot-surface border border-dot-border rounded-xl shadow-sm p-3 text-left"
       >
         <h2 class="text-sm font-semibold mb-2 text-dot-text-primary">Domains</h2>
-        <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-dot-border text-sm">
-            <thead class="bg-dot-surface-secondary">
-              <tr>
-                <th class="px-4 py-2 text-left font-semibold text-dot-text-secondary text-xs">
-                  Domain
-                </th>
-                <th class="px-4 py-2 text-left font-semibold text-dot-text-secondary text-xs">
-                  Type
-                </th>
-                <th class="px-4 py-2 text-left font-semibold text-dot-text-secondary text-xs">
-                  Status
-                </th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-dot-border bg-dot-surface">
-              <tr
-                v-for="domain in paginatedDomains"
-                :key="domain.name"
-                class="hover:bg-dot-surface-secondary"
-              >
-                <td class="px-4 py-2.5 font-medium text-dot-text-primary text-xs">
-                  {{ domain.name || "Unknown" }}
-                </td>
-                <td class="px-4 py-2.5">
-                  <span
-                    class="px-1.5 py-0.5 text-[10px] rounded-full"
-                    :class="
-                      domain.type === 'TLD'
-                        ? 'bg-dot-border-strong text-dot-text-primary border border-dot-border'
-                        : 'bg-dot-border text-dot-text-secondary border border-dot-border'
-                    "
-                  >
-                    {{ domain.type || "Unknown" }}
-                  </span>
-                </td>
-                <td class="px-4 py-2.5">
-                  <span
-                    class="px-1.5 py-0.5 text-[10px] rounded-full"
-                    :class="
-                      domain.isOwner
-                        ? 'bg-dot-border-strong text-dot-text-primary border border-dot-border'
-                        : 'bg-dot-surface-secondary text-dot-text-tertiary border border-dot-border'
-                    "
-                  >
-                    {{ domain.isOwner ? "Active" : "Not Owner" }}
-                  </span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div v-if="isVerifyingDomains" class="space-y-3">
+          <div
+            v-for="i in 3"
+            :key="i"
+            class="h-10 bg-dot-border rounded animate-shimmer"
+            style="
+              background: linear-gradient(to right, #292524 4%, #44403c 25%, #292524 36%);
+              background-size: 1000px 100%;
+            "
+          ></div>
+          <p class="text-dot-text-tertiary text-xs text-center">Verifying domains on-chain...</p>
         </div>
-        <TablePagination
-          v-model="whoisPage"
-          :total-items="allDomains.length"
-          :page-size="whoisPageSize"
-          item-label="domain"
-          @update:page-size="whoisPageSize = $event"
-        />
+        <template v-else>
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-dot-border text-sm">
+              <thead class="bg-dot-surface-secondary">
+                <tr>
+                  <th class="px-4 py-2 text-left font-semibold text-dot-text-secondary text-xs">
+                    Domain
+                  </th>
+                  <th class="px-4 py-2 text-left font-semibold text-dot-text-secondary text-xs">
+                    Type
+                  </th>
+                  <th class="px-4 py-2 text-left font-semibold text-dot-text-secondary text-xs">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-dot-border bg-dot-surface">
+                <tr
+                  v-for="domain in paginatedDomains"
+                  :key="domain.name"
+                  class="hover:bg-dot-surface-secondary"
+                >
+                  <td class="px-4 py-2.5 font-medium text-dot-text-primary text-xs">
+                    {{ domain.name || "Unknown" }}
+                  </td>
+                  <td class="px-4 py-2.5">
+                    <span
+                      class="px-1.5 py-0.5 text-[10px] rounded-full"
+                      :class="
+                        domain.type === 'TLD'
+                          ? 'bg-dot-border-strong text-dot-text-primary border border-dot-border'
+                          : 'bg-dot-border text-dot-text-secondary border border-dot-border'
+                      "
+                    >
+                      {{ domain.type || "Unknown" }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-2.5">
+                    <span
+                      class="px-1.5 py-0.5 text-[10px] rounded-full"
+                      :class="
+                        domain.isOwner
+                          ? 'bg-dot-border-strong text-dot-text-primary border border-dot-border'
+                          : 'bg-dot-surface-secondary text-dot-text-tertiary border border-dot-border'
+                      "
+                    >
+                      {{ domain.isOwner ? "Active" : "Not Owner" }}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <TablePagination
+            v-model="whoisPage"
+            :total-items="allDomains.length"
+            :page-size="whoisPageSize"
+            item-label="domain"
+            @update:page-size="whoisPageSize = $event"
+          />
+        </template>
       </section>
     </div>
 
@@ -493,6 +507,7 @@ import type { ProfileRecord, TransactionResult, MyDomain, ContractAuthStatus } f
 import { useNetworkStore } from "@/store/useNetworkStore";
 import { useUserStoreManager } from "@/store/useUserStoreManager";
 import { useResolverStore } from "@/store/useResolverStore";
+import { useMulticallOwnership } from "@/composables";
 import Button from "@/components/ui/Button.vue";
 import TablePagination from "@/components/ui/TablePagination.vue";
 
@@ -501,6 +516,7 @@ const wallet = useWalletStore();
 const networkStore = useNetworkStore();
 const userStore = useUserStoreManager();
 const resolverStore = useResolverStore();
+const { batchVerifyOwnership } = useMulticallOwnership();
 
 const name = ref((route.params.name as string) || "");
 if (name.value && !name.value.includes(".dot")) {
@@ -516,6 +532,7 @@ const url = ref<string | null>(null);
 const description = ref<string | null>(null);
 const records = ref<Record<string, string>>({});
 const allDomains = ref<MyDomain[]>([]);
+const isVerifyingDomains = ref(false);
 const whoisPage = ref(1);
 const whoisPageSize = ref(10);
 
@@ -589,53 +606,36 @@ function getType(domainName: string): "TLD" | "Subdomain" {
   return getDotLevel(domainName) === 1 ? "TLD" : "Subdomain";
 }
 
-async function buildDomainRow(ownerAddress: Address, domainName: string): Promise<MyDomain | null> {
-  try {
-    const type = getType(domainName);
-
-    let isDomainOwner = false;
-    let statusLabel = "Tied to parent";
-
-    try {
-      const resolvedOwner = await resolverStore.getOwnerOfDomain(domainName);
-      if (resolvedOwner && resolvedOwner !== zeroAddress) {
-        isDomainOwner = getAddress(ownerAddress) === getAddress(resolvedOwner);
-        statusLabel = isDomainOwner ? "Active" : "Not Owner";
-      } else {
-        isDomainOwner = type === "Subdomain";
-        statusLabel = type === "Subdomain" ? "Tied to parent" : "Not Owner";
-      }
-    } catch {
-      isDomainOwner = type === "Subdomain";
-      statusLabel = type === "Subdomain" ? "Tied to parent" : "Not Owner";
-    }
-
-    return {
-      name: domainName,
-      type,
-      expiry: "",
-      statusLabel,
-      statusIcon: "check",
-      isOwner: isDomainOwner,
-      needsResolver: false,
-    } as MyDomain;
-  } catch (err) {
-    console.warn(`Failed to process domain ${domainName}:`, err);
-    return null;
-  }
-}
-
 async function loadDomains(ownerAddress: Address): Promise<void> {
+  isVerifyingDomains.value = true;
   try {
     const allValues = await userStore.getSubdomainsForAddress(ownerAddress);
-    const names = allValues.filter((v) => v.endsWith(".dot"));
+    if (allValues.length === 0) return;
 
-    const results = await Promise.all(names.map((n) => buildDomainRow(ownerAddress, n)));
+    const ownershipMap = await batchVerifyOwnership(allValues, ownerAddress);
 
-    allDomains.value = results.filter((d): d is MyDomain => d !== null);
+    const verified: MyDomain[] = [];
+    for (const value of allValues) {
+      const isOwner = ownershipMap.get(value);
+      if (!isOwner) continue;
+
+      verified.push({
+        name: value,
+        type: getType(value),
+        expiry: "",
+        statusLabel: "Active",
+        statusIcon: "check",
+        isOwner: true,
+        needsResolver: false,
+      });
+    }
+
+    allDomains.value = verified;
   } catch (error) {
     console.warn("Failed to load domains:", error);
     allDomains.value = [];
+  } finally {
+    isVerifyingDomains.value = false;
   }
 }
 

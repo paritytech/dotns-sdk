@@ -38,6 +38,11 @@ const mobileOpen = ref(false);
 </script>
 
 <style scoped>
+.docs-content
+  :deep(:where(h1, h2, h3, p, ul, ol, pre, blockquote, table, .callout, .alert, [role="alert"])) {
+  padding-left: 0.5rem;
+}
+
 .docs-content :deep(:where(code)) {
   word-break: break-word;
 }

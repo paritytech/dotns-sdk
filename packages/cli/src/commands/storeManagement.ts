@@ -1,10 +1,31 @@
 import chalk from "chalk";
 import ora from "ora";
-import { getAddress, zeroAddress, keccak256, toHex, type Address } from "viem";
+import {
+  getAddress,
+  zeroAddress,
+  keccak256,
+  toHex,
+  encodeFunctionData,
+  decodeFunctionResult,
+  namehash,
+  type Address,
+  type Abi,
+} from "viem";
 import type { PolkadotSigner } from "polkadot-api";
 import type { ReviveClientWrapper } from "../client/polkadotClient";
-import { CONTRACTS, STORE_FACTORY_ABI, STORE_ABI } from "../utils/constants";
-import { performContractCall, submitContractTransaction } from "../utils/contractInteractions";
+import {
+  CONTRACTS,
+  STORE_FACTORY_ABI,
+  STORE_ABI,
+  DOTNS_REGISTRAR_ABI,
+  DOTNS_REGISTRY_ABI,
+} from "../utils/constants";
+import {
+  performContractCall,
+  submitContractTransaction,
+  computeDomainTokenId,
+} from "../utils/contractInteractions";
+import Multicall3Json from "../../abis/Multicall3.json" assert { type: "json" };
 import type {
   StoreInfo,
   StoreValueResult,
@@ -12,7 +33,12 @@ import type {
   StoreEnsureAuthResult,
   StoreDeleteResult,
   CacheCidToStoreOptions,
+  Multicall3Call,
+  Multicall3Result,
 } from "../types/types";
+
+const MULTICALL3_ABI = Multicall3Json.abi as Abi;
+const MULTICALL_CHUNK_SIZE = 20;
 
 function normalizeKeyToBytes32(raw: string): `0x${string}` {
   if (raw.startsWith("0x") && raw.length === 66) {
@@ -124,10 +150,85 @@ export async function listStoreNames(
     [],
   );
 
-  const names = values.filter((value) => value.endsWith(".dot"));
-  spinner.succeed(`Found ${names.length} name(s)`);
+  if (values.length === 0) {
+    spinner.succeed("Found 0 verified name(s)");
+    return [];
+  }
 
-  return [...names];
+  spinner.text = `Verifying ${values.length} value(s) on-chain via Multicall3`;
+
+  function isSubname(value: string): boolean {
+    const name = value.endsWith(".dot") ? value.slice(0, -4) : value;
+    return name.includes(".");
+  }
+
+  const callMeta = values.map((value) => {
+    if (isSubname(value)) {
+      const fullName = value.endsWith(".dot") ? value : `${value}.dot`;
+      return {
+        target: CONTRACTS.DOTNS_REGISTRY as Address,
+        allowFailure: true as const,
+        callData: encodeFunctionData({
+          abi: DOTNS_REGISTRY_ABI,
+          functionName: "owner",
+          args: [namehash(fullName)],
+        }),
+        isSubnameCall: true,
+      };
+    }
+    return {
+      target: CONTRACTS.DOTNS_REGISTRAR as Address,
+      allowFailure: true as const,
+      callData: encodeFunctionData({
+        abi: DOTNS_REGISTRAR_ABI,
+        functionName: "ownerOf",
+        args: [computeDomainTokenId(value)],
+      }),
+      isSubnameCall: false,
+    };
+  });
+
+  const calls: Multicall3Call[] = callMeta.map(({ target, allowFailure, callData }) => ({
+    target,
+    allowFailure,
+    callData,
+  }));
+
+  const results: Multicall3Result[] = [];
+  for (let i = 0; i < calls.length; i += MULTICALL_CHUNK_SIZE) {
+    const chunk = calls.slice(i, i + MULTICALL_CHUNK_SIZE);
+    const chunkResults = await performContractCall<readonly Multicall3Result[]>(
+      clientWrapper,
+      originSubstrateAddress,
+      CONTRACTS.MULTICALL3,
+      MULTICALL3_ABI,
+      "aggregate3",
+      [chunk],
+    );
+    results.push(...chunkResults);
+  }
+
+  const normalizedOwner = getAddress(evmAddress);
+  const names = values.filter((_, i) => {
+    const result = results[i];
+    if (!result?.success) return false;
+    try {
+      const meta = callMeta[i];
+      const abi = meta?.isSubnameCall ? DOTNS_REGISTRY_ABI : DOTNS_REGISTRAR_ABI;
+      const functionName = meta?.isSubnameCall ? "owner" : "ownerOf";
+      const decoded = decodeFunctionResult({
+        abi,
+        functionName,
+        data: result.returnData,
+      }) as Address;
+      return decoded && getAddress(decoded) === normalizedOwner;
+    } catch {
+      return false;
+    }
+  });
+
+  spinner.succeed(`Found ${names.length} verified name(s)`);
+  return names;
 }
 
 export async function listStoreCids(
@@ -147,10 +248,13 @@ export async function listStoreCids(
     [],
   );
 
-  const cids = values.filter((value) => value.startsWith("baf"));
+  const verifiedNames = new Set(
+    await listStoreNames(clientWrapper, originSubstrateAddress, evmAddress),
+  );
+  const cids = values.filter((value) => !verifiedNames.has(value));
   spinner.succeed(`Found ${cids.length} CID(s)`);
 
-  return [...cids];
+  return cids;
 }
 
 export async function getStoreValue(

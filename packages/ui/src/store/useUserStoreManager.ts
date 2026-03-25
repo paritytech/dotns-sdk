@@ -59,19 +59,19 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
     functionName: string,
     abiName: "Store" | "StoreFactory",
     args: readonly unknown[],
+    targetEvm?: Address,
   ): Promise<`0x${string}`> {
-    const client = await networkStore.getClient();
     const data = encodeFunctionData({
       abi: abiStore.getABI(abiName),
       functionName,
       args,
     });
-    return transactionStore.ethCall(
-      client,
-      walletStore.substrateAddress ?? ZERO_SUBSTRATE_ADDRESS,
-      to,
-      data,
-    );
+    const client = await networkStore.getClient();
+    let origin = walletStore.substrateAddress;
+    if (!origin && targetEvm) {
+      origin = await client.getSubstrateAddress(targetEvm);
+    }
+    return transactionStore.ethCall(client, origin || ZERO_SUBSTRATE_ADDRESS, to, data);
   }
 
   async function ethWrite(to: Address, data: `0x${string}`): Promise<Hash> {
@@ -170,14 +170,19 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
     try {
       networkStore.ensureClient();
       await abiStore.ensureAbis();
-      walletStore.ensureWalletConnected();
 
       const network = networkStore.currentNetwork;
       if (!network?.storeFactory) throw new Error("StoreFactory not configured");
 
-      const storeRaw = await ethRead(network.storeFactory, "getDeployedStore", "StoreFactory", [
+      const storeRaw = await ethRead(
+        network.storeFactory,
+        "getDeployedStore",
+        "StoreFactory",
+        [targetEvm],
         targetEvm,
-      ]);
+      );
+
+      if (!storeRaw || storeRaw === "0x") return [];
 
       const store = decodeFunctionResult({
         abi: abiStore.getABI("StoreFactory"),
@@ -187,7 +192,10 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
 
       if (store === zeroAddress) return [];
 
-      const valuesRaw = await ethRead(store, "getValues", "Store", []);
+      const valuesRaw = await ethRead(store, "getValues", "Store", [], targetEvm);
+
+      if (!valuesRaw || valuesRaw === "0x") return [];
+
       const allValues = decodeFunctionResult({
         abi: abiStore.getABI("Store"),
         functionName: "getValues",
@@ -196,7 +204,11 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
 
       return allValues;
     } catch (error) {
-      console.warn("[UserStoreManager:getSubdomainsForAddress]", error);
+      const isZeroData =
+        error instanceof Error && error.message.includes("Cannot decode zero data");
+      if (!isZeroData) {
+        console.warn("[UserStoreManager:getSubdomainsForAddress]", error);
+      }
       return [];
     }
   }
