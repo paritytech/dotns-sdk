@@ -939,7 +939,7 @@ export function attachBulletinCommands(root: Command): void {
         });
         let verified = false;
         try {
-          const p2pResult = await verifyCidViaP2P(ipfsCid);
+          const p2pResult = await verifyCidViaP2P(cid);
           if (p2pResult.resolvable) {
             onPhase({ phase: "verify", state: "success", message: "Content verified via P2P" });
             verified = true;
@@ -954,7 +954,7 @@ export function attachBulletinCommands(root: Command): void {
             state: "update",
             message: "P2P unavailable, checking IPFS gateways...",
           });
-          const gatewayResults = await verifyCidWithMultipleGateways(ipfsCid);
+          const gatewayResults = await verifyCidWithMultipleGateways(cid);
           const resolvable = Array.from(gatewayResults.values()).some((r) => r.resolvable);
           if (resolvable) {
             onPhase({
@@ -985,7 +985,8 @@ export function attachBulletinCommands(root: Command): void {
         if (jsonOutput) {
           const authExpiresAt = expirationToISOString(authInfo?.currentBlock, authInfo?.expiration);
           writeBulletinJson({
-            cid: ipfsCid,
+            cid,
+            ipfsCid: ipfsCid !== cid ? ipfsCid : undefined,
             contenthash: `0x${contenthash}`,
             preview: previewUrl,
             path: resolvedPath,
@@ -998,7 +999,10 @@ export function attachBulletinCommands(root: Command): void {
             totalUploadTimeSeconds,
           });
         } else {
-          console.log(chalk.gray("\n  cid:         ") + chalk.cyan(ipfsCid));
+          console.log(chalk.gray("\n  cid:         ") + chalk.cyan(cid));
+          if (ipfsCid !== cid) {
+            console.log(chalk.gray("  ipfs-cid:    ") + chalk.cyan(ipfsCid));
+          }
           console.log(chalk.gray("  preview:     ") + chalk.blue(previewUrl));
           console.log(
             chalk.gray("  total time:  ") + chalk.white(formatDuration(totalUploadTimeSeconds)),
