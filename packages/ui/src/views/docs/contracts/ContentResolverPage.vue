@@ -7,8 +7,8 @@
         The Content Resolver stores
         <span class="text-dot-text-primary font-medium">text records</span> and
         <span class="text-dot-text-primary font-medium">IPFS content hashes</span> for .dot names.
-        It supports arbitrary key-value text records (such as social handles) and CID-based content
-        hashes for decentralised website hosting.
+        It supports key-value text records (such as social media handles) and IPFS content hashes
+        (CIDs) for decentralised website hosting.
       </p>
     </div>
 
@@ -131,8 +131,8 @@
           <DocBadge variant="transaction">transaction</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Sets the content hash for a node. Typically an IPFS CID that points to a decentralised
-          website or application.
+          Sets the content hash for a name. This is usually an IPFS CID that points to a
+          decentralised website or application.
         </p>
         <DocParamTable
           :params="[
@@ -202,7 +202,8 @@
         </div>
         <p class="text-sm text-dot-text-secondary">
           Grants or revokes permission for an operator to manage all of the caller's content
-          records. Useful for delegating record management to a dApp or CI/CD pipeline.
+          records. Useful for letting a dApp or automated deployment pipeline update records on your
+          behalf.
         </p>
         <DocParamTable
           :params="[
@@ -223,9 +224,11 @@
       </div>
     </div>
 
-    <TryItSection title="Try it — Read a text record">
-      <TryGetText />
-    </TryItSection>
+    <DocCallout variant="tip" title="Try it">
+      <RouterLink to="/docs/protocol/content" class="text-dot-accent hover:text-dot-accent-hover">
+        Read a text record &rarr;
+      </RouterLink>
+    </DocCallout>
 
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Code Example</h2>
@@ -233,9 +236,9 @@
     </div>
 
     <DocCallout variant="tip" title="Operator approvals for CI/CD">
-      Use <code>setApprovalForAll</code> to authorise a deployment bot or CI/CD pipeline to update
-      your content hash automatically on every push. This enables fully decentralised continuous
-      deployment workflows.
+      Use <code>setApprovalForAll</code> to authorise a deployment bot or automated pipeline to
+      update your content hash on every push. This enables fully decentralised continuous deployment
+      workflows.
     </DocCallout>
 
     <div class="border-t border-dot-border pt-6 flex justify-between text-sm">
@@ -261,8 +264,6 @@ import DocReturnsTable from "@/components/docs/DocReturnsTable.vue";
 import DocCodeBlock from "@/components/docs/DocCodeBlock.vue";
 import DocCallout from "@/components/docs/DocCallout.vue";
 import DocBadge from "@/components/docs/DocBadge.vue";
-import TryItSection from "@/components/docs/TryItSection.vue";
-import TryGetText from "@/components/docs/interactive/TryGetText.vue";
 
 const setTextParams = [
   { name: "node", type: "bytes32", description: "The namehash of the .dot name", required: true },

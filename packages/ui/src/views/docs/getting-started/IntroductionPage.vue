@@ -53,7 +53,7 @@
           >
           <span
             ><span class="text-dot-text-primary font-medium">Create subdomains</span> &mdash;
-            Organize with <code class="text-dot-accent">blog.alice.dot</code>,
+            Organise with <code class="text-dot-accent">blog.alice.dot</code>,
             <code class="text-dot-accent">gov.mydao.dot</code></span
           >
         </li>
@@ -67,10 +67,9 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Built on Polkadot</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        DotNS runs on Polkadot's EVM-compatible layer (Revive), using a system of 8 smart contracts
-        that handle registration, resolution, content storage, and proof of personhood. The protocol
-        treats the chain as a database &mdash; deterministic discovery, bounded call complexity, and
-        immutability where it matters.
+        DotNS runs on Polkadot's EVM-compatible layer (Revive) through a system of 8 smart
+        contracts. They handle registration, name resolution, content storage, and proof of
+        personhood. Everything lives on chain &mdash; no external servers or indexers needed.
       </p>
     </div>
 

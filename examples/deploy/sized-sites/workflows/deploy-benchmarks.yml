@@ -1,0 +1,69 @@
+name: Deploy Benchmarks
+
+on:
+  workflow_dispatch:
+
+jobs:
+  config:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Load sized benchmark matrix
+        id: matrix
+        shell: bash
+        run: |
+          MATRIX=$(jq -c '{include: .}' examples/deploy/sized-sites/benchmarks.json)
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: config
+    name: Build ${{ matrix.size }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.config.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Generate sized fixture
+        run: |
+          bun examples/deploy/sized-sites/generate.ts \
+            --sizes "${SIZE}" \
+            --output-dir examples/deploy/sized-sites/generated
+        env:
+          SIZE: ${{ matrix.size }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-benchmark-${{ matrix.slug }}
+          path: examples/deploy/sized-sites/generated/${{ matrix.slug }}/
+          retention-days: 7
+
+  deploy:
+    name: Deploy ${{ matrix.size }}
+    needs: [config, build]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.config.outputs.matrix) }}
+
+    uses: paritytech/dotns-sdk/.github/workflows/deploy.yml@main
+    with:
+      basename: deploy-benchmark-${{ matrix.slug }}
+      artifact-name: deploy-benchmark-${{ matrix.slug }}
+      mode: production
+      register-base: true
+      skip-cache: true
+      max-retries: 5
+    secrets:
+      dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
+      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}

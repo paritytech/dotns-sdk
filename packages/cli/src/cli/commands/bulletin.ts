@@ -1,7 +1,25 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import type { BulletinUploadOptions, CommandOptions } from "../../types/types";
-import { formatErrorMessage } from "../../utils/formatting";
+import os from "node:os";
+import path from "node:path";
+import { createHash } from "node:crypto";
+import v8 from "node:v8";
+import { promises as filesystem } from "node:fs";
+import type {
+  BulletinPhaseHandler,
+  BulletinReporterMode,
+  BulletinRetryHandler,
+  BulletinUploadOptions,
+  CommandOptions,
+  UploadProfiler,
+  UploadProfilerOptions,
+  UploadProfileReport,
+  UploadProfileResult,
+  UploadProfileSample,
+  UploadSchedulerState,
+  UploadWaveSummary,
+} from "../../types/types";
+import { formatErrorMessage, formatBytes, formatDuration } from "../../utils/formatting";
 import {
   validateAndReadPath,
   uploadSingleBlock,
@@ -23,17 +41,43 @@ import {
   formatRecordTimestamp,
   getPreviewUrl,
 } from "../../bulletin/cidHistory";
+import {
+  completedBlocksFromManifest,
+  cleanupStaleManifests,
+  deleteManifest,
+  loadManifestForResume,
+} from "../../bulletin/uploadManifest";
+import { verifyCidWithMultipleGateways, verifyCidViaP2P } from "../../bulletin/ipfs";
+function cleanupHeliaAndExit(code: number): never {
+  import("../../bulletin/heliaClient")
+    .then(({ destroySharedHeliaClient }) => destroySharedHeliaClient())
+    .catch(() => {})
+    .finally(() => process.exit(code));
+
+  setTimeout(() => process.exit(code), 500);
+  return undefined as never;
+}
+import { normalizeUploadMaxRetries } from "../../bulletin/uploadRetry";
 import { addAuthOptions } from "./authOptions";
 import { prepareContext } from "../context";
 import {
   DEFAULT_BULLETIN_RPC,
   DEFAULT_CHUNK_SIZE_BYTES,
+  DEFAULT_UPLOAD_MAX_RETRIES,
   DEFAULT_SUDO_KEY_URI,
   DEFAULT_AUTHORIZATION_TRANSACTIONS,
   DEFAULT_AUTHORIZATION_BYTES,
-  MAX_SINGLE_UPLOAD_SIZE_BYTES,
 } from "../../utils/constants";
 import { getJsonFlag } from "./lookup";
+import { clampChunkSizeBytes } from "../../bulletin/store";
+import {
+  createCliReporter,
+  resolveReporterMode,
+  withConsoleToStderr,
+  type CliReporter,
+  type ReporterTask,
+  type ResolvedReporterMode,
+} from "../reporter";
 
 function getMergedOptions(
   command: Command | undefined,
@@ -57,26 +101,155 @@ function getMergedOptions(
   return mergedOptions;
 }
 
-function formatBytes(bytes: bigint | number): string {
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let value = Number(bytes);
-  let unitIndex = 0;
+const PROFILE_SAMPLE_INTERVAL_MS = 2_000;
 
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex++;
-  }
+function addReporterOption(command: Command): Command {
+  return command.option(
+    "--reporter <mode>",
+    "Progress reporter: auto, interactive, stream, or quiet",
+    "auto",
+  );
+}
 
-  return `${value.toFixed(2)} ${units[unitIndex]}`;
+export function createProfileFingerprint(input: string): string {
+  return createHash("sha256").update(input).digest("hex").slice(0, 16);
+}
+
+export function buildDefaultProfileOutputPath(sourcePath: string, fingerprint: string): string {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const basename = path.basename(sourcePath).replace(/[^a-zA-Z0-9._-]/g, "_");
+  return path.join(
+    os.homedir(),
+    ".dotns",
+    "upload-profiles",
+    `${timestamp}-${basename}-${fingerprint}.json`,
+  );
+}
+
+export function createUploadProfiler(options: UploadProfilerOptions): UploadProfiler {
+  const startedAtMs = Date.now();
+  const startedAtIso = new Date(startedAtMs).toISOString();
+  let latestSchedulerState: UploadSchedulerState = {
+    timestampMs: startedAtMs,
+    window: Math.max(1, options.initialConcurrency),
+    inFlightBytes: 0,
+    inFlightChunks: 0,
+    completedChunks: 0,
+    retries: 0,
+  };
+  const samples: UploadProfileSample[] = [];
+  const waves: UploadWaveSummary[] = [];
+
+  const captureSample = () => {
+    const usage = process.memoryUsage();
+    samples.push({
+      timestampMs: Date.now(),
+      heapUsed: usage.heapUsed,
+      rss: usage.rss,
+      arrayBuffers: usage.arrayBuffers,
+      external: usage.external,
+      inFlightBytes: latestSchedulerState.inFlightBytes,
+      inFlightChunks: latestSchedulerState.inFlightChunks,
+      window: latestSchedulerState.window,
+      completed: latestSchedulerState.completedChunks,
+      retries: latestSchedulerState.retries,
+    });
+  };
+
+  captureSample();
+  const timer = setInterval(captureSample, PROFILE_SAMPLE_INTERVAL_MS);
+  timer.unref?.();
+
+  const summarizeAndWrite = async (
+    finalCid: string,
+    overrideOutputPath?: string,
+  ): Promise<UploadProfileResult> => {
+    clearInterval(timer);
+    captureSample();
+
+    const finishedAtMs = Date.now();
+    const finishedAtIso = new Date(finishedAtMs).toISOString();
+    const totalUploadTimeMs = Math.max(1, finishedAtMs - startedAtMs);
+    const throughputBytesPerSecond = (options.sourceSizeBytes / totalUploadTimeMs) * 1000;
+    const peakHeapUsed = Math.max(...samples.map((sample) => sample.heapUsed));
+    const peakRss = Math.max(...samples.map((sample) => sample.rss));
+    const peakArrayBuffers = Math.max(...samples.map((sample) => sample.arrayBuffers));
+    const peakExternal = Math.max(...samples.map((sample) => sample.external));
+    const maxWindowReached = Math.max(...samples.map((sample) => sample.window));
+
+    const report: UploadProfileReport = {
+      meta: {
+        sourcePath: options.sourcePath,
+        sourceSizeBytes: options.sourceSizeBytes,
+        chunkSizeBytes: options.chunkSizeBytes,
+        rpc: options.rpc,
+        startedAtIso,
+        finishedAtIso,
+        heapLimitBytes: v8.getHeapStatistics().heap_size_limit,
+        initialConcurrency: options.initialConcurrency,
+        maxConcurrency: options.maxConcurrency,
+      },
+      samples,
+      waves,
+      summary: {
+        totalUploadTimeMs,
+        totalUploadTimeSeconds: totalUploadTimeMs / 1000,
+        elapsedMs: totalUploadTimeMs,
+        throughputBytesPerSecond,
+        peakHeapUsed,
+        peakRss,
+        peakArrayBuffers,
+        peakExternal,
+        retryCount: latestSchedulerState.retries,
+        maxWindowReached,
+        finalCid,
+      },
+    };
+
+    const outputPath =
+      overrideOutputPath ??
+      options.outputPath ??
+      buildDefaultProfileOutputPath(
+        options.sourcePath,
+        createProfileFingerprint(
+          `${options.sourcePath}:${options.sourceSizeBytes}:${options.chunkSizeBytes}:${startedAtIso}`,
+        ),
+      );
+
+    const resolvedOutputPath = path.resolve(outputPath);
+    await filesystem.mkdir(path.dirname(resolvedOutputPath), { recursive: true });
+    await filesystem.writeFile(resolvedOutputPath, JSON.stringify(report, null, 2), "utf8");
+
+    return { report, outputPath: resolvedOutputPath };
+  };
+
+  return {
+    onSchedulerState: (state: UploadSchedulerState) => {
+      latestSchedulerState = state;
+      captureSample();
+    },
+    onWave: (wave: UploadWaveSummary) => {
+      waves.push(wave);
+      captureSample();
+    },
+    finalize: summarizeAndWrite,
+  };
 }
 
 export async function withCapturedConsole<T>(callback: () => Promise<T>): Promise<T> {
+  const MAX_CAPTURED_ENTRIES = 400;
   const captured: string[] = [];
+  const pushCaptured = (value: string) => {
+    captured.push(value);
+    if (captured.length > MAX_CAPTURED_ENTRIES) {
+      captured.splice(0, captured.length - MAX_CAPTURED_ENTRIES);
+    }
+  };
   const capture = (...args: any[]) => {
-    captured.push(args.map(String).join(" "));
+    pushCaptured(args.map(String).join(" "));
   };
   const captureWrite = (chunk: any) => {
-    captured.push(String(chunk));
+    pushCaptured(String(chunk));
     return true;
   };
 
@@ -115,43 +288,198 @@ export function maybeQuiet<T>(jsonOutput: boolean, callback: () => Promise<T>): 
   return jsonOutput ? withCapturedConsole(callback) : callback();
 }
 
+async function withBulletinHumanOutput<T>(
+  reporterMode: ResolvedReporterMode,
+  callback: () => Promise<T>,
+): Promise<T> {
+  if (reporterMode === "quiet") {
+    return withCapturedConsole(callback);
+  }
+
+  return withConsoleToStderr(callback);
+}
+
 async function resolveTargetAddress(
   positionalAddress: string | undefined,
   mergedOptions: any,
-  jsonOutput: boolean,
+  reporterMode: ResolvedReporterMode,
 ): Promise<string> {
   if (positionalAddress) return positionalAddress;
-  const context = await maybeQuiet(jsonOutput, () =>
+  const context = await withBulletinHumanOutput(reporterMode, () =>
     prepareContext({ ...mergedOptions, useBulletin: true }),
   );
   return context.substrateAddress;
 }
 
+function writeBulletinJson(payload: unknown): void {
+  process.stdout.write(`${JSON.stringify(payload)}\n`);
+}
+
+function writeBulletinJsonError(error: unknown): never {
+  writeBulletinJson({ error: formatErrorMessage(error) });
+  process.exit(1);
+}
+
+function createPhaseHandler(reporter: CliReporter): BulletinPhaseHandler {
+  const tasks = new Map<string, ReporterTask>();
+
+  return (event) => {
+    const key = event.phase;
+    const activeTask = tasks.get(key);
+
+    if (event.state === "start") {
+      activeTask?.stop();
+      tasks.set(key, reporter.task(event.message));
+      return;
+    }
+
+    if (event.state === "update") {
+      if (activeTask) {
+        activeTask.update(event.message);
+      } else {
+        tasks.set(key, reporter.task(event.message));
+      }
+      return;
+    }
+
+    if (event.state === "success") {
+      if (activeTask) {
+        activeTask.succeed(event.message);
+        tasks.delete(key);
+      } else {
+        reporter.success(event.message);
+      }
+      return;
+    }
+
+    if (event.state === "warning") {
+      if (activeTask) {
+        activeTask.warn(event.message);
+        tasks.delete(key);
+      } else {
+        reporter.warn(event.message);
+      }
+      return;
+    }
+
+    if (activeTask) {
+      activeTask.fail(event.message);
+      tasks.delete(key);
+      return;
+    }
+
+    reporter.fail(event.message);
+  };
+}
+
+function createRetryHandler(reporter: CliReporter): BulletinRetryHandler {
+  return ({ label, retry, totalAttempts, delayMs, errorMessage }) => {
+    reporter.warn(`${label} attempt ${retry + 1}/${totalAttempts} failed: ${errorMessage}`);
+    reporter.detail(`retrying in ${(delayMs / 1000).toFixed(delayMs >= 1000 ? 1 : 0)}s`);
+  };
+}
+
+function createChunkedUploadMonitor(
+  reporter: CliReporter,
+  phaseHandler: BulletinPhaseHandler,
+  fileSize: number,
+  chunkSizeBytes: number,
+  totalChunks: number,
+) {
+  const heartbeatIntervalMs = 15_000;
+  let latestState: UploadSchedulerState | null = null;
+  let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
+  const startedAtMs = Date.now();
+
+  const stopHeartbeat = () => {
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = undefined;
+    }
+  };
+
+  const emitHeartbeat = () => {
+    if (!latestState || latestState.inFlightChunks === 0) {
+      stopHeartbeat();
+      return;
+    }
+
+    reporter.detail(
+      `heartbeat | ${latestState.completedChunks}/${totalChunks} chunks | window=${latestState.window} | in-flight=${latestState.inFlightChunks} | bytes=${formatBytes(latestState.inFlightBytes)} | retries=${latestState.retries} | elapsed=${formatDuration((Date.now() - startedAtMs) / 1000)}`,
+    );
+  };
+
+  return {
+    onSchedulerState(state: UploadSchedulerState) {
+      latestState = state;
+
+      if (reporter.mode !== "stream") {
+        return;
+      }
+
+      if (state.inFlightChunks > 0 && !heartbeatTimer) {
+        heartbeatTimer = setInterval(emitHeartbeat, heartbeatIntervalMs);
+        heartbeatTimer.unref?.();
+      } else if (state.inFlightChunks === 0) {
+        stopHeartbeat();
+      }
+    },
+    onWave(wave: UploadWaveSummary) {
+      const completedChunks = latestState?.completedChunks ?? 0;
+      const bytesUploaded = Math.min(fileSize, completedChunks * chunkSizeBytes);
+      const throughputBytesPerSecond =
+        wave.durationMs > 0 ? (wave.succeeded * chunkSizeBytes * 1000) / wave.durationMs : 0;
+      const message =
+        `wave #${wave.wave} complete | ${completedChunks}/${totalChunks} chunks | ` +
+        `${formatBytes(bytesUploaded)}/${formatBytes(fileSize)} | ` +
+        `${(wave.durationMs / 1000).toFixed(1)}s | window=${wave.window} | retries=${wave.retries} | ` +
+        `${formatBytes(throughputBytesPerSecond)}/s`;
+
+      if (reporter.mode === "interactive") {
+        phaseHandler({ phase: "upload", state: "update", message });
+      } else {
+        reporter.line(message);
+      }
+    },
+    stop() {
+      stopHeartbeat();
+    },
+  };
+}
+
 export function attachBulletinCommands(root: Command): void {
-  const bulletinCommand = root
-    .command("bulletin")
-    .description("Bulletin storage utilities")
-    .option("--json", "Output result as JSON (suppresses all other output)", false);
+  const bulletinCommand = addReporterOption(
+    root.command("bulletin").description("Bulletin storage utilities"),
+  ).option("--json", "Write machine-readable JSON to stdout", false);
 
   addAuthOptions(bulletinCommand);
-  const authorizeCommand = bulletinCommand
-    .command("authorize [address]")
-    .description("Authorize an account for Bulletin TransactionStorage")
-    .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint", DEFAULT_BULLETIN_RPC)
-    .option(
-      "--transactions <count>",
-      "Number of transactions to authorize",
-      String(DEFAULT_AUTHORIZATION_TRANSACTIONS),
-    )
-    .option("--bytes <count>", "Number of bytes to authorize", String(DEFAULT_AUTHORIZATION_BYTES))
-    .option("--force", "Force re-authorization even if account appears already authorized", false)
-    .option("--json", "Output result as JSON (suppresses all other output)", false);
+  const authorizeCommand = addReporterOption(
+    bulletinCommand
+      .command("authorize [address]")
+      .description("Authorize an account for Bulletin TransactionStorage")
+      .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint", DEFAULT_BULLETIN_RPC)
+      .option(
+        "--transactions <count>",
+        "Number of transactions to authorize",
+        String(DEFAULT_AUTHORIZATION_TRANSACTIONS),
+      )
+      .option(
+        "--bytes <count>",
+        "Number of bytes to authorize",
+        String(DEFAULT_AUTHORIZATION_BYTES),
+      )
+      .option("--force", "Force re-authorization even if account appears already authorized", false)
+      .option("--json", "Write machine-readable JSON to stdout", false),
+  );
 
   addAuthOptions(authorizeCommand).action(
     async (positionalAddress: string | undefined, options: any, command: any) => {
       try {
         const mergedOptions = getMergedOptions(command, options);
         const jsonOutput = getJsonFlag(command);
+        const reporterMode = resolveReporterMode(mergedOptions.reporter as BulletinReporterMode);
+        const reporter = createCliReporter(mergedOptions.reporter as BulletinReporterMode);
+        const onPhase = createPhaseHandler(reporter);
 
         const bulletinRpc = String(mergedOptions.bulletinRpc || DEFAULT_BULLETIN_RPC);
         const transactions = Number(
@@ -164,10 +492,10 @@ export function attachBulletinCommands(root: Command): void {
         const targetAddress = await resolveTargetAddress(
           positionalAddress,
           mergedOptions,
-          jsonOutput,
+          reporterMode,
         );
 
-        const signerContext = await withCapturedConsole(() =>
+        const signerContext = await withBulletinHumanOutput(reporterMode, () =>
           prepareContext({ keyUri: signerKeyUri, useBulletin: true }),
         );
 
@@ -180,7 +508,7 @@ export function attachBulletinCommands(root: Command): void {
           console.log(chalk.gray("  signer:       ") + chalk.yellow(signerKeyUri));
         }
 
-        await maybeQuiet(jsonOutput, () =>
+        await withBulletinHumanOutput(reporterMode, () =>
           authorizeAccount({
             rpc: bulletinRpc,
             signer: signerContext.signer,
@@ -188,22 +516,21 @@ export function attachBulletinCommands(root: Command): void {
             transactions,
             bytes,
             force,
+            onPhase,
           }),
         );
 
         if (jsonOutput) {
           const authStatus = await checkAuthorization(bulletinRpc, targetAddress);
           const expiresAt = expirationToISOString(authStatus.currentBlock, authStatus.expiration);
-          console.log(
-            JSON.stringify({
-              ok: true,
-              target: targetAddress,
-              rpc: bulletinRpc,
-              transactions,
-              bytes: bytes.toString(),
-              expiresAt,
-            }),
-          );
+          writeBulletinJson({
+            ok: true,
+            target: targetAddress,
+            rpc: bulletinRpc,
+            transactions,
+            bytes: bytes.toString(),
+            expiresAt,
+          });
         } else {
           console.log(chalk.green("\n✓ Authorization Complete"));
           console.log(chalk.gray("  The account can now upload to Bulletin.\n"));
@@ -215,8 +542,7 @@ export function attachBulletinCommands(root: Command): void {
         const jsonOutput = getJsonFlag(command);
 
         if (jsonOutput) {
-          console.error(JSON.stringify({ error: errorMessage }));
-          process.exit(1);
+          writeBulletinJsonError(errorMessage);
         }
 
         if (errorMessage.includes("AlreadyAuthorized")) {
@@ -245,21 +571,36 @@ export function attachBulletinCommands(root: Command): void {
     },
   );
 
-  const uploadCommand = bulletinCommand
-    .command("upload <path>")
-    .description("Upload a file or directory to Bulletin and print the resulting CID")
-    .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint", DEFAULT_BULLETIN_RPC)
-    .option(
-      "--chunk-size <bytes>",
-      "Chunk size for large uploads",
-      String(DEFAULT_CHUNK_SIZE_BYTES),
-    )
-    .option("--force-chunked", "Force chunked upload (DAG-PB)", false)
-    .option("--parallel", "Upload directory blocks in parallel (faster)", false)
-    .option("--concurrency <n>", "Number of parallel uploads (default: 10)", "10")
-    .option("--print-contenthash", "Also print 0x-prefixed IPFS contenthash for the CID", false)
-    .option("--no-history", "Do not save upload to history", true)
-    .option("--json", "Output result as JSON (suppresses all other output)", false);
+  const uploadCommand = addReporterOption(
+    bulletinCommand
+      .command("upload <path>")
+      .description("Upload a file or directory to Bulletin and print the resulting CID")
+      .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint", DEFAULT_BULLETIN_RPC)
+      .option(
+        "--chunk-size <bytes>",
+        "Chunk size for large uploads (clamped to 256 KB–2 MB)",
+        String(DEFAULT_CHUNK_SIZE_BYTES),
+      )
+      .option(
+        "--max-retries <n>",
+        "Retry transient upload failures (default: 5, capped at 20)",
+        String(DEFAULT_UPLOAD_MAX_RETRIES),
+      )
+      .option("--force-chunked", "Force chunked upload (DAG-PB)", false)
+      .option(
+        "--as-car",
+        "Merkleize directory in-memory and upload individual blocks (no external IPFS binary needed)",
+        false,
+      )
+      .option("--concurrency <n>", "Adaptive scheduler max window (default: 16, max: 64)", "16")
+      .option("--print-contenthash", "Also print 0x-prefixed IPFS contenthash for the CID", false)
+      .option("--resume", "Resume a previously interrupted upload", false)
+      .option("--profile-upload", "Enable upload profiling and write a JSON report", false)
+      .option("--profile-output <path>", "Path to write upload profiling JSON report")
+      .option("--no-history", "Do not save upload to history", true)
+      .option("--cache", "Write the CID to the user's on-chain Store after upload", false)
+      .option("--json", "Write machine-readable JSON to stdout", false),
+  );
 
   addAuthOptions(uploadCommand).action(
     async (
@@ -270,94 +611,364 @@ export function attachBulletinCommands(root: Command): void {
       try {
         const mergedOptions = getMergedOptions(command, options);
         const jsonOutput = getJsonFlag(command);
+        const reporterMode = resolveReporterMode(mergedOptions.reporter as BulletinReporterMode);
+        const reporter = createCliReporter(mergedOptions.reporter as BulletinReporterMode);
+        const onPhase = createPhaseHandler(reporter);
+        const onRetry = createRetryHandler(reporter);
 
         if (mergedOptions.mnemonic && mergedOptions.keyUri) {
           throw new Error("Cannot specify both --mnemonic and --key-uri");
         }
 
-        const { bytes, isDirectory, resolvedPath } = await maybeQuiet(jsonOutput, () =>
-          validateAndReadPath(inputPath),
+        await cleanupStaleManifests();
+
+        const validatedPath = await withBulletinHumanOutput(reporterMode, () =>
+          validateAndReadPath(inputPath, onPhase),
         );
+        const { bytes, isDirectory, resolvedPath, fileSize, fileMtimeMs } = validatedPath;
 
         const bulletinRpc = String(mergedOptions.bulletinRpc || DEFAULT_BULLETIN_RPC);
-        const chunkSizeBytes = Math.max(
-          1,
+        const chunkSizeBytes = clampChunkSizeBytes(
           Number(mergedOptions.chunkSize || DEFAULT_CHUNK_SIZE_BYTES),
         );
-        const parallel = Boolean(mergedOptions.parallel);
-        const concurrency = Math.max(1, Number(mergedOptions.concurrency || 10));
+        const maxRetries = normalizeUploadMaxRetries(mergedOptions.maxRetries);
+        const concurrency = Math.max(
+          1,
+          Math.min(64, Math.floor(Number(mergedOptions.concurrency || 16))),
+        );
+        const resume = Boolean(mergedOptions.resume);
+        const profileUpload = Boolean(mergedOptions.profileUpload);
 
-        const context = await maybeQuiet(jsonOutput, () =>
+        const shouldUseChunkedUpload = !isDirectory;
+        const effectiveFileSize = isDirectory ? 0 : (fileSize ?? bytes.length);
+
+        let resumedBlocks: ReturnType<typeof completedBlocksFromManifest> | undefined;
+        if (resume && shouldUseChunkedUpload) {
+          const resolvedFileMtimeMs = fileMtimeMs ?? (await filesystem.stat(resolvedPath)).mtimeMs;
+          const manifestLoadResult = await loadManifestForResume({
+            inputPath: resolvedPath,
+            fileSize: effectiveFileSize,
+            fileMtimeMs: resolvedFileMtimeMs,
+            chunkSize: chunkSizeBytes,
+          });
+
+          if (
+            manifestLoadResult.manifest &&
+            manifestLoadResult.manifest.completedBlocks.length > 0
+          ) {
+            resumedBlocks = completedBlocksFromManifest(manifestLoadResult.manifest);
+            reporter.warn(
+              `resuming: ${manifestLoadResult.manifest.completedBlocks.length} blocks already uploaded`,
+            );
+          } else if (manifestLoadResult.staleManifest) {
+            reporter.warn(
+              "resume notice: file fingerprint changed, starting a fresh upload manifest",
+            );
+            await deleteManifest(manifestLoadResult.staleManifest);
+          }
+        }
+
+        const context = await withBulletinHumanOutput(reporterMode, () =>
           prepareContext({ ...mergedOptions, useBulletin: true }),
         );
 
-        const authInfo = await maybeQuiet(jsonOutput, () =>
-          ensureAccountAuthorized(bulletinRpc, context.signer, context.substrateAddress),
+        const authInfo = await withBulletinHumanOutput(reporterMode, () =>
+          ensureAccountAuthorized(bulletinRpc, context.substrateAddress),
         );
 
+        const profileOutputOverride = mergedOptions.profileOutput
+          ? String(mergedOptions.profileOutput)
+          : undefined;
+        const profiler = profileUpload
+          ? createUploadProfiler({
+              sourcePath: resolvedPath,
+              sourceSizeBytes: effectiveFileSize,
+              chunkSizeBytes: shouldUseChunkedUpload
+                ? chunkSizeBytes
+                : Math.max(1, effectiveFileSize),
+              rpc: bulletinRpc,
+              initialConcurrency: shouldUseChunkedUpload ? 1 : 1,
+              maxConcurrency: shouldUseChunkedUpload ? concurrency : 1,
+              outputPath: profileOutputOverride,
+              jsonOutput,
+            })
+          : undefined;
+        const totalChunks = shouldUseChunkedUpload
+          ? Math.ceil(effectiveFileSize / chunkSizeBytes)
+          : undefined;
+        const chunkedMonitor =
+          shouldUseChunkedUpload && totalChunks
+            ? createChunkedUploadMonitor(
+                reporter,
+                onPhase,
+                effectiveFileSize,
+                chunkSizeBytes,
+                totalChunks,
+              )
+            : null;
+
+        const asCar = Boolean(options.asCar);
+
         const performUpload = async () => {
+          if (isDirectory && asCar) {
+            onPhase?.({ phase: "merkleize", state: "start", message: "Merkleizing directory" });
+
+            const { importer } = await import("ipfs-unixfs-importer");
+            const { createReadStream } = await import("node:fs");
+
+            const blocks = new Map<string, { cid: any; bytes: Uint8Array }>();
+            const blockstore = {
+              put: async (cid: any, bytes: Uint8Array) => {
+                blocks.set(cid.toString(), { cid, bytes });
+                return cid;
+              },
+              get: async (cid: any) => {
+                const block = blocks.get(cid.toString());
+                if (!block) throw new Error(`Block not found: ${cid}`);
+                return block.bytes;
+              },
+            };
+
+            async function* walkDirectory(
+              dir: string,
+              base: string,
+            ): AsyncIterable<{ path: string; content: any }> {
+              const entries = await filesystem.readdir(dir, { withFileTypes: true });
+              for (const entry of entries) {
+                const full = path.join(dir, entry.name);
+                const rel = path.join(base, entry.name);
+                if (entry.isDirectory()) {
+                  yield* walkDirectory(full, rel);
+                } else {
+                  yield { path: rel, content: createReadStream(full) };
+                }
+              }
+            }
+
+            let rootCid: any;
+            for await (const entry of importer(walkDirectory(resolvedPath, ""), blockstore, {
+              wrapWithDirectory: true,
+              cidVersion: 1,
+              rawLeaves: true,
+            })) {
+              rootCid = entry.cid;
+            }
+
+            if (!rootCid) throw new Error("Merkleization produced no root CID");
+
+            onPhase?.({
+              phase: "merkleize",
+              state: "success",
+              message: `Root CID: ${rootCid} (${blocks.size} blocks)`,
+            });
+            onPhase?.({ phase: "export", state: "start", message: "Packing blocks into CAR file" });
+
+            const { CarWriter } = await import("@ipld/car");
+            const { Readable } = await import("node:stream");
+
+            const tmpDir = os.tmpdir();
+            const carPath = path.join(tmpDir, `dotns-${rootCid}.car`);
+
+            const { writer, out } = CarWriter.create([rootCid]);
+            const carStream = Readable.from(out);
+            const writeStream = (await import("node:fs")).createWriteStream(carPath);
+            const pipelineFinished = new Promise<void>((resolve, reject) => {
+              carStream.pipe(writeStream);
+              writeStream.on("finish", resolve);
+              writeStream.on("error", reject);
+            });
+
+            for (const [, block] of blocks) {
+              await writer.put(block);
+            }
+            await writer.close();
+            await pipelineFinished;
+            blocks.clear();
+
+            const carStat = await filesystem.stat(carPath);
+            onPhase?.({
+              phase: "export",
+              state: "success",
+              message: `CAR file: ${formatBytes(carStat.size)}`,
+            });
+
+            try {
+              const carCid = await uploadChunkedBlocks(
+                bulletinRpc,
+                context.signer,
+                carPath,
+                chunkSizeBytes,
+                carStat.size,
+                context.substrateAddress,
+                {
+                  concurrency,
+                  maxRetries,
+                  onPhase,
+                  onRetry,
+                  onSchedulerState: (state) => {
+                    profiler?.onSchedulerState(state);
+                  },
+                  onWave: (wave) => {
+                    profiler?.onWave(wave);
+                  },
+                },
+              );
+
+              return { cid: carCid, ipfsCid: rootCid.toString(), size: carStat.size };
+            } finally {
+              await filesystem.unlink(carPath).catch(() => {});
+            }
+          }
+
           if (isDirectory) {
             const result = await storeDirectory(bulletinRpc, context.signer, resolvedPath, {
-              parallel,
               concurrency,
               accountAddress: context.substrateAddress,
-              waitForFinalization: !parallel,
+              maxRetries,
+              onPhase,
+              onRetry,
+              waitForFinalization: false,
             });
             return { cid: result.storageCid, ipfsCid: result.ipfsCid, size: 0 };
           }
 
-          if (mergedOptions.forceChunked || bytes.length > MAX_SINGLE_UPLOAD_SIZE_BYTES) {
+          if (shouldUseChunkedUpload) {
             const result = await uploadChunkedBlocks(
               bulletinRpc,
               context.signer,
-              bytes,
+              resolvedPath,
               chunkSizeBytes,
+              effectiveFileSize,
+              context.substrateAddress,
+              {
+                completedBlocks: resumedBlocks,
+                concurrency,
+                maxRetries,
+                onPhase,
+                onRetry,
+                onSchedulerState: (state) => {
+                  profiler?.onSchedulerState(state);
+                  chunkedMonitor?.onSchedulerState(state);
+                },
+                onWave: (wave) => {
+                  profiler?.onWave(wave);
+                  chunkedMonitor?.onWave(wave);
+                },
+              },
             );
-            return { cid: result, ipfsCid: result, size: bytes.length };
+            return { cid: result, ipfsCid: result, size: effectiveFileSize };
           }
 
-          const result = await uploadSingleBlock(bulletinRpc, context.signer, bytes);
+          const result = await uploadSingleBlock(bulletinRpc, context.signer, bytes, {
+            maxRetries,
+            onPhase,
+            onRetry,
+          });
           return { cid: result, ipfsCid: result, size: bytes.length };
         };
 
         let cid: string;
         let ipfsCid: string;
         let uploadSize: number;
+        let profileReportPath: string | undefined;
+        let profileReport: UploadProfileReport | undefined;
+        const uploadStartedAtMs = Date.now();
+        const uploadStartedAtIso = new Date(uploadStartedAtMs).toISOString();
+        const pathBasename = resolvedPath.split("/").pop() ?? resolvedPath;
 
-        if (jsonOutput) {
-          const uploadResult = await withCapturedConsole(performUpload);
-          cid = uploadResult.cid;
-          ipfsCid = uploadResult.ipfsCid;
-          uploadSize = uploadResult.size;
-        } else {
-          console.log(chalk.blue("\n▶ Bulletin Upload"));
-          console.log(chalk.gray("  path:     ") + chalk.white(resolvedPath));
-          console.log(chalk.gray("  rpc:      ") + chalk.white(bulletinRpc));
+        if (authInfo?.expiration && authInfo.currentBlock) {
+          reporter.detail(
+            `auth: valid (expires ${formatExpirationDisplay(authInfo.currentBlock, authInfo.expiration)})`,
+          );
+        }
 
-          if (authInfo?.expiration && authInfo.currentBlock) {
+        if (!jsonOutput) {
+          if (isDirectory) {
+            console.log(chalk.blue(`\n▶ Uploading directory: ${pathBasename}`));
+            console.log(chalk.gray("  path:        ") + chalk.white(resolvedPath));
+            console.log(chalk.gray("  rpc:         ") + chalk.white(bulletinRpc));
             console.log(
-              chalk.gray("  auth:     ") +
+              chalk.gray("  concurrency: ") + chalk.white(`${concurrency}x parallel waves`),
+            );
+          } else if (shouldUseChunkedUpload) {
+            console.log(
+              chalk.blue(`\n▶ Uploading file: ${pathBasename} (${formatBytes(effectiveFileSize)})`),
+            );
+            console.log(chalk.gray("  path:        ") + chalk.white(resolvedPath));
+            console.log(chalk.gray("  rpc:         ") + chalk.white(bulletinRpc));
+            console.log(
+              chalk.gray("  mode:        ") +
                 chalk.white(
-                  `valid (expires ${formatExpirationDisplay(authInfo.currentBlock, authInfo.expiration)})`,
+                  `chunked (${totalChunks} × ${formatBytes(chunkSizeBytes)}, adaptive window 1..${concurrency})`,
                 ),
             );
-          }
-
-          if (isDirectory) {
-            const mode = parallel ? `directory (parallel, ${concurrency}x)` : "directory";
-            console.log(chalk.gray("  mode:     ") + chalk.white(mode));
-          } else if (mergedOptions.forceChunked || bytes.length > MAX_SINGLE_UPLOAD_SIZE_BYTES) {
-            console.log(chalk.gray("  size:     ") + chalk.white(`${bytes.length} bytes`));
-            console.log(chalk.gray("  mode:     ") + chalk.white("chunked (dag-pb)"));
           } else {
-            console.log(chalk.gray("  size:     ") + chalk.white(`${bytes.length} bytes`));
-            console.log(chalk.gray("  mode:     ") + chalk.white("single"));
+            console.log(
+              chalk.blue(`\n▶ Uploading file: ${pathBasename} (${formatBytes(bytes.length)})`),
+            );
+            console.log(chalk.gray("  path:        ") + chalk.white(resolvedPath));
+            console.log(chalk.gray("  rpc:         ") + chalk.white(bulletinRpc));
+            console.log(chalk.gray("  mode:        ") + chalk.white("single block"));
           }
+        }
 
-          const uploadResult = await performUpload();
+        try {
+          const uploadResult = await withBulletinHumanOutput(reporterMode, performUpload);
           cid = uploadResult.cid;
           ipfsCid = uploadResult.ipfsCid;
           uploadSize = uploadResult.size;
+        } finally {
+          chunkedMonitor?.stop();
+        }
+
+        const uploadFinishedAtMs = Date.now();
+        const uploadFinishedAtIso = new Date(uploadFinishedAtMs).toISOString();
+        const totalUploadTimeMs = Math.max(1, uploadFinishedAtMs - uploadStartedAtMs);
+        const totalUploadTimeSeconds = totalUploadTimeMs / 1000;
+
+        if (profiler) {
+          const finalizedProfile = await profiler.finalize(cid, profileOutputOverride);
+          profileReport = finalizedProfile.report;
+          profileReportPath = finalizedProfile.outputPath;
+        }
+
+        onPhase({
+          phase: "verify",
+          state: "start",
+          message: "Verifying content on Bulletin P2P...",
+        });
+        let verified = false;
+        try {
+          const p2pResult = await verifyCidViaP2P(ipfsCid);
+          if (p2pResult.resolvable) {
+            onPhase({ phase: "verify", state: "success", message: "Content verified via P2P" });
+            verified = true;
+          }
+        } catch {
+          /* P2P verification failed, try gateways */
+        }
+
+        if (!verified) {
+          onPhase({
+            phase: "verify",
+            state: "update",
+            message: "P2P unavailable, checking IPFS gateways...",
+          });
+          const gatewayResults = await verifyCidWithMultipleGateways(ipfsCid);
+          const resolvable = Array.from(gatewayResults.values()).some((r) => r.resolvable);
+          if (resolvable) {
+            onPhase({
+              phase: "verify",
+              state: "success",
+              message: "Content verified via IPFS gateway",
+            });
+          } else {
+            onPhase({
+              phase: "verify",
+              state: "warning",
+              message: "Content not yet resolvable — it may still be propagating",
+            });
+          }
         }
 
         const contenthash = generateContenthash(cid);
@@ -373,26 +984,79 @@ export function attachBulletinCommands(root: Command): void {
 
         if (jsonOutput) {
           const authExpiresAt = expirationToISOString(authInfo?.currentBlock, authInfo?.expiration);
-          console.log(
-            JSON.stringify({
-              cid: ipfsCid,
-              contenthash,
-              preview: previewUrl,
-              path: resolvedPath,
-              type: isDirectory ? "directory" : "file",
-              size: uploadSize,
-              authorizationExpiresAt: authExpiresAt,
-            }),
-          );
+          writeBulletinJson({
+            cid: ipfsCid,
+            contenthash: `0x${contenthash}`,
+            preview: previewUrl,
+            path: resolvedPath,
+            type: isDirectory ? "directory" : "file",
+            size: uploadSize,
+            authorizationExpiresAt: authExpiresAt,
+            uploadStartedAtIso,
+            uploadFinishedAtIso,
+            totalUploadTimeMs,
+            totalUploadTimeSeconds,
+          });
         } else {
           console.log(chalk.gray("\n  cid:         ") + chalk.cyan(ipfsCid));
           console.log(chalk.gray("  preview:     ") + chalk.blue(previewUrl));
+          console.log(
+            chalk.gray("  total time:  ") + chalk.white(formatDuration(totalUploadTimeSeconds)),
+          );
 
           if (mergedOptions.printContenthash) {
             console.log(chalk.gray("  contenthash: ") + chalk.white(`0x${contenthash}`));
           }
 
+          if (profileReportPath && profileReport) {
+            console.log(chalk.gray("  profile:     ") + chalk.white(profileReportPath));
+            console.log(
+              chalk.gray("  throughput:  ") +
+                chalk.white(`${formatBytes(profileReport.summary.throughputBytesPerSecond)}/s`),
+            );
+            console.log(
+              chalk.gray("  peak heap:   ") +
+                chalk.white(formatBytes(profileReport.summary.peakHeapUsed)),
+            );
+          }
+
           console.log(chalk.green("\n✓ Upload Complete\n"));
+        }
+
+        if (options.cache) {
+          onPhase({ phase: "cache", state: "start", message: "Connecting to Asset Hub..." });
+          try {
+            const { cacheCidToStore } = await import("../../commands/storeManagement");
+            const { prepareAssetHubContext } = await import("../context");
+            const assetHubContext = await prepareAssetHubContext({
+              rpc: process.env.DOTNS_RPC,
+              mnemonic: mergedOptions.mnemonic,
+              keyUri: mergedOptions.keyUri,
+              keystorePath: mergedOptions.keystorePath,
+              account: mergedOptions.account,
+              password: mergedOptions.password,
+            });
+
+            onPhase({
+              phase: "cache",
+              state: "update",
+              message: "Saving CID to on-chain Store...",
+            });
+            await cacheCidToStore({
+              cid: ipfsCid,
+              clientWrapper: assetHubContext.clientWrapper,
+              signer: assetHubContext.signer,
+              substrateAddress: assetHubContext.substrateAddress,
+              evmAddress: assetHubContext.evmAddress,
+            });
+            onPhase({ phase: "cache", state: "success", message: "CID saved to Store" });
+          } catch (cacheError) {
+            onPhase({
+              phase: "cache",
+              state: "warning",
+              message: `CID caching failed: ${formatErrorMessage(cacheError)}`,
+            });
+          }
         }
 
         if (mergedOptions.history !== false) {
@@ -411,8 +1075,7 @@ export function attachBulletinCommands(root: Command): void {
         const jsonOutput = getJsonFlag(command);
 
         if (jsonOutput) {
-          console.error(JSON.stringify({ error: errorMessage }));
-          process.exit(1);
+          writeBulletinJsonError(errorMessage);
         }
 
         console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
@@ -421,39 +1084,43 @@ export function attachBulletinCommands(root: Command): void {
     },
   );
 
-  const statusCommand = bulletinCommand
-    .command("status [address]")
-    .description("Check authorization status for an account on Bulletin")
-    .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint", DEFAULT_BULLETIN_RPC)
-    .option("--json", "Output result as JSON (suppresses all other output)", false);
+  const statusCommand = addReporterOption(
+    bulletinCommand
+      .command("status [address]")
+      .description("Check authorization status for an account on Bulletin")
+      .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint", DEFAULT_BULLETIN_RPC)
+      .option("--json", "Write machine-readable JSON to stdout", false),
+  );
 
   addAuthOptions(statusCommand).action(
     async (positionalAddress: string | undefined, options: any, command: any) => {
       try {
         const mergedOptions = getMergedOptions(command, options);
         const jsonOutput = getJsonFlag(command);
+        const reporterMode = resolveReporterMode(mergedOptions.reporter as BulletinReporterMode);
+        const reporter = createCliReporter(mergedOptions.reporter as BulletinReporterMode);
         const bulletinRpc = String(mergedOptions.bulletinRpc || DEFAULT_BULLETIN_RPC);
 
         const targetAddress = await resolveTargetAddress(
           positionalAddress,
           mergedOptions,
-          jsonOutput,
+          reporterMode,
         );
 
+        const statusTask = reporter.task("Checking authorization");
         const authStatus = await checkAuthorization(bulletinRpc, targetAddress);
+        statusTask.succeed("Authorization status read");
 
         if (jsonOutput) {
-          console.log(
-            JSON.stringify({
-              address: targetAddress,
-              rpc: bulletinRpc,
-              authorized: authStatus.authorized,
-              expired: authStatus.expired ?? false,
-              transactions: authStatus.transactions ?? 0,
-              bytes: (authStatus.bytes ?? BigInt(0)).toString(),
-              expiresAt: expirationToISOString(authStatus.currentBlock, authStatus.expiration),
-            }),
-          );
+          writeBulletinJson({
+            address: targetAddress,
+            rpc: bulletinRpc,
+            authorized: authStatus.authorized,
+            expired: authStatus.expired ?? false,
+            transactions: authStatus.transactions ?? 0,
+            bytes: (authStatus.bytes ?? BigInt(0)).toString(),
+            expiresAt: expirationToISOString(authStatus.currentBlock, authStatus.expiration),
+          });
         } else {
           console.log(chalk.blue("\n▶ Bulletin Authorization Status"));
           console.log(chalk.gray("  account:      ") + chalk.cyan(targetAddress));
@@ -506,21 +1173,22 @@ export function attachBulletinCommands(root: Command): void {
         const jsonOutput = getJsonFlag(command);
 
         if (jsonOutput) {
-          console.error(JSON.stringify({ error: errorMessage }));
+          writeBulletinJsonError(errorMessage);
         } else {
           console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
+          process.exit(1);
         }
-
-        process.exit(1);
       }
     },
   );
 
-  const historyCommand = bulletinCommand
-    .command("history")
-    .alias("list")
-    .description("List all uploaded CIDs")
-    .option("--json", "Output result as JSON (suppresses all other output)", false);
+  const historyCommand = addReporterOption(
+    bulletinCommand
+      .command("history")
+      .alias("list")
+      .description("List all uploaded CIDs")
+      .option("--json", "Write machine-readable JSON to stdout", false),
+  );
 
   historyCommand.action(async (_options: any, command: any) => {
     try {
@@ -528,7 +1196,7 @@ export function attachBulletinCommands(root: Command): void {
       const history = await readHistory();
 
       if (jsonOutput) {
-        console.log(JSON.stringify(history, null, 2));
+        writeBulletinJson(history);
         process.exit(0);
       }
 
@@ -562,8 +1230,7 @@ export function attachBulletinCommands(root: Command): void {
       const jsonOutput = getJsonFlag(command);
 
       if (jsonOutput) {
-        console.error(JSON.stringify({ error: formatErrorMessage(error) }));
-        process.exit(1);
+        writeBulletinJsonError(error);
       }
 
       console.error(chalk.red(`\n✗ Error: ${formatErrorMessage(error)}\n`));
@@ -591,21 +1258,117 @@ export function attachBulletinCommands(root: Command): void {
       }
     });
 
-  bulletinCommand
-    .command("history:clear")
-    .description("Clear all upload history")
-    .action(async () => {
-      try {
-        const count = await clearHistory();
-        const historyPath = getHistoryPath();
+  addReporterOption(
+    bulletinCommand.command("history:clear").description("Clear all upload history"),
+  ).action(async () => {
+    try {
+      const count = await clearHistory();
+      const historyPath = getHistoryPath();
 
-        console.log(chalk.green(`\n✓ Cleared ${count} upload(s) from history`));
-        console.log(chalk.gray(`  ${historyPath}\n`));
+      console.log(chalk.green(`\n✓ Cleared ${count} upload(s) from history`));
+      console.log(chalk.gray(`  ${historyPath}\n`));
 
-        process.exit(0);
-      } catch (error) {
-        console.error(chalk.red(`\n✗ Error: ${formatErrorMessage(error)}\n`));
-        process.exit(1);
+      process.exit(0);
+    } catch (error) {
+      console.error(chalk.red(`\n✗ Error: ${formatErrorMessage(error)}\n`));
+      process.exit(1);
+    }
+  });
+
+  addReporterOption(
+    bulletinCommand
+      .command("verify <cid>")
+      .description("Verify a CID is resolvable via IPFS gateways")
+      .option("--json", "Write machine-readable JSON to stdout", false),
+  ).action(async (cid: string, options: any, command: any) => {
+    const mergedOptions = getMergedOptions(command, options);
+    const jsonOutput = getJsonFlag(command) || Boolean(options.json);
+    const reporter = createCliReporter(mergedOptions.reporter as BulletinReporterMode);
+    const p2pTask = reporter.task("Connecting to Bulletin P2P");
+
+    try {
+      if (!jsonOutput) {
+        console.log(chalk.blue("\n▶ Verifying CID"));
+        console.log(chalk.gray("  cid: ") + chalk.cyan(cid));
       }
-    });
+
+      const p2pResult = await verifyCidViaP2P(cid);
+
+      if (p2pResult.resolvable) {
+        p2pTask.succeed("CID verified via P2P (bitswap)");
+
+        if (jsonOutput) {
+          writeBulletinJson({
+            cid,
+            resolvable: true,
+            method: "p2p",
+            gateways: [{ gateway: "p2p/bitswap", resolvable: true }],
+          });
+        } else {
+          console.log(chalk.gray("  ✓ ") + chalk.white("p2p/bitswap"));
+          console.log();
+        }
+
+        cleanupHeliaAndExit(0);
+      }
+
+      p2pTask.warn("P2P verification failed, falling back to gateways");
+
+      const gatewayTask = reporter.task("Checking IPFS gateways");
+      const results = await verifyCidWithMultipleGateways(cid);
+      const resolvableGateways: string[] = [];
+      const failedGateways: string[] = [];
+
+      for (const [gateway, result] of results) {
+        if (result.resolvable) {
+          resolvableGateways.push(gateway);
+        } else {
+          failedGateways.push(gateway);
+        }
+      }
+
+      if (jsonOutput) {
+        const entries = Array.from(results.entries()).map(([gateway, result]) => ({
+          gateway,
+          resolvable: result.resolvable,
+          statusCode: result.statusCode,
+          errorMessage: result.errorMessage,
+        }));
+        writeBulletinJson({
+          cid,
+          resolvable: resolvableGateways.length > 0,
+          method: resolvableGateways.length > 0 ? "gateway" : "none",
+          gateways: entries,
+        });
+        cleanupHeliaAndExit(resolvableGateways.length > 0 ? 0 : 1);
+      }
+
+      if (resolvableGateways.length > 0) {
+        gatewayTask.succeed(`CID resolvable on ${resolvableGateways.length} gateway(s)`);
+        for (const gw of resolvableGateways) {
+          console.log(chalk.gray("  ✓ ") + chalk.white(gw));
+        }
+      } else {
+        gatewayTask.fail("CID not resolvable on any gateway");
+      }
+
+      if (failedGateways.length > 0 && resolvableGateways.length > 0) {
+        for (const gw of failedGateways) {
+          console.log(chalk.gray("  ✗ ") + chalk.dim(gw));
+        }
+      }
+
+      console.log();
+      cleanupHeliaAndExit(resolvableGateways.length > 0 ? 0 : 1);
+    } catch (error) {
+      p2pTask.fail("Verification failed");
+      const errorMessage = formatErrorMessage(error);
+      if (jsonOutput) {
+        writeBulletinJsonError(errorMessage);
+      } else {
+        console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
+        cleanupHeliaAndExit(1);
+      }
+    }
+  });
 }

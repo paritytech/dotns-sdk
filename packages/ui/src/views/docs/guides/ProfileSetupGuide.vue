@@ -79,9 +79,11 @@
         Read back any record with <span class="font-mono text-dot-accent">getText</span>. This is a
         read-only call &mdash; no wallet needed.
       </p>
-      <TryItSection title="Try it — Read a text record">
-        <TryGetText />
-      </TryItSection>
+      <DocCallout variant="tip" title="Try it">
+        <RouterLink to="/docs/protocol/content" class="text-dot-accent hover:text-dot-accent-hover">
+          Read a text record &rarr;
+        </RouterLink>
+      </DocCallout>
     </div>
 
     <div class="space-y-4">
@@ -128,8 +130,6 @@
 <script setup lang="ts">
 import DocCallout from "@/components/docs/DocCallout.vue";
 import DocCodeBlock from "@/components/docs/DocCodeBlock.vue";
-import TryItSection from "@/components/docs/TryItSection.vue";
-import TryGetText from "@/components/docs/interactive/TryGetText.vue";
 
 const textRecords = [
   { key: "twitter", example: "@alice", purpose: "Twitter/X handle" },

@@ -129,3 +129,15 @@
 - name: "upstream"
   color: "e99695"
   description: "Related to paritytech/dotns"
+
+- name: "scope: benchmark"
+  color: "1d76db"
+  description: "Benchmark infrastructure"
+
+- name: "benchmark-request"
+  color: "ff2867"
+  description: "Triggers an on-demand benchmark run"
+
+- name: "benchmark-complete"
+  color: "059669"
+  description: "Benchmark run completed"

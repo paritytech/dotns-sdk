@@ -14,9 +14,8 @@
       <h2 class="text-xl font-semibold text-dot-text-primary">Why Decentralised Hosting?</h2>
       <p class="text-dot-text-secondary leading-relaxed">
         Traditional web hosting relies on centralised servers, DNS registrars, and cloud providers.
-        Any of these can go down, be censored, or change their terms of service. By hosting your
-        dApp on a .dot domain with content-addressed storage, you eliminate every centralised
-        dependency.
+        Any of these can go down, be censored, or change their terms. Hosting your dApp on a .dot
+        domain with content-addressed storage removes every centralised dependency.
       </p>
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div
@@ -33,8 +32,8 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Deployment Pipeline</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Deploying a dApp to a .dot domain follows the same pattern as any static site deployment,
-        with decentralised storage replacing traditional hosting.
+        Deploying a dApp to a .dot domain follows the same steps as any static site deployment, but
+        uses decentralised storage instead of traditional hosting.
       </p>
       <div class="border border-dot-border rounded-xl overflow-hidden">
         <div
@@ -59,8 +58,8 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Build Your dApp</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Build your frontend as a static bundle. Most modern frameworks support static export out of
-        the box.
+        Build your frontend as a static bundle. Most modern frameworks support static export with no
+        extra configuration.
       </p>
       <DocCodeBlock :code="buildCode" lang="bash" filename="terminal" />
       <DocCallout variant="info" title="Client-side routing">
@@ -91,9 +90,9 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Censorship Resistance</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Every layer of the stack is decentralised. The name resolution lives on Polkadot smart
-        contracts. The content is stored on Bulletin (on-chain) or IPFS (peer-to-peer). The gateway
-        is open-source and can be self-hosted. No single entity can take your dApp down.
+        Every layer of the stack is decentralised. Name resolution lives on Polkadot smart
+        contracts. Content is stored on Bulletin (on-chain) or IPFS. The gateway is open-source and
+        can be self-hosted. No single entity can take your dApp down.
       </p>
       <div class="overflow-x-auto">
         <table class="w-full text-sm border border-dot-border rounded-lg overflow-hidden">
@@ -174,12 +173,12 @@ const pipelineSteps = [
   {
     title: "Upload to decentralised storage",
     description:
-      "Push the build output to Bulletin or IPFS. The CLI handles chunking, DAG construction, and upload.",
+      "Push the build output to Bulletin or IPFS. Pass --as-car to merkleise the directory in-memory and upload as a chunked CAR file — significantly faster than per-block uploads (~2 min vs ~22 min for 16 MB). Content resolves on IPFS gateways. No external IPFS binary needed.",
   },
   {
     title: "Set the content hash",
     description:
-      "Link the resulting CID to your .dot name by calling setContenthash on the ContentResolver contract.",
+      "Link the resulting CID to your .dot name by updating the ContentResolver contract.",
   },
   {
     title: "Access via gateway",
@@ -223,8 +222,8 @@ npm run build        # Output: dist/
 # Plain HTML
 # No build step needed — just point to your directory`;
 
-const uploadCode = `# Upload to Bulletin
-dotns bulletin upload ./dist
+const uploadCode = `# Upload to Bulletin (recommended: --as-car for directories)
+dotns bulletin upload ./dist --as-car
 # Root CID: bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi
 
 # Set the content hash on your .dot name

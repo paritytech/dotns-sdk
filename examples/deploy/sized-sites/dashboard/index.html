@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bulletin Benchmarks</title>
+  <meta name="description" content="Daily DotNS bulletin benchmark history">
+  <style>@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap");</style>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style type="text/tailwindcss">
+    @theme {
+      --font-sans: "DM Sans", system-ui, sans-serif;
+      --color-canvas: #0f0f0f;
+      --color-panel: #1c1917;
+      --color-panel-secondary: #292524;
+      --color-accent: #ff2867;
+      --color-ink: #fafaf9;
+      --color-muted: #a8a29e;
+      --color-border: #44403c;
+      --color-success: #059669;
+      --color-error: #dc2626;
+      --shadow-panel: 0 24px 80px rgba(0, 0, 0, 0.28);
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-canvas font-sans text-ink">
+  <div class="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(255,40,103,0.1),_transparent_35%),linear-gradient(180deg,_#1c1917_0%,_#0f0f0f_42%,_#0a0a0a_100%)]"></div>
+  <main class="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
+    <section class="overflow-hidden rounded-[2rem] border border-border bg-panel-secondary shadow-panel backdrop-blur">
+      <div class="flex flex-col gap-6 px-6 py-8 sm:px-8 lg:flex-row lg:items-end lg:justify-between">
+        <div class="max-w-3xl space-y-4">
+          <p class="text-xs font-semibold uppercase tracking-[0.32em] text-accent">DotNS Bulletin Benchmarks</p>
+          <div class="space-y-3">
+            <h1 class="text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl">Daily upload timings in one place</h1>
+            <p class="max-w-2xl text-sm leading-7 text-muted sm:text-base">
+              This page reads a single benchmark dataset and renders the latest upload timings and historical runs.
+            </p>
+          </div>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div class="rounded-2xl border border-border bg-panel px-4 py-3">
+            <p class="text-xs uppercase tracking-[0.24em] text-muted">Updated From</p>
+            <p id="generated-at" class="mt-2 text-sm font-medium text-ink">Loading</p>
+          </div>
+          <div class="rounded-2xl border border-border bg-panel px-4 py-3">
+            <p class="text-xs uppercase tracking-[0.24em] text-muted">Schema</p>
+            <p id="schema-version" class="mt-2 text-sm font-medium text-ink">Loading</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" id="summary-cards"></section>
+
+    <section class="overflow-hidden rounded-[2rem] border border-border bg-panel shadow-panel">
+      <div class="border-b border-border px-6 py-5 sm:px-8">
+        <h2 class="text-xl font-semibold tracking-tight">Latest run</h2>
+        <p class="mt-2 text-sm text-muted">Current benchmark results with links to the per-size preview deploys.</p>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-border text-sm">
+          <thead class="bg-panel-secondary text-left text-xs uppercase tracking-[0.18em] text-muted">
+            <tr>
+              <th class="px-4 py-3 sm:px-6">Size</th>
+              <th class="px-4 py-3 sm:px-6">Status</th>
+              <th class="px-4 py-3 sm:px-6">Duration</th>
+              <th class="px-4 py-3 sm:px-6">Domain</th>
+              <th class="px-4 py-3 sm:px-6">URL</th>
+            </tr>
+          </thead>
+          <tbody id="latest-run-body" class="divide-y divide-border/50"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="overflow-hidden rounded-[2rem] border border-border bg-panel shadow-panel">
+      <div class="border-b border-border px-6 py-5 sm:px-8">
+        <h2 class="text-xl font-semibold tracking-tight">Run history</h2>
+        <p class="mt-2 text-sm text-muted">Each row is one run with all benchmark durations side by side.</p>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-border text-sm">
+          <thead id="history-head" class="bg-panel-secondary text-left text-xs uppercase tracking-[0.18em] text-muted"></thead>
+          <tbody id="history-body" class="divide-y divide-border/50"></tbody>
+        </table>
+      </div>
+      <div class="flex flex-col gap-4 border-t border-border px-6 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+        <div class="flex items-center gap-3">
+          <p id="history-pagination-summary" class="text-sm text-muted">Loading history</p>
+          <select id="history-page-size" class="rounded-lg border border-border bg-panel px-2 py-1 text-xs text-ink">
+            <option value="5">5</option>
+            <option value="10" selected>10</option>
+            <option value="25">25</option>
+          </select>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="history-prev" type="button" class="inline-flex items-center justify-center rounded-lg border border-border px-4 py-2 text-sm font-medium text-ink transition hover:border-accent/60 hover:text-accent disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
+          <button id="history-next" type="button" class="inline-flex items-center justify-center rounded-lg border border-border px-4 py-2 text-sm font-medium text-ink transition hover:border-accent/60 hover:text-accent disabled:cursor-not-allowed disabled:opacity-40">Next</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const generatedAt = document.getElementById("generated-at");
+    const schemaVersion = document.getElementById("schema-version");
+    const summaryCards = document.getElementById("summary-cards");
+    const latestRunBody = document.getElementById("latest-run-body");
+    const historyHead = document.getElementById("history-head");
+    const historyBody = document.getElementById("history-body");
+    const historyPaginationSummary = document.getElementById("history-pagination-summary");
+    const historyPrev = document.getElementById("history-prev");
+    const historyNext = document.getElementById("history-next");
+    const historyPageSize = document.getElementById("history-page-size");
+
+    const state = {
+      page: 1,
+      pageSize: 10,
+      data: null,
+    };
+
+    const escapeHtml = (value) =>
+      String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+
+    const badgeClasses = (report) =>
+      report.status === "success"
+        ? "bg-success/15 text-success ring-1 ring-inset ring-success/30"
+        : "bg-error/15 text-error ring-1 ring-inset ring-error/30";
+
+    const formatStatus = (report) =>
+      report.status === "success" ? "Passed" : "Failed";
+
+    const formatDuration = (report) =>
+      report.status === "success" ? `${report.durationSeconds}s` : (report.failureStage || "Failed");
+
+    const renderSummary = (data, latestRun) => {
+      const successCount = latestRun.reports.filter((report) => report.status === "success").length;
+      const totalDuration = latestRun.reports.reduce((sum, report) => sum + report.durationSeconds, 0);
+      const slowest = latestRun.reports.reduce((current, report) =>
+        !current || report.durationSeconds > current.durationSeconds ? report : current, null);
+
+      const cards = [
+        {
+          label: "Tracked runs",
+          value: String(data.runs.length),
+          detail: "Historical entries stored in benchmarks.json",
+        },
+        {
+          label: "Latest date",
+          value: latestRun.benchmarkDate,
+          detail: latestRun.benchmarkTimestamp,
+        },
+        {
+          label: "Successful sizes",
+          value: `${successCount}/${latestRun.reports.length}`,
+          detail: "Current benchmark pass rate",
+        },
+        {
+          label: "Slowest upload",
+          value: slowest ? `${slowest.size} • ${slowest.durationSeconds}s` : "n/a",
+          detail: `Total latest runtime: ${totalDuration}s`,
+        },
+      ];
+
+      summaryCards.innerHTML = cards.map((card) => `
+        <article class="rounded-[1.5rem] border border-border bg-panel-secondary p-5 shadow-panel backdrop-blur">
+          <p class="text-xs uppercase tracking-[0.24em] text-muted">${escapeHtml(card.label)}</p>
+          <p class="mt-3 text-2xl font-semibold tracking-tight text-ink">${escapeHtml(card.value)}</p>
+          <p class="mt-2 text-sm leading-6 text-muted">${escapeHtml(card.detail)}</p>
+        </article>
+      `).join("");
+    };
+
+    const renderLatestRun = (latestRun) => {
+      latestRunBody.innerHTML = latestRun.reports.map((report) => `
+        <tr class="align-top">
+          <td class="px-4 py-4 font-medium text-ink sm:px-6">${escapeHtml(report.size)}</td>
+          <td class="px-4 py-4 sm:px-6">
+            <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${badgeClasses(report)}">
+              ${escapeHtml(formatStatus(report))}
+            </span>
+          </td>
+          <td class="px-4 py-4 text-muted sm:px-6">${escapeHtml(formatDuration(report))}</td>
+          <td class="px-4 py-4 text-muted sm:px-6">${report.fqdn ? `<code class="rounded bg-panel-secondary px-2 py-1 text-xs text-ink">${escapeHtml(report.fqdn)}</code>` : "n/a"}</td>
+          <td class="px-4 py-4 sm:px-6">${report.url ? `<a class="text-accent underline-offset-4 hover:underline" href="${escapeHtml(report.url)}">open</a>` : "n/a"}</td>
+        </tr>
+      `).join("");
+    };
+
+    const renderHistory = () => {
+      const data = state.data;
+      if (!data) return;
+
+      historyHead.innerHTML = `
+        <tr>
+          <th class="px-4 py-3 sm:px-6">Run</th>
+          ${data.sizes.map((entry) => `<th class="px-4 py-3 sm:px-6">${escapeHtml(entry.size)}</th>`).join("")}
+          <th class="px-4 py-3 sm:px-6">Workflow</th>
+        </tr>
+      `;
+
+      const totalPages = Math.max(1, Math.ceil(data.runs.length / state.pageSize));
+      state.page = Math.min(Math.max(1, state.page), totalPages);
+      const start = (state.page - 1) * state.pageSize;
+      const visibleRuns = data.runs.slice(start, start + state.pageSize);
+
+      historyBody.innerHTML = visibleRuns.map((run) => {
+        const reportsBySlug = new Map(run.reports.map((report) => [report.slug, report]));
+
+        const cells = data.sizes.map((entry) => {
+          const report = reportsBySlug.get(entry.slug);
+          if (!report) {
+            return '<td class="px-4 py-4 text-muted sm:px-6">n/a</td>';
+          }
+
+          return `<td class="px-4 py-4 sm:px-6">
+            <div class="flex flex-col gap-1">
+              <span class="font-medium text-ink">${escapeHtml(formatDuration(report))}</span>
+              <span class="text-xs text-muted">${escapeHtml(formatStatus(report))}</span>
+            </div>
+          </td>`;
+        }).join("");
+
+        return `
+          <tr class="align-top">
+            <td class="px-4 py-4 sm:px-6">
+              <div class="flex flex-col gap-1">
+                <span class="font-medium text-ink">${escapeHtml(run.benchmarkDate)}</span>
+                <span class="text-xs text-muted">${escapeHtml(run.benchmarkTimestamp)}</span>
+              </div>
+            </td>
+            ${cells}
+            <td class="px-4 py-4 sm:px-6">
+              <a class="text-accent underline-offset-4 hover:underline" href="${escapeHtml(run.runUrl)}">open</a>
+            </td>
+          </tr>
+        `;
+      }).join("");
+
+      const rangeStart = data.runs.length === 0 ? 0 : start + 1;
+      const rangeEnd = start + visibleRuns.length;
+      historyPaginationSummary.textContent = `Showing ${rangeStart}-${rangeEnd} of ${data.runs.length} runs`;
+      historyPrev.disabled = state.page === 1;
+      historyNext.disabled = state.page === totalPages;
+    };
+
+    const render = (data) => {
+      state.data = data;
+      generatedAt.textContent = data.generatedAt || "Unavailable";
+      schemaVersion.textContent = data.schemaVersion ? `v${data.schemaVersion}` : "Unknown";
+
+      const latestRun = data.runs?.[0];
+      if (!latestRun) {
+        summaryCards.innerHTML = `
+          <article class="col-span-full rounded-[1.5rem] border border-border bg-panel p-8 text-center">
+            <p class="text-lg font-semibold text-ink mb-2">No benchmark data yet</p>
+            <p class="text-sm text-muted mb-4">Benchmarks run automatically each night or can be triggered on demand.</p>
+            <div class="text-sm text-muted space-y-1">
+              <p>To trigger a benchmark run:</p>
+              <p class="text-ink">1. Open a new issue with the <code class="rounded bg-panel-secondary px-2 py-0.5 text-accent">Benchmark Request</code> template</p>
+              <p class="text-ink">2. Select the sizes you want to benchmark</p>
+              <p class="text-ink">3. Results will appear here once the workflow completes</p>
+            </div>
+          </article>
+        `;
+        latestRunBody.innerHTML = "";
+        historyHead.innerHTML = "";
+        historyBody.innerHTML = "";
+        historyPaginationSummary.textContent = "No benchmark runs available";
+        historyPrev.disabled = true;
+        historyNext.disabled = true;
+        return;
+      }
+
+      renderSummary(data, latestRun);
+      renderLatestRun(latestRun);
+      renderHistory();
+    };
+
+    const load = async () => {
+      const response = await fetch("./benchmarks.json", { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`Failed to load benchmarks.json (${response.status})`);
+      }
+
+      const data = await response.json();
+      render(data);
+    };
+
+    historyPrev.addEventListener("click", () => {
+      state.page -= 1;
+      renderHistory();
+    });
+
+    historyNext.addEventListener("click", () => {
+      state.page += 1;
+      renderHistory();
+    });
+
+    historyPageSize.addEventListener("change", () => {
+      state.pageSize = Number(historyPageSize.value);
+      state.page = 1;
+      renderHistory();
+    });
+
+    load().catch((error) => {
+      generatedAt.textContent = "Unavailable";
+      schemaVersion.textContent = "Unavailable";
+      summaryCards.innerHTML = `<article class="rounded-[1.5rem] border border-rose-500/20 bg-rose-500/10 p-5 text-sm text-rose-100">${escapeHtml(error.message)}</article>`;
+      historyPaginationSummary.textContent = "Unable to load benchmark data";
+      historyPrev.disabled = true;
+      historyNext.disabled = true;
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+name: Benchmark Request
+description: Trigger on-demand upload benchmarks with custom sizes
+title: "[Benchmark]: On-demand"
+labels: ["benchmark-request"]
+
+body:
+  - type: checkboxes
+    id: sizes
+    attributes:
+      label: Benchmark sizes
+      description: Select the sizes to benchmark. Each size runs as an independent job.
+      options:
+        - label: 1 MB
+        - label: 5 MB
+        - label: 10 MB
+        - label: 25 MB
+        - label: 50 MB
+        - label: 100 MB
+        - label: 200 MB
+        - label: 500 MB
+        - label: UI build (dotns-ui)
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      placeholder: Any context for this benchmark run
+    validations:
+      required: false

@@ -76,7 +76,7 @@
       <h2 class="text-xl font-semibold text-dot-text-primary">Integration Architecture</h2>
       <p class="text-dot-text-secondary leading-relaxed">
         The integration sits between your UI layer and the transaction submission layer. No changes
-        to your contract interactions &mdash; you just resolve the name to an address first.
+        to your contract interactions &mdash; resolve the name to an address first.
       </p>
       <div class="border border-dot-border rounded-xl overflow-hidden">
         <div
@@ -126,16 +126,11 @@
       </div>
     </div>
 
-    <div class="space-y-4">
-      <h2 class="text-xl font-semibold text-dot-text-primary">Try It Live</h2>
-      <p class="text-dot-text-secondary leading-relaxed">
-        Resolve a .dot name right here. This is the same on-chain call your wallet or dApp would
-        make.
-      </p>
-      <div class="border border-dot-border rounded-xl p-5 bg-dot-surface">
-        <TryResolveName />
-      </div>
-    </div>
+    <DocCallout variant="tip" title="Try it">
+      <RouterLink to="/docs/introduction" class="text-dot-accent hover:text-dot-accent-hover">
+        Resolve a .dot name &rarr;
+      </RouterLink>
+    </DocCallout>
 
     <DocCallout variant="tip" title="Full contract reference">
       For the complete resolver API (including multicall for batch reads), see the
@@ -164,7 +159,6 @@
 <script setup lang="ts">
 import DocCallout from "@/components/docs/DocCallout.vue";
 import DocCodeBlock from "@/components/docs/DocCodeBlock.vue";
-import TryResolveName from "@/components/docs/interactive/TryResolveName.vue";
 
 const benefits = [
   {

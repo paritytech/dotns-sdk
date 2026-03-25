@@ -1,6 +1,5 @@
 import chalk from "chalk";
-import ora from "ora";
-import { promises as filesystem } from "node:fs";
+import { promises as filesystem, createReadStream } from "node:fs";
 import path from "node:path";
 import type { PolkadotClient, PolkadotSigner } from "polkadot-api";
 import { createClient } from "polkadot-api";
@@ -8,17 +7,28 @@ import { getWsProvider } from "polkadot-api/ws-provider";
 import { withPolkadotSdkCompat } from "polkadot-api/polkadot-sdk-compat";
 import { bulletin } from "@polkadot-api/descriptors";
 import { importer } from "ipfs-unixfs-importer";
-import { Readable } from "node:stream";
 import type { CID } from "multiformats/cid";
 import { encodeIpfsContenthash } from "../bulletin/cid";
-import { hasIpfsCli, merkleizeWithIpfs, verifyCidResolution } from "../bulletin/ipfs";
 import {
+  hasIpfsCli,
+  merkleizeWithIpfs,
+  verifyCidResolution,
+  verifySingleFileCid,
+} from "../bulletin/ipfs";
+import { completedBlocksFromManifest, loadManifestForResume } from "../bulletin/uploadManifest";
+import {
+  isRetryableUploadError,
+  normalizeUploadMaxRetries,
+  runWithUploadRetries,
+} from "../bulletin/uploadRetry";
+import {
+  FINAL_STORE_CALL_TIMEOUT_MS,
   storeSingleFileToBulletin,
-  splitBytesIntoChunks,
   storeChunkedFileToBulletin,
   fetchAccountNonce,
   createBulletinClient,
   storeBlockToBulletin,
+  clampChunkSizeBytes,
 } from "../bulletin/store";
 import type {
   ValidatePathResult,
@@ -27,31 +37,90 @@ import type {
   AuthorizationStatus,
   StoreDirectoryOptions,
   StoreDirectoryResult,
+  UploadChunkedBlocksOptions,
+  UploadManifestCompletedBlock,
+  UploadSingleBlockOptions,
+  MerkleizeDirectoryResult,
+  AuthorizationState,
+  WaveBlock,
+  BulletinPhaseHandler,
+  BulletinRetryHandler,
+  UploadDeps,
+  FlushWaveOptions,
 } from "../types/types";
 import {
   DEFAULT_AUTHORIZATION_TRANSACTIONS,
   DEFAULT_AUTHORIZATION_BYTES,
   DEFAULT_VERIFICATION_GATEWAY,
   BULLETIN_BLOCK_TIME_MS,
+  DEFAULT_UPLOAD_MAX_RETRIES,
+  MAX_SINGLE_UPLOAD_SIZE_BYTES,
 } from "../utils/constants";
-import { formatErrorMessage } from "../utils/formatting";
+import { formatErrorMessage, formatBytes, formatDuration } from "../utils/formatting";
 
-type MerkleizedBlock = {
-  cid: CID;
-  bytes: Uint8Array;
-};
+function emitPhase(
+  onPhase: BulletinPhaseHandler | undefined,
+  phase: "validate" | "authorize" | "upload" | "verify",
+  state: "start" | "update" | "success" | "warning" | "failure",
+  message: string,
+): void {
+  onPhase?.({ phase, state, message });
+}
 
-function formatBytesAsHumanReadable(bytesValue: bigint): string {
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let numericValue = Number(bytesValue);
-  let unitIndex = 0;
+function emitRetry(
+  onRetry: BulletinRetryHandler | undefined,
+  label: string,
+  retry: number,
+  totalAttempts: number,
+  delayMs: number,
+  error: unknown,
+): void {
+  onRetry?.({
+    label,
+    retry,
+    totalAttempts,
+    delayMs,
+    errorMessage: formatErrorMessage(error).split("\n")[0] ?? String(error),
+  });
+}
 
-  while (numericValue >= 1024 && unitIndex < units.length - 1) {
-    numericValue /= 1024;
-    unitIndex++;
+function cloneCompletedBlocks(
+  completedBlocks?: Map<number, UploadManifestCompletedBlock>,
+): Map<number, UploadManifestCompletedBlock> | undefined {
+  if (!completedBlocks || completedBlocks.size === 0) {
+    return undefined;
   }
 
-  return `${numericValue.toFixed(2)} ${units[unitIndex]}`;
+  return new Map(
+    [...completedBlocks.entries()].map(([index, block]) => [
+      index,
+      { index: block.index, cid: block.cid, length: block.length },
+    ]),
+  );
+}
+
+async function loadCompletedBlocksForRetry(
+  filePath: string,
+  fileSize: number,
+  chunkSize: number,
+  existingBlocks?: Map<number, UploadManifestCompletedBlock>,
+): Promise<Map<number, UploadManifestCompletedBlock> | undefined> {
+  const fileStats = await filesystem.stat(filePath);
+  const mergedCompletedBlocks = cloneCompletedBlocks(existingBlocks) ?? new Map();
+  const manifestLoadResult = await loadManifestForResume({
+    inputPath: filePath,
+    fileSize,
+    fileMtimeMs: fileStats.mtimeMs,
+    chunkSize,
+  });
+
+  if (manifestLoadResult.manifest) {
+    for (const [index, block] of completedBlocksFromManifest(manifestLoadResult.manifest)) {
+      mergedCompletedBlocks.set(index, block);
+    }
+  }
+
+  return mergedCompletedBlocks.size > 0 ? mergedCompletedBlocks : undefined;
 }
 
 export function estimateBlockDate(currentBlock: number, targetBlock: number): Date {
@@ -82,7 +151,7 @@ export function expirationToISOString(
 
 async function* traverseDirectoryRecursively(
   directoryPath: string,
-): AsyncGenerator<{ path: string; content: Uint8Array }> {
+): AsyncGenerator<{ path: string; fullPath: string }> {
   const directoryEntries = await filesystem.readdir(directoryPath, { withFileTypes: true });
 
   for (const entry of directoryEntries) {
@@ -91,83 +160,233 @@ async function* traverseDirectoryRecursively(
 
     if (entry.isDirectory()) {
       for await (const nestedFile of traverseDirectoryRecursively(fullPath)) {
-        yield { path: `${relativePath}/${nestedFile.path}`, content: nestedFile.content };
+        yield { path: `${relativePath}/${nestedFile.path}`, fullPath: nestedFile.fullPath };
       }
     } else if (entry.isFile()) {
-      const fileContent = new Uint8Array(await filesystem.readFile(fullPath));
-      yield { path: relativePath, content: fileContent };
+      yield { path: relativePath, fullPath };
     }
   }
 }
 
-async function merkleizeDirectoryIntoBlocks(
+const DIRECTORY_WAVE_RETRY_BASE_DELAYS_MS = [200, 400, 800] as const;
+const MAX_DIRECTORY_WAVE_RETRIES = 3;
+
+async function merkleizeAndUploadDirectory(
   directoryPath: string,
-): Promise<{ rootCid: CID; blocks: MerkleizedBlock[] }> {
-  const collectedBlocks: MerkleizedBlock[] = [];
+  deps: UploadDeps,
+): Promise<MerkleizeDirectoryResult> {
+  const WAVE_SIZE = deps.concurrency;
+  let waveBuffer: WaveBlock[] = [];
+  let sharedClient: ReturnType<typeof createBulletinClient> | null = null;
+  let completedCount = 0;
+  let totalBytes = 0;
   let rootContentCid: CID | undefined;
 
-  const inMemoryBlockstore = {
+  const blockCache = new Map<string, Uint8Array>();
+  const uploadedCids = new Set<string>();
+  let nextNonce = -1;
+
+  const ensureClient = async () => {
+    if (!sharedClient) {
+      sharedClient = createBulletinClient(deps.rpc);
+      nextNonce = await fetchAccountNonce(deps.rpc, deps.accountAddress);
+    }
+    return sharedClient;
+  };
+
+  const recreateSharedClient = () => {
+    try {
+      sharedClient?.destroy();
+    } catch {
+      /* already closed */
+    }
+    sharedClient = createBulletinClient(deps.rpc);
+  };
+
+  async function flushWave(options: FlushWaveOptions = {}): Promise<void> {
+    if (waveBuffer.length === 0) return;
+
+    await ensureClient();
+
+    const wave = waveBuffer;
+    waveBuffer = [];
+    let pendingBlocks = wave;
+    let retryCount = 0;
+    const storeTimeoutMs = options.isFinalWave ? FINAL_STORE_CALL_TIMEOUT_MS : undefined;
+
+    while (pendingBlocks.length > 0) {
+      const startingNonce = nextNonce;
+      nextNonce += pendingBlocks.length;
+
+      const results = await Promise.all(
+        pendingBlocks.map(async (block, index) => {
+          try {
+            await storeBlockToBulletin({
+              rpc: deps.rpc,
+              signer: deps.signer,
+              contentBytes: block.bytes,
+              contentCid: block.cid.toString(),
+              codecValue: block.cid.code,
+              hashCodeValue: block.cid.multihash.code,
+              nonce: startingNonce + index,
+              client: sharedClient!,
+              storeTimeoutMs,
+              waitForFinalization: deps.waitForFinalization,
+            });
+
+            return { block, error: null };
+          } catch (error) {
+            return { block, error };
+          }
+        }),
+      );
+
+      const retryableFailures: WaveBlock[] = [];
+
+      for (const result of results) {
+        if (!result.error) {
+          completedCount++;
+          totalBytes += result.block.bytes.length;
+          deps.onBlockStored?.(
+            {
+              cidString: result.block.cid.toString(),
+              codecValue: result.block.cid.code,
+              hashCodeValue: result.block.cid.multihash.code,
+              size: result.block.bytes.length,
+            },
+            completedCount,
+            completedCount,
+          );
+          continue;
+        }
+
+        if (!isRetryableUploadError(result.error) || retryCount >= MAX_DIRECTORY_WAVE_RETRIES) {
+          throw result.error;
+        }
+
+        retryableFailures.push(result.block);
+      }
+
+      if (retryableFailures.length === 0) {
+        for (const block of wave) {
+          blockCache.delete(block.cid.toString());
+        }
+        return;
+      }
+
+      const delayMs =
+        DIRECTORY_WAVE_RETRY_BASE_DELAYS_MS[
+          Math.min(retryCount, DIRECTORY_WAVE_RETRY_BASE_DELAYS_MS.length - 1)
+        ] ?? DIRECTORY_WAVE_RETRY_BASE_DELAYS_MS[DIRECTORY_WAVE_RETRY_BASE_DELAYS_MS.length - 1];
+
+      retryCount += 1;
+      recreateSharedClient();
+      nextNonce = await fetchAccountNonce(deps.rpc, deps.accountAddress);
+      pendingBlocks = retryableFailures;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+
+  const uploadingBlockstore = {
     put: async (contentCid: CID, contentBytes: Uint8Array): Promise<CID> => {
-      collectedBlocks.push({ cid: contentCid, bytes: contentBytes });
+      const cidStr = contentCid.toString();
+
+      if (uploadedCids.has(cidStr)) {
+        return contentCid;
+      }
+
+      blockCache.set(cidStr, contentBytes);
+      waveBuffer.push({ cid: contentCid, bytes: contentBytes });
+      uploadedCids.add(cidStr);
+
+      if (waveBuffer.length >= WAVE_SIZE) {
+        await flushWave();
+      }
+
       return contentCid;
     },
     get: async (contentCid: CID): Promise<Uint8Array> => {
-      const foundBlock = collectedBlocks.find((block) => block.cid.equals(contentCid));
-      if (!foundBlock) {
+      const cached = blockCache.get(contentCid.toString());
+      if (!cached) {
         throw new Error(`Block not found: ${contentCid}`);
       }
-      return foundBlock.bytes;
+      return cached;
     },
   };
 
-  const collectedFiles: { path: string; content: Uint8Array }[] = [];
-  for await (const file of traverseDirectoryRecursively(directoryPath)) {
-    collectedFiles.push(file);
+  async function* importerSource() {
+    for await (const file of traverseDirectoryRecursively(directoryPath)) {
+      yield { path: file.path, content: createReadStream(file.fullPath) };
+    }
   }
 
-  const importerSource = collectedFiles.map((file) => ({
-    path: file.path,
-    content: Readable.from([file.content]),
-  }));
+  try {
+    for await (const importedEntry of importer(importerSource(), uploadingBlockstore, {
+      wrapWithDirectory: true,
+      cidVersion: 1,
+      rawLeaves: true,
+    })) {
+      rootContentCid = importedEntry.cid;
+    }
 
-  for await (const importedEntry of importer(importerSource, inMemoryBlockstore, {
-    wrapWithDirectory: true,
-    cidVersion: 1,
-    rawLeaves: true,
-  })) {
-    rootContentCid = importedEntry.cid;
+    recreateSharedClient();
+    nextNonce = await fetchAccountNonce(deps.rpc, deps.accountAddress);
+    await flushWave({ isFinalWave: true });
+  } finally {
+    if (sharedClient) (sharedClient as ReturnType<typeof createBulletinClient>).destroy();
+    blockCache.clear();
   }
 
   if (!rootContentCid) {
     throw new Error("Failed to merkleize directory: no root CID produced");
   }
 
-  return { rootCid: rootContentCid, blocks: collectedBlocks };
+  return { rootCid: rootContentCid, totalBlocks: completedCount, totalBytes };
 }
 
-export async function validateAndReadPath(inputPath: string): Promise<ValidatePathResult> {
-  const spinner = ora("Validating path").start();
-
+export async function validateAndReadPath(
+  inputPath: string,
+  onPhase?: BulletinPhaseHandler,
+): Promise<ValidatePathResult> {
+  emitPhase(onPhase, "validate", "start", "Validating path");
   try {
     const resolvedPath = path.resolve(inputPath);
     const pathStats = await filesystem.stat(resolvedPath);
 
     if (pathStats.isDirectory()) {
-      spinner.succeed("Directory validated");
+      emitPhase(onPhase, "validate", "success", "Directory validated");
       return { bytes: new Uint8Array(), isDirectory: true, resolvedPath };
     }
 
     if (pathStats.isFile()) {
-      spinner.text = "Reading file";
+      if (pathStats.size > MAX_SINGLE_UPLOAD_SIZE_BYTES) {
+        emitPhase(onPhase, "validate", "success", "File validated (deferred read)");
+        return {
+          bytes: new Uint8Array(),
+          isDirectory: false,
+          resolvedPath,
+          fileSize: pathStats.size,
+          fileMtimeMs: pathStats.mtimeMs,
+          deferredRead: true,
+        };
+      }
+
+      emitPhase(onPhase, "validate", "update", "Reading file");
       const fileBytes = new Uint8Array(await filesystem.readFile(resolvedPath));
-      spinner.succeed("File validated");
-      return { bytes: fileBytes, isDirectory: false, resolvedPath };
+      emitPhase(onPhase, "validate", "success", "File validated");
+      return {
+        bytes: fileBytes,
+        isDirectory: false,
+        resolvedPath,
+        fileSize: pathStats.size,
+        fileMtimeMs: pathStats.mtimeMs,
+      };
     }
 
-    spinner.fail("Path validation failed");
+    emitPhase(onPhase, "validate", "failure", "Path validation failed");
     throw new Error(`Path is neither a file nor a directory: ${resolvedPath}`);
   } catch (error) {
-    spinner.fail("Path validation failed");
+    emitPhase(onPhase, "validate", "failure", "Path validation failed");
     throw error;
   }
 }
@@ -182,11 +401,11 @@ export async function authorizeAccount(
     transactions = DEFAULT_AUTHORIZATION_TRANSACTIONS,
     bytes = DEFAULT_AUTHORIZATION_BYTES,
     force = false,
+    onPhase,
   } = options;
-
-  const spinner = ora("Checking authorization status").start();
   let client: PolkadotClient | undefined;
   let txHash = "";
+  emitPhase(onPhase, "authorize", "start", "Checking authorization status");
 
   try {
     const existingAuthorization = await checkAuthorization(rpc, targetAddress);
@@ -194,52 +413,21 @@ export async function authorizeAccount(
     if (existingAuthorization.authorized) {
       const existingTransactions = existingAuthorization.transactions ?? 0;
       const existingBytes = existingAuthorization.bytes ?? BigInt(0);
-      const currentBlock = existingAuthorization.currentBlock ?? 0;
 
       if (existingAuthorization.expired) {
-        spinner.warn("Authorization expired");
-        console.log(
-          chalk.gray("  expired:  ") +
-            chalk.red(formatExpirationDisplay(currentBlock, existingAuthorization.expiration!)),
-        );
-        spinner.start("Re-authorizing account");
+        emitPhase(onPhase, "authorize", "warning", "Authorization expired");
+        emitPhase(onPhase, "authorize", "update", "Re-authorizing account");
       } else if (existingTransactions >= transactions && existingBytes >= bytes) {
         if (!force) {
-          spinner.warn("Account already authorized");
-          console.log(
-            chalk.gray("  transactions: ") +
-              chalk.white(existingTransactions.toLocaleString()) +
-              chalk.gray(` (requested: ${transactions.toLocaleString()})`),
-          );
-          console.log(
-            chalk.gray("  bytes:        ") +
-              chalk.white(formatBytesAsHumanReadable(existingBytes)) +
-              chalk.gray(` (requested: ${formatBytesAsHumanReadable(bytes)})`),
-          );
-          console.log(
-            chalk.gray("  expires:      ") +
-              chalk.white(formatExpirationDisplay(currentBlock, existingAuthorization.expiration!)),
-          );
+          emitPhase(onPhase, "authorize", "warning", "Account already authorized");
           return { txHash: "", blockHash: "" };
         }
-        spinner.info("Force re-authorizing account");
+        emitPhase(onPhase, "authorize", "update", "Force re-authorizing account");
       } else {
-        spinner.info("Upgrading authorization limits");
-        console.log(
-          chalk.gray("  transactions: ") +
-            chalk.white(
-              `${existingTransactions.toLocaleString()} → ${transactions.toLocaleString()}`,
-            ),
-        );
-        console.log(
-          chalk.gray("  bytes:        ") +
-            chalk.white(
-              `${formatBytesAsHumanReadable(existingBytes)} → ${formatBytesAsHumanReadable(bytes)}`,
-            ),
-        );
+        emitPhase(onPhase, "authorize", "update", "Upgrading authorization limits");
       }
     } else {
-      spinner.text = "Authorizing account";
+      emitPhase(onPhase, "authorize", "update", "Authorizing account");
     }
 
     client = createClient(withPolkadotSdkCompat(getWsProvider(rpc)));
@@ -256,15 +444,20 @@ export async function authorizeAccount(
         next: (event) => {
           switch (event.type) {
             case "signed":
-              spinner.text = "Authorization: signing";
+              emitPhase(onPhase, "authorize", "update", "Authorization: signing");
               break;
             case "broadcasted":
-              spinner.text = "Authorization: broadcasting";
+              emitPhase(onPhase, "authorize", "update", "Authorization: broadcasting");
               txHash = event.txHash;
               break;
             case "txBestBlocksState":
               if (event.found) {
-                spinner.text = "Authorization: included, awaiting finalization";
+                emitPhase(
+                  onPhase,
+                  "authorize",
+                  "update",
+                  "Authorization: included, awaiting finalization",
+                );
               }
               break;
             case "finalized":
@@ -272,7 +465,7 @@ export async function authorizeAccount(
               client?.destroy();
 
               if (!event.ok) {
-                spinner.fail("Authorization transaction failed on-chain");
+                emitPhase(onPhase, "authorize", "failure", "Authorization transaction failed");
                 reject(new Error("Authorization transaction was rejected by the chain"));
                 return;
               }
@@ -285,27 +478,10 @@ export async function authorizeAccount(
                     (verification.transactions ?? 0) >= transactions &&
                     (verification.bytes ?? BigInt(0)) >= bytes
                   ) {
-                    spinner.succeed("Account authorized");
-                    console.log(chalk.gray("  target:       ") + chalk.cyan(targetAddress));
-                    console.log(
-                      chalk.gray("  transactions: ") + chalk.white(transactions.toLocaleString()),
-                    );
-                    console.log(
-                      chalk.gray("  bytes:        ") +
-                        chalk.white(formatBytesAsHumanReadable(bytes)),
-                    );
-                    console.log(
-                      chalk.gray("  expires:      ") +
-                        chalk.white(
-                          formatExpirationDisplay(
-                            verification.currentBlock ?? 0,
-                            verification.expiration!,
-                          ),
-                        ),
-                    );
+                    emitPhase(onPhase, "authorize", "success", "Account authorized");
                     resolve({ txHash, blockHash: event.block.hash });
                   } else {
-                    spinner.fail("Authorization not applied");
+                    emitPhase(onPhase, "authorize", "failure", "Authorization not applied");
                     reject(
                       new Error(
                         "Authorization was finalized but not applied.\n" +
@@ -315,7 +491,12 @@ export async function authorizeAccount(
                   }
                 })
                 .catch(() => {
-                  spinner.warn("Authorization submitted (could not verify)");
+                  emitPhase(
+                    onPhase,
+                    "authorize",
+                    "warning",
+                    "Authorization submitted (could not verify)",
+                  );
                   resolve({ txHash, blockHash: event.block.hash });
                 });
               break;
@@ -324,19 +505,19 @@ export async function authorizeAccount(
         error: (error) => {
           subscription.unsubscribe();
           client?.destroy();
-          spinner.fail("Authorization failed");
+          emitPhase(onPhase, "authorize", "failure", "Authorization failed");
           reject(error);
         },
       });
     });
   } catch (error) {
     client?.destroy();
-    spinner.fail("Authorization failed");
+    emitPhase(onPhase, "authorize", "failure", "Authorization failed");
 
     const errorMessage = formatErrorMessage(error);
 
     if (errorMessage.includes("AlreadyAuthorized")) {
-      console.log(chalk.yellow("  Account is already authorized"));
+      emitPhase(onPhase, "authorize", "warning", "Account already authorized");
       return { txHash: "", blockHash: "" };
     }
 
@@ -388,9 +569,8 @@ export async function checkAuthorization(
 
 export async function ensureAccountAuthorized(
   bulletinRpc: string,
-  signer: PolkadotSigner,
   accountAddress: string,
-): Promise<{ expiration?: number; currentBlock?: number }> {
+): Promise<AuthorizationState> {
   const authStatus = await checkAuthorization(bulletinRpc, accountAddress);
 
   if (authStatus.authorized && !authStatus.expired) {
@@ -416,37 +596,72 @@ export async function uploadSingleBlock(
   bulletinRpc: string,
   signer: PolkadotSigner,
   fileBytes: Uint8Array,
+  options: UploadSingleBlockOptions = {},
 ): Promise<string> {
-  const spinner = ora("Storing to Bulletin").start();
+  const { onPhase, onRetry } = options;
+  const maxRetries = normalizeUploadMaxRetries(options.maxRetries);
 
   try {
-    const storeResult = await storeSingleFileToBulletin({
-      rpc: bulletinRpc,
-      signer,
-      contentBytes: fileBytes,
-      onProgress: (status) => {
-        spinner.text = `Storing: ${status}`;
+    return await runWithUploadRetries({
+      maxRetries,
+      onRetry: ({ retry, totalAttempts, delayMs, error }) => {
+        emitRetry(onRetry, "upload", retry, totalAttempts, delayMs, error);
+      },
+      execute: async (attempt, totalAttempts) => {
+        emitPhase(
+          onPhase,
+          "upload",
+          "start",
+          attempt === 0
+            ? "Storing to Bulletin"
+            : `Retrying upload (${attempt + 1}/${totalAttempts})`,
+        );
+
+        try {
+          const storeResult = await storeSingleFileToBulletin({
+            rpc: bulletinRpc,
+            signer,
+            contentBytes: fileBytes,
+            onProgress: (status) => {
+              emitPhase(onPhase, "upload", "update", `Storing: ${status}`);
+            },
+            waitForFinalization: false,
+          });
+
+          emitPhase(onPhase, "upload", "success", "Stored");
+
+          emitPhase(onPhase, "verify", "start", "Connecting to Bulletin P2P");
+          const verificationResult = await verifySingleFileCid(storeResult.cid);
+          if (verificationResult.resolvable) {
+            emitPhase(
+              onPhase,
+              "verify",
+              "success",
+              `CID verified via ${verificationResult.gateway}`,
+            );
+          } else {
+            emitPhase(onPhase, "verify", "warning", "Could not verify CID");
+          }
+
+          return storeResult.cid;
+        } catch (error) {
+          if (attempt < maxRetries) {
+            emitPhase(onPhase, "upload", "warning", "Upload attempt failed");
+          } else {
+            emitPhase(onPhase, "upload", "failure", "Upload failed");
+          }
+          throw error;
+        }
       },
     });
-
-    spinner.succeed("Stored");
-    spinner.info("Verifying upload...");
-    const results = await verifySingleFileCid(storeResult.cid);
-    if (results.resolvable) {
-      console.log(chalk.green("  ✓ CID successfully resolved via gateway"));
-    } else {
-      console.log(chalk.red("  ✗ CID could not be resolved via gateway"));
-    }
-
-    return storeResult.cid;
   } catch (error) {
-    spinner.fail("Upload failed");
-
     const errorMessage = formatErrorMessage(error);
     if (errorMessage.includes("Payment")) {
-      console.log(chalk.red("\n  Account is not authorized for TransactionStorage."));
-      console.log(chalk.yellow("\n  To authorize your account, run:\n"));
-      console.log(chalk.gray("    dotns bulletin authorize <your-address>\n"));
+      throw new Error(
+        "Account is not authorized for TransactionStorage.\n\n" +
+          "Authorize it first:\n\n" +
+          "  dotns bulletin authorize <your-address>\n",
+      );
     }
 
     throw error;
@@ -456,46 +671,106 @@ export async function uploadSingleBlock(
 export async function uploadChunkedBlocks(
   bulletinRpc: string,
   signer: PolkadotSigner,
-  fileBytes: Uint8Array,
+  filePath: string,
   chunkSizeBytes: number,
+  fileSize: number,
+  accountAddress: string,
+  options: UploadChunkedBlocksOptions = {},
 ): Promise<string> {
-  const contentChunks = splitBytesIntoChunks(fileBytes, chunkSizeBytes);
-  console.log(chalk.gray("  chunks:   ") + chalk.white(contentChunks.length.toString()));
-
-  const spinner = ora(`Storing chunks (0/${contentChunks.length})`).start();
-
-  const sharedClient = createBulletinClient(bulletinRpc);
+  const { onPhase, onRetry } = options;
+  const effectiveChunkSize = clampChunkSizeBytes(chunkSizeBytes);
+  const totalChunks = Math.ceil(fileSize / effectiveChunkSize);
+  const concurrency = Math.max(1, Math.min(4, options.concurrency ?? 4));
+  const maxRetries = normalizeUploadMaxRetries(options.maxRetries);
+  let completedBlocks = cloneCompletedBlocks(options.completedBlocks);
 
   try {
-    const storeResult = await storeChunkedFileToBulletin({
-      rpc: bulletinRpc,
-      signer,
-      contentChunks,
-      onProgress: (currentChunk, totalChunks, status) => {
-        if (status === "storing") {
-          spinner.text = `Storing chunks (${currentChunk}/${totalChunks})`;
-        } else {
-          spinner.text = `${status} (${currentChunk}/${totalChunks})`;
+    return await runWithUploadRetries({
+      maxRetries,
+      onRetry: ({ retry, totalAttempts, delayMs, error }) => {
+        emitRetry(onRetry, "chunked upload", retry, totalAttempts, delayMs, error);
+      },
+      execute: async (attempt) => {
+        if (attempt > 0) {
+          completedBlocks = await loadCompletedBlocksForRetry(
+            filePath,
+            fileSize,
+            effectiveChunkSize,
+            completedBlocks,
+          );
+        }
+        emitPhase(
+          onPhase,
+          "upload",
+          "start",
+          `Chunked upload starting (${totalChunks} chunks, adaptive window 1..${concurrency})`,
+        );
+
+        if (attempt > 0 && completedBlocks && completedBlocks.size > 0) {
+          emitPhase(
+            onPhase,
+            "upload",
+            "update",
+            `Resuming from ${completedBlocks.size}/${totalChunks} uploaded chunks`,
+          );
+        }
+
+        const startTime = Date.now();
+
+        try {
+          const storeResult = await storeChunkedFileToBulletin({
+            rpc: bulletinRpc,
+            signer,
+            filePath,
+            chunkSize: effectiveChunkSize,
+            fileSize,
+            accountAddress,
+            concurrency,
+            completedBlocks,
+            onSchedulerState: options.onSchedulerState,
+            onWave: options.onWave,
+            waitForFinalization: false,
+            onProgress: (currentChunk, totalChunkCount, status) => {
+              if (status === "stored" || status === "skipped") return;
+              emitPhase(
+                onPhase,
+                "upload",
+                "update",
+                `${status} (${currentChunk}/${totalChunkCount})`,
+              );
+            },
+          });
+
+          const elapsed = (Date.now() - startTime) / 1000;
+          const throughput = elapsed > 0 ? fileSize / elapsed : 0;
+          emitPhase(
+            onPhase,
+            "upload",
+            "success",
+            `Uploaded ${totalChunks} chunks (${formatBytes(fileSize)}) in ${formatDuration(elapsed)} — ${formatBytes(throughput)}/s`,
+          );
+          return storeResult.rootCid;
+        } catch (error) {
+          if (attempt < maxRetries) {
+            emitPhase(onPhase, "upload", "warning", "Upload attempt failed");
+          } else {
+            emitPhase(onPhase, "upload", "failure", "Upload failed");
+          }
+          throw error;
         }
       },
-      client: sharedClient,
     });
-
-    spinner.succeed("Stored");
-    return storeResult.rootCid;
   } catch (error) {
-    spinner.fail("Upload failed");
-
     const errorMessage = formatErrorMessage(error);
     if (errorMessage.includes("Payment")) {
-      console.log(chalk.red("\n  Account is not authorized for TransactionStorage."));
-      console.log(chalk.yellow("\n  To authorize your account, run:\n"));
-      console.log(chalk.gray("    dotns bulletin authorize <your-address> --key-uri //Alice\n"));
+      throw new Error(
+        "Account is not authorized for TransactionStorage.\n\n" +
+          "Authorize it first:\n\n" +
+          `  dotns bulletin authorize ${accountAddress}\n`,
+      );
     }
 
     throw error;
-  } finally {
-    sharedClient.destroy();
   }
 }
 
@@ -506,143 +781,119 @@ export async function storeDirectory(
   options: StoreDirectoryOptions = {},
 ): Promise<StoreDirectoryResult> {
   const {
-    parallel = false,
-    concurrency = 10,
+    concurrency = 3,
     accountAddress,
+    onPhase,
+    onRetry,
     verificationGateway = DEFAULT_VERIFICATION_GATEWAY,
+    maxRetries = DEFAULT_UPLOAD_MAX_RETRIES,
     waitForFinalization = true,
   } = options;
 
-  const merkleSpinner = ora("Merkleizing directory").start();
+  if (!accountAddress) {
+    throw new Error("accountAddress is required for directory uploads");
+  }
+
+  const normalizedMaxRetries = normalizeUploadMaxRetries(maxRetries);
 
   try {
-    const { rootCid, blocks } = await merkleizeDirectoryIntoBlocks(directoryPath);
+    return await runWithUploadRetries({
+      maxRetries: normalizedMaxRetries,
+      onRetry: ({ retry, totalAttempts, delayMs, error }) => {
+        emitRetry(onRetry, "directory upload", retry, totalAttempts, delayMs, error);
+      },
+      execute: async (attempt, totalAttempts) => {
+        const startTime = Date.now();
+        let uploadedBytes = 0;
+        emitPhase(
+          onPhase,
+          "upload",
+          "start",
+          attempt === 0
+            ? "Merkleizing and uploading directory"
+            : `Retrying directory upload (${attempt + 1}/${totalAttempts})`,
+        );
 
-    if (hasIpfsCli()) {
-      try {
-        const ipfsCliResult = merkleizeWithIpfs(directoryPath);
-        if (ipfsCliResult.cid !== rootCid.toString()) {
-          merkleSpinner.warn("CID mismatch detected between local merkleization and IPFS CLI");
-          console.log(chalk.red("  IPFS CLI: ") + chalk.white(ipfsCliResult.cid));
-          console.log(chalk.red("  Local:    ") + chalk.white(rootCid.toString()));
-        }
-      } catch {
-        // IPFS CLI verification is optional
-      }
-    }
-
-    const totalSizeBytes = blocks.reduce((sum, block) => sum + block.bytes.length, 0);
-    merkleSpinner.succeed("Merkleized");
-    console.log(chalk.gray("  blocks:   ") + chalk.white(blocks.length.toString()));
-    console.log(
-      chalk.gray("  size:     ") + chalk.white(`${(totalSizeBytes / 1024 / 1024).toFixed(2)} MB`),
-    );
-    console.log(chalk.gray("  root cid: ") + chalk.cyan(rootCid.toString()));
-
-    for (const block of blocks) {
-      const codecHexString = `0x${block.cid.code.toString(16)}`;
-      const hashCodeHexString = `0x${block.cid.multihash.code.toString(16)}`;
-      const isRootBlock = block.cid.toString() === rootCid.toString();
-      console.log(
-        chalk.gray("    → ") +
-          chalk.white(block.cid.toString().slice(0, 20) + "...") +
-          chalk.gray(
-            ` codec=${codecHexString} hash=${hashCodeHexString} size=${block.bytes.length}`,
-          ) +
-          (isRootBlock ? chalk.green(" (root)") : ""),
-      );
-    }
-
-    // The bulletin chain fits ~8 store txs per block (6s block time).
-    // Submit in waves matching chain throughput to avoid AncientBirthBlock errors
-    // from nonces sitting too long in the pool.
-    const WAVE_SIZE = Math.min(concurrency, 8);
-    const storeSpinner = ora(`Storing blocks (0/${blocks.length})`).start();
-    let completedBlockCount = 0;
-
-    const sharedClient = createBulletinClient(bulletinRpc);
-
-    try {
-      if (parallel && accountAddress) {
-        // Submit in waves: assign nonces for one wave, submit, wait for all to clear, repeat.
-        for (let waveStart = 0; waveStart < blocks.length; waveStart += WAVE_SIZE) {
-          const waveEnd = Math.min(waveStart + WAVE_SIZE, blocks.length);
-          const waveBlocks = blocks.slice(waveStart, waveEnd);
-          const startingNonce = await fetchAccountNonce(bulletinRpc, accountAddress);
-
-          const wavePromises = waveBlocks.map((block, index) =>
-            storeBlockToBulletin({
+        try {
+          const { rootCid, totalBlocks, totalBytes } = await merkleizeAndUploadDirectory(
+            directoryPath,
+            {
               rpc: bulletinRpc,
               signer,
-              contentBytes: block.bytes,
-              contentCid: block.cid.toString(),
-              codecValue: block.cid.code,
-              hashCodeValue: block.cid.multihash.code,
-              nonce: startingNonce + index,
-              client: sharedClient,
+              accountAddress,
+              concurrency,
               waitForFinalization,
-            }).then(() => {
-              completedBlockCount++;
-              storeSpinner.text = `Storing blocks (${completedBlockCount}/${blocks.length})`;
-            }),
+              onBlockStored: (meta, completedCount) => {
+                uploadedBytes += meta.size;
+                const elapsed = (Date.now() - startTime) / 1000;
+                const throughput = elapsed > 0 ? uploadedBytes / elapsed : 0;
+
+                if (completedCount % concurrency === 0) {
+                  emitPhase(
+                    onPhase,
+                    "upload",
+                    "update",
+                    `Wave complete — ${completedCount} blocks uploaded (${formatBytes(throughput)}/s)`,
+                  );
+                }
+              },
+            },
           );
 
-          await Promise.all(wavePromises);
+          const elapsed = (Date.now() - startTime) / 1000;
+          const throughput = elapsed > 0 ? totalBytes / elapsed : 0;
+          emitPhase(
+            onPhase,
+            "upload",
+            "success",
+            `Uploaded ${totalBlocks} blocks (${formatBytes(totalBytes)}) in ${formatDuration(elapsed)} — ${formatBytes(throughput)}/s`,
+          );
+
+          if (hasIpfsCli()) {
+            try {
+              const ipfsCliResult = merkleizeWithIpfs(directoryPath);
+              if (ipfsCliResult.cid !== rootCid.toString()) {
+                console.log(chalk.yellow("  CID mismatch: IPFS CLI vs local merkleization"));
+                console.log(chalk.red("  IPFS CLI: ") + chalk.white(ipfsCliResult.cid));
+                console.log(chalk.red("  Local:    ") + chalk.white(rootCid.toString()));
+              }
+            } catch {
+              // IPFS CLI verification is optional
+            }
+          }
+
+          console.log(chalk.gray("  root cid: ") + chalk.cyan(rootCid.toString()));
+
+          emitPhase(onPhase, "verify", "start", "Verifying content resolution");
+          const rootCidString = rootCid.toString();
+
+          const rootVerification = await verifyCidResolution(rootCidString, verificationGateway);
+
+          if (rootVerification.resolvable) {
+            emitPhase(onPhase, "verify", "success", "Root CID resolvable");
+          } else {
+            emitPhase(onPhase, "verify", "warning", "Root CID not yet resolvable");
+            console.log(chalk.gray("  gateway:  ") + chalk.white(verificationGateway));
+            console.log(chalk.yellow("  Content may take time to propagate through the network"));
+          }
+
+          return { storageCid: rootCidString, ipfsCid: rootCidString };
+        } catch (error) {
+          if (attempt < normalizedMaxRetries) {
+            emitPhase(onPhase, "upload", "warning", "Directory upload attempt failed");
+          } else {
+            emitPhase(onPhase, "upload", "failure", "Directory upload failed");
+          }
+          throw error;
         }
-      } else {
-        for (const block of blocks) {
-          await storeBlockToBulletin({
-            rpc: bulletinRpc,
-            signer,
-            contentBytes: block.bytes,
-            contentCid: block.cid.toString(),
-            codecValue: block.cid.code,
-            hashCodeValue: block.cid.multihash.code,
-            client: sharedClient,
-          });
-
-          completedBlockCount++;
-          storeSpinner.text = `Storing blocks (${completedBlockCount}/${blocks.length})`;
-        }
-      }
-    } finally {
-      sharedClient.destroy();
-    }
-
-    storeSpinner.succeed("Stored");
-
-    const verifySpinner = ora("Verifying content resolution").start();
-    const rootCidString = rootCid.toString();
-
-    const rootVerification = await verifyCidResolution(rootCidString, verificationGateway);
-
-    if (rootVerification.resolvable) {
-      verifySpinner.succeed("Root CID resolvable");
-    } else {
-      verifySpinner.warn("Root CID not yet resolvable");
-      console.log(chalk.gray("  gateway:  ") + chalk.white(verificationGateway));
-      console.log(chalk.yellow("  Content may take time to propagate through the network"));
-    }
-
-    return { storageCid: rootCidString, ipfsCid: rootCidString };
+      },
+    });
   } catch (error) {
-    merkleSpinner.fail("Directory upload failed");
     throw error;
   }
 }
 
-export async function verifySingleFileCid(
-  contentCid: string,
-  gatewayBaseUrl: string = DEFAULT_VERIFICATION_GATEWAY,
-): Promise<{ resolvable: boolean; gateway: string; statusCode?: number }> {
-  const verificationResult = await verifyCidResolution(contentCid, gatewayBaseUrl);
-
-  return {
-    resolvable: verificationResult.resolvable,
-    gateway: verificationResult.gateway,
-    statusCode: verificationResult.statusCode,
-  };
-}
+export { verifySingleFileCid } from "../bulletin/ipfs";
 
 export function generateContenthash(contentCid: string): string {
   return encodeIpfsContenthash(contentCid);

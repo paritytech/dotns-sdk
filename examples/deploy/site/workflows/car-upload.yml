@@ -1,13 +1,11 @@
-# Deploy using a CAR file instead of individual IPFS blocks.
+# Deploy using in-memory CAR merkleization (--as-car).
 #
-# When use-car is enabled, the workflow installs IPFS Kubo, merkleizes the
-# build directory into a CAR file (ipfs add + ipfs dag export), and uploads
-# the CAR as a single chunked file to Bulletin. This matches the storage
-# strategy used by deploy-to-triangle and the deploy.js example.
+# The CLI merkleizes the build directory into a CAR file in-memory using
+# ipfs-unixfs-importer and @ipld/car, then uploads it as a single chunked
+# file to Bulletin. No external IPFS binary is needed.
 #
-# The default (use-car: false) merkleizes in-memory and uploads each IPFS
-# block individually. CAR-based upload can be faster for large sites because
-# it writes fewer, larger transactions.
+# CAR-based upload can be faster for large sites because it writes fewer,
+# larger transactions.
 #
 # Use case: Large static sites or projects that need CAR-based storage
 # for compatibility with the Polkadot Triangle gateway.
@@ -43,7 +41,6 @@ jobs:
       basename: my-app
       artifact-name: site
       mode: preview
-      use-car: true
       register-base: true
       max-retries: 5
     secrets:
@@ -58,6 +55,5 @@ jobs:
       basename: my-app
       artifact-name: site
       mode: production
-      use-car: true
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}

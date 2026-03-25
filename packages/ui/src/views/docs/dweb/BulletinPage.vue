@@ -6,16 +6,16 @@
       <p class="text-lg text-dot-text-secondary leading-relaxed">
         Bulletin is Polkadot's on-chain IPFS block storage &mdash; a parachain purpose-built for
         storing content-addressed data directly on the network. Unlike traditional IPFS pinning,
-        content stored on Bulletin is guaranteed to be available as long as the chain is live.
+        content stored on Bulletin is available as long as the chain is live.
       </p>
     </div>
 
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">What is Bulletin?</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Bulletin is a Polkadot system parachain that accepts IPFS-formatted blocks as extrinsics and
-        stores them on-chain. Each block is content-addressed &mdash; identified by its CID (Content
-        Identifier) &mdash; and can be retrieved by any node connected to the chain.
+        Bulletin is a Polkadot system parachain that accepts IPFS-formatted blocks as transactions
+        and stores them on-chain. Each block is content-addressed &mdash; identified by its CID
+        (Content Identifier) &mdash; and can be retrieved by any node connected to the chain.
       </p>
       <p class="text-dot-text-secondary leading-relaxed">
         This makes Bulletin the ideal storage backend for DotNS websites: content is permanent,
@@ -61,9 +61,9 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Chunked DAG-PB Upload</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        For larger files, the content is split into chunks and organized into a DAG-PB (Directed
-        Acyclic Graph, Protobuf-encoded) Merkle tree. Each chunk is submitted as a separate
-        extrinsic, and the root CID references the complete file.
+        For larger files, the content is split into chunks and organised into a DAG-PB Merkle tree
+        (a data structure that links chunks together by their hashes). Each chunk is submitted as a
+        separate transaction, and the root CID references the complete file.
       </p>
       <DocCodeBlock :code="chunkedCode" lang="bash" filename="terminal" />
       <DocCallout variant="info" title="DAG-PB format">
@@ -76,22 +76,42 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Directory Upload</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        For websites and multi-file content, Bulletin supports directory uploads. The CLI packages
-        all files into a UnixFS directory structure, uploads each file's blocks, and produces a
-        single root CID representing the entire directory.
+        For websites and multi-file content, the CLI packages all files into a UnixFS directory
+        structure and produces a single root CID representing the entire directory. There are two
+        approaches: per-block uploads and CAR uploads.
+      </p>
+      <h3 class="text-lg font-medium text-dot-text-primary">Per-block upload</h3>
+      <p class="text-sm text-dot-text-secondary leading-relaxed">
+        Each IPFS block is submitted as a separate transaction. This gives fine-grained control but
+        is slower for large directories.
       </p>
       <DocCodeBlock :code="directoryCode" lang="bash" filename="terminal" />
+      <h3 class="text-lg font-medium text-dot-text-primary">CAR upload (recommended)</h3>
+      <p class="text-sm text-dot-text-secondary leading-relaxed">
+        Pass <span class="font-mono text-dot-accent">--as-car</span> to merkleise the directory
+        in-memory and upload it as a chunked CAR file. This uses
+        <span class="font-mono">ipfs-unixfs-importer</span> and
+        <span class="font-mono">@ipld/car</span> under the hood and produces the same root CID as
+        <span class="font-mono">ipfs add</span>. No external IPFS binary (such as Kubo) is needed.
+      </p>
+      <DocCodeBlock :code="carUploadCode" lang="bash" filename="terminal" />
+      <DocCallout variant="tip" title="When to use --as-car">
+        <span class="font-mono">--as-car</span> is recommended for most directory uploads. It is
+        significantly faster than per-block uploads and works with
+        <span class="font-mono">--concurrency</span>, <span class="font-mono">--resume</span>, and
+        <span class="font-mono">--max-retries</span>.
+      </DocCallout>
     </div>
 
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Authorisation Model</h2>
       <p class="text-dot-text-secondary leading-relaxed">
         Bulletin uses the <span class="font-mono text-dot-accent">TransactionStorage</span>
-        pallet for authorisation. Accounts must be
-        <span class="text-dot-text-primary font-medium">pre-authorized</span> before they can submit
-        storage extrinsics. An authorized entity (currently root/sudo) calls
+        pallet (a Substrate runtime module) for authorisation. Accounts must be
+        <span class="text-dot-text-primary font-medium">pre-authorised</span> before they can submit
+        storage transactions. A chain administrator calls
         <span class="font-mono text-dot-accent">TransactionStorage.authorize_account</span> to grant
-        an account permission to store a specific number of bytes. Authorization lasts for a fixed
+        an account permission to store a specific number of bytes. Authorisation lasts for a fixed
         period (7 days on Polkadot Bulletin). There are no transaction fees &mdash; the Bulletin
         chain operates with no currency.
       </p>
@@ -155,25 +175,32 @@ const uploadModes = [
   {
     title: "Chunked DAG-PB",
     description:
-      "For larger files. Content is split into chunks, organized into a DAG-PB Merkle tree, and submitted as multiple transactions.",
+      "For larger files. Content is split into chunks, linked together in a Merkle tree, and submitted as multiple transactions.",
     sizeHint: "Best for: large files, images, bundles over 256 KB",
   },
   {
-    title: "Directory",
+    title: "Directory (per-block)",
     description:
-      "For multi-file content like websites. All files are packaged into a UnixFS directory structure with a single root CID.",
-    sizeHint: "Best for: static websites, dApps, multi-file projects",
+      "For multi-file content such as websites. All files are packaged into a directory structure with a single root CID. Each IPFS block is submitted as a separate transaction.",
+    sizeHint: "Best for: small directories, fine-grained control",
+  },
+  {
+    title: "Directory as CAR (--as-car)",
+    description:
+      "Merkleise directory in-memory and upload as a chunked CAR file. Significantly faster than per-block uploads (~2 min vs ~22 min for 16 MB). Content resolves on IPFS gateways. No external IPFS binary needed.",
+    sizeHint: "Best for: static websites, dApps, CI/CD pipelines (recommended)",
   },
 ];
 
 const authParams = [
   {
     name: "account",
-    description: "SS58 Substrate account that is authorized to submit storage transactions",
+    description:
+      "Substrate account (SS58 format) that is authorised to submit storage transactions",
   },
   {
     name: "authorization_period",
-    description: "Duration an account's authorization remains valid (7 days on Polkadot Bulletin)",
+    description: "Duration an account's authorisation remains valid (7 days on Polkadot Bulletin)",
   },
   {
     name: "max_transaction_size",
@@ -223,10 +250,31 @@ dotns bulletin upload ./dist
 # The root CID is a UnixFS directory — set it as your content hash
 dotns content set mysite bafybeif2uyxcrahg5kkjramreslhmssp4dkexumd7vqp5dmhtrxqjxngle`;
 
+const carUploadCode = `# Upload an entire directory as a chunked CAR file (recommended)
+dotns bulletin upload ./dist --as-car
+
+# Output:
+# Merkleising directory: 24 files (3.4 MB)
+# Uploading CAR (42 chunks)...
+# Uploaded 3.4 MB in 12s
+# Root CID: bafybeif2uyxcrahg5kkjramreslhmssp4dkexumd7vqp5dmhtrxqjxngle
+
+# Combine with concurrency and resume support
+dotns bulletin upload ./dist --as-car --concurrency 4 --resume
+
+# The root CID is identical to what \`ipfs add -r\` would produce
+dotns content set mysite bafybeif2uyxcrahg5kkjramreslhmssp4dkexumd7vqp5dmhtrxqjxngle`;
+
 const cliCommands = `# Upload a file or directory to Bulletin
 dotns bulletin upload <path>
 
-# Authorize an account for Bulletin storage
+# Upload a directory as a chunked CAR file (recommended for directories)
+dotns bulletin upload <path> --as-car
+
+# Upload and cache the CID in your on-chain Store contract
+dotns bulletin upload <path> --as-car --cache
+
+# Authorise an account for Bulletin storage
 dotns bulletin authorize [address]
 
 # View upload history

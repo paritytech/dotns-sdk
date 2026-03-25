@@ -14,9 +14,8 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Why On-chain Identity Matters</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Blockchain addresses are long, error-prone, and meaningless to humans. A .dot name solves
-        this by giving you a memorable, verifiable identity that works across the Polkadot
-        ecosystem. When someone sees
+        Blockchain addresses are long, error-prone, and meaningless to humans. A .dot name gives you
+        a memorable, verifiable identity that works across the Polkadot ecosystem. When someone sees
         <span class="font-mono text-dot-accent">alice.dot</span>, they know exactly who they are
         dealing with.
       </p>
@@ -36,7 +35,8 @@
       <h2 class="text-xl font-semibold text-dot-text-primary">Setting Up Your Identity</h2>
       <p class="text-dot-text-secondary leading-relaxed">
         Building your on-chain identity involves three steps: registering a name, setting text
-        records for your profile, and enabling reverse resolution so dApps display your name.
+        records for your profile, and enabling reverse resolution (address-to-name lookup) so
+        applications display your name.
       </p>
       <div class="border border-dot-border rounded-xl overflow-hidden">
         <div
@@ -70,7 +70,7 @@
       <p class="text-dot-text-secondary leading-relaxed">
         Text records are key-value pairs stored in the
         <span class="font-mono text-dot-accent">DotnsContentResolver</span> contract. They form your
-        on-chain profile and are readable by any dApp or user.
+        on-chain profile and are readable by any application or user.
       </p>
       <div class="overflow-x-auto">
         <table class="w-full text-sm border border-dot-border rounded-lg overflow-hidden">
@@ -98,8 +98,8 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Reverse Resolution</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Reverse resolution maps your address back to your primary .dot name. When a dApp sees your
-        address, it can look up your name and display
+        Reverse resolution maps your address back to your primary .dot name. When an application
+        sees your address, it can look up your name and display
         <span class="font-mono text-dot-accent">alice.dot</span> instead of
         <span class="font-mono text-dot-text-tertiary">0x1234...abcd</span>.
       </p>
@@ -154,7 +154,8 @@ const benefits = [
   },
   {
     title: "Composable Profile",
-    description: "Link social accounts, bio, and website to your name. Readable by any dApp.",
+    description:
+      "Link social accounts, bio, and website to your name. Readable by any application on the network.",
   },
   {
     title: "Cross-Ecosystem",
@@ -166,7 +167,7 @@ const setupSteps = [
   {
     title: "Register your .dot name",
     description:
-      "Choose a unique name and register it through the commit-reveal flow. Your name is an ERC721 NFT that you own.",
+      "Choose a unique name and register it through the commit-reveal process. Your name is an ERC-721 NFT that you own.",
     link: "/docs/protocol/registration",
   },
   {
@@ -178,7 +179,7 @@ const setupSteps = [
   {
     title: "Enable reverse resolution",
     description:
-      "Set your primary name so that dApps can display alice.dot instead of your hex address when they see your account.",
+      "Set your primary name so that applications can display alice.dot instead of your hex address when they see your account.",
     link: "/docs/protocol/reverse-resolution",
   },
 ];

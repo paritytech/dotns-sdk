@@ -1,19 +1,19 @@
 <template>
   <Modal :open="open" size="md" :busy="isSubmitting" @close="handleClose">
     <div class="font-sans text-dot-text-primary">
-      <h2 class="text-2xl font-bold text-dot-text-primary text-center mb-1">Add Subdomain</h2>
+      <h2 class="text-xl font-bold text-dot-text-primary text-center mb-1">Add Subdomain</h2>
       <p class="text-dot-text-tertiary text-sm text-center mb-6">
         Register a new subdomain under one of your owned .dot domains.
       </p>
 
       <div class="mb-4">
-        <label class="text-sm font-semibold text-dot-text-secondary block mb-2">
+        <label class="text-xs font-semibold text-dot-text-secondary block mb-1.5">
           Choose parent domain
         </label>
         <div class="relative">
           <select
             v-model="selectedTLD"
-            class="w-full border border-dot-border rounded-xl py-2 pl-4 pr-10 text-dot-text-secondary text-sm appearance-none focus:ring-2 focus:ring-dot-accent/20 focus:outline-none"
+            class="w-full border border-dot-border rounded-xl h-9 pl-3 pr-10 text-dot-text-secondary text-sm appearance-none focus:ring-2 focus:ring-dot-accent/20 focus:outline-none"
           >
             <option v-for="(tld, idx) in normalizedTLDs" :key="idx" :value="tld">
               {{ tld }}.dot
@@ -29,7 +29,7 @@
       </div>
 
       <div class="mb-4">
-        <label class="text-sm font-semibold text-dot-text-secondary block mb-2">
+        <label class="text-xs font-semibold text-dot-text-secondary block mb-1.5">
           Subdomain name
         </label>
         <div class="relative">
@@ -60,7 +60,7 @@
             @input="debouncedCheck"
             type="text"
             placeholder="Enter subdomain..."
-            class="w-full py-3 pl-12 pr-4 border rounded-xl text-dot-text-primary focus:outline-none placeholder-dot-text-tertiary transition-all duration-200"
+            class="w-full h-10 pl-12 pr-4 border rounded-xl text-sm text-dot-text-primary focus:outline-none placeholder-dot-text-tertiary transition-all duration-200"
             :class="subdomainBorderClass"
           />
         </div>
@@ -68,7 +68,7 @@
 
       <div class="mb-4">
         <div class="flex items-center gap-2 mb-2">
-          <label class="text-sm font-semibold text-dot-text-secondary"> Owner address </label>
+          <label class="text-xs font-semibold text-dot-text-secondary"> Owner address </label>
           <div class="relative group/info">
             <svg
               class="w-4 h-4 text-dot-text-tertiary hover:text-dot-text-secondary cursor-help"
@@ -102,7 +102,7 @@
             v-model="ownerInput"
             type="text"
             placeholder="Leave empty for self-ownership"
-            class="w-full px-4 py-2 rounded-lg focus:outline-none transition-all duration-200"
+            class="w-full px-3 h-9 rounded-lg text-sm focus:outline-none transition-all duration-200"
             :class="ownerBorderClass"
           />
 

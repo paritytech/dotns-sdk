@@ -1,10 +1,3 @@
-# Dogfooding workflow that exercises the reusable deploy.yml workflow on every PR
-# that touches the example site or either workflow file. It validates the static
-# site in examples/deploy/site/, uploads it to Bulletin via the DotNS CLI, and
-# registers a preview subname (e.g. pr42.dotns-example.dot). Results are posted
-# to the PR's CI Summary comment alongside other checks.
-#
-# The CLI is built from source inside deploy.yml via the setup-cli composite action.
 name: Deploy Example
 
 on:
@@ -20,6 +13,10 @@ on:
 permissions:
   contents: read
   pull-requests: write
+
+concurrency:
+  group: deploy-example-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -105,10 +102,13 @@ jobs:
     with:
       basename: dotns-example-site
       artifact-name: example-site
+      cli-source: source
       register-base: true
+      sdk-repository: ${{ github.event.pull_request.head.repo.full_name }}
+      sdk-ref: ${{ github.event.pull_request.head.sha }}
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
-      bulletin-mnemonic: ${{ secrets.BULLETIN_MNEMONIC }}
+      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC_DEPLOY_EXAMPLE }}
 
   comment:
     name: Update PR Comment
@@ -137,6 +137,7 @@ jobs:
           DEPLOY_FQDN: ${{ needs.deploy.outputs.fqdn }}
           DEPLOY_URL: ${{ needs.deploy.outputs.url }}
           DEPLOY_CACHE_HIT: ${{ needs.deploy.outputs.cache-hit }}
+          DEPLOY_DURATION_SECONDS: ${{ needs.deploy.outputs.duration-seconds }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           github-token: ${{ github.token }}
@@ -175,6 +176,7 @@ jobs:
             const fqdn = process.env.DEPLOY_FQDN;
             const url = process.env.DEPLOY_URL;
             const cacheHit = process.env.DEPLOY_CACHE_HIT === "true";
+            const durationSeconds = process.env.DEPLOY_DURATION_SECONDS;
 
             const buildPassed = buildStatus === "Passed";
             const deployPassed = deployResult === "success";
@@ -278,6 +280,7 @@ jobs:
                 `| Domain | \`${fqdn}\` |`,
                 `| CID | ${cidDisplay} |`,
                 `| URL | [${url}](${url}) |`,
+                `| Duration | ${durationSeconds ? `\`${durationSeconds}s\`` : "n/a"} |`,
                 "",
                 `[View run](${runUrl})`,
                 "",

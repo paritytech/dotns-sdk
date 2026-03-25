@@ -48,7 +48,7 @@ export const useAbiStore = defineStore("useAbiStore", () => {
     StoreFactoryABI = StoreFactory.abi as Abi;
     StoreABI = Store.abi as Abi;
     PopOracleABI = PopOracle.abi as Abi;
-    MultiCallABI = MultiCall as Abi;
+    MultiCallABI = MultiCall.abi as Abi;
     DotnsRegistryABI = DotnsRegistry.abi as Abi;
   }
 

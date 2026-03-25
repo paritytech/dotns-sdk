@@ -1,9 +1,9 @@
 <template>
-  <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16 font-sans text-dot-text-primary">
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 font-sans text-dot-text-primary">
     <div v-if="isLoading" class="animate-fade-in">
-      <div class="text-center mb-10">
+      <div class="text-center mb-6">
         <div
-          class="w-24 h-24 rounded-full bg-dot-border mx-auto mb-6 animate-shimmer"
+          class="w-16 h-16 rounded-full bg-dot-border mx-auto mb-4 animate-shimmer"
           style="
             background: linear-gradient(to right, #292524 4%, #44403c 25%, #292524 36%);
             background-size: 1000px 100%;
@@ -39,8 +39,8 @@
         ></div>
       </div>
 
-      <div class="grid gap-6">
-        <div class="bg-dot-surface border border-dot-border rounded-xl shadow-sm p-6">
+      <div class="grid gap-3">
+        <div class="bg-dot-surface border border-dot-border rounded-xl shadow-sm p-3">
           <div
             class="h-6 bg-dot-border w-32 mb-4 rounded animate-shimmer"
             style="
@@ -66,7 +66,7 @@
           </div>
         </div>
 
-        <div class="bg-dot-surface border border-dot-border rounded-xl shadow-sm p-6">
+        <div class="bg-dot-surface border border-dot-border rounded-xl shadow-sm p-3">
           <div
             class="h-6 bg-dot-border w-32 mb-4 rounded animate-shimmer"
             style="
@@ -126,7 +126,7 @@
           </div>
         </div>
 
-        <div class="bg-dot-surface border border-dot-border rounded-xl shadow-sm p-6">
+        <div class="bg-dot-surface border border-dot-border rounded-xl shadow-sm p-3">
           <div
             class="h-6 bg-dot-border w-32 mb-4 rounded animate-shimmer"
             style="
@@ -159,7 +159,7 @@
           </div>
         </div>
 
-        <div class="bg-dot-surface border border-dot-border rounded-xl shadow-sm p-6">
+        <div class="bg-dot-surface border border-dot-border rounded-xl shadow-sm p-3">
           <div
             class="h-6 bg-dot-border w-32 mb-4 rounded animate-shimmer"
             style="
@@ -205,10 +205,10 @@
       <img
         :src="blockieSrc"
         alt="Profile Avatar"
-        class="w-24 h-24 sm:w-28 sm:h-28 rounded-full border-4 border-dot-border-strong mx-auto mb-6 object-cover"
+        class="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-2 border-dot-border-strong mx-auto mb-4 object-cover"
       />
 
-      <h1 class="text-3xl sm:text-4xl font-serif font-extrabold text-dot-text-primary mb-1">
+      <h1 class="text-xl sm:text-2xl font-serif font-extrabold text-dot-text-primary mb-1">
         {{ name || "Unknown" }}
       </h1>
 
@@ -292,9 +292,9 @@
       </div>
     </div>
 
-    <div v-if="!isLoading && owner" class="mt-10 grid gap-6">
-      <section class="bg-dot-surface border border-dot-border rounded-xl shadow-sm p-6 text-left">
-        <h2 class="text-lg font-semibold mb-4 text-dot-text-primary">Accounts</h2>
+    <div v-if="!isLoading && owner" class="mt-6 grid gap-3">
+      <section class="bg-dot-surface border border-dot-border rounded-xl shadow-sm p-3 text-left">
+        <h2 class="text-sm font-semibold mb-2 text-dot-text-primary">Accounts</h2>
         <div class="flex flex-wrap gap-3">
           <a
             v-if="twitter"
@@ -320,11 +320,11 @@
         </div>
       </section>
 
-      <section class="bg-dot-surface border border-dot-border rounded-xl shadow-sm p-6 text-left">
-        <h2 class="text-lg font-semibold mb-4 text-dot-text-primary">Ownership</h2>
-        <div class="grid sm:grid-cols-2 gap-4">
+      <section class="bg-dot-surface border border-dot-border rounded-xl shadow-sm p-3 text-left">
+        <h2 class="text-sm font-semibold mb-2 text-dot-text-primary">Ownership</h2>
+        <div class="grid sm:grid-cols-2 gap-2">
           <div>
-            <p class="text-dot-text-tertiary text-sm">Owner</p>
+            <p class="text-dot-text-tertiary text-xs">Owner</p>
             <a
               :href="`${explorer}/account/${owner}`"
               target="_blank"
@@ -335,14 +335,14 @@
             </a>
           </div>
           <div>
-            <p class="text-dot-text-tertiary text-sm">Parent</p>
-            <p class="text-dot-text-secondary text-sm mt-1">{{ parent || "dot" }}</p>
+            <p class="text-dot-text-tertiary text-xs">Parent</p>
+            <p class="text-dot-text-secondary text-xs mt-0.5">{{ parent || "dot" }}</p>
           </div>
         </div>
       </section>
 
-      <section class="bg-dot-surface border border-dot-border rounded-xl shadow-sm p-6 text-left">
-        <h2 class="text-lg font-semibold mb-4 text-dot-text-primary">Other Records</h2>
+      <section class="bg-dot-surface border border-dot-border rounded-xl shadow-sm p-3 text-left">
+        <h2 class="text-sm font-semibold mb-2 text-dot-text-primary">Other Records</h2>
         <div class="flex flex-wrap gap-3">
           <div
             v-for="(value, key) in records"
@@ -381,56 +381,83 @@
       </section>
 
       <section
-        v-if="allDomains.length > 0"
-        class="bg-dot-surface border border-dot-border rounded-xl shadow-sm p-6 text-left"
+        v-if="isVerifyingDomains || allDomains.length > 0"
+        class="bg-dot-surface border border-dot-border rounded-xl shadow-sm p-3 text-left"
       >
-        <h2 class="text-lg font-semibold mb-4 text-dot-text-primary">Domains</h2>
-        <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-dot-border text-sm">
-            <thead class="bg-dot-surface-secondary">
-              <tr>
-                <th class="px-6 py-3 text-left font-semibold text-dot-text-secondary">Domain</th>
-                <th class="px-6 py-3 text-left font-semibold text-dot-text-secondary">Type</th>
-                <th class="px-6 py-3 text-left font-semibold text-dot-text-secondary">Status</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-dot-border bg-dot-surface">
-              <tr
-                v-for="domain in allDomains"
-                :key="domain.name"
-                class="hover:bg-dot-surface-secondary"
-              >
-                <td class="px-6 py-4 font-medium text-dot-text-primary">
-                  {{ domain.name || "Unknown" }}
-                </td>
-                <td class="px-6 py-4">
-                  <span
-                    class="px-2 py-1 text-xs rounded-full"
-                    :class="
-                      domain.type === 'TLD'
-                        ? 'bg-dot-border-strong text-dot-text-primary border border-dot-border'
-                        : 'bg-dot-border text-dot-text-secondary border border-dot-border'
-                    "
-                  >
-                    {{ domain.type || "Unknown" }}
-                  </span>
-                </td>
-                <td class="px-6 py-4">
-                  <span
-                    class="px-2 py-1 text-xs rounded-full"
-                    :class="
-                      domain.isOwner
-                        ? 'bg-dot-border-strong text-dot-text-primary border border-dot-border'
-                        : 'bg-dot-surface-secondary text-dot-text-tertiary border border-dot-border'
-                    "
-                  >
-                    {{ domain.isOwner ? "Active" : "Not Owner" }}
-                  </span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <h2 class="text-sm font-semibold mb-2 text-dot-text-primary">Domains</h2>
+        <div v-if="isVerifyingDomains" class="space-y-3">
+          <div
+            v-for="i in 3"
+            :key="i"
+            class="h-10 bg-dot-border rounded animate-shimmer"
+            style="
+              background: linear-gradient(to right, #292524 4%, #44403c 25%, #292524 36%);
+              background-size: 1000px 100%;
+            "
+          ></div>
+          <p class="text-dot-text-tertiary text-xs text-center">Verifying domains on-chain...</p>
         </div>
+        <template v-else>
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-dot-border text-sm">
+              <thead class="bg-dot-surface-secondary">
+                <tr>
+                  <th class="px-4 py-2 text-left font-semibold text-dot-text-secondary text-xs">
+                    Domain
+                  </th>
+                  <th class="px-4 py-2 text-left font-semibold text-dot-text-secondary text-xs">
+                    Type
+                  </th>
+                  <th class="px-4 py-2 text-left font-semibold text-dot-text-secondary text-xs">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-dot-border bg-dot-surface">
+                <tr
+                  v-for="domain in paginatedDomains"
+                  :key="domain.name"
+                  class="hover:bg-dot-surface-secondary"
+                >
+                  <td class="px-4 py-2.5 font-medium text-dot-text-primary text-xs">
+                    {{ domain.name || "Unknown" }}
+                  </td>
+                  <td class="px-4 py-2.5">
+                    <span
+                      class="px-1.5 py-0.5 text-[10px] rounded-full"
+                      :class="
+                        domain.type === 'TLD'
+                          ? 'bg-dot-border-strong text-dot-text-primary border border-dot-border'
+                          : 'bg-dot-border text-dot-text-secondary border border-dot-border'
+                      "
+                    >
+                      {{ domain.type || "Unknown" }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-2.5">
+                    <span
+                      class="px-1.5 py-0.5 text-[10px] rounded-full"
+                      :class="
+                        domain.isOwner
+                          ? 'bg-dot-border-strong text-dot-text-primary border border-dot-border'
+                          : 'bg-dot-surface-secondary text-dot-text-tertiary border border-dot-border'
+                      "
+                    >
+                      {{ domain.isOwner ? "Active" : "Not Owner" }}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <TablePagination
+            v-model="whoisPage"
+            :total-items="allDomains.length"
+            :page-size="whoisPageSize"
+            item-label="domain"
+            @update:page-size="whoisPageSize = $event"
+          />
+        </template>
       </section>
     </div>
 
@@ -480,13 +507,16 @@ import type { ProfileRecord, TransactionResult, MyDomain, ContractAuthStatus } f
 import { useNetworkStore } from "@/store/useNetworkStore";
 import { useUserStoreManager } from "@/store/useUserStoreManager";
 import { useResolverStore } from "@/store/useResolverStore";
+import { useMulticallOwnership } from "@/composables";
 import Button from "@/components/ui/Button.vue";
+import TablePagination from "@/components/ui/TablePagination.vue";
 
 const route = useRoute();
 const wallet = useWalletStore();
 const networkStore = useNetworkStore();
 const userStore = useUserStoreManager();
 const resolverStore = useResolverStore();
+const { batchVerifyOwnership } = useMulticallOwnership();
 
 const name = ref((route.params.name as string) || "");
 if (name.value && !name.value.includes(".dot")) {
@@ -502,6 +532,14 @@ const url = ref<string | null>(null);
 const description = ref<string | null>(null);
 const records = ref<Record<string, string>>({});
 const allDomains = ref<MyDomain[]>([]);
+const isVerifyingDomains = ref(false);
+const whoisPage = ref(1);
+const whoisPageSize = ref(10);
+
+const paginatedDomains = computed(() => {
+  const start = (whoisPage.value - 1) * whoisPageSize.value;
+  return allDomains.value.slice(start, start + whoisPageSize.value);
+});
 
 const showEditModal = ref(false);
 const showTxStatus = ref(false);
@@ -568,52 +606,36 @@ function getType(domainName: string): "TLD" | "Subdomain" {
   return getDotLevel(domainName) === 1 ? "TLD" : "Subdomain";
 }
 
-async function buildDomainRow(ownerAddress: Address, domainName: string): Promise<MyDomain | null> {
+async function loadDomains(ownerAddress: Address): Promise<void> {
+  isVerifyingDomains.value = true;
   try {
-    const type = getType(domainName);
+    const allValues = await userStore.getSubdomainsForAddress(ownerAddress);
+    if (allValues.length === 0) return;
 
-    let isDomainOwner = false;
-    let statusLabel = "Tied to parent";
+    const ownershipMap = await batchVerifyOwnership(allValues, ownerAddress);
 
-    try {
-      const resolvedOwner = await resolverStore.getOwnerOfDomain(domainName);
-      if (resolvedOwner && resolvedOwner !== zeroAddress) {
-        isDomainOwner = getAddress(ownerAddress) === getAddress(resolvedOwner);
-        statusLabel = isDomainOwner ? "Active" : "Not Owner";
-      } else {
-        isDomainOwner = type === "Subdomain";
-        statusLabel = type === "Subdomain" ? "Tied to parent" : "Not Owner";
-      }
-    } catch {
-      isDomainOwner = type === "Subdomain";
-      statusLabel = type === "Subdomain" ? "Tied to parent" : "Not Owner";
+    const verified: MyDomain[] = [];
+    for (const value of allValues) {
+      const isOwner = ownershipMap.get(value);
+      if (!isOwner) continue;
+
+      verified.push({
+        name: value,
+        type: getType(value),
+        expiry: "",
+        statusLabel: "Active",
+        statusIcon: "check",
+        isOwner: true,
+        needsResolver: false,
+      });
     }
 
-    return {
-      name: domainName,
-      type,
-      expiry: "",
-      statusLabel,
-      statusIcon: "check",
-      isOwner: isDomainOwner,
-      needsResolver: false,
-    } as MyDomain;
-  } catch (err) {
-    console.warn(`Failed to process domain ${domainName}:`, err);
-    return null;
-  }
-}
-
-async function loadDomains(ownerAddress: Address): Promise<void> {
-  try {
-    const names = await userStore.getSubdomainsForAddress(ownerAddress);
-
-    const results = await Promise.all(names.map((n) => buildDomainRow(ownerAddress, n)));
-
-    allDomains.value = results.filter((d): d is MyDomain => d !== null);
+    allDomains.value = verified;
   } catch (error) {
     console.warn("Failed to load domains:", error);
     allDomains.value = [];
+  } finally {
+    isVerifyingDomains.value = false;
   }
 }
 

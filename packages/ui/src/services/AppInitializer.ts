@@ -2,6 +2,7 @@ import { useWalletStore } from "@/store/useWalletStore";
 import { useNetworkStore } from "@/store/useNetworkStore";
 import { useAbiStore } from "@/store/useAbiStore";
 import { useDomainStore } from "@/store/useDomainStore";
+import { useBulletinStore } from "@/store/useBulletinStore";
 
 /**
  * Centralized application initialization service
@@ -22,7 +23,10 @@ export class AppInitializer {
     console.log("[AppInitializer] Starting initialization");
 
     try {
-      // Phase 1: Load static resources (no dependencies)
+      const walletStore = useWalletStore();
+      walletStore.setTransactionStatus("idle");
+      useBulletinStore().resetUploadState();
+
       const abiStore = useAbiStore();
       await abiStore.loadABIs();
 
@@ -30,8 +34,6 @@ export class AppInitializer {
       const networkStore = useNetworkStore();
       await networkStore.initClient();
 
-      // Phase 3: Initialize wallet (depends on network)
-      const walletStore = useWalletStore();
       await walletStore.init();
 
       // REMOVE AUTO-CONNECT: Do not connect wallet automatically

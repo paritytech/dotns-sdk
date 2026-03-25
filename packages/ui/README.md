@@ -27,7 +27,7 @@ bun install
 Generate Polkadot API descriptors:
 
 ```bash
-bunx papi add paseo -w wss://testnet-passet-hub.polkadot.io
+bunx papi add paseo -w wss://asset-hub-paseo-rpc.n.dwellir.com
 ```
 
 This generates the `.papi/` directory required by `polkadot-api`.
@@ -62,7 +62,7 @@ bun run preview
 The project currently targets Paseo. A typical endpoint is:
 
 ```text
-wss://testnet-passet-hub.polkadot.io
+wss://asset-hub-paseo-rpc.n.dwellir.com
 ```
 
 RPCs can be adjusted in code or environment configuration depending on deployment needs.

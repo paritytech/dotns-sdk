@@ -52,8 +52,8 @@
       </div>
       <DocCallout variant="tip" title="Plain HTML works too">
         You do not need a build tool. A directory with an
-        <span class="font-mono">index.html</span> file is enough. Just point the CLI at your
-        directory and upload.
+        <span class="font-mono">index.html</span> file is enough. Point the CLI at your directory
+        and upload.
       </DocCallout>
     </div>
 
@@ -87,14 +87,14 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Updating Your Site</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        When you make changes, just rebuild, re-upload, and update the content hash. Previous
-        versions remain accessible by their CID &mdash; nothing is deleted.
+        When you make changes, rebuild, re-upload, and update the content hash. Previous versions
+        remain accessible by their CID &mdash; nothing is deleted.
       </p>
       <DocCodeBlock :code="updateCode" lang="bash" filename="terminal" />
       <DocCallout variant="info" title="Version history">
         Because content is stored by hash, every deployment creates an immutable snapshot. You can
-        always access previous versions of your site by their CID, even after updating the content
-        hash on your .dot name. Your entire site history is preserved on-chain.
+        access previous versions of your site by their CID, even after updating the content hash on
+        your .dot name.
       </DocCallout>
     </div>
 
@@ -189,12 +189,12 @@ astro build
 # Example with Vite
 npm run build`;
 
-const uploadCode = `# Upload the build output to Bulletin
-dotns bulletin upload ./public
+const uploadCode = `# Upload the build output to Bulletin (recommended: --as-car)
+dotns bulletin upload ./public --as-car
 
 # Output:
-# Scanning directory: 18 files (1.2 MB)
-# Uploading...
+# Merkleising directory: 18 files (1.2 MB)
+# Uploading CAR...
 # Root CID: bafybeif2uyxcrahg5kkjramreslhmssp4dkexumd7vqp5dmhtrxqjxngle`;
 
 const setHashCode = `# Set the content hash on your .dot name
@@ -212,8 +212,8 @@ hugo new posts/hello-world.md
 # 2. Build the site
 hugo --minify
 
-# 3. Upload to Bulletin
-dotns bulletin upload ./public
+# 3. Upload to Bulletin (--as-car for fast directory upload)
+dotns bulletin upload ./public --as-car
 # Root CID: bafybeif2uyxcrahg5kkjramreslhmssp4dkexumd7vqp5dmhtrxqjxngle
 
 # 4. Set the content hash
@@ -225,7 +225,7 @@ const updateCode = `# Make changes to your site, then rebuild
 hugo --minify
 
 # Re-upload (only changed files are uploaded thanks to content-addressable caching)
-dotns bulletin upload ./public
+dotns bulletin upload ./public --as-car
 # New Root CID: bafybeiabcdef...
 
 # Update the content hash

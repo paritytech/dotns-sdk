@@ -12,30 +12,29 @@ import { cn } from "@/lib/utils";
 import Icon from "./Icon.vue";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed select-none active:scale-[0.98]",
+  "inline-flex items-center justify-center gap-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/20 focus-visible:ring-offset-2 focus-visible:ring-offset-dot-bg disabled:opacity-50 disabled:cursor-not-allowed select-none active:scale-[0.98]",
   {
     variants: {
       variant: {
-        primary:
-          "border-2 border-dot-surface-secondary bg-dot-surface-secondary text-dot-text-primary hover:bg-dot-bg focus-visible:ring-dot-accent/20",
+        primary: "bg-dot-text-primary text-dot-bg hover:bg-dot-accent border border-transparent",
         secondary:
-          "border-2 border-dot-border bg-transparent text-dot-text-primary hover:border-dot-border-strong hover:bg-dot-surface-secondary focus-visible:ring-dot-accent/20",
+          "border border-dot-border bg-transparent text-dot-text-primary hover:border-dot-border-strong hover:bg-dot-surface-secondary",
         wallet:
-          "bg-dot-surface text-dot-text-primary hover:bg-dot-surface-secondary focus-visible:ring-dot-accent/20",
+          "border border-dot-text-primary bg-transparent text-dot-text-primary hover:bg-dot-text-primary hover:text-dot-bg",
         "wallet-connected":
-          "bg-dot-surface-secondary text-dot-text-primary hover:bg-dot-surface-primary focus-visible:ring-dot-accent/20",
+          "border border-dot-border bg-dot-surface-secondary text-dot-text-primary hover:border-dot-border-strong",
         outline:
-          "border border-dot-border bg-transparent text-dot-text-secondary hover:bg-dot-surface-secondary focus-visible:ring-dot-accent/20",
-        ghost:
-          "text-dot-text-secondary hover:bg-dot-surface-secondary focus-visible:ring-dot-accent/20",
+          "border border-dot-border bg-transparent text-dot-text-secondary hover:border-dot-border-strong hover:bg-dot-surface-secondary",
+        ghost: "text-dot-text-secondary hover:bg-dot-surface-secondary",
         destructive: "bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-400",
         link: "text-dot-accent underline-offset-4 hover:underline hover:text-dot-accent-hover",
       },
       size: {
-        sm: "h-8 px-3 text-xs rounded-lg",
-        md: "h-10 px-4 text-sm rounded-lg",
-        lg: "h-12 px-6 text-base rounded-xl",
-        icon: "h-10 w-10 rounded-lg",
+        xs: "h-7 px-2.5 text-xs rounded-md",
+        sm: "h-9 px-3.5 text-xs rounded-lg",
+        md: "h-11 px-4 text-sm rounded-lg",
+        lg: "h-12 px-6 text-sm rounded-lg",
+        icon: "h-11 w-11 rounded-lg",
       },
       fullWidth: {
         true: "w-full",

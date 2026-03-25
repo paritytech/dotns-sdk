@@ -5,8 +5,8 @@
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">DotnsRegistry</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
         The Registry is the <span class="text-dot-text-primary font-medium">source of truth</span>
-        for all .dot names. It maps each node to its owner and resolver address, and is the only
-        contract that stores ownership data.
+        for all .dot names. It maps each node (a hashed name identifier) to its owner and resolver
+        address, and is the only contract that stores ownership data.
       </p>
     </div>
 
@@ -94,7 +94,7 @@
           <DocBadge variant="transaction">transaction</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Creates or updates a subnode record. Only callable by the parent node owner or an
+          Creates or updates a subdomain record. Only callable by the parent name owner or an
           authorised operator.
         </p>
         <DocParamTable
@@ -224,9 +224,9 @@
     </div>
 
     <DocCallout variant="info" title="Central source of truth">
-      The Registry does not store addresses or content records directly. It only maps nodes to their
-      owners and resolver contracts. All resolution data lives in the resolver contracts pointed to
-      by the Registry.
+      The Registry does not store addresses or content records directly. It only maps names to their
+      owners and resolver contracts. All resolution data lives in the separate resolver contracts
+      that the Registry points to.
     </DocCallout>
 
     <div class="border-t border-dot-border pt-6 flex justify-between text-sm">

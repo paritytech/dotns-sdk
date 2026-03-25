@@ -1,6 +1,7 @@
 import chalk from "chalk";
 import type { Ora } from "ora";
 import { formatEther } from "viem";
+import { printHumanDetail, printHumanFailure, printHumanSuccess } from "../cli/reporter";
 import type { TransactionStatus } from "../types/types";
 import { DECIMALS, NATIVE_TO_ETH_RATIO } from "./constants";
 
@@ -54,19 +55,19 @@ export function createTransactionStatusHandler(
     if (!spinner) {
       switch (status) {
         case "signing":
-          console.log(chalk.cyan("  ✍  Signing transaction"));
+          printHumanDetail(chalk.cyan("Signing transaction"));
           break;
         case "broadcasting":
-          console.log(chalk.blue("  📡 Broadcasting to network"));
+          printHumanDetail(chalk.blue("Broadcasting to network"));
           break;
         case "included":
-          console.log(chalk.magenta("  📦 Included in block"));
+          printHumanDetail(chalk.magenta("Included in block"));
           break;
         case "finalized":
-          console.log(chalk.green(`  ✓  Finalized (${elapsedSeconds}s)`));
+          printHumanSuccess(chalk.green(`Finalized (${elapsedSeconds}s)`));
           break;
         case "failed":
-          console.log(chalk.red("  ✗  Transaction failed"));
+          printHumanFailure(chalk.red("Transaction failed"));
           break;
       }
       return;
@@ -107,6 +108,24 @@ export function createTransactionStatusHandler(
         break;
     }
   };
+}
+
+export function formatBytes(bytes: number | bigint): string {
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = Number(bytes);
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex++;
+  }
+  return `${value.toFixed(unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`;
+}
+
+export function formatDuration(seconds: number): string {
+  if (!isFinite(seconds) || seconds <= 0) return "--:--";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}m${s.toString().padStart(2, "0")}s`;
 }
 
 export function formatErrorMessage(error: unknown): string {

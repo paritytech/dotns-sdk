@@ -1,0 +1,451 @@
+name: Daily Deploy Sized Benchmarks
+
+on:
+  schedule:
+    - cron: "7 22 * * *"
+    - cron: "7 23 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: daily-deploy-sized-benchmarks
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      should-run: ${{ steps.gate.outputs.should-run }}
+      benchmark-date: ${{ steps.gate.outputs.benchmark-date }}
+      benchmark-timestamp: ${{ steps.gate.outputs.benchmark-timestamp }}
+    steps:
+      - name: Resolve Berlin benchmark schedule
+        id: gate
+        shell: bash
+        run: |
+          LOCAL_HOUR=$(TZ=Europe/Berlin date +%H)
+          LOCAL_DATE=$(TZ=Europe/Berlin date +%F)
+          LOCAL_TIMESTAMP=$(TZ=Europe/Berlin date '+%Y-%m-%d %H:%M %Z')
+
+          SHOULD_RUN=false
+          if [[ "$EVENT_NAME" == "workflow_dispatch" || "$LOCAL_HOUR" == "00" ]]; then
+            SHOULD_RUN=true
+          fi
+
+          echo "should-run=$SHOULD_RUN" >> "$GITHUB_OUTPUT"
+          echo "benchmark-date=$LOCAL_DATE" >> "$GITHUB_OUTPUT"
+          echo "benchmark-timestamp=$LOCAL_TIMESTAMP" >> "$GITHUB_OUTPUT"
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+
+  config:
+    needs: gate
+    if: needs.gate.outputs.should-run == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      order: ${{ steps.matrix.outputs.order }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Load sized benchmark matrix
+        id: matrix
+        shell: bash
+        run: |
+          MATRIX=$(jq -c '{include: .}' examples/deploy/sized-sites/benchmarks.json)
+          ORDER=$(jq -c '[.[].slug]' examples/deploy/sized-sites/benchmarks.json)
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "order=$ORDER" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: [gate, config]
+    if: needs.gate.outputs.should-run == 'true'
+    name: Deploy ${{ matrix.size }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.config.outputs.matrix) }}
+    uses: ./.github/workflows/deploy-sized-benchmark-entry.yml
+    with:
+      size: ${{ matrix.size }}
+      slug: ${{ matrix.slug }}
+      subname: ${{ matrix.slug }}
+      report-artifact-prefix: daily-deploy-sized-report
+      report-retention-days: 30
+      benchmark-date: ${{ needs.gate.outputs.benchmark-date }}
+      benchmark-timestamp: ${{ needs.gate.outputs.benchmark-timestamp }}
+    secrets:
+      dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
+      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC_BENCHMARK }}
+
+  issue:
+    name: Publish Benchmark Issue
+    needs: [gate, config, deploy]
+    if: always() && needs.gate.outputs.should-run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download benchmark artifacts
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          pattern: daily-deploy-sized-report-*
+          path: benchmark-artifacts
+          merge-multiple: true
+
+      - name: Assemble benchmark history
+        id: prepare
+        uses: actions/github-script@v7
+        env:
+          ORDER_JSON: ${{ needs.config.outputs.order }}
+          BENCHMARK_DATE: ${{ needs.gate.outputs.benchmark-date }}
+          BENCHMARK_TIMESTAMP: ${{ needs.gate.outputs.benchmark-timestamp }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DASHBOARD_URL: https://bulletin-benchmarks.paseo.li
+        with:
+          script: |
+            const fs = require("node:fs");
+            const path = require("node:path");
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const titlePrefix = "Daily Deploy Sized Benchmarks - ";
+            const title = `${titlePrefix}${process.env.BENCHMARK_DATE}`;
+            const order = JSON.parse(process.env.ORDER_JSON);
+            const dashboardUrl = process.env.DASHBOARD_URL;
+            const reportsDir = path.join(process.cwd(), "benchmark-artifacts");
+            const reportFiles = fs.existsSync(reportsDir)
+              ? fs.readdirSync(reportsDir).filter((file) => file.endsWith(".json"))
+              : [];
+            const benchmarkConfigPath = path.join(
+              process.cwd(),
+              "examples",
+              "deploy",
+              "sized-sites",
+              "benchmarks.json",
+            );
+            const sizeConfig = JSON.parse(fs.readFileSync(benchmarkConfigPath, "utf8"));
+
+            const reports = reportFiles
+              .map((file) => JSON.parse(fs.readFileSync(path.join(reportsDir, file), "utf8")))
+              .sort((left, right) => order.indexOf(left.slug) - order.indexOf(right.slug));
+
+            const normalizeReportForHistory = (report) => ({
+              size: report.size,
+              slug: report.slug,
+              status: report.status,
+              failureStage: report.failureStage || "",
+              fqdn: report.fqdn || "",
+              url: report.url || "",
+              durationSeconds: report.durationSeconds,
+            });
+
+            const codeownersPath = path.join(process.cwd(), ".github", "CODEOWNERS");
+            const codeownerMentions = fs.existsSync(codeownersPath)
+              ? [...new Set((fs.readFileSync(codeownersPath, "utf8").match(/@[A-Za-z0-9][A-Za-z0-9-_]*/g) ?? []))]
+              : [];
+
+            const extractPayload = (body) => {
+              if (typeof body !== "string") return null;
+              const match = body.match(/<!-- dotns-sized-benchmark-data\n([\s\S]*?)\n-->/);
+              if (!match || !match[1]) return null;
+
+              try {
+                return JSON.parse(match[1]);
+              } catch {
+                return null;
+              }
+            };
+
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: "all",
+              per_page: 100,
+            });
+
+            const benchmarkIssues = issues
+              .filter((issue) => !issue.pull_request && issue.title.startsWith(titlePrefix))
+              .sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at));
+
+            const existingIssue = benchmarkIssues.find((issue) => issue.title === title) ?? null;
+            const previousIssue = benchmarkIssues.find((issue) => issue.title !== title && extractPayload(issue.body));
+            const previousPayload = previousIssue ? extractPayload(previousIssue.body) : null;
+            const previousHistory = (
+              Array.isArray(previousPayload?.history)
+                ? previousPayload.history
+                : previousPayload?.reports
+                  ? [
+                      {
+                        benchmarkDate: previousPayload.benchmarkDate,
+                        benchmarkTimestamp: previousPayload.benchmarkTimestamp,
+                        runUrl: previousPayload.runUrl,
+                        reports: previousPayload.reports,
+                      },
+                    ]
+                  : []
+            ).map((run) => ({
+              benchmarkDate: run.benchmarkDate,
+              benchmarkTimestamp: run.benchmarkTimestamp,
+              runUrl: run.runUrl,
+              reports: Array.isArray(run.reports) ? run.reports.map(normalizeReportForHistory) : [],
+            }));
+
+            const currentRun = {
+              benchmarkDate: process.env.BENCHMARK_DATE,
+              benchmarkTimestamp: process.env.BENCHMARK_TIMESTAMP,
+              runUrl: process.env.RUN_URL,
+              reports: reports.map(normalizeReportForHistory),
+            };
+
+            const history = [currentRun, ...previousHistory.filter((run) => run.benchmarkDate !== currentRun.benchmarkDate)]
+              .slice(0, 21);
+            const previousRun = history[1] ?? null;
+            const previousReports = new Map((previousRun?.reports ?? []).map((report) => [report.slug, report]));
+
+            const formatStatus = (report) =>
+              report.status === "success"
+                ? "Passed"
+                : `Failed (${report.failureStage || "unknown"})`;
+
+            const formatDelta = (current, previous) => {
+              if (!previous) return "n/a";
+              if (current.status !== "success" || previous.status !== "success") return "n/a";
+
+              const delta = current.durationSeconds - previous.durationSeconds;
+              const sign = delta > 0 ? "+" : "";
+              const percent = previous.durationSeconds === 0
+                ? null
+                : (delta / previous.durationSeconds) * 100;
+
+              if (percent === null) {
+                return `${sign}${delta}s`;
+              }
+
+              return `${sign}${delta}s (${sign}${percent.toFixed(1)}%)`;
+            };
+
+            const lines = [
+              "## Daily Deploy Sized Benchmarks",
+              "",
+              `Local benchmark window: ${process.env.BENCHMARK_TIMESTAMP}`,
+              "",
+              `Dashboard: [bulletin-benchmarks.paseo.li](${dashboardUrl})`,
+              "",
+              "Dashboard refresh: __DASHBOARD_STATUS__",
+              "",
+              "| Size | Status | Duration | Domain | URL | CID |",
+              "|------|--------|----------|--------|-----|-----|",
+            ];
+
+            for (const report of reports) {
+              const domain = report.fqdn ? `\`${report.fqdn}\`` : "n/a";
+              const url = report.url ? `[open](${report.url})` : "n/a";
+              const cid = report.cid ? `\`${report.cid}\`` : "n/a";
+              lines.push(
+                `| ${report.size} | ${formatStatus(report)} | ${report.durationSeconds}s | ${domain} | ${url} | ${cid} |`,
+              );
+            }
+
+            if (previousRun) {
+              lines.push("");
+              if (previousIssue) {
+                lines.push(`Previous benchmark issue: #${previousIssue.number}`);
+                lines.push("");
+              }
+              lines.push("");
+              lines.push("## Comparison With Previous Run");
+              lines.push("");
+              lines.push("| Size | Current | Previous | Delta |");
+              lines.push("|------|---------|----------|-------|");
+
+              for (const report of reports) {
+                const previous = previousReports.get(report.slug);
+                const currentValue =
+                  report.status === "success"
+                    ? `${report.durationSeconds}s`
+                    : formatStatus(report);
+                const previousValue = previous
+                  ? previous.status === "success"
+                    ? `${previous.durationSeconds}s`
+                    : formatStatus(previous)
+                  : "n/a";
+
+                lines.push(
+                  `| ${report.size} | ${currentValue} | ${previousValue} | ${formatDelta(report, previous)} |`,
+                );
+              }
+            }
+
+            lines.push("");
+            lines.push(`[View workflow run](${process.env.RUN_URL})`);
+
+            if (codeownerMentions.length > 0) {
+              lines.push("");
+              lines.push(`Code owners: ${codeownerMentions.join(" ")}`);
+            }
+
+            const payload = JSON.stringify(
+              {
+                benchmarkDate: process.env.BENCHMARK_DATE,
+                benchmarkTimestamp: process.env.BENCHMARK_TIMESTAMP,
+                runUrl: process.env.RUN_URL,
+                reports: currentRun.reports,
+                history,
+              },
+              null,
+              2,
+            );
+
+            const outputDir = path.join(process.cwd(), ".daily-benchmark-publish");
+            fs.mkdirSync(outputDir, { recursive: true });
+
+            fs.writeFileSync(
+              path.join(outputDir, "benchmarks.json"),
+              JSON.stringify(
+                {
+                  schemaVersion: 1,
+                  generatedAt: new Date().toISOString(),
+                  dashboardUrl,
+                  sizes: sizeConfig,
+                  runs: history,
+                },
+                null,
+                2,
+              ),
+            );
+
+            lines.push("");
+            lines.push(`<!-- dotns-sized-benchmark-data\n${payload}\n-->`);
+
+            fs.writeFileSync(path.join(outputDir, "issue-body.md"), lines.join("\n"));
+            fs.writeFileSync(
+              path.join(outputDir, "issue-metadata.json"),
+              JSON.stringify(
+                {
+                  owner,
+                  repo,
+                  title,
+                  existingIssueNumber: existingIssue?.number ?? null,
+                },
+                null,
+                2,
+              ),
+            );
+
+      - name: Refresh dashboard dataset
+        shell: bash
+        run: cp .daily-benchmark-publish/benchmarks.json examples/deploy/sized-sites/dashboard/benchmarks.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.6"
+
+      - name: Setup CLI
+        uses: ./.github/actions/setup-cli
+        with:
+          source: source
+
+      - name: Upload dashboard to Bulletin
+        id: dashboard-bulletin
+        continue-on-error: true
+        uses: ./.github/actions/bulletin
+        with:
+          mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
+          build-path: examples/deploy/sized-sites/dashboard
+          max-retries: 5
+
+      - name: Publish dashboard domain
+        id: dashboard-dotns
+        if: steps.dashboard-bulletin.outcome == 'success'
+        continue-on-error: true
+        uses: ./.github/actions/dotns
+        with:
+          mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
+          basename: bulletin-benchmarks
+          mode: production
+          domain: bulletin-benchmarks
+          register-base: true
+          cid: ${{ steps.dashboard-bulletin.outputs.cid }}
+          max-retries: 5
+
+      - name: Create or update benchmark issue
+        id: issue
+        uses: actions/github-script@v7
+        env:
+          DASHBOARD_URL: https://bulletin-benchmarks.paseo.li
+          DASHBOARD_BULLETIN_OUTCOME: ${{ steps.dashboard-bulletin.outcome }}
+          DASHBOARD_DOTNS_OUTCOME: ${{ steps.dashboard-dotns.outcome }}
+        with:
+          script: |
+            const fs = require("node:fs");
+            const path = require("node:path");
+
+            const metadata = JSON.parse(
+              fs.readFileSync(path.join(process.cwd(), ".daily-benchmark-publish", "issue-metadata.json"), "utf8"),
+            );
+            let body = fs.readFileSync(
+              path.join(process.cwd(), ".daily-benchmark-publish", "issue-body.md"),
+              "utf8",
+            );
+
+            const dashboardReady =
+              process.env.DASHBOARD_BULLETIN_OUTCOME === "success" &&
+              process.env.DASHBOARD_DOTNS_OUTCOME === "success";
+
+            const dashboardStatus = dashboardReady
+              ? `[open](${process.env.DASHBOARD_URL})`
+              : `refresh failed; previous dashboard content may still be available at [open](${process.env.DASHBOARD_URL})`;
+
+            body = body.replace("__DASHBOARD_STATUS__", dashboardStatus);
+
+            if (metadata.existingIssueNumber) {
+              const updated = await github.rest.issues.update({
+                owner: metadata.owner,
+                repo: metadata.repo,
+                issue_number: metadata.existingIssueNumber,
+                title: metadata.title,
+                body,
+              });
+
+              core.setOutput("issue-number", String(updated.data.number));
+              core.setOutput("issue-url", updated.data.html_url);
+              return;
+            }
+
+            const created = await github.rest.issues.create({
+              owner: metadata.owner,
+              repo: metadata.repo,
+              title: metadata.title,
+              body,
+            });
+
+            core.setOutput("issue-number", String(created.data.number));
+            core.setOutput("issue-url", created.data.html_url);
+
+      - name: Summarize published issue
+        shell: bash
+        run: |
+          {
+            echo "## Daily benchmark issue"
+            echo ""
+            echo "- Dashboard: https://bulletin-benchmarks.paseo.li"
+            echo "- Issue: #${ISSUE_NUMBER}"
+            echo "- URL: ${ISSUE_URL}"
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          ISSUE_NUMBER: ${{ steps.issue.outputs.issue-number }}
+          ISSUE_URL: ${{ steps.issue.outputs.issue-url }}
+
+      - name: Fail if dashboard publish failed
+        if: steps.dashboard-bulletin.outcome != 'success' || steps.dashboard-dotns.outcome != 'success'
+        run: exit 1

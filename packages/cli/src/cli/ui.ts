@@ -1,4 +1,5 @@
 import chalk from "chalk";
+import { printHumanLine, printHumanSuccess } from "./reporter";
 
 export function banner(): void {
   const width = 40;
@@ -14,11 +15,11 @@ export function banner(): void {
 }
 
 export function stepStart(label: string) {
-  process.stdout.write(chalk.gray(`• ${label}\n`));
+  printHumanLine(chalk.gray(label));
 }
 
 export function stepOk(label: string) {
-  process.stdout.write(chalk.green(`✓ ${label}\n`));
+  printHumanSuccess(chalk.green(label));
 }
 
 export async function step<T>(label: string, fn: () => Promise<T>): Promise<T> {

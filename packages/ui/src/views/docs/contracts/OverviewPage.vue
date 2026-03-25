@@ -4,10 +4,10 @@
       <p class="text-sm font-medium text-dot-accent mb-2">Contracts</p>
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">Overview</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
-        DotNS is composed of
-        <span class="text-dot-text-primary font-medium">8 smart contracts</span>
-        deployed on Paseo AssetHub. Each contract has a single responsibility, and together they
-        form the complete naming, resolution, and content management system.
+        <span class="text-dot-text-primary font-medium">9 contracts</span> on Paseo AssetHub. Each
+        does one thing. Cross-contract references go through the
+        <span class="text-dot-text-primary font-medium">Protocol Registry</span> rather than being
+        hardcoded.
       </p>
     </div>
 
@@ -35,15 +35,62 @@
       </div>
     </div>
 
+    <div id="protocol-registry" class="space-y-4">
+      <h2 class="text-xl font-semibold text-dot-text-primary">Protocol Registry</h2>
+      <p class="text-dot-text-secondary leading-relaxed">
+        If every contract stored direct references to its siblings, upgrading one contract would
+        mean updating every contract that points to it. Each reference also uses a storage slot.
+        Integrators would need to track 9 addresses separately instead of querying one place.
+      </p>
+      <p class="text-dot-text-secondary leading-relaxed">
+        The <span class="font-mono text-dot-accent">DotnsProtocolRegistry</span> is a
+        <code class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
+          >bytes32 &rarr; address</code
+        >
+        mapping. Contracts call
+        <code class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
+          >protocolRegistry.get(key)</code
+        >
+        at runtime instead of storing sibling addresses. Replacing a contract takes a single
+        <code class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
+          >set()</code
+        >
+        call. The registry is UUPS-upgradeable and owned by the protocol admin. It also serves as
+        the single entry point to discover every contract in the protocol.
+      </p>
+
+      <div class="my-4 overflow-x-auto">
+        <table class="w-full text-sm border-collapse">
+          <thead>
+            <tr class="border-b border-dot-border">
+              <th class="text-left py-2 pr-4 text-dot-text-tertiary font-medium">Key</th>
+              <th class="text-left py-2 text-dot-text-tertiary font-medium">Role</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="key in registryKeys" :key="key.key" class="border-b border-dot-border/50">
+              <td class="py-2.5 pr-4">
+                <code
+                  class="text-dot-accent text-xs font-mono bg-dot-surface-secondary px-1.5 py-0.5 rounded"
+                  >{{ key.key }}</code
+                >
+              </td>
+              <td class="py-2.5 text-dot-text-secondary">{{ key.role }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Contract Interaction Pattern</h2>
       <p class="text-dot-text-secondary leading-relaxed">
         Most users interact with DotNS through the
-        <span class="font-mono text-dot-accent">RegistrarController</span>, which orchestrates the
+        <span class="font-mono text-dot-accent">RegistrarController</span>, which runs the
         commit-reveal registration flow. The
-        <span class="font-mono text-dot-accent">Registry</span> serves as the central source of
-        truth, and the three resolver contracts handle forward, reverse, and content resolution
-        independently.
+        <span class="font-mono text-dot-accent">Registry</span> is the central record of name
+        ownership. Three separate resolver contracts handle forward resolution, reverse resolution,
+        and content resolution independently.
       </p>
     </div>
 
@@ -55,8 +102,8 @@
     <div id="types" class="space-y-6">
       <h2 class="text-xl font-semibold text-dot-text-primary">Type Definitions</h2>
       <p class="text-dot-text-secondary text-sm">
-        Several contracts share these struct and enum types. Refer to these definitions when reading
-        function signatures on individual contract pages.
+        Several contracts share these data types. Refer to these definitions when reading function
+        signatures on individual contract pages.
       </p>
 
       <div class="space-y-2">
@@ -68,7 +115,7 @@
             class="text-dot-accent hover:text-dot-accent-hover"
             >Controller</RouterLink
           >
-          for commit-reveal registration.
+          during the commit-reveal registration process.
         </p>
         <DocParamTable
           :params="[
@@ -185,7 +232,8 @@
       <div class="space-y-2">
         <h3 class="text-base font-semibold text-dot-text-primary font-mono">PopStatus</h3>
         <p class="text-sm text-dot-text-secondary">
-          Enum representing proof-of-personhood tiers. Used in pricing and classification.
+          Proof-of-personhood (PoP) verification tiers. PoP is an identity check that proves a user
+          is a real person. Used in pricing and name classification.
         </p>
         <div class="my-4 overflow-x-auto">
           <table class="w-full text-sm border-collapse">
@@ -240,7 +288,25 @@ const popStatuses = [
   { value: 3, name: "Reserved", meaning: "Governance-reserved, requires reservation" },
 ];
 
+const registryKeys = [
+  { key: "registrar", role: "ERC-721 registrar backing name ownership" },
+  { key: "controller", role: "Commit-reveal registration orchestrator" },
+  { key: "registry", role: "Forward registry storing node ownership and resolver pointers" },
+  { key: "resolver", role: "Forward resolver storing address records" },
+  { key: "contentResolver", role: "Content resolver storing IPFS CIDs and text records" },
+  { key: "reverseResolver", role: "Reverse resolver for address-to-name mapping" },
+  { key: "popRules", role: "Proof-of-personhood verifier that enforces eligibility and pricing" },
+  { key: "storeFactory", role: "Factory deploying per-user Store instances" },
+];
+
 const contracts = [
+  {
+    name: "DotnsProtocolRegistry",
+    description:
+      "Central address book that maps a key to each protocol contract. All other contracts look up siblings here.",
+    address: "0xF8531342444fAC0A75719130eECcf45314584EFe",
+    link: "/docs/contracts/overview#protocol-registry",
+  },
   {
     name: "DotnsRegistry",
     description: "Source of truth for node ownership and resolver addresses.",

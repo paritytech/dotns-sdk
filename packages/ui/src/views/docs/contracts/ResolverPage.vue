@@ -5,8 +5,8 @@
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">DotnsResolver</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
         The Resolver handles
-        <span class="text-dot-text-primary font-medium">forward resolution</span>, mapping .dot name
-        nodes to on-chain addresses. It is the contract queried when a wallet or dApp needs to
+        <span class="text-dot-text-primary font-medium">forward resolution</span> &mdash; turning a
+        .dot name into a blockchain address. Wallets and dApps query this contract when they need to
         translate a human-readable name into an address.
       </p>
     </div>
@@ -91,9 +91,11 @@
       </div>
     </div>
 
-    <TryItSection title="Try it — Resolve a .dot name">
-      <TryResolveName />
-    </TryItSection>
+    <DocCallout variant="tip" title="Try it">
+      <RouterLink to="/docs/introduction" class="text-dot-accent hover:text-dot-accent-hover">
+        Resolve a .dot name &rarr;
+      </RouterLink>
+    </DocCallout>
 
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Code Example</h2>
@@ -101,9 +103,9 @@
     </div>
 
     <DocCallout variant="info" title="No gas for reads">
-      The <code>addressOf</code> function is a <code>view</code> call and does not cost gas. It can
-      be called off-chain by any client without a wallet connection. Only
-      <code>setAddress</code> requires a signed transaction.
+      The <code>addressOf</code> function is a read-only call and does not cost gas. Any client can
+      call it without a wallet connection. Only <code>setAddress</code> requires a signed
+      transaction.
     </DocCallout>
 
     <div class="border-t border-dot-border pt-6 flex justify-between text-sm">
@@ -129,8 +131,6 @@ import DocReturnsTable from "@/components/docs/DocReturnsTable.vue";
 import DocCodeBlock from "@/components/docs/DocCodeBlock.vue";
 import DocCallout from "@/components/docs/DocCallout.vue";
 import DocBadge from "@/components/docs/DocBadge.vue";
-import TryItSection from "@/components/docs/TryItSection.vue";
-import TryResolveName from "@/components/docs/interactive/TryResolveName.vue";
 
 const exampleCode = `import { createPublicClient, createWalletClient, custom, defineChain, http, namehash } from "viem";
 

@@ -6,8 +6,9 @@
       <p class="text-lg text-dot-text-secondary leading-relaxed">
         PopRules is the
         <span class="text-dot-text-primary font-medium">name classification and pricing engine</span
-        >. It classifies names by length and character composition, determines registration prices
-        based on Proof of Personhood (PoP) status, and manages reserved name claims.
+        >. It classifies names by length and character composition, sets registration prices based
+        on Proof-of-Personhood (PoP) status (an identity check that proves a user is a real person),
+        and manages reserved name claims.
       </p>
     </div>
 
@@ -60,8 +61,8 @@
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Returns the registration price for a name, taking into account the user's PoP status.
-          Reverts if the user is not eligible to register the name.
+          Returns the registration price for a name, factoring in the user's PoP status. Reverts if
+          the user is not eligible to register the name.
         </p>
         <DocParamTable
           :params="[
@@ -135,8 +136,8 @@
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Returns the base registration price for a name without considering any user-specific
-          discounts or PoP status.
+          Returns the base registration price for a name without any user-specific discounts or PoP
+          adjustments.
         </p>
         <DocParamTable
           :params="[
@@ -222,13 +223,13 @@
           <DocBadge variant="transaction">transaction</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Reserves a base name for a specific user. Reserved names can be registered via the
-          Controller's
+          Reserves a base name for a specific user. The reserved name can then be claimed through
+          the Controller's
           <code
             class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
             >registerReserved</code
           >
-          function without the commit-reveal flow.
+          function, skipping the commit-reveal flow.
         </p>
         <DocParamTable
           :params="[
@@ -242,18 +243,28 @@
           ]"
         />
         <DocCallout variant="warning" title="Reverts when">
-          Name is already reserved, or caller is not authorised to make reservations.
+          The name is already reserved, or the caller is not authorised to make reservations.
         </DocCallout>
       </div>
     </div>
 
-    <TryItSection title="Try it — Classify a name">
-      <TryClassifyName />
-    </TryItSection>
+    <DocCallout variant="tip" title="Try it">
+      <RouterLink
+        to="/docs/protocol/proof-of-personhood"
+        class="text-dot-accent hover:text-dot-accent-hover"
+      >
+        Classify a name &rarr;
+      </RouterLink>
+    </DocCallout>
 
-    <TryItSection title="Try it — Pricing curve">
-      <TryPricingCurve />
-    </TryItSection>
+    <DocCallout variant="tip" title="Try it">
+      <RouterLink
+        to="/docs/protocol/proof-of-personhood"
+        class="text-dot-accent hover:text-dot-accent-hover"
+      >
+        View the pricing curve &rarr;
+      </RouterLink>
+    </DocCallout>
 
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Code Example</h2>
@@ -290,9 +301,6 @@ import DocReturnsTable from "@/components/docs/DocReturnsTable.vue";
 import DocCodeBlock from "@/components/docs/DocCodeBlock.vue";
 import DocCallout from "@/components/docs/DocCallout.vue";
 import DocBadge from "@/components/docs/DocBadge.vue";
-import TryItSection from "@/components/docs/TryItSection.vue";
-import TryClassifyName from "@/components/docs/interactive/TryClassifyName.vue";
-import TryPricingCurve from "@/components/docs/interactive/TryPricingCurve.vue";
 
 const classifyParams = [
   {

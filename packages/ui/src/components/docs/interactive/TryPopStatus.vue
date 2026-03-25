@@ -80,8 +80,7 @@
 import { ref, computed } from "vue";
 import { useDomainStore } from "@/store/useDomainStore";
 import { useWalletStore } from "@/store/useWalletStore";
-import { useNetworkStore } from "@/store/useNetworkStore";
-import { useAbiStore } from "@/store/useAbiStore";
+import { ensureNetworkReady } from "@/lib/docInteractiveHelpers";
 import Button from "@/components/ui/Button.vue";
 import Loader from "@/components/ui/Loader.vue";
 import DocTabs from "../DocTabs.vue";
@@ -90,8 +89,6 @@ import type { Address } from "viem";
 
 const domain = useDomainStore();
 const walletStore = useWalletStore();
-const networkStore = useNetworkStore();
-const abiStore = useAbiStore();
 
 const address = ref("");
 const result = ref(0);
@@ -156,8 +153,7 @@ async function check() {
   }
 
   try {
-    await networkStore.getClient();
-    await abiStore.ensureAbis();
+    await ensureNetworkReady();
   } catch {
     error.value = "Network client not ready. Please wait for the app to finish loading.";
     status.value = "error";

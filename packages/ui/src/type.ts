@@ -157,6 +157,17 @@ export type MulticallCall = {
   callData: `0x${string}`;
 };
 
+export type Aggregate3Call = {
+  target: Address;
+  allowFailure: boolean;
+  callData: `0x${string}`;
+};
+
+export type Aggregate3Result = {
+  success: boolean;
+  returnData: `0x${string}`;
+};
+
 export type DotnsAvailability = {
   owner: Address;
   available: boolean;
@@ -205,6 +216,10 @@ export type AuthorizationState = {
   authorized: boolean;
   transactions?: number;
   bytes?: bigint;
+};
+
+export type BulletinUploadResult = {
+  cid: string;
 };
 
 export type ContractAuthStatus = {

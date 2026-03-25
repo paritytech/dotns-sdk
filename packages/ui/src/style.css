@@ -14,10 +14,10 @@
   --color-dot-text-tertiary: #a8a29e;
   --color-dot-border: #44403c;
   --color-dot-border-strong: #57534e;
-  --color-dot-accent: #ff2867;
-  --color-dot-accent-hover: #e6245d;
-  --color-dot-accent-active: #cc2050;
-  --color-dot-accent-soft: rgba(255, 40, 103, 0.08);
+  --color-dot-accent: #d6d3d1;
+  --color-dot-accent-hover: #fafaf9;
+  --color-dot-accent-active: #e7e5e4;
+  --color-dot-accent-soft: rgba(214, 211, 209, 0.08);
 
   --color-success: #059669;
   --color-success-light: #dcfce7;
@@ -257,11 +257,22 @@
   stroke-dasharray: 0 60;
 }
 
-/* Dark-theme scrollbar — standard properties only.
-   ::-webkit-scrollbar is intentionally omitted because it disables
-   overlay scrollbar mode in Chrome, forcing a permanent gutter on
-   every overflow:auto element even when content fits. Chrome 121+
-   supports scrollbar-color natively with overlay behaviour intact. */
+html,
+body {
+  background-color: #0f0f0f;
+  overscroll-behavior: none;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: #44403c transparent;

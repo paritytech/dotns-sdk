@@ -11,10 +11,13 @@ import Store from "../../abis/Store.json" assert { type: "json" };
 
 export const PREVIEW_BASE_URL = "http://dotns.paseo.li/#/preview";
 export const DEFAULT_BULLETIN_RPC = "wss://paseo-bulletin-rpc.polkadot.io";
-export const DEFAULT_CHUNK_SIZE_BYTES = 4 * 1024 * 1024;
+export const DEFAULT_CHUNK_SIZE_BYTES = 2 * 1024 * 1024;
 export const MAX_SINGLE_UPLOAD_SIZE_BYTES = 8 * 1024 * 1024;
+export const DEFAULT_UPLOAD_MAX_RETRIES = 5;
+export const MAX_UPLOAD_MAX_RETRIES = 20;
+export const UPLOAD_RETRY_BASE_DELAYS_MS = [1_000, 2_000, 5_000, 10_000] as const;
 export const DEFAULT_AUTHORIZATION_TRANSACTIONS = 1000000;
-export const DEFAULT_AUTHORIZATION_BYTES = BigInt(1099511627776);
+export const DEFAULT_AUTHORIZATION_BYTES = BigInt(1073741824);
 export const DEFAULT_VERIFICATION_GATEWAY = "https://paseo-ipfs.polkadot.io";
 export const DOT_NODE: Hex = "0x3fce7d1364a893e213bc4212792b517ffc88f5b13b86c8ef9c8d390c3a1370ce";
 
@@ -67,4 +70,7 @@ export const CONTRACTS = {
 
   /** Proof of Personhood RULES - verifies eligibility and pricing */
   DOTNS_RULES: "0x4e8920B1E69d0cEA9b23CBFC87A17Ee6fE02d2d3" as Address,
+
+  /** Multicall3 - batch read contract calls */
+  MULTICALL3: "0x807A65D3F3020011Fe0A61723d51362556C14ffd" as Address,
 } as const satisfies Record<string, Address>;

@@ -112,9 +112,11 @@
       <DocCodeBlock :code="registrationStructCode" lang="solidity" filename="Registration struct" />
     </div>
 
-    <TryItSection title="Try it — Check name availability">
-      <TryCheckAvailability />
-    </TryItSection>
+    <DocCallout variant="tip" title="Try it">
+      <RouterLink to="/docs/getting-started" class="text-dot-accent hover:text-dot-accent-hover">
+        Check name availability &rarr;
+      </RouterLink>
+    </DocCallout>
 
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Reserved Names</h2>
@@ -128,13 +130,36 @@
         >
         (typically names with a base length of 5 or fewer characters). These names cannot be
         registered through the normal commit-reveal flow. Instead, they use a governance path via
-        <span class="font-mono text-dot-accent">registerReserved</span>, which requires
-        authorisation from the protocol governance.
+        <span class="font-mono text-dot-accent">registerReserved</span>, which requires the caller
+        to be <span class="text-dot-text-primary font-medium">whitelisted</span> on the Controller
+        contract.
       </p>
-      <DocCallout variant="info" title="Governance registration">
-        Reserved names are intended for well-known entities, protocol infrastructure, and governance
-        allocations. The <span class="font-mono">registerReserved</span> function bypasses pricing
-        and PoP checks but requires governance-level authorisation.
+      <p class="text-dot-text-secondary leading-relaxed">
+        The whitelist ensures that reserved names are allocated through a governance process. Only
+        addresses explicitly approved by the protocol can register reserved names. Whitelisted
+        addresses bypass pricing and Proof of Personhood checks, since they have already been
+        verified through governance.
+      </p>
+      <p class="text-dot-text-secondary leading-relaxed">
+        To check whether your address is whitelisted, use the CLI:
+      </p>
+      <DocCodeBlock
+        :code="`# Check whitelist status\ndotns account is-whitelisted <your-address>`"
+        lang="bash"
+      />
+      <DocCallout variant="info" title="Request whitelisting">
+        To register a reserved name, you need to submit a whitelist request through the DotNS
+        governance process. Open a
+        <a
+          href="https://github.com/paritytech/dotns/issues/new?template=WHITELIST_REQUEST.yml"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-dot-accent hover:text-dot-accent-hover underline"
+          >Whitelist Request</a
+        >
+        on GitHub with your address and use case. Once approved, the protocol will whitelist your
+        address and you can register the reserved name via
+        <span class="font-mono">registerReserved</span>.
       </DocCallout>
     </div>
 
@@ -159,8 +184,6 @@
 import DocCallout from "@/components/docs/DocCallout.vue";
 import DocCodeBlock from "@/components/docs/DocCodeBlock.vue";
 import DocDiagramImage from "@/components/docs/DocDiagramImage.vue";
-import TryItSection from "@/components/docs/TryItSection.vue";
-import TryCheckAvailability from "@/components/docs/interactive/TryCheckAvailability.vue";
 
 const steps = [
   {

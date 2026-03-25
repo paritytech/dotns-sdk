@@ -8,9 +8,8 @@
 
     "lib": ["DOM", "DOM.Iterable", "ES2023"],
 
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     },
 
     "types": ["vite/client"],

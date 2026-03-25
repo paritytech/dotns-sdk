@@ -4,10 +4,11 @@
       <p class="text-sm font-medium text-dot-accent mb-2">Contracts</p>
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">Store &amp; StoreFactory</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
-        The StoreFactory deploys
-        <span class="text-dot-text-primary font-medium">per-user key-value Store contracts</span>
-        that hold on-chain registration records. Each user gets their own isolated Store instance,
-        and the Controller writes immutable registration data into it during the registration flow.
+        API reference for the StoreFactory and Store contracts. For the design rationale, ownership
+        model, key format, locking semantics, and transfer behaviour, see
+        <RouterLink to="/docs/protocol/store" class="text-dot-accent hover:text-dot-accent-hover"
+          >On-Chain Storage</RouterLink
+        >.
       </p>
     </div>
 
