@@ -1,5 +1,5 @@
 <template>
-  <div class="my-4 group relative">
+  <div class="my-6 group relative">
     <div
       v-if="filename"
       class="flex items-center px-4 py-2 bg-dot-surface border border-dot-border border-b-0 rounded-t-lg overflow-hidden"
@@ -7,7 +7,7 @@
       <span class="text-xs text-dot-text-tertiary font-mono truncate">{{ filename }}</span>
     </div>
     <div
-      class="relative overflow-x-auto border border-dot-border bg-dot-surface text-sm font-mono"
+      class="relative overflow-x-auto border border-dot-border bg-dot-surface text-sm leading-relaxed font-mono"
       :class="filename ? 'rounded-b-lg' : 'rounded-lg'"
     >
       <button
@@ -46,11 +46,11 @@
       <div
         v-if="highlighted"
         v-html="highlighted"
-        class="p-4 [&_pre]:!bg-transparent [&_pre]:!m-0 [&_pre]:!p-0 [&_code]:!text-sm"
+        class="p-4 [&_pre]:!bg-transparent [&_pre]:!m-0 [&_pre]:!p-0 [&_code]:!text-sm [&_code]:!leading-relaxed"
       />
       <pre
         v-else
-        class="p-4 text-dot-text-secondary whitespace-pre-wrap"
+        class="p-4 text-sm leading-relaxed text-dot-text-secondary whitespace-pre-wrap"
       ><code>{{ code }}</code></pre>
     </div>
   </div>

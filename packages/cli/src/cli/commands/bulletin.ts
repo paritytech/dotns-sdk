@@ -1024,37 +1024,49 @@ export function attachBulletinCommands(root: Command): void {
         }
 
         if (options.cache) {
-          onPhase({ phase: "cache", state: "start", message: "Connecting to Asset Hub..." });
+          onPhase({
+            phase: "cache",
+            state: "start",
+            message: "Saving CID to on-chain Store...",
+          });
           try {
             const { cacheCidToStore } = await import("../../commands/storeManagement");
-            const { prepareAssetHubContext } = await import("../context");
-            const assetHubContext = await prepareAssetHubContext({
-              rpc: process.env.DOTNS_RPC,
-              mnemonic: mergedOptions.mnemonic,
-              keyUri: mergedOptions.keyUri,
-              keystorePath: mergedOptions.keystorePath,
-              account: mergedOptions.account,
-              password: mergedOptions.password,
-            });
+            const { createClient } = await import("polkadot-api");
+            const { getWsProvider } = await import("polkadot-api/ws-provider");
+            const { paseo } = await import("@polkadot-api/descriptors");
+            const { ReviveClientWrapper } = await import("../../client/polkadotClient");
+            const { resolveRpc } = await import("../env");
 
-            onPhase({
-              phase: "cache",
-              state: "update",
-              message: "Saving CID to on-chain Store...",
-            });
+            const rpc = resolveRpc(process.env.DOTNS_RPC);
+            const typedApi = createClient(getWsProvider(rpc)).getTypedApi(paseo);
+            const clientWrapper = new ReviveClientWrapper(typedApi as any);
+            const evmAddress = await clientWrapper.getEvmAddress(context.substrateAddress);
+
             await cacheCidToStore({
               cid: ipfsCid,
-              clientWrapper: assetHubContext.clientWrapper,
-              signer: assetHubContext.signer,
-              substrateAddress: assetHubContext.substrateAddress,
-              evmAddress: assetHubContext.evmAddress,
+              clientWrapper,
+              signer: context.signer,
+              substrateAddress: context.substrateAddress,
+              evmAddress,
             });
-            onPhase({ phase: "cache", state: "success", message: "CID saved to Store" });
+            onPhase({ phase: "cache", state: "success", message: "CID cached to Store" });
           } catch (cacheError) {
+            const msg = formatErrorMessage(cacheError);
+            let reason: string;
+            if (/insufficient|balance/i.test(msg)) {
+              reason =
+                "insufficient PAS balance on Asset Hub — fund the account and retry with --cache";
+            } else if (/no store deployed|store not deployed/i.test(msg)) {
+              reason = "no Store deployed — register a domain first or deploy a Store manually";
+            } else if (/not authorized|unauthorized/i.test(msg)) {
+              reason = "Store not authorised for writes — run dotns store ensure-auth";
+            } else {
+              reason = msg;
+            }
             onPhase({
               phase: "cache",
               state: "warning",
-              message: `CID caching failed: ${formatErrorMessage(cacheError)}`,
+              message: `Store caching skipped: ${reason}`,
             });
           }
         }

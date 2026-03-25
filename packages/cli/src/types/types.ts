@@ -503,11 +503,6 @@ export type MerkleizedDirectory = {
   carFileBytes: Uint8Array;
 };
 
-export type MerkleizeResult = {
-  /** CID of the merkleized content */
-  cid: string;
-};
-
 export type VerificationResult = {
   /** Content identifier that was verified */
   cid: string;

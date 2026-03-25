@@ -85,7 +85,7 @@
           Submits a commitment hash on-chain. Once the minimum waiting period has passed, you can
           call
           <code
-            class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
             >register</code
           >
           to complete the registration.
@@ -115,18 +115,18 @@
         <p class="text-sm text-dot-text-secondary">
           Completes the registration by revealing the commitment. Must be called after
           <code
-            class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
             >minCommitmentAge</code
           >
           and before
           <code
-            class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
             >maxCommitmentAge</code
           >
           has elapsed since the commit. This function is payable &mdash; send the registration fee
           as
           <code
-            class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
             >msg.value</code
           >.
         </p>
@@ -142,9 +142,19 @@
           ]"
         />
         <DocCallout variant="warning" title="Reverts when">
-          Commitment not found, called before <code>minCommitmentAge</code>, called after
-          <code>maxCommitmentAge</code>, insufficient <code>msg.value</code>, name not available, or
-          caller fails the PoP eligibility check.
+          Commitment not found, called before
+          <code
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+            >minCommitmentAge</code
+          >, called after
+          <code
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+            >maxCommitmentAge</code
+          >, insufficient
+          <code
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+            >msg.value</code
+          >, name not available, or caller fails the PoP eligibility check.
         </DocCallout>
       </div>
 
@@ -226,9 +236,18 @@
     </div>
 
     <DocCallout variant="warning" title="Commit-reveal timing">
-      The register transaction must be submitted after <code>minCommitmentAge</code> seconds and
-      before <code>maxCommitmentAge</code> seconds have elapsed since the commit. Submitting too
-      early or too late will cause the transaction to revert.
+      The register transaction must be submitted after
+      <code
+        class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+        >minCommitmentAge</code
+      >
+      seconds and before
+      <code
+        class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+        >maxCommitmentAge</code
+      >
+      seconds have elapsed since the commit. Submitting too early or too late will cause the
+      transaction to revert.
     </DocCallout>
 
     <div class="border-t border-dot-border pt-6 flex justify-between text-sm">

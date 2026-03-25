@@ -7,7 +7,9 @@ on:
 
 jobs:
   transfer-new:
-    if: github.event_name == 'issues' && !contains(github.event.issue.labels.*.name, 'benchmark-request')
+    if: >-
+      github.event_name == 'issues'
+      && !contains(github.event.issue.labels.*.name, 'benchmark-request')
     runs-on: ubuntu-latest
     steps:
       - name: Transfer to dotns
@@ -22,7 +24,7 @@ jobs:
     steps:
       - name: Transfer all open issues to dotns
         run: |
-          gh issue list --repo paritytech/dotns-sdk --state open --json url --jq '.[].url' | while read -r issue_url; do
+          gh issue list --repo paritytech/dotns-sdk --state open --json url,labels --jq '.[] | select(.labels | map(.name) | all(. != "benchmark-request")) | .url' | while read -r issue_url; do
             echo "Transferring $issue_url"
             gh issue transfer "$issue_url" paritytech/dotns || echo "Failed to transfer $issue_url"
           done

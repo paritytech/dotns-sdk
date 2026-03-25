@@ -88,6 +88,12 @@ on:
         type: boolean
         default: false
 
+      cache:
+        description: 'Write uploaded CID to on-chain Store after upload'
+        required: false
+        type: boolean
+        default: false
+
       max-retries:
         description: 'Max retry attempts per step for transient RPC failures'
         required: false
@@ -150,12 +156,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-
-      - name: Setup Bun
-        if: inputs.cli-source == 'source'
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.2.6"
 
       - name: Download build artifact
         uses: actions/download-artifact@v4
@@ -256,6 +256,7 @@ jobs:
           upload-concurrency: ${{ steps.upload-settings.outputs.upload-concurrency }}
           max-retries: ${{ inputs.max-retries }}
           retry-delay: ${{ inputs.retry-delay }}
+          cache: ${{ inputs.cache }}
 
       - name: Save CID to cache
         if: steps.cache.outputs.cache-hit != 'true' && steps.bulletin.outputs.cid != ''
@@ -300,6 +301,7 @@ jobs:
           echo "cid=$CID" >> "$GITHUB_OUTPUT"
           echo "fqdn=$FQDN" >> "$GITHUB_OUTPUT"
           echo "url=https://${DOMAIN}.paseo.li" >> "$GITHUB_OUTPUT"
+          echo "url-alt=https://${DOMAIN}.dot.li" >> "$GITHUB_OUTPUT"
         env:
           CID: ${{ steps.cid.outputs.cid }}
           FQDN: ${{ steps.target.outputs.fqdn }}

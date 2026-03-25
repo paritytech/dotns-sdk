@@ -32,7 +32,7 @@
         <p class="text-sm text-dot-text-secondary">
           Returns the address that the given node resolves to. Returns
           <code
-            class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
             >address(0)</code
           >
           if no address has been set.
@@ -103,9 +103,18 @@
     </div>
 
     <DocCallout variant="info" title="No gas for reads">
-      The <code>addressOf</code> function is a read-only call and does not cost gas. Any client can
-      call it without a wallet connection. Only <code>setAddress</code> requires a signed
-      transaction.
+      The
+      <code
+        class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+        >addressOf</code
+      >
+      function is a read-only call and does not cost gas. Any client can call it without a wallet
+      connection. Only
+      <code
+        class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+        >setAddress</code
+      >
+      requires a signed transaction.
     </DocCallout>
 
     <div class="border-t border-dot-border pt-6 flex justify-between text-sm">

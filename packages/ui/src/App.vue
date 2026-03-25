@@ -4,7 +4,7 @@
     <TopProgress />
     <TransactionTimeline />
 
-    <main class="flex-1 transition-all duration-300">
+    <main class="flex-1 transition-all duration-300 pb-12">
       <RouterView />
     </main>
 

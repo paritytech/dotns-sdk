@@ -220,6 +220,12 @@ const workflowInputs = [
     required: "No",
     description: "GitHub Actions concurrency group. Prevents conflicting simultaneous deploys.",
   },
+  {
+    name: "cache",
+    required: "No",
+    description:
+      "Boolean (default: false). Write the uploaded CID to the user's on-chain Store. Requires sufficient PAS balance on Asset Hub. If the Store does not exist, one will be deployed automatically. Skips gracefully if the balance is insufficient.",
+  },
 ];
 
 const subnameFormats = [

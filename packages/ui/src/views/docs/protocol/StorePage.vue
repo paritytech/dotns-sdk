@@ -23,7 +23,8 @@
         The Store also enables
         <span class="text-dot-text-primary font-medium">permanent locking</span>. When the
         RegistrarController writes a registration record via
-        <code class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
           >setValueFor</code
         >, the key is locked forever. Not the user, not the Store owner, not governance &mdash;
         nobody can overwrite or delete it. Registration records are immutable.
@@ -34,11 +35,17 @@
       <h2 class="text-xl font-semibold text-dot-text-primary">StoreFactory</h2>
       <p class="text-dot-text-secondary leading-relaxed">
         The
-        <span class="font-mono text-dot-accent">StoreFactory</span> deploys exactly one Store per
-        address using the CREATE opcode. On first registration, the
-        <span class="font-mono text-dot-accent">StoreUtils.getOrCreateStore()</span> library
-        function deploys a Store, authorises the protocol contracts as DotNS controllers, transfers
-        Ownable ownership to the user, and remaps the factory's internal lookup.
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+          >StoreFactory</code
+        >
+        deploys exactly one Store per address using the CREATE opcode. On first registration, the
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+          >StoreUtils.getOrCreateStore()</code
+        >
+        library function deploys a Store, authorises the protocol contracts as DotNS controllers,
+        transfers Ownable ownership to the user, and remaps the factory's internal lookup.
       </p>
       <DocCodeBlock :code="storeFactoryCode" lang="solidity" filename="StoreFactory.sol" />
     </div>
@@ -52,21 +59,29 @@
         <div class="p-5 border border-dot-border rounded-xl bg-dot-surface">
           <p class="text-sm font-semibold text-dot-text-primary mb-2">Factory Mapping</p>
           <p class="text-xs text-dot-text-secondary leading-relaxed">
-            <code class="font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
+            <code
+              class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
               >StoreFactory._deployedStores[owner]</code
             >
             &mdash; tracks which address owns which Store for lookup purposes. Updated via
-            <code class="font-mono text-dot-accent">factory.transferOwnership(newOwner)</code>.
+            <code
+              class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+              >factory.transferOwnership(newOwner)</code
+            >.
           </p>
         </div>
         <div class="p-5 border border-dot-border rounded-xl bg-dot-surface">
           <p class="text-sm font-semibold text-dot-text-primary mb-2">Store Owner (Ownable)</p>
           <p class="text-xs text-dot-text-secondary leading-relaxed">
-            <code class="font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
+            <code
+              class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
               >Store.owner()</code
             >
             &mdash; controls who can authorise or revoke writers. Updated via
-            <code class="font-mono text-dot-accent">store.transferOwnership(newOwner)</code>.
+            <code
+              class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+              >store.transferOwnership(newOwner)</code
+            >.
           </p>
         </div>
       </div>
@@ -76,12 +91,17 @@
       <h2 class="text-xl font-semibold text-dot-text-primary">Key Format</h2>
       <p class="text-dot-text-secondary leading-relaxed">
         Store keys are
-        <span class="font-mono text-dot-text-primary">bytes32</span>. The protocol reserves the
-        <code class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+          >bytes32</code
+        >. The protocol reserves the
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
           >dotns.registered</code
         >
         prefix for registration records. The actual key is derived as
-        <code class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
           >keccak256(abi.encodePacked(prefix, labelhash))</code
         >.
       </p>
@@ -110,8 +130,10 @@
           </div>
           <p class="text-xs text-dot-text-secondary leading-relaxed">
             Calls
-            <code class="font-mono text-dot-accent">setValueFor(user, key, value)</code>. If the
-            caller is marked as a DotNS controller, the key is
+            <code
+              class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+              >setValueFor(user, key, value)</code
+            >. If the caller is marked as a DotNS controller, the key is
             <span class="text-dot-text-primary font-medium">locked permanently</span> after the
             write. Used during registration to create immutable records.
           </p>
@@ -123,9 +145,11 @@
           </div>
           <p class="text-xs text-dot-text-secondary leading-relaxed">
             Calls
-            <code class="font-mono text-dot-accent">setValue(key, value)</code>. Mutable &mdash; can
-            be overwritten or deleted at any time. Reverts if the key was previously locked. Used
-            for custom metadata.
+            <code
+              class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+              >setValue(key, value)</code
+            >. Mutable &mdash; can be overwritten or deleted at any time. Reverts if the key was
+            previously locked. Used for custom metadata.
           </p>
         </div>
       </div>
@@ -142,56 +166,44 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">What Happens During Registration</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        When you register <span class="font-mono text-dot-accent">alice.dot</span>, the Controller
-        writes the string <span class="font-mono text-dot-text-primary">"alice.dot"</span> to your
-        Store under the derived key. Because the Controller is a DotNS controller, the key is
-        locked. The Store now permanently records that this address registered
-        <span class="font-mono">alice.dot</span>.
+        When you register
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+          >alice.dot</code
+        >, the Controller writes the string
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+          >"alice.dot"</code
+        >
+        to your Store under the derived key. Because the Controller is a DotNS controller, the key
+        is locked. The Store now permanently records that this address registered
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+          >alice.dot</code
+        >.
       </p>
       <DocCodeBlock :code="registrationRecordCode" lang="solidity" filename="registration flow" />
-    </div>
-
-    <div class="space-y-4">
-      <h2 class="text-xl font-semibold text-dot-text-primary">Transfers</h2>
-      <p class="text-dot-text-secondary leading-relaxed">
-        When a name token is transferred via ERC-721, the Registrar's
-        <code class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
-          >_update</code
-        >
-        hook:
-      </p>
-      <ol class="list-decimal list-inside text-sm text-dot-text-secondary space-y-1 ml-2">
-        <li>
-          Reads the label from
-          <code class="font-mono text-dot-accent">_labels[tokenId]</code> (not from the sender's
-          Store).
-        </li>
-        <li>
-          Deploys a Store for the recipient if they don't have one, via
-          <code class="font-mono text-dot-accent">StoreUtils.getOrCreateStore()</code>.
-        </li>
-        <li>
-          Writes
-          <code class="font-mono text-dot-accent">"alice.dot"</code> to the recipient's Store (skips
-          if key already has a value, since locked entries can't be overwritten).
-        </li>
-        <li>Clears the sender's reverse name if it pointed to the transferred domain.</li>
-        <li>
-          Does <span class="text-dot-text-primary font-medium">not</span> touch the sender's Store
-          &mdash; locked entries are permanent.
-        </li>
-      </ol>
-      <p class="text-dot-text-secondary leading-relaxed">
-        On burn (transfer to
-        <code class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
-          >address(0)</code
-        >), no Store write happens. The token is destroyed; the sender's locked entries persist.
-      </p>
     </div>
 
     <TryItSection title="Store Lookup">
       <TryStoreLookup />
     </TryItSection>
+
+    <DocCallout variant="warning" title="Store ownership transfer is irreversible">
+      The StoreFactory's
+      <code
+        class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+        >transferOwnership</code
+      >
+      function can transfer Store ownership to
+      <code
+        class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+        >address(0)</code
+      >, effectively burning the Store. All locked entries (names and CIDs) become permanently
+      orphaned and inaccessible. The previous owner loses control of their Store and all data
+      written to it. This action cannot be undone. Name tokens themselves cannot be burned &mdash;
+      the Registrar does not expose a burn function.
+    </DocCallout>
 
     <DocCallout variant="info" title="One Store per address">
       The StoreFactory enforces one Store per address. If a user doesn't have a Store when the

@@ -1,5 +1,5 @@
 <template>
-  <div class="rounded-xl border p-4 my-4" :class="variantClasses">
+  <div class="rounded-lg border p-4 my-6" :class="variantClasses">
     <div class="flex items-start gap-3">
       <span class="mt-0.5 shrink-0" :class="iconColor">
         <svg

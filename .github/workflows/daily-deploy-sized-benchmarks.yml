@@ -353,7 +353,7 @@ jobs:
       - name: Setup CLI
         uses: ./.github/actions/setup-cli
         with:
-          source: source
+          source: release
 
       - name: Upload dashboard to Bulletin
         id: dashboard-bulletin
@@ -427,6 +427,7 @@ jobs:
               repo: metadata.repo,
               title: metadata.title,
               body,
+              labels: ["benchmark-request"],
             });
 
             core.setOutput("issue-number", String(created.data.number));

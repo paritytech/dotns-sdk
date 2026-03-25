@@ -11,7 +11,7 @@
               v-model="input"
               @keydown.enter="lookup"
               type="text"
-              placeholder="0x... or 5Grw... or alice"
+              placeholder="0xD908...bb72 or 5DtFfW...TMLe or alice"
               class="flex-1 bg-dot-surface border border-dot-border rounded-lg px-3 py-2 text-sm text-dot-text-primary placeholder:text-dot-text-tertiary focus:outline-none focus:border-dot-accent focus:ring-2 focus:ring-dot-accent/30 transition-colors"
             />
             <Button

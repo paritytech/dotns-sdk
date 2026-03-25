@@ -9,12 +9,7 @@ import { bulletin } from "@polkadot-api/descriptors";
 import { importer } from "ipfs-unixfs-importer";
 import type { CID } from "multiformats/cid";
 import { encodeIpfsContenthash } from "../bulletin/cid";
-import {
-  hasIpfsCli,
-  merkleizeWithIpfs,
-  verifyCidResolution,
-  verifySingleFileCid,
-} from "../bulletin/ipfs";
+import { verifyCidResolution, verifySingleFileCid } from "../bulletin/ipfs";
 import { completedBlocksFromManifest, loadManifestForResume } from "../bulletin/uploadManifest";
 import {
   isRetryableUploadError,
@@ -848,19 +843,6 @@ export async function storeDirectory(
             "success",
             `Uploaded ${totalBlocks} blocks (${formatBytes(totalBytes)}) in ${formatDuration(elapsed)} — ${formatBytes(throughput)}/s`,
           );
-
-          if (hasIpfsCli()) {
-            try {
-              const ipfsCliResult = merkleizeWithIpfs(directoryPath);
-              if (ipfsCliResult.cid !== rootCid.toString()) {
-                console.log(chalk.yellow("  CID mismatch: IPFS CLI vs local merkleization"));
-                console.log(chalk.red("  IPFS CLI: ") + chalk.white(ipfsCliResult.cid));
-                console.log(chalk.red("  Local:    ") + chalk.white(rootCid.toString()));
-              }
-            } catch {
-              // IPFS CLI verification is optional
-            }
-          }
 
           console.log(chalk.gray("  root cid: ") + chalk.cyan(rootCid.toString()));
 

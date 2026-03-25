@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - "packages/cli/**"
+      - "packages/ui/**"
       - ".github/workflows/release.yml"
 
 permissions:
@@ -18,6 +19,10 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v4
 
@@ -97,11 +102,11 @@ jobs:
         working-directory: packages/cli
         run: npm pack
 
-      - name: Upload artifact
-        if: github.event_name == 'pull_request' && steps.build.outcome == 'success'
+      - name: Upload CLI artifact
+        if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: cli-preview-${{ steps.version.outputs.version }}
+          name: cli-release-${{ steps.version.outputs.version }}
           path: packages/cli/*.tgz
           retention-days: 7
 
@@ -200,7 +205,7 @@ jobs:
                 "",
                 "Download artifact (GitHub CLI required):",
                 "```bash",
-                `gh run download ${runId} -n cli-preview-${version} -R ${repoFull}`,
+                `gh run download ${runId} -n cli-release-${version} -R ${repoFull}`,
                 "```",
                 "",
                 "Install globally:",
@@ -270,17 +275,105 @@ jobs:
               await github.rest.issues.createComment({ owner, repo, issue_number, body });
             }
 
-      - name: Create release body
-        if: startsWith(github.ref, 'refs/tags/v') && steps.build.outcome == 'success'
+      - name: Fail if build failed
+        if: steps.build.outcome == 'failure'
+        run: exit 1
+
+  build-ui:
+    name: Build UI
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.6"
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun install --frozen-lockfile
+          for pkg in packages/*; do
+            [ -f "$pkg/package.json" ] || continue
+            grep -q '"file:' "$pkg/package.json" || continue
+            grep -oP '"[^"]+": "file:\K[^"]+' "$pkg/package.json" | while read -r dep; do
+              name=$(jq -r .name "$pkg/$dep/package.json")
+              scope_dir="$pkg/node_modules/$(dirname "$name")"
+              mkdir -p "$scope_dir"
+              ln -sfn "$(cd "$pkg/$dep" && pwd)" "$pkg/node_modules/$name"
+            done
+          done
+
+      - name: Extract version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="0.0.0-pr.${{ github.event.pull_request.number }}"
+          fi
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build UI
+        working-directory: packages/ui
+        run: bun run build
+
+      - name: Create UI tarball
         shell: bash
         run: |
           set -euo pipefail
           VERSION="${{ steps.version.outputs.version }}"
-          TAG="${{ steps.version.outputs.tag }}"
+          tar -czf "dotns-ui-${VERSION}.tar.gz" -C packages/ui/dist .
+
+      - name: Upload UI tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-release-tarball
+          path: dotns-ui-*.tar.gz
+          retention-days: 7
+
+      - name: Upload UI site artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-site
+          path: packages/ui/dist/
+          retention-days: 7
+
+  release:
+    name: Create Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build, build-ui]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download CLI artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-release-${{ needs.build.outputs.version }}
+          path: artifacts
+
+      - name: Download UI artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ui-release-tarball
+          path: artifacts
+
+      - name: Create release body
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.build.outputs.version }}"
+          TAG="${{ needs.build.outputs.tag }}"
           REPO="${{ github.repository }}"
 
           cat > release-body.md <<EOF
           ## Installation
+
+          ### CLI
 
           Download:
           \`\`\`bash
@@ -300,17 +393,40 @@ jobs:
           \`\`\`bash
           dotns --help
           \`\`\`
+
+          ### UI
+
+          Download:
+          \`\`\`bash
+          gh release download ${TAG} -p "dotns-ui-*.tar.gz" -R ${REPO}
+          \`\`\`
+
+          Extract:
+          \`\`\`bash
+          mkdir -p dotns-ui && tar -xzf dotns-ui-${VERSION}.tar.gz -C dotns-ui
+          \`\`\`
           EOF
 
       - name: Create release
-        if: startsWith(github.ref, 'refs/tags/v') && steps.build.outcome == 'success'
         uses: softprops/action-gh-release@v2
         with:
-          files: packages/cli/*.tgz
+          files: |
+            artifacts/*.tgz
+            artifacts/dotns-ui-*.tar.gz
           body_path: release-body.md
           generate_release_notes: true
-          prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
+          prerelease: ${{ needs.build.outputs.prerelease == 'true' }}
 
-      - name: Fail if build failed
-        if: steps.build.outcome == 'failure'
-        run: exit 1
+  deploy-production:
+    name: Deploy Production
+    if: github.event_name == 'push' && !contains(github.ref_name, '-')
+    needs: [build-ui]
+    uses: ./.github/workflows/deploy.yml
+    with:
+      basename: dotns
+      mode: production
+      artifact-name: ui-site
+      cli-source: release
+    secrets:
+      dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
+      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC_DEPLOY_UI }}
