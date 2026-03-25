@@ -14,7 +14,7 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">How Subdomains Work</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Every .dot name is a node in a tree. The root is
+        Every .dot name is an entry (called a node) in a tree structure. The root is
         <code class="text-dot-accent">DOT_NODE</code>, your domain
         <code class="text-dot-accent">alice.dot</code> is one level down, and
         <code class="text-dot-accent">blog.alice.dot</code> is two levels down. The
@@ -70,9 +70,10 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Delegation</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        The real power of subdomains is delegation. You can set a different owner for each subname.
-        That owner gets full control: they can set the resolver, create further subnames under it,
-        and configure text records and content hashes.
+        Subdomains become powerful through delegation. You can set a different owner for each
+        subname. That owner gets full control: they can set the resolver (the contract that returns
+        data for the name), create further subnames under it, and configure text records and content
+        hashes.
       </p>
       <DocCodeBlock :code="delegationCode" lang="bash" filename="Terminal" />
       <DocCallout variant="info" title="Revocation">

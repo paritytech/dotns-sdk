@@ -1,0 +1,34 @@
+[
+  {
+    "size": "1MB",
+    "slug": "1mb"
+  },
+  {
+    "size": "5MB",
+    "slug": "5mb"
+  },
+  {
+    "size": "10MB",
+    "slug": "10mb"
+  },
+  {
+    "size": "25MB",
+    "slug": "25mb"
+  },
+  {
+    "size": "50MB",
+    "slug": "50mb"
+  },
+  {
+    "size": "100MB",
+    "slug": "100mb"
+  },
+  {
+    "size": "200MB",
+    "slug": "200mb"
+  },
+  {
+    "size": "500MB",
+    "slug": "500mb"
+  }
+]

@@ -4,9 +4,9 @@
       <p class="text-sm font-medium text-dot-accent mb-2">Guides</p>
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">Deploy with CI</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
-        Automate deployments with the reusable GitHub Actions workflow from dotns-sdk. Every PR gets
-        a preview subname, and merges to main deploy to production &mdash; all on the decentralised
-        web.
+        Automate deployments with the reusable GitHub Actions workflow from dotns-sdk. Every pull
+        request gets a preview subname, and merges to main deploy to production &mdash; all on the
+        decentralised web.
       </p>
     </div>
 
@@ -16,15 +16,15 @@
         The dotns-sdk repository provides a reusable workflow (<code class="text-dot-accent"
           >deploy.yml</code
         >) that handles the full pipeline: build your app, upload to Bulletin, register the domain
-        or subname, and set the content hash. Two modes:
+        or subname, and set the content hash. It supports two modes:
       </p>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div class="p-4 border border-dot-border rounded-lg bg-dot-surface">
           <p class="text-sm font-medium text-dot-text-primary">Preview</p>
           <p class="text-xs text-dot-text-secondary mt-2">
-            Each PR gets a subname like
+            Each pull request gets a subname like
             <code class="text-dot-accent">pr42.myapp.dot</code>. Reviewers can visit the preview and
-            test the changes on the actual decentralised web. Subname is cleaned up when the PR
+            test changes on the decentralised web. The subname is cleaned up when the pull request
             closes.
           </p>
         </div>
@@ -85,15 +85,15 @@
             <tr class="bg-dot-surface">
               <td class="px-4 py-3 font-mono text-dot-accent text-xs">DOTNS_MNEMONIC</td>
               <td class="px-4 py-3 text-dot-text-secondary text-xs">
-                BIP39 mnemonic for the account that owns the base domain. Used for registration and
-                content hash updates.
+                BIP39 mnemonic (seed phrase) for the account that owns the base domain. Used for
+                registration and content hash updates.
               </td>
             </tr>
             <tr class="bg-dot-surface">
               <td class="px-4 py-3 font-mono text-dot-accent text-xs">BULLETIN_MNEMONIC</td>
               <td class="px-4 py-3 text-dot-text-secondary text-xs">
-                BIP39 mnemonic for the Bulletin-authorised account. Used for uploading build
-                artefacts to Bulletin storage.
+                BIP39 mnemonic (seed phrase) for the Bulletin-authorised account. Used for uploading
+                build artefacts to Bulletin storage.
               </td>
             </tr>
           </tbody>
@@ -132,7 +132,7 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">What the Pipeline Does</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        The reusable workflow orchestrates three composite actions:
+        The reusable workflow runs three composite actions in sequence:
       </p>
       <div class="space-y-3">
         <div
@@ -158,7 +158,7 @@
       <p class="text-dot-text-secondary leading-relaxed">
         The workflow computes the CID of your build output before uploading. If the CID already
         matches the on-chain content hash, it skips both the upload and the content hash update. No
-        wasted transactions, no duplicate uploads. Rebuilding the same code is a no-op.
+        wasted transactions, no duplicate uploads. Rebuilding the same code produces no changes.
       </p>
     </div>
 
@@ -290,7 +290,7 @@ const pipelineSteps = [
   {
     title: "bulletin (upload)",
     description:
-      "Downloads the build artefact, uploads it to Bulletin storage with optional parallelism, and outputs the IPFS CID.",
+      "Downloads the build artefact and uploads it to Bulletin storage. By default uses --as-car mode, which merkleises the directory in-memory and uploads as a chunked CAR file for faster uploads without needing an external IPFS binary. Outputs the IPFS CID.",
   },
   {
     title: "dotns (register + contenthash)",

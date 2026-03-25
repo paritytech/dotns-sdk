@@ -1,19 +1,3 @@
-# Reusable workflow that deploys a static site to Polkadot via the DotNS CLI.
-# It uploads the build artifact to Bulletin, optionally registers a base domain
-# or preview subname, sets the contenthash, and outputs the resulting CID/URL.
-#
-# The workflow is structured as discrete stages so that a failure at any point
-# (e.g. contenthash update) does not force earlier stages (e.g. upload) to re-run.
-# A content-addressable cache skips the upload entirely when the build hasn't changed.
-# Lookup steps check name existence before registration to avoid redundant retries
-# and to fail fast with actionable error messages when prerequisites are missing.
-#
-# Bulletin-specific steps (authorize, upload) and DotNS-specific steps (lookup,
-# register, contenthash) are encapsulated in composite actions under .github/actions/.
-#
-# Modes:
-#   preview    — registers a subname (e.g. pr42.mysite.dot) under the base domain
-#   production — deploys directly to the base domain (e.g. mysite.dot)
 name: Deploy on Polkadot
 
 on:
@@ -36,6 +20,12 @@ on:
         type: string
         default: 'pr-number'
 
+      subname:
+        description: 'Explicit subname override for preview deployments'
+        required: false
+        type: string
+        default: ''
+
       register-base:
         description: 'Attempt base domain registration if not already owned'
         required: false
@@ -47,8 +37,26 @@ on:
         required: true
         type: string
 
+      cli-source:
+        description: 'CLI install source: release or source'
+        required: false
+        type: string
+        default: 'release'
+
+      sdk-ref:
+        description: 'dotns-sdk ref used for checked out composite actions and source builds'
+        required: false
+        type: string
+        default: 'main'
+
+      sdk-repository:
+        description: 'Repository used for checked out composite actions and source builds'
+        required: false
+        type: string
+        default: 'paritytech/dotns-sdk'
+
       use-car:
-        description: 'Merkleize with IPFS CLI and upload as a CAR file instead of individual blocks'
+        description: '(legacy, ignored) The CLI now merkleizes in-memory via --as-car'
         required: false
         type: boolean
         default: false
@@ -68,17 +76,11 @@ on:
         required: false
         type: string
 
-      parallel:
-        description: 'Upload directory blocks in parallel'
-        required: false
-        type: boolean
-        default: true
-
       upload-concurrency:
-        description: 'Number of parallel block uploads'
+        description: 'Adaptive scheduler max window (max: 4)'
         required: false
         type: number
-        default: 15
+        default: 4
 
       skip-cache:
         description: 'Skip deployment cache and force re-upload'
@@ -116,6 +118,8 @@ on:
         value: ${{ jobs.deploy.outputs.url }}
       cache-hit:
         value: ${{ jobs.deploy.outputs.cache-hit }}
+      duration-seconds:
+        value: ${{ jobs.deploy.outputs.duration-seconds }}
 
 jobs:
   deploy:
@@ -126,17 +130,19 @@ jobs:
       fqdn: ${{ steps.final.outputs.fqdn }}
       url: ${{ steps.final.outputs.url }}
       cache-hit: ${{ steps.cache.outputs.cache-hit }}
+      duration-seconds: ${{ steps.duration.outputs.seconds }}
 
     steps:
       - name: Checkout actions
         uses: actions/checkout@v4
         with:
-          repository: paritytech/dotns-sdk
-          ref: main
+          repository: ${{ inputs.sdk-repository }}
+          ref: ${{ inputs.sdk-ref }}
           sparse-checkout: |
             .github/actions
             packages/cli
-            packages/ui
+            packages/ui/package.json
+            packages/ui/.papi
             package.json
             bun.lock
 
@@ -146,9 +152,10 @@ jobs:
           node-version: '22'
 
       - name: Setup Bun
+        if: inputs.cli-source == 'source'
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: "1.2.6"
 
       - name: Download build artifact
         uses: actions/download-artifact@v4
@@ -158,6 +165,12 @@ jobs:
 
       - name: Setup CLI
         uses: ./.github/actions/setup-cli
+        with:
+          source: ${{ inputs.cli-source }}
+
+      - name: Record deploy start
+        id: timer-start
+        run: echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
 
       - name: Resolve target
         id: target
@@ -166,17 +179,21 @@ jobs:
             echo "domain=$BASENAME" >> "$GITHUB_OUTPUT"
             echo "fqdn=${BASENAME}.dot" >> "$GITHUB_OUTPUT"
           else
-            case "$SUBNAME_FORMAT" in
-              pr-number)
-                SUBNAME="pr${PR_NUMBER}"
-                ;;
-              branch)
-                SUBNAME=$(echo "$HEAD_REF" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | cut -c1-20 | sed 's/-$//')
-                ;;
-              sha-short)
-                SUBNAME=$(echo "$COMMIT_SHA" | cut -c1-7)
-                ;;
-            esac
+            if [[ -n "$SUBNAME_OVERRIDE" ]]; then
+              SUBNAME="$SUBNAME_OVERRIDE"
+            else
+              case "$SUBNAME_FORMAT" in
+                pr-number)
+                  SUBNAME="pr${PR_NUMBER}"
+                  ;;
+                branch)
+                  SUBNAME=$(echo "$HEAD_REF" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | cut -c1-20 | sed 's/-$//')
+                  ;;
+                sha-short)
+                  SUBNAME=$(echo "$COMMIT_SHA" | cut -c1-7)
+                  ;;
+              esac
+            fi
 
             echo "subname=$SUBNAME" >> "$GITHUB_OUTPUT"
             echo "domain=${SUBNAME}.${BASENAME}" >> "$GITHUB_OUTPUT"
@@ -186,6 +203,7 @@ jobs:
           MODE: ${{ inputs.mode }}
           BASENAME: ${{ inputs.basename }}
           SUBNAME_FORMAT: ${{ inputs.subname-format }}
+          SUBNAME_OVERRIDE: ${{ inputs.subname }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_REF: ${{ github.head_ref }}
           COMMIT_SHA: ${{ github.sha }}
@@ -213,26 +231,19 @@ jobs:
           echo "cid=$CID" >> "$GITHUB_OUTPUT"
           echo "::notice::Cache hit — reusing CID: $CID"
 
-      - name: Setup IPFS Kubo
-        if: inputs.use-car && steps.cache.outputs.cache-hit != 'true'
-        uses: ipfs/download-ipfs-distribution-action@v1
-        with:
-          name: kubo
-          version: v0.33.2
-
-      - name: Initialize IPFS
-        if: inputs.use-car && steps.cache.outputs.cache-hit != 'true'
-        run: ipfs init
-
-      - name: Merkleize into CAR file
-        id: car
-        if: inputs.use-car && steps.cache.outputs.cache-hit != 'true'
+      - name: Resolve upload settings
+        id: upload-settings
+        if: steps.cache.outputs.cache-hit != 'true'
+        shell: bash
         run: |
-          CID=$(ipfs add -Q -r --cid-version=1 --raw-leaves --pin=false ./build)
-          ipfs dag export "$CID" > build.car
-          SIZE=$(stat --printf='%s' build.car)
-          echo "ipfs-cid=$CID" >> "$GITHUB_OUTPUT"
-          echo "::notice::CAR file created: $(numfmt --to=iec $SIZE) — IPFS CID: $CID"
+          EFFECTIVE_UPLOAD_CONCURRENCY="$UPLOAD_CONCURRENCY"
+          if [[ "$MODE" == "preview" && "$EFFECTIVE_UPLOAD_CONCURRENCY" -gt 3 ]]; then
+            EFFECTIVE_UPLOAD_CONCURRENCY=3
+          fi
+          echo "upload-concurrency=$EFFECTIVE_UPLOAD_CONCURRENCY" >> "$GITHUB_OUTPUT"
+        env:
+          MODE: ${{ inputs.mode }}
+          UPLOAD_CONCURRENCY: ${{ inputs.upload-concurrency }}
 
       - name: Upload to Bulletin
         id: bulletin
@@ -241,9 +252,8 @@ jobs:
         with:
           mnemonic: ${{ secrets.bulletin-mnemonic || 'bottom drive obey lake curtain smoke basket hold race lonely fit walk' }}
           bulletin-rpc: ${{ inputs.bulletin-rpc }}
-          build-path: ${{ inputs.use-car && './build.car' || './build' }}
-          parallel: ${{ inputs.parallel }}
-          upload-concurrency: ${{ inputs.upload-concurrency }}
+          build-path: ./build
+          upload-concurrency: ${{ steps.upload-settings.outputs.upload-concurrency }}
           max-retries: ${{ inputs.max-retries }}
           retry-delay: ${{ inputs.retry-delay }}
 
@@ -295,6 +305,16 @@ jobs:
           FQDN: ${{ steps.target.outputs.fqdn }}
           DOMAIN: ${{ steps.target.outputs.domain }}
 
+      - name: Compute deploy duration
+        id: duration
+        run: |
+          START="${START_EPOCH}"
+          END=$(date +%s)
+          ELAPSED=$((END - START))
+          echo "seconds=$ELAPSED" >> "$GITHUB_OUTPUT"
+        env:
+          START_EPOCH: ${{ steps.timer-start.outputs.epoch }}
+
       - name: Summary
         run: |
           CACHE_NOTE=""
@@ -316,6 +336,7 @@ jobs:
           | Domain | \`${FQDN}\` |
           | CID | \`${CID}\`${CACHE_NOTE} |
           | URL | [${URL}](${URL}) |
+          | Duration | ${DURATION_SECONDS}s |
           | Bulletin Auth | ${BULLETIN_AUTH} |
           EOF
         env:
@@ -323,5 +344,6 @@ jobs:
           FQDN: ${{ steps.final.outputs.fqdn }}
           CID: ${{ steps.final.outputs.cid }}
           URL: ${{ steps.final.outputs.url }}
+          DURATION_SECONDS: ${{ steps.duration.outputs.seconds }}
           BULLETIN_MNEMONIC: ${{ secrets.bulletin-mnemonic }}
           CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}

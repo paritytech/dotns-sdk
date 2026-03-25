@@ -1,18 +1,42 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import FileUpload from "./FileUpload.vue";
-
 const activeTab = ref<"file" | "folder">("file");
 const copiedCommand = ref<string | null>(null);
+const selectedPm = ref<"npm" | "yarn" | "bun-mac" | "bun-win">("npm");
+
+const RELEASES_URL = "https://github.com/paritytech/dotns-sdk/releases";
+
+const installCommands = {
+  npm: "npm install -g ./dotns-cli-*.tgz",
+  yarn: "yarn global add ./dotns-cli-*.tgz",
+  "bun-mac": 'bun add -g "$(pwd)/dotns-cli-*.tgz"',
+  "bun-win": 'bun add -g "$PWD\\dotns-cli-*.tgz"',
+};
+
+const pmLabels = {
+  npm: "npm",
+  yarn: "yarn",
+  "bun-mac": "bun (macOS/Linux)",
+  "bun-win": "bun (Windows)",
+};
 
 const commands = {
-  install: "bun add -g @dotns-sdk/cli",
+  download: 'gh release download --pattern "dotns-cli-*.tgz" --repo paritytech/dotns-sdk',
+  install: installCommands[selectedPm.value],
   upload: "dotns bulletin upload ./dist",
 };
 
-async function copyToClipboard(key: "install" | "upload") {
+type CommandKey = "download" | "install" | "upload";
+
+function getCommand(key: CommandKey): string {
+  if (key === "install") return installCommands[selectedPm.value];
+  return commands[key];
+}
+
+async function copyToClipboard(key: CommandKey) {
   try {
-    await navigator.clipboard.writeText(commands[key]);
+    await navigator.clipboard.writeText(getCommand(key));
     copiedCommand.value = key;
     setTimeout(() => {
       copiedCommand.value = null;
@@ -22,9 +46,7 @@ async function copyToClipboard(key: "install" | "upload") {
   }
 }
 
-function handleUploadComplete(cid: string) {
-  console.log("Upload complete:", cid);
-}
+function handleUploadComplete() {}
 
 function handleUploadError(message: string) {
   console.error("Upload error:", message);
@@ -33,19 +55,17 @@ function handleUploadError(message: string) {
 
 <template>
   <div class="min-h-screen bg-dot-bg">
-    <main class="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-16">
-      <div class="text-center mb-8 sm:mb-12">
-        <h2 class="text-3xl sm:text-4xl md:text-5xl font-serif text-dot-text-primary mb-3 sm:mb-4">
+    <main class="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-12">
+      <div class="text-center mb-6 sm:mb-8">
+        <h2 class="text-2xl sm:text-3xl font-serif text-dot-text-primary mb-1.5">
           Publish to Bulletin Chain
         </h2>
-        <p class="text-dot-text-tertiary text-base sm:text-lg">
-          Decentralised storage on Polkadot.
-        </p>
+        <p class="text-dot-text-tertiary text-sm">Decentralised storage on Polkadot.</p>
       </div>
 
-      <div class="grid md:grid-cols-2 gap-4 sm:gap-6">
-        <div class="bg-dot-surface border border-dot-border rounded-lg p-4 sm:p-6">
-          <div class="flex items-center justify-between mb-4 sm:mb-6">
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="bg-dot-surface border border-dot-border rounded-lg p-4">
+          <div class="flex items-center justify-between mb-3">
             <h3 class="text-dot-text-primary font-medium flex items-center gap-2">
               Publish from
               <span class="text-dot-text-secondary">Terminal</span>
@@ -53,115 +73,153 @@ function handleUploadError(message: string) {
             <span class="text-dot-text-tertiary text-sm">Option 1</span>
           </div>
 
-          <div class="space-y-3">
-            <div class="bg-dot-bg border border-dot-border rounded group">
-              <div class="flex items-center justify-between px-3 py-2 border-b border-dot-border">
-                <div class="flex items-center gap-1.5">
-                  <span class="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-dot-border"></span>
-                  <span class="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-dot-border"></span>
-                  <span class="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-dot-border"></span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="text-dot-text-tertiary text-xs">bash</span>
-                  <button
-                    @click="copyToClipboard('install')"
-                    class="p-1 rounded text-dot-text-tertiary hover:text-dot-text-secondary hover:bg-dot-surface-secondary transition-colors"
-                    title="Copy command"
+          <div class="space-y-2">
+            <div class="bg-dot-bg border border-dot-border rounded-lg overflow-hidden">
+              <div class="flex items-center justify-between px-3 py-1.5 border-b border-dot-border">
+                <span class="text-dot-text-tertiary text-xs">1. Download</span>
+                <button
+                  @click="copyToClipboard('download')"
+                  class="min-h-11 min-w-11 -mr-1.5 inline-flex items-center justify-center rounded-lg text-dot-text-tertiary hover:text-dot-text-secondary transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/40"
+                  title="Copy"
+                >
+                  <svg
+                    v-if="copiedCommand === 'download'"
+                    class="w-4 h-4 text-success"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
                   >
-                    <svg
-                      v-if="copiedCommand === 'install'"
-                      class="w-4 h-4 text-green-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                    <svg
-                      v-else
-                      class="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                      />
-                    </svg>
-                  </button>
-                </div>
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                    />
+                  </svg>
+                </button>
               </div>
-              <div class="p-3 sm:p-4 font-mono text-xs sm:text-sm overflow-x-auto">
+              <div class="px-3 py-2 font-mono text-xs overflow-x-auto">
                 <span class="text-dot-text-tertiary select-none">$ </span>
-                <span class="text-dot-text-secondary">bun add </span>
-                <span class="text-dot-text-primary">-g @dotns-sdk/cli</span>
+                <span class="text-dot-text-secondary">gh release download -p </span>
+                <span class="text-dot-text-primary">"*.tgz" -R paritytech/dotns-sdk</span>
               </div>
             </div>
 
-            <div class="bg-dot-bg border border-dot-border rounded group">
-              <div class="flex items-center justify-between px-3 py-2 border-b border-dot-border">
-                <div class="flex items-center gap-1.5">
-                  <span class="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-dot-border"></span>
-                  <span class="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-dot-border"></span>
-                  <span class="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-dot-border"></span>
+            <div class="bg-dot-bg border border-dot-border rounded-lg overflow-hidden">
+              <div class="flex items-center justify-between px-3 py-1.5 border-b border-dot-border">
+                <div class="flex items-center gap-2 overflow-x-auto">
+                  <span class="text-dot-text-tertiary text-xs shrink-0">2. Install</span>
+                  <div class="flex gap-1">
+                    <button
+                      v-for="(label, key) in pmLabels"
+                      :key="key"
+                      @click="selectedPm = key"
+                      class="px-2 py-1 rounded-md text-[10px] transition-colors duration-200 ease-out whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/40"
+                      :class="[
+                        selectedPm === key
+                          ? 'bg-dot-surface-secondary text-dot-text-primary'
+                          : 'text-dot-text-tertiary hover:text-dot-text-secondary',
+                      ]"
+                    >
+                      {{ label }}
+                    </button>
+                  </div>
                 </div>
-                <div class="flex items-center gap-2">
-                  <span class="text-dot-text-tertiary text-xs">bash</span>
-                  <button
-                    @click="copyToClipboard('upload')"
-                    class="p-1 rounded text-dot-text-tertiary hover:text-dot-text-secondary hover:bg-dot-surface-secondary transition-colors"
-                    title="Copy command"
+                <button
+                  @click="copyToClipboard('install')"
+                  class="min-h-11 min-w-11 -mr-1.5 inline-flex items-center justify-center rounded-lg text-dot-text-tertiary hover:text-dot-text-secondary transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/40 shrink-0"
+                  title="Copy"
+                >
+                  <svg
+                    v-if="copiedCommand === 'install'"
+                    class="w-4 h-4 text-success"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
                   >
-                    <svg
-                      v-if="copiedCommand === 'upload'"
-                      class="w-4 h-4 text-green-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                    <svg
-                      v-else
-                      class="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                      />
-                    </svg>
-                  </button>
-                </div>
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                    />
+                  </svg>
+                </button>
               </div>
-              <div class="p-3 sm:p-4 font-mono text-xs sm:text-sm overflow-x-auto">
+              <div class="px-3 py-2 font-mono text-xs overflow-x-auto">
+                <span class="text-dot-text-tertiary select-none">$ </span>
+                <span class="text-dot-text-secondary">{{ installCommands[selectedPm] }}</span>
+              </div>
+            </div>
+
+            <div class="bg-dot-bg border border-dot-border rounded-lg overflow-hidden">
+              <div class="flex items-center justify-between px-3 py-1.5 border-b border-dot-border">
+                <span class="text-dot-text-tertiary text-xs">3. Upload</span>
+                <button
+                  @click="copyToClipboard('upload')"
+                  class="min-h-11 min-w-11 -mr-1.5 inline-flex items-center justify-center rounded-lg text-dot-text-tertiary hover:text-dot-text-secondary transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/40 shrink-0"
+                  title="Copy"
+                >
+                  <svg
+                    v-if="copiedCommand === 'upload'"
+                    class="w-4 h-4 text-success"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <div class="px-3 py-2 font-mono text-xs overflow-x-auto">
                 <span class="text-dot-text-tertiary select-none">$ </span>
                 <span class="text-dot-text-secondary">dotns bulletin upload </span>
                 <span class="text-dot-text-primary">./dist</span>
               </div>
             </div>
           </div>
+
+          <a
+            :href="RELEASES_URL"
+            target="_blank"
+            rel="noopener"
+            class="block text-center text-dot-accent text-xs hover:text-dot-accent-hover hover:underline transition-colors duration-200 mt-4"
+          >
+            View all releases on GitHub
+          </a>
         </div>
 
-        <div class="bg-dot-surface border border-dot-border rounded-lg p-4 sm:p-6">
-          <div class="flex items-center justify-between mb-4 sm:mb-6">
+        <div class="bg-dot-surface border border-dot-border rounded-lg p-4">
+          <div class="flex items-center justify-between mb-3">
             <h3 class="text-dot-text-primary font-medium flex items-center gap-2">
               Publish from
               <span class="text-dot-text-secondary">Browser</span>
@@ -169,17 +227,17 @@ function handleUploadError(message: string) {
             <span class="text-dot-text-tertiary text-sm">Option 2</span>
           </div>
 
-          <div class="flex mb-4">
+          <div class="flex mb-3">
             <button
               @click="activeTab = 'file'"
               :class="[
-                'flex-1 py-2 px-3 sm:px-4 text-sm font-medium rounded-l border transition-colors flex items-center justify-center gap-1.5 sm:gap-2',
+                'flex-1 min-h-9 px-3 text-xs font-medium rounded-l-lg border transition-colors duration-200 ease-out flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/40 focus-visible:ring-inset',
                 activeTab === 'file'
                   ? 'bg-dot-surface-secondary border-dot-border-strong text-dot-text-primary'
                   : 'bg-dot-bg border-dot-border text-dot-text-tertiary hover:text-dot-text-secondary',
               ]"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   stroke-linecap="round"
                   stroke-linejoin="round"
@@ -192,13 +250,13 @@ function handleUploadError(message: string) {
             <button
               @click="activeTab = 'folder'"
               :class="[
-                'flex-1 py-2 px-3 sm:px-4 text-sm font-medium rounded-r border-t border-r border-b transition-colors flex items-center justify-center gap-1.5 sm:gap-2',
+                'flex-1 min-h-9 px-3 text-xs font-medium rounded-r-lg border-t border-r border-b transition-colors duration-200 ease-out flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/40 focus-visible:ring-inset',
                 activeTab === 'folder'
                   ? 'bg-dot-surface-secondary border-dot-border-strong text-dot-text-primary'
                   : 'bg-dot-bg border-dot-border text-dot-text-tertiary hover:text-dot-text-secondary',
               ]"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   stroke-linecap="round"
                   stroke-linejoin="round"
@@ -218,19 +276,19 @@ function handleUploadError(message: string) {
         </div>
       </div>
 
-      <div class="mt-12 sm:mt-16 text-center">
-        <h3 class="text-xl sm:text-2xl font-serif text-dot-text-primary mb-2">Why Bulletin?</h3>
-        <p class="text-dot-text-tertiary mb-6 sm:mb-8 text-sm sm:text-base">
+      <div class="mt-10 sm:mt-12 text-center">
+        <h3 class="text-lg sm:text-xl font-serif text-dot-text-primary mb-1.5">Why Bulletin?</h3>
+        <p class="text-dot-text-tertiary mb-5 sm:mb-6 text-sm">
           From folder to live in one step. No cloud configuration. No server. No maintenance.
         </p>
 
-        <div class="grid sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
-          <div class="bg-dot-surface border border-dot-border rounded-lg p-4 sm:p-6">
+        <div class="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
+          <div class="bg-dot-surface border border-dot-border rounded-lg p-4">
             <div
-              class="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-3 sm:mb-4 rounded-lg bg-dot-surface-secondary border border-dot-border flex items-center justify-center"
+              class="w-9 h-9 mx-auto mb-2.5 rounded-lg bg-dot-surface-secondary border border-dot-border flex items-center justify-center"
             >
               <svg
-                class="w-5 h-5 sm:w-6 sm:h-6 text-dot-text-secondary"
+                class="w-4 h-4 text-dot-text-secondary"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -243,18 +301,18 @@ function handleUploadError(message: string) {
                 />
               </svg>
             </div>
-            <h4 class="text-dot-text-primary font-medium mb-2">Instant Publish</h4>
-            <p class="text-dot-text-tertiary text-sm">
+            <h4 class="text-dot-text-primary text-sm font-medium mb-1">Instant Publish</h4>
+            <p class="text-dot-text-tertiary text-xs">
               Upload a folder or run one command to go live instantly.
             </p>
           </div>
 
-          <div class="bg-dot-surface border border-dot-border rounded-lg p-4 sm:p-6">
+          <div class="bg-dot-surface border border-dot-border rounded-lg p-4">
             <div
-              class="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-3 sm:mb-4 rounded-lg bg-dot-surface-secondary border border-dot-border flex items-center justify-center"
+              class="w-9 h-9 mx-auto mb-2.5 rounded-lg bg-dot-surface-secondary border border-dot-border flex items-center justify-center"
             >
               <svg
-                class="w-5 h-5 sm:w-6 sm:h-6 text-dot-text-secondary"
+                class="w-4 h-4 text-dot-text-secondary"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -267,20 +325,20 @@ function handleUploadError(message: string) {
                 />
               </svg>
             </div>
-            <h4 class="text-dot-text-primary font-medium mb-2">Secure & Verifiable</h4>
-            <p class="text-dot-text-tertiary text-sm">
+            <h4 class="text-dot-text-primary text-sm font-medium mb-1">Secure & Verifiable</h4>
+            <p class="text-dot-text-tertiary text-xs">
               Content integrity is cryptographically verified on Polkadot.
             </p>
           </div>
 
           <div
-            class="bg-dot-surface border border-dot-border rounded-lg p-4 sm:p-6 sm:col-span-2 md:col-span-1"
+            class="bg-dot-surface border border-dot-border rounded-lg p-4 sm:col-span-2 md:col-span-1"
           >
             <div
-              class="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-3 sm:mb-4 rounded-lg bg-dot-surface-secondary border border-dot-border flex items-center justify-center"
+              class="w-9 h-9 mx-auto mb-2.5 rounded-lg bg-dot-surface-secondary border border-dot-border flex items-center justify-center"
             >
               <svg
-                class="w-5 h-5 sm:w-6 sm:h-6 text-dot-text-secondary"
+                class="w-4 h-4 text-dot-text-secondary"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -293,8 +351,8 @@ function handleUploadError(message: string) {
                 />
               </svg>
             </div>
-            <h4 class="text-dot-text-primary font-medium mb-2">Decentralised</h4>
-            <p class="text-dot-text-tertiary text-sm">
+            <h4 class="text-dot-text-primary text-sm font-medium mb-1">Decentralised</h4>
+            <p class="text-dot-text-tertiary text-xs">
               Stored on the Bulletin chain with IPFS compatibility.
             </p>
           </div>

@@ -4,7 +4,7 @@
       <p class="text-sm font-medium text-dot-accent mb-2">Decentralised Web</p>
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">Deploy Workflow</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
-        The DotNS SDK includes a reusable GitHub Actions workflow that automates the entire
+        The DotNS SDK includes a reusable GitHub Actions workflow that automates your full
         deployment pipeline &mdash; build, upload to Bulletin, and set the content hash on your .dot
         domain. It supports both
         <span class="text-dot-text-primary font-medium">preview</span> and
@@ -61,8 +61,8 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Required Secrets</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        The workflow needs two mnemonics stored as GitHub repository secrets. These are used to sign
-        transactions for Bulletin uploads and DotNS content hash updates.
+        The workflow needs two mnemonics (secret recovery phrases) stored as GitHub repository
+        secrets. These sign transactions for Bulletin uploads and DotNS content hash updates.
       </p>
       <div class="overflow-x-auto">
         <table class="w-full text-sm border border-dot-border rounded-lg overflow-hidden">
@@ -152,16 +152,19 @@
 
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">
-        Parallel Uploads &amp; Concurrency
+        Upload Performance &amp; Concurrency
       </h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        For large sites, the workflow supports parallel Bulletin uploads and GitHub Actions
-        concurrency controls to prevent conflicting deployments.
+        For large sites, pass <span class="font-mono text-dot-accent">--as-car</span> to merkleise
+        the directory in-memory and upload it as a chunked CAR file. This is significantly faster
+        than per-block directory uploads and requires no external IPFS binary (Kubo). The workflow
+        also supports concurrency controls and GitHub Actions concurrency groups to prevent
+        conflicting deployments.
       </p>
       <DocCodeBlock :code="parallelCode" lang="yaml" filename="parallel configuration" />
       <DocCallout variant="tip" title="Content-addressable caching">
-        Because Bulletin blocks are content-addressed, uploading the same file twice is a no-op. The
-        workflow skips blocks that already exist on-chain, making incremental deploys fast.
+        Because Bulletin blocks are content-addressed, uploading the same file twice has no effect.
+        The workflow skips blocks that already exist on-chain, making incremental deploys fast.
       </DocCallout>
     </div>
 
@@ -205,6 +208,12 @@ const workflowInputs = [
     required: "No",
     description:
       "Number of parallel Bulletin upload workers. Default: 4. Increase for large sites.",
+  },
+  {
+    name: "as-car",
+    required: "No",
+    description:
+      "Legacy — the bulletin action now auto-detects directories and uses chunked CAR upload by default. Kept for backwards compatibility.",
   },
   {
     name: "concurrency",
@@ -264,9 +273,10 @@ jobs:
       dotns-mnemonic: \${{ secrets.DOTNS_MNEMONIC }}
       bulletin-mnemonic: \${{ secrets.BULLETIN_MNEMONIC }}`;
 
-const parallelCode = `# Parallel upload workers speed up large deployments
+const parallelCode = `# --as-car mode with concurrency for fast uploads
 with:
-  parallel: 8          # 8 concurrent Bulletin uploads
+  as-car: true         # legacy — the action auto-detects directories
+  parallel: 8          # 8 concurrent chunk uploads
 
 # Concurrency prevents conflicting deploys
 concurrency:

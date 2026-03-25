@@ -71,7 +71,7 @@
               Price: <span class="text-dot-text-primary font-mono">{{ formattedPrice }} PAS</span>
             </p>
             <p>
-              Requires: <span class="text-dot-text-primary">{{ popLabel(price.status) }}</span>
+              Requires: <span class="text-dot-text-primary">{{ tierLabel(price.status) }}</span>
             </p>
           </div>
           <p v-if="available && !price" class="text-xs text-dot-text-tertiary">
@@ -91,9 +91,13 @@ import { ref, computed } from "vue";
 import { useResolverStore } from "@/store/useResolverStore";
 import { useDomainStore } from "@/store/useDomainStore";
 import { useWalletStore } from "@/store/useWalletStore";
-import { useNetworkStore } from "@/store/useNetworkStore";
-import { useAbiStore } from "@/store/useAbiStore";
 import { zeroAddress, formatEther } from "viem";
+import {
+  normalizeNameInput,
+  ensureNetworkReady,
+  formatNetworkError,
+  tierLabel,
+} from "@/lib/docInteractiveHelpers";
 import Button from "@/components/ui/Button.vue";
 import Loader from "@/components/ui/Loader.vue";
 import DocTabs from "../DocTabs.vue";
@@ -102,8 +106,6 @@ import DocCodeBlock from "../DocCodeBlock.vue";
 const resolver = useResolverStore();
 const domain = useDomainStore();
 const walletStore = useWalletStore();
-const networkStore = useNetworkStore();
-const abiStore = useAbiStore();
 
 const name = ref("");
 const available = ref(false);
@@ -118,11 +120,7 @@ const formattedPrice = ref("");
 const status = ref<"idle" | "loading" | "result" | "error">("idle");
 
 const viemCode = computed(() => {
-  const label =
-    name.value
-      .trim()
-      .replace(/\.dot$/, "")
-      .toLowerCase() || "alice";
+  const label = normalizeNameInput(name.value) || "alice";
   return `import { createPublicClient, http, keccak256, toHex } from 'viem'
 
 const paseoAssetHub = {
@@ -161,26 +159,8 @@ try {
 }`;
 });
 
-function popLabel(s: number): string {
-  switch (s) {
-    case 0:
-      return "No requirement";
-    case 1:
-      return "PoP Lite";
-    case 2:
-      return "PoP Full";
-    case 3:
-      return "Reserved";
-    default:
-      return "Unknown";
-  }
-}
-
 async function check() {
-  const input = name.value
-    .trim()
-    .replace(/\.dot$/, "")
-    .toLowerCase();
+  const input = normalizeNameInput(name.value);
   if (!input) return;
 
   loading.value = true;
@@ -191,8 +171,7 @@ async function check() {
   status.value = "loading";
 
   try {
-    await networkStore.getClient();
-    await abiStore.ensureAbis();
+    await ensureNetworkReady();
 
     // Use the same pattern as the app's checkHandleAvailability():
     // query both Resolver (address) and Registrar (owner) — no wallet needed.
@@ -218,12 +197,7 @@ async function check() {
 
     status.value = "result";
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    if (msg.includes("Client not initialized") || msg.includes("No valid network")) {
-      error.value = "Network client not ready. Please wait for the app to finish loading.";
-    } else {
-      error.value = msg;
-    }
+    error.value = formatNetworkError(e);
     status.value = "error";
   } finally {
     loading.value = false;

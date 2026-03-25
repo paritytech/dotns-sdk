@@ -7,7 +7,7 @@
     @close="closeModal"
   >
     <div>
-      <h2 class="text-2xl font-bold text-dot-text-primary mb-2">Transfer Domain</h2>
+      <h2 class="text-xl font-bold text-dot-text-primary mb-2">Transfer Domain</h2>
 
       <p class="text-dot-text-tertiary text-sm mb-6">
         Transfer ownership of your domain to another address
@@ -15,12 +15,12 @@
 
       <div class="space-y-4">
         <div>
-          <label class="block text-sm font-medium text-dot-text-secondary mb-2">
+          <label class="block text-xs font-medium text-dot-text-secondary mb-1.5">
             Select Domain
           </label>
           <select
             v-model="selectedDomain"
-            class="w-full border border-dot-border bg-dot-surface text-dot-text-primary rounded-lg px-4 py-2 focus:ring-2 focus:ring-dot-accent/20 focus:outline-none"
+            class="w-full border border-dot-border bg-dot-surface text-dot-text-primary text-sm rounded-lg px-3 h-9 focus:ring-2 focus:ring-dot-accent/20 focus:outline-none"
             :disabled="isTransferring"
           >
             <option value="">Choose a domain...</option>
@@ -32,7 +32,7 @@
 
         <div>
           <div class="flex items-center gap-2 mb-2">
-            <label class="text-sm font-medium text-dot-text-secondary"> Recipient</label>
+            <label class="text-xs font-medium text-dot-text-secondary"> Recipient</label>
             <div class="relative group/info">
               <Icon
                 name="Info"
@@ -58,7 +58,7 @@
               v-model="recipientInput"
               type="text"
               placeholder="alice.dot or 0x... or 5..."
-              class="w-full px-4 py-2 rounded-lg focus:outline-none transition-all duration-200 text-dot-text-primary bg-dot-surface placeholder:text-dot-text-tertiary"
+              class="w-full px-3 h-9 rounded-lg focus:outline-none transition-all duration-200 text-sm text-dot-text-primary bg-dot-surface placeholder:text-dot-text-tertiary"
               :class="inputBorderClass"
               :disabled="isTransferring"
             />
@@ -124,7 +124,7 @@
       </div>
 
       <Button
-        size="lg"
+        size="md"
         variant="primary"
         full-width
         class="mt-6"

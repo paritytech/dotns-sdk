@@ -116,6 +116,9 @@ runs:
         BASENAME: ${{ inputs.basename }}
         MAX_RETRIES: ${{ inputs.max-retries }}
         RETRY_DELAY: ${{ inputs.retry-delay }}
+        CI: "true"
+        FORCE_COLOR: "0"
+        NODE_NO_WARNINGS: "1"
 
     - name: Check subname existence
       id: check-subname
@@ -151,12 +154,14 @@ runs:
         for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
           echo "Register subname attempt $ATTEMPT/$MAX_RETRIES"
 
-          OUTPUT=$(dotns register subname --name "$SUBNAME" --parent "$BASENAME" 2>&1) && {
+          RESULT_FILE=$(mktemp)
+          if dotns register subname --name "$SUBNAME" --parent "$BASENAME" 2>&1 | tee "$RESULT_FILE"; then
             echo "::notice::Subname ${SUBNAME}.${BASENAME}.dot registered"
+            rm -f "$RESULT_FILE"
             exit 0
-          }
+          fi
 
-          if echo "$OUTPUT" | grep -q "0x0dd76694"; then
+          if grep -q "0x0dd76694" "$RESULT_FILE"; then
             echo "::error::Subname ${SUBNAME}.${BASENAME}.dot failed: Store key is locked."
             echo ""
             echo "The DotNS Store contract locks the key keccak256(\"dotns.registered\", labelhash)"
@@ -165,11 +170,12 @@ runs:
             echo "does not allow the same label under multiple parents for the same owner."
             echo ""
             echo "Workaround: use a unique subname label per parent domain."
+            rm -f "$RESULT_FILE"
             exit 1
           fi
 
-          echo "$OUTPUT"
           echo "::warning::Register subname attempt $ATTEMPT failed"
+          rm -f "$RESULT_FILE"
           [[ "$ATTEMPT" -lt "$MAX_RETRIES" ]] && sleep "$RETRY_DELAY"
         done
 
@@ -193,6 +199,9 @@ runs:
         BASENAME: ${{ inputs.basename }}
         MAX_RETRIES: ${{ inputs.max-retries }}
         RETRY_DELAY: ${{ inputs.retry-delay }}
+        CI: "true"
+        FORCE_COLOR: "0"
+        NODE_NO_WARNINGS: "1"
 
     - name: Set contenthash
       shell: bash
@@ -222,4 +231,7 @@ runs:
         CID: ${{ inputs.cid }}
         RPC: ${{ inputs.rpc }}
         MAX_RETRIES: ${{ inputs.max-retries }}
+        CI: "true"
+        FORCE_COLOR: "0"
+        NODE_NO_WARNINGS: "1"
         RETRY_DELAY: ${{ inputs.retry-delay }}

@@ -1,34 +1,34 @@
 <template>
   <Teleport to="body">
     <Transition
-      enter-active-class="transition-opacity duration-300"
+      enter-active-class="transition-opacity duration-200 ease-out"
       enter-from-class="opacity-0"
-      leave-active-class="transition-opacity duration-300"
+      leave-active-class="transition-opacity duration-150 ease-in"
       leave-to-class="opacity-0"
     >
       <div
         v-if="open"
-        class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50"
+        class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
         @click.self="handleClose"
       >
         <Transition
-          enter-active-class="transform transition duration-300 ease-out"
-          enter-from-class="scale-95 opacity-0 translate-y-4"
+          enter-active-class="transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+          enter-from-class="scale-95 opacity-0 translate-y-6"
           enter-to-class="scale-100 opacity-100 translate-y-0"
-          leave-active-class="transform transition duration-200 ease-in"
+          leave-active-class="transition-all duration-200 ease-in"
           leave-from-class="scale-100 opacity-100 translate-y-0"
           leave-to-class="scale-95 opacity-0 translate-y-4"
         >
           <div
             v-if="open"
-            class="bg-dot-surface rounded-2xl shadow-2xl w-full max-w-md p-10 text-center relative"
+            class="bg-dot-surface border border-dot-border rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center relative"
           >
             <button
               class="absolute top-5 right-5 transition-colors"
               :class="
                 isPending
                   ? 'text-dot-text-tertiary/30 cursor-not-allowed'
-                  : 'text-dot-text-tertiary hover:text-dot-text-secondary cursor-pointer'
+                  : 'text-dot-text-tertiary hover:text-dot-text-primary cursor-pointer'
               "
               :disabled="isPending"
               @click="handleClose"
@@ -38,36 +38,41 @@
             </button>
 
             <template v-if="transaction && status === 'pending'">
-              <GradientLoader size="md" class="mx-auto mb-8" />
+              <GradientLoader size="md" class="mx-auto mb-6" />
 
-              <h2 class="text-2xl font-semibold text-dot-text-primary mb-2">
+              <h2 class="text-xl font-semibold text-dot-text-primary mb-2">
                 Submitting Transaction
               </h2>
               <p class="text-dot-text-tertiary text-sm mb-4">
                 Your transaction is being finalized. Please wait...
               </p>
 
-              <div v-if="elapsed > 15" class="text-sm text-dot-text-secondary">
-                It looks like this is taking longer than usual. Please be patient
-                <a
-                  v-if="explorerUrl"
-                  :href="explorerUrl"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="text-dot-accent hover:text-dot-accent-hover font-medium hover:underline ml-1"
-                >
-                  View on Explorer
-                </a>
-              </div>
+              <Transition
+                enter-active-class="transition-opacity duration-300"
+                enter-from-class="opacity-0"
+              >
+                <div v-if="elapsed > 15" class="text-sm text-dot-text-secondary">
+                  Taking longer than usual.
+                  <a
+                    v-if="explorerUrl"
+                    :href="explorerUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-dot-accent hover:text-dot-accent-hover font-medium hover:underline ml-1"
+                  >
+                    View on Explorer
+                  </a>
+                </div>
+              </Transition>
             </template>
 
             <template v-else-if="transaction && status === 'success'">
-              <div class="w-28 h-28 mx-auto mb-8 flex items-center justify-center">
+              <div class="w-16 h-16 mx-auto mb-6 flex items-center justify-center">
                 <svg
                   viewBox="0 0 96 96"
                   fill="none"
                   xmlns="http://www.w3.org/2000/svg"
-                  class="w-28 h-28"
+                  class="w-16 h-16"
                 >
                   <circle
                     cx="48"
@@ -90,15 +95,15 @@
                 </svg>
               </div>
 
-              <h2 class="text-2xl font-extrabold text-dot-text-primary mb-2">Congratulations!</h2>
-              <p class="text-dot-text-secondary text-sm mb-6">Transaction successful!</p>
+              <h2 class="text-xl font-bold text-dot-text-primary mb-2">Congratulations!</h2>
+              <p class="text-dot-text-secondary text-sm mb-4">Transaction successful!</p>
 
-              <div class="flex flex-col space-y-3">
-                <Button size="lg" variant="primary" full-width @click="emit('close')">
+              <div class="flex flex-col gap-3">
+                <Button size="md" variant="primary" full-width @click="emit('close')">
                   Done
                 </Button>
 
-                <Button v-if="explorerUrl" size="lg" variant="secondary" full-width as-child>
+                <Button v-if="explorerUrl" size="md" variant="secondary" full-width as-child>
                   <a :href="explorerUrl" target="_blank" rel="noopener noreferrer">
                     View Details
                   </a>
@@ -108,25 +113,25 @@
 
             <template v-else-if="transaction && status === 'failed'">
               <div
-                class="w-20 h-20 mx-auto mb-8 flex items-center justify-center bg-error/10 rounded-full"
+                class="w-16 h-16 mx-auto mb-6 flex items-center justify-center bg-error/10 rounded-full"
               >
                 <Icon name="X" size="xl" class="text-error" />
               </div>
 
-              <h2 class="text-2xl font-bold text-dot-text-primary mb-2">
+              <h2 class="text-xl font-bold text-dot-text-primary mb-2">
                 Transaction Failed or Timed Out
               </h2>
-              <p class="text-dot-text-secondary text-sm mb-6">
+              <p class="text-dot-text-secondary text-sm mb-4">
                 Something went wrong during the transaction.<br />
                 Please try again or check the block explorer.
               </p>
 
-              <div class="flex flex-col space-y-3">
-                <Button size="lg" variant="primary" full-width @click="emit('close')">
+              <div class="flex flex-col gap-3">
+                <Button size="md" variant="primary" full-width @click="emit('close')">
                   Close
                 </Button>
 
-                <Button v-if="explorerUrl" size="lg" variant="secondary" full-width as-child>
+                <Button v-if="explorerUrl" size="md" variant="secondary" full-width as-child>
                   <a :href="explorerUrl" target="_blank" rel="noopener noreferrer">
                     View Details
                   </a>
@@ -199,7 +204,6 @@ watch(
   () => props.transaction,
   (newVal) => {
     if (!newVal) {
-      console.log("watch:props.transaction ", newVal);
       status.value = "pending";
       return;
     }

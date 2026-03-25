@@ -11,7 +11,7 @@
       <div
         v-if="isOpen"
         @click="$emit('close')"
-        class="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden"
+        class="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden"
       />
     </Transition>
 
@@ -25,7 +25,7 @@
     >
       <div
         v-if="isOpen"
-        class="fixed left-0 top-0 bottom-0 w-72 bg-dot-surface border-r border-dot-border shadow-2xl z-50 md:hidden"
+        class="fixed left-0 top-0 bottom-0 w-72 bg-dot-bg border-r border-dot-border shadow-2xl z-50 md:hidden"
       >
         <div class="flex flex-col h-full">
           <div class="flex items-center justify-between p-4 border-b border-dot-border">
@@ -39,10 +39,10 @@
             </button>
           </div>
 
-          <nav class="flex-1 overflow-y-auto p-4 space-y-5">
+          <nav class="flex-1 overflow-y-auto p-4 space-y-4">
             <div v-for="group in docsNav" :key="group.title">
               <p
-                class="text-xs font-semibold uppercase tracking-wider text-dot-text-tertiary mb-2 px-2"
+                class="text-[10px] font-semibold uppercase tracking-wider text-dot-text-tertiary mb-1.5 px-2"
               >
                 {{ group.title }}
               </p>
@@ -50,11 +50,11 @@
                 <li v-for="item in group.items" :key="item.path">
                   <RouterLink
                     :to="item.path"
-                    class="block px-2 py-1.5 text-sm rounded-md transition-colors duration-150"
+                    class="block px-3 py-1.5 text-sm rounded-md transition-colors duration-150"
                     :class="
                       isActive(item.path)
-                        ? 'text-dot-accent bg-dot-accent-soft font-medium'
-                        : 'text-dot-text-secondary hover:text-dot-text-primary hover:bg-dot-surface-secondary'
+                        ? 'text-dot-text-primary bg-dot-surface-secondary font-medium border-l-2 border-dot-accent pl-[10px]'
+                        : 'text-dot-text-secondary hover:text-dot-text-primary hover:bg-dot-surface-secondary/50'
                     "
                     @click="$emit('close')"
                   >

@@ -1,0 +1,304 @@
+name: On-Demand Benchmark
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: benchmark-on-demand-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  parse:
+    if: github.event.label.name == 'benchmark-request'
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.parse.outputs.matrix }}
+      include-ui: ${{ steps.parse.outputs.include-ui }}
+      benchmark-timestamp: ${{ steps.parse.outputs.benchmark-timestamp }}
+    steps:
+      - name: Parse issue body for selected sizes
+        id: parse
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.issue.body || "";
+            const sizeMap = {
+              "1 MB":   { size: "1MB",   slug: "1mb" },
+              "5 MB":   { size: "5MB",   slug: "5mb" },
+              "10 MB":  { size: "10MB",  slug: "10mb" },
+              "25 MB":  { size: "25MB",  slug: "25mb" },
+              "50 MB":  { size: "50MB",  slug: "50mb" },
+              "100 MB": { size: "100MB", slug: "100mb" },
+              "200 MB": { size: "200MB", slug: "200mb" },
+              "500 MB": { size: "500MB", slug: "500mb" },
+            };
+
+            const selected = [];
+            let includeUi = false;
+
+            for (const line of body.split("\n")) {
+              const trimmed = line.trim();
+              if (!trimmed.startsWith("- [x]") && !trimmed.startsWith("- [X]")) continue;
+
+              const label = trimmed.replace(/^- \[[xX]\]\s*/, "").trim();
+
+              if (label.toLowerCase().includes("ui build")) {
+                includeUi = true;
+                continue;
+              }
+
+              const match = sizeMap[label];
+              if (match) {
+                selected.push(match);
+              }
+            }
+
+            if (selected.length === 0 && !includeUi) {
+              core.setFailed("No benchmark sizes selected in the issue.");
+              return;
+            }
+
+            const timestamp = new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC";
+
+            core.setOutput("matrix", JSON.stringify({ include: selected }));
+            core.setOutput("include-ui", String(includeUi));
+            core.setOutput("benchmark-timestamp", timestamp);
+
+      - name: Post acknowledgement comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `Benchmark run started. [View workflow](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+            });
+
+  authorize:
+    needs: parse
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.6"
+
+      - name: Setup CLI
+        uses: ./.github/actions/setup-cli
+        with:
+          source: source
+
+      - name: Re-authorise Bulletin account
+        run: |
+          dotns bulletin authorize \
+            --force \
+            --key-uri "//Alice" \
+            -m "$DOTNS_MNEMONIC"
+        env:
+          DOTNS_MNEMONIC: ${{ secrets.DOTNS_MNEMONIC }}
+
+  deploy-sized:
+    needs: [parse, authorize]
+    if: fromJSON(needs.parse.outputs.matrix).include[0] != null
+    name: Deploy ${{ matrix.size }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.parse.outputs.matrix) }}
+    uses: ./.github/workflows/deploy-sized-benchmark-entry.yml
+    with:
+      size: ${{ matrix.size }}
+      slug: ${{ matrix.slug }}
+      subname: ${{ matrix.slug }}
+      report-artifact-prefix: ondemand-benchmark-report
+      report-retention-days: 30
+      benchmark-date: ""
+      benchmark-timestamp: ${{ needs.parse.outputs.benchmark-timestamp }}
+    secrets:
+      dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
+      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC_BENCHMARK }}
+
+  build-ui:
+    needs: [parse, authorize]
+    if: needs.parse.outputs.include-ui == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.6"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build UI
+        run: bun run build
+        working-directory: packages/ui
+
+      - name: Upload UI build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-sized-build-ui-build
+          path: packages/ui/dist
+          retention-days: 2
+
+  deploy-ui:
+    needs: [parse, authorize, build-ui]
+    if: needs.parse.outputs.include-ui == 'true'
+    uses: ./.github/workflows/deploy.yml
+    with:
+      basename: bulletin-benchmarks
+      artifact-name: deploy-sized-build-ui-build
+      mode: preview
+      subname: dotns-ui
+      register-base: false
+      cli-source: source
+      sdk-ref: ${{ github.head_ref || github.ref }}
+      skip-cache: true
+      max-retries: 5
+    secrets:
+      dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
+      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC_BENCHMARK }}
+
+  report-ui:
+    needs: [parse, deploy-ui]
+    if: always() && needs.parse.outputs.include-ui == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build UI benchmark report
+        shell: bash
+        run: |
+          STATUS="success"
+          if [[ "$DEPLOY_RESULT" != "success" ]]; then
+            STATUS="failed"
+          fi
+
+          mkdir -p benchmark-report
+          jq -n \
+            --arg size "UI build" \
+            --arg slug "ui-build" \
+            --arg status "$STATUS" \
+            --arg cid "$CID" \
+            --arg fqdn "$FQDN" \
+            --arg url "$URL" \
+            --argjson duration "$DURATION_SECONDS" \
+            '{
+              size: $size,
+              slug: $slug,
+              status: $status,
+              cid: $cid,
+              fqdn: $fqdn,
+              url: $url,
+              durationSeconds: $duration
+            }' > benchmark-report/ui-build.json
+        env:
+          DEPLOY_RESULT: ${{ needs.deploy-ui.result }}
+          CID: ${{ needs.deploy-ui.outputs.cid }}
+          FQDN: ${{ needs.deploy-ui.outputs.fqdn }}
+          URL: ${{ needs.deploy-ui.outputs.url }}
+          DURATION_SECONDS: ${{ needs.deploy-ui.outputs.duration-seconds || '0' }}
+
+      - name: Upload UI benchmark report
+        uses: actions/upload-artifact@v4
+        with:
+          name: ondemand-benchmark-report-ui-build
+          path: benchmark-report/ui-build.json
+          retention-days: 30
+
+  report:
+    needs: [parse, deploy-sized, report-ui]
+    if: always() && needs.parse.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download benchmark artifacts
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ondemand-benchmark-report-*
+          path: benchmark-artifacts
+          merge-multiple: true
+
+      - name: Post results comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("node:fs");
+            const path = require("node:path");
+
+            const reportsDir = path.join(process.cwd(), "benchmark-artifacts");
+            const reportFiles = fs.existsSync(reportsDir)
+              ? fs.readdirSync(reportsDir).filter((f) => f.endsWith(".json"))
+              : [];
+
+            const reports = reportFiles
+              .map((f) => JSON.parse(fs.readFileSync(path.join(reportsDir, f), "utf8")))
+              .sort((a, b) => {
+                const sizeOrder = ["1MB","5MB","10MB","25MB","50MB","100MB","200MB","500MB","UI build"];
+                return sizeOrder.indexOf(a.size) - sizeOrder.indexOf(b.size);
+              });
+
+            const lines = [
+              "## Benchmark Results",
+              "",
+              `Run: [${context.runId}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+              "",
+              "| Size | Status | Duration | CID |",
+              "|------|--------|----------|-----|",
+            ];
+
+            for (const report of reports) {
+              const status = report.status === "success" ? "Passed" : "Failed";
+              const cid = report.cid ? `\`${report.cid.slice(0, 20)}...\`` : "n/a";
+              lines.push(`| ${report.size} | ${status} | ${report.durationSeconds}s | ${cid} |`);
+            }
+
+            if (reports.length === 0) {
+              lines.push("| - | No results | - | - |");
+            }
+
+            const codeownersPath = path.join(process.cwd(), ".github", "CODEOWNERS");
+            if (fs.existsSync(codeownersPath)) {
+              const mentions = [...new Set(
+                (fs.readFileSync(codeownersPath, "utf8").match(/@[A-Za-z0-9][A-Za-z0-9-_]*/g) ?? [])
+              )];
+              if (mentions.length > 0) {
+                lines.push("");
+                lines.push(`cc ${mentions.join(" ")} for review`);
+              }
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: lines.join("\n"),
+            });
+
+      - name: Update issue labels
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+
+            try {
+              await github.rest.issues.removeLabel({ owner, repo, issue_number, name: "benchmark-request" });
+            } catch {}
+
+            await github.rest.issues.addLabels({ owner, repo, issue_number, labels: ["benchmark-complete"] });

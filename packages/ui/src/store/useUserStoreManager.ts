@@ -25,6 +25,8 @@ import type { ContractAuthStatus, DotnsAvailability } from "@/type";
 import { useResolverStore } from "./useResolverStore";
 import { useWalletStore } from "./useWalletStore";
 
+const BULLETIN_CID_KEY_PREFIX = "dotns.bulletin.";
+
 export const useUserStoreManager = defineStore("userStoreManager", () => {
   const userStore = ref<Address>(zeroAddress);
   const walletStore = useWalletStore();
@@ -57,19 +59,19 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
     functionName: string,
     abiName: "Store" | "StoreFactory",
     args: readonly unknown[],
+    targetEvm?: Address,
   ): Promise<`0x${string}`> {
-    const client = await networkStore.getClient();
     const data = encodeFunctionData({
       abi: abiStore.getABI(abiName),
       functionName,
       args,
     });
-    return transactionStore.ethCall(
-      client,
-      walletStore.substrateAddress ?? ZERO_SUBSTRATE_ADDRESS,
-      to,
-      data,
-    );
+    const client = await networkStore.getClient();
+    let origin = walletStore.substrateAddress;
+    if (!origin && targetEvm) {
+      origin = await client.getSubstrateAddress(targetEvm);
+    }
+    return transactionStore.ethCall(client, origin || ZERO_SUBSTRATE_ADDRESS, to, data);
   }
 
   async function ethWrite(to: Address, data: `0x${string}`): Promise<Hash> {
@@ -104,7 +106,11 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
       userStore.value = store;
       return store;
     } catch (error) {
-      console.warn("[UserStoreManager:getUserStore]", error);
+      const isZeroData =
+        error instanceof Error && error.message.includes("Cannot decode zero data");
+      if (!isZeroData) {
+        console.warn("[UserStoreManager:getUserStore]", error);
+      }
       userStore.value = zeroAddress;
       return zeroAddress;
     }
@@ -164,14 +170,19 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
     try {
       networkStore.ensureClient();
       await abiStore.ensureAbis();
-      walletStore.ensureWalletConnected();
 
       const network = networkStore.currentNetwork;
       if (!network?.storeFactory) throw new Error("StoreFactory not configured");
 
-      const storeRaw = await ethRead(network.storeFactory, "getDeployedStore", "StoreFactory", [
+      const storeRaw = await ethRead(
+        network.storeFactory,
+        "getDeployedStore",
+        "StoreFactory",
+        [targetEvm],
         targetEvm,
-      ]);
+      );
+
+      if (!storeRaw || storeRaw === "0x") return [];
 
       const store = decodeFunctionResult({
         abi: abiStore.getABI("StoreFactory"),
@@ -181,7 +192,10 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
 
       if (store === zeroAddress) return [];
 
-      const valuesRaw = await ethRead(store, "getValues", "Store", []);
+      const valuesRaw = await ethRead(store, "getValues", "Store", [], targetEvm);
+
+      if (!valuesRaw || valuesRaw === "0x") return [];
+
       const allValues = decodeFunctionResult({
         abi: abiStore.getABI("Store"),
         functionName: "getValues",
@@ -190,7 +204,11 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
 
       return allValues;
     } catch (error) {
-      console.warn("[UserStoreManager:getSubdomainsForAddress]", error);
+      const isZeroData =
+        error instanceof Error && error.message.includes("Cannot decode zero data");
+      if (!isZeroData) {
+        console.warn("[UserStoreManager:getSubdomainsForAddress]", error);
+      }
       return [];
     }
   }
@@ -379,6 +397,93 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
     }
   }
 
+  async function getBulletinUploads(): Promise<string[]> {
+    try {
+      networkStore.ensureClient();
+      await abiStore.ensureAbis();
+      walletStore.ensureWalletConnected();
+
+      const store = await getUserStore(walletStore.evmAddress as Address);
+      if (store === zeroAddress) return [];
+
+      const raw = await ethRead(store, "getValues", "Store", []);
+      const allValues = decodeFunctionResult({
+        abi: abiStore.getABI("Store"),
+        functionName: "getValues",
+        data: raw,
+      }) as string[];
+
+      return allValues.filter(
+        (v) => typeof v === "string" && v.startsWith("baf") && !v.includes("."),
+      );
+    } catch (error) {
+      console.warn("[UserStoreManager:getBulletinUploads]", error);
+      return [];
+    }
+  }
+
+  async function ensureStoreDeployed(): Promise<Address> {
+    walletStore.ensureWalletConnected();
+    let store = await getUserStore(walletStore.evmAddress as Address);
+
+    if (store === zeroAddress) {
+      await deployStore();
+      store = await getUserStore(walletStore.evmAddress as Address);
+    }
+
+    if (store === zeroAddress) {
+      throw new Error("Failed to deploy Store contract.");
+    }
+
+    const statuses = await getAuthorizationStatus(store);
+    const unauthorized = statuses.filter((c) => !c.authorized);
+
+    if (unauthorized.length > 0) {
+      await batchAuthChanges(
+        store,
+        unauthorized.map((c) => ({ address: c.address, authorize: true })),
+      );
+    }
+
+    return store;
+  }
+
+  async function writeCidToStore(cid: string): Promise<Hash> {
+    networkStore.ensureClient();
+    await abiStore.ensureAbis();
+
+    const store = await ensureStoreDeployed();
+
+    const key = keccak256(toHex(`${BULLETIN_CID_KEY_PREFIX}${cid}`));
+    const data = encodeFunctionData({
+      abi: abiStore.getABI("Store"),
+      functionName: "setValue",
+      args: [key, cid],
+    });
+
+    return ethWrite(store, data);
+  }
+
+  async function deleteCidFromStore(cid: string): Promise<Hash> {
+    networkStore.ensureClient();
+    await abiStore.ensureAbis();
+    walletStore.ensureWalletConnected();
+
+    const store = await getUserStore(walletStore.evmAddress as Address);
+    if (store === zeroAddress) {
+      throw new Error("Store not deployed.");
+    }
+
+    const key = keccak256(toHex(`${BULLETIN_CID_KEY_PREFIX}${cid}`));
+    const data = encodeFunctionData({
+      abi: abiStore.getABI("Store"),
+      functionName: "deleteValue",
+      args: [key],
+    });
+
+    return ethWrite(store, data);
+  }
+
   return {
     userStore,
     getUserStore,
@@ -392,6 +497,10 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
     batchAuthChanges,
     isNameInStore,
     writeNameToStore,
+    ensureStoreDeployed,
+    writeCidToStore,
+    deleteCidFromStore,
+    getBulletinUploads,
     encodeKey,
   };
 });

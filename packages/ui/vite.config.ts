@@ -5,10 +5,7 @@ import path from "path";
 
 export default defineConfig({
   base: "./",
-  plugins: [
-    vue(),
-    tailwindcss(),
-  ],
+  plugins: [vue(), tailwindcss()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -34,7 +31,7 @@ export default defineConfig({
   },
 
   optimizeDeps: {
-    include: ["buffer"],
+    include: ["buffer", "@ipld/dag-pb", "ipfs-unixfs"],
     exclude: [
       "polkadot-api",
       "@polkadot-api/descriptors",
@@ -48,5 +45,9 @@ export default defineConfig({
 
   build: {
     chunkSizeWarningLimit: 1000,
+  },
+
+  worker: {
+    format: "es",
   },
 });

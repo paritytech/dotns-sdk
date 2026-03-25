@@ -166,6 +166,8 @@ export type CommandOptions = {
   keyUri?: string;
 };
 
+export type BulletinReporterMode = "auto" | "interactive" | "stream" | "quiet";
+
 export type AccountInfo = {
   /** Account name (original, not sanitized) */
   name: string;
@@ -211,16 +213,22 @@ export type CommitmentResults = {
 export type BulletinUploadOptions = {
   /** Bulletin WebSocket RPC endpoint */
   bulletinRpc?: string;
-  /** Chunk size for large uploads in bytes */
+  /** Chunk size for large uploads in bytes (default: 2 MB, clamped to 256 KB–2 MB) */
   chunkSize?: string;
+  /** Number of retry attempts after the initial upload attempt */
+  maxRetries?: string;
   /** Force chunked upload mode (DAG-PB) */
   forceChunked?: boolean;
-  /** Upload directory blocks in parallel (faster but requires nonce management) */
-  parallel?: boolean;
-  /** Number of parallel uploads when --parallel is enabled (default: 5) */
+  /** Adaptive scheduler maximum window (default: 4, max: 4) */
   concurrency?: string;
   /** Print IPFS contenthash in addition to CID */
   printContenthash?: boolean;
+  /** Resume a previously interrupted upload */
+  resume?: boolean;
+  /** Enable upload profiling and write a JSON report */
+  profileUpload?: boolean;
+  /** Explicit path for upload profiling JSON output */
+  profileOutput?: string;
   /** Number of transactions to authorize */
   transactions?: string;
   /** Number of bytes to authorize */
@@ -229,7 +237,50 @@ export type BulletinUploadOptions = {
   json: boolean;
   /** Whether to store the current upload to the local history db */
   history: boolean;
+  /** Human-readable progress reporter mode */
+  reporter?: BulletinReporterMode;
+  /** Write the CID to the user's on-chain Store after upload */
+  cache?: boolean;
+  /** Merkleize directory in-memory and upload as a single CAR file */
+  asCar?: boolean;
 };
+
+export type BulletinProgressPhase =
+  | "validate"
+  | "authorize"
+  | "upload"
+  | "verify"
+  | "merkleize"
+  | "export"
+  | "cache";
+
+export type BulletinProgressState = "start" | "update" | "success" | "warning" | "failure";
+
+export type BulletinProgressEvent = {
+  /** High-level operation currently in progress */
+  phase: BulletinProgressPhase;
+  /** Lifecycle state for the phase */
+  state: BulletinProgressState;
+  /** Human-readable message */
+  message: string;
+};
+
+export type BulletinRetryEvent = {
+  /** Retry domain label */
+  label: string;
+  /** Zero-based retry index */
+  retry: number;
+  /** Total attempts including the initial attempt */
+  totalAttempts: number;
+  /** Delay before the next attempt in milliseconds */
+  delayMs: number;
+  /** Retryable failure summary */
+  errorMessage: string;
+};
+
+export type BulletinPhaseHandler = (event: BulletinProgressEvent) => void;
+
+export type BulletinRetryHandler = (event: BulletinRetryEvent) => void;
 
 export type BulletinStoreParams = {
   /** Bulletin RPC endpoint URL */
@@ -328,6 +379,8 @@ export type AuthorizeAccountOptions = {
   bytes?: bigint;
   /** Bypass the existing authorization check and re-submit the extrinsic */
   force?: boolean;
+  /** Optional human-readable progress callback */
+  onPhase?: BulletinPhaseHandler;
 };
 
 export type AuthorizationStatus = {
@@ -353,12 +406,18 @@ export type AuthorizeAccountResult = {
 };
 
 export type ValidatePathResult = {
-  /** File contents as bytes (empty for directories) */
+  /** File contents as bytes (empty for directories and deferred reads) */
   bytes: Uint8Array;
   /** Whether the path points to a directory */
   isDirectory: boolean;
   /** Absolute path after resolution */
   resolvedPath: string;
+  /** File size in bytes (set when reading is deferred) */
+  fileSize?: number;
+  /** File mtime in milliseconds (set for files) */
+  fileMtimeMs?: number;
+  /** True when file reading was deferred due to large size */
+  deferredRead?: boolean;
 };
 
 export type StoreDirectoryResult = {
@@ -368,16 +427,37 @@ export type StoreDirectoryResult = {
   ipfsCid: string;
 };
 
-export type StoreDirectoryOptions = {
-  /** SS58 address for nonce management in parallel mode */
-  accountAddress?: string;
-  /** Enable parallel block uploads with nonce pre-assignment */
-  parallel?: boolean;
+export type UploadRetryOptions = {
+  /** Number of retry attempts after the initial upload attempt */
+  maxRetries?: number;
+  /** Callback emitted when a retryable upload error occurs */
+  onRetry?: BulletinRetryHandler;
+};
+
+export type UploadSingleBlockOptions = UploadRetryOptions & {
+  /** Optional human-readable progress callback */
+  onPhase?: BulletinPhaseHandler;
+};
+
+export type UploadChunkedBlocksOptions = UploadRetryOptions & {
+  /** Completed chunk metadata keyed by zero-based chunk index (resume support) */
+  completedBlocks?: Map<number, UploadManifestCompletedBlock>;
   /** Maximum concurrent upload operations */
   concurrency?: number;
-  /** Gateway URL for content resolution verification */
+  /** Optional human-readable progress callback */
+  onPhase?: BulletinPhaseHandler;
+  /** Callback with adaptive scheduler state snapshots */
+  onSchedulerState?: (state: UploadSchedulerState) => void;
+  /** Callback emitted after each upload wave */
+  onWave?: (wave: UploadWaveSummary) => void;
+};
+
+export type StoreDirectoryOptions = UploadRetryOptions & {
+  accountAddress?: string;
+  concurrency?: number;
+  chunkSizeBytes?: number;
+  onPhase?: BulletinPhaseHandler;
   verificationGateway?: string;
-  /** If false, resolve on best-block inclusion instead of finalization. Default: true */
   waitForFinalization?: boolean;
 };
 
@@ -474,6 +554,8 @@ export type StoreContentParameters = {
   onProgress?: (status: string) => void;
   /** Optional shared client — caller owns lifecycle when provided */
   client?: PolkadotClient;
+  /** Optional timeout budget for a single store call */
+  storeTimeoutMs?: number;
   /** If false, resolve on best-block inclusion instead of finalization. Default: true */
   waitForFinalization?: boolean;
 };
@@ -489,6 +571,8 @@ export type StoreSingleFileParameters = {
   onProgress?: (status: string) => void;
   /** Optional shared client — caller owns lifecycle when provided */
   client?: PolkadotClient;
+  /** If false, resolve on best-block inclusion instead of finalization. Default: false */
+  waitForFinalization?: boolean;
 };
 
 export type StoreChunkedFileParameters = {
@@ -496,12 +580,28 @@ export type StoreChunkedFileParameters = {
   rpc: string;
   /** Signer for authorizing the storage transaction */
   signer: PolkadotSigner;
-  /** Array of content chunks to store */
-  contentChunks: Uint8Array[];
+  /** Path to the file to stream from disk */
+  filePath: string;
+  /** Chunk size in bytes */
+  chunkSize: number;
+  /** Total file size for progress reporting */
+  fileSize: number;
+  /** SS58 address for nonce management in parallel wave uploads */
+  accountAddress: string;
+  /** Number of chunks to upload in parallel per wave */
+  concurrency?: number;
   /** Callback for progress updates with chunk position */
   onProgress?: (currentChunk: number, totalChunks: number, status: string) => void;
+  /** Callback with adaptive scheduler state snapshots */
+  onSchedulerState?: (state: UploadSchedulerState) => void;
+  /** Callback emitted after each upload wave */
+  onWave?: (wave: UploadWaveSummary) => void;
   /** Optional shared client — caller owns lifecycle when provided */
   client?: PolkadotClient;
+  /** Completed chunk metadata keyed by zero-based chunk index (resume support) */
+  completedBlocks?: Map<number, UploadManifestCompletedBlock>;
+  /** If false, resolve on best-block inclusion instead of finalization. Default: true */
+  waitForFinalization?: boolean;
 };
 
 export type StoreBlockParameters = {
@@ -521,8 +621,21 @@ export type StoreBlockParameters = {
   nonce?: number;
   /** Optional shared client — caller owns lifecycle when provided */
   client?: PolkadotClient;
+  /** Optional timeout budget for a single store call */
+  storeTimeoutMs?: number;
   /** If false, resolve on best-block inclusion instead of finalization. Default: true */
   waitForFinalization?: boolean;
+};
+
+export type TransactionWatchFailureEvent = {
+  /** Event type emitted by transactionWatch */
+  type: string;
+  /** Optional dispatch error reported by the node */
+  dispatchError?: { type: string; value?: unknown };
+  /** Optional free-form error payload reported by the client */
+  error?: unknown;
+  /** Optional reason string reported by the node */
+  reason?: string;
 };
 
 export type StoreParameters = {
@@ -542,6 +655,31 @@ export type StoreParameters = {
   transactionNonce?: number;
   /** Callback for progress updates */
   onProgress?: (status: string) => void;
+};
+
+export type TraversedDirectoryFile = {
+  /** Slash-delimited relative path within the uploaded directory */
+  path: string;
+  /** Absolute filesystem path to the file on disk */
+  fullPath: string;
+};
+
+export type StreamedFileChunk = {
+  /** Zero-based chunk index */
+  index: number;
+  /** Raw bytes for this chunk */
+  bytes: Uint8Array;
+  /** Byte length of the chunk */
+  length: number;
+};
+
+export type StoredChunkReference = {
+  /** Zero-based chunk index */
+  index: number;
+  /** Content identifier for this chunk */
+  cid: string;
+  /** Byte length of the chunk */
+  length: number;
 };
 
 export type AuthSource = {
@@ -723,22 +861,206 @@ export type StoreValueResult = {
 };
 
 export type IsMappedResult = {
+  /** SS58 substrate address that was checked */
   address: string;
+  /** Corresponding EVM address (H160) */
   evmAddress: string;
+  /** Whether the address mapping exists on-chain */
   isMapped: boolean;
 };
 
 export type IsWhitelistedResult = {
+  /** SS58 substrate address that was checked */
   address: string;
+  /** Corresponding EVM address (H160) */
   evmAddress: string;
+  /** Whether the address is on the whitelist */
   isWhitelisted: boolean;
 };
 
 export type WhitelistResult = {
+  /** SS58 substrate address that was whitelisted */
   address: string;
+  /** Corresponding EVM address (H160) */
   evmAddress: string;
+  /** Whether the whitelist operation succeeded */
   whitelisted: boolean;
+  /** Transaction hash of the whitelist extrinsic */
   txHash: string;
+};
+
+export type UploadManifest = {
+  /** Schema version for forward compatibility */
+  version: 1;
+  /** Stable manifest identifier derived from upload fingerprint */
+  id: string;
+  /** Fingerprint derived from path + size + mtime + chunk size */
+  fingerprint: string;
+  /** Absolute path of the file being uploaded */
+  inputPath: string;
+  /** Total file size in bytes */
+  fileSize: number;
+  /** File modification time in milliseconds since epoch */
+  fileMtimeMs: number;
+  /** Chunk size in bytes used for splitting */
+  chunkSize: number;
+  /** Total number of chunks the file was split into */
+  totalBlocks: number;
+  /** Metadata for chunks that have been successfully uploaded */
+  completedBlocks: UploadManifestCompletedBlock[];
+  /** Root CID of the DAG-PB tree, set after all chunks are stored */
+  rootCid?: string;
+  /** ISO timestamp when the manifest was first created */
+  createdAtIso: string;
+  /** ISO timestamp of the most recent manifest update */
+  updatedAtIso: string;
+  /** Whether the upload is a single file or directory */
+  type: "file" | "directory";
+};
+
+export type UploadManifestCompletedBlock = {
+  /** Zero-based chunk index */
+  index: number;
+  /** Content identifier for this chunk */
+  cid: string;
+  /** Byte length of the chunk */
+  length: number;
+};
+
+export type UploadManifestIdentity = {
+  /** Absolute path of the file being uploaded */
+  inputPath: string;
+  /** Total file size in bytes */
+  fileSize: number;
+  /** File modification time in milliseconds since epoch */
+  fileMtimeMs: number;
+  /** Chunk size in bytes used for splitting */
+  chunkSize: number;
+};
+
+export type UploadManifestLoadResult = {
+  /** Matching manifest for the current upload identity, or null if none found */
+  manifest: UploadManifest | null;
+  /** Most recent manifest for the same path, but with fingerprint mismatch */
+  staleManifest: UploadManifest | null;
+};
+
+export type UploadSchedulerState = {
+  /** Unix timestamp in milliseconds when this snapshot was captured */
+  timestampMs: number;
+  /** Current adaptive concurrency window size */
+  window: number;
+  /** Total bytes currently being uploaded across all in-flight chunks */
+  inFlightBytes: number;
+  /** Number of chunks currently being uploaded in parallel */
+  inFlightChunks: number;
+  /** Total number of chunks successfully uploaded so far */
+  completedChunks: number;
+  /** Cumulative retry count across all waves */
+  retries: number;
+};
+
+export type UploadWaveSummary = {
+  /** Sequential wave number (1-based) */
+  wave: number;
+  /** Unix timestamp in milliseconds when the wave started */
+  startedAtMs: number;
+  /** Unix timestamp in milliseconds when the wave ended */
+  endedAtMs: number;
+  /** Wall-clock duration of the wave in milliseconds */
+  durationMs: number;
+  /** Concurrency window size used for this wave */
+  window: number;
+  /** Number of chunk uploads attempted in this wave */
+  attempted: number;
+  /** Number of chunks successfully stored */
+  succeeded: number;
+  /** Number of chunks that failed to store */
+  failed: number;
+  /** Number of retries triggered during this wave */
+  retries: number;
+  /** True if the wave completed with zero retries under the duration threshold */
+  wasClean: boolean;
+};
+
+export type UploadProfileSample = {
+  /** Unix timestamp in milliseconds when this sample was captured */
+  timestampMs: number;
+  /** V8 heap used in bytes at sample time */
+  heapUsed: number;
+  /** Resident set size in bytes at sample time */
+  rss: number;
+  /** ArrayBuffer allocation in bytes at sample time */
+  arrayBuffers: number;
+  /** External memory (C++ objects bound to JS) in bytes */
+  external: number;
+  /** Total bytes currently being uploaded across in-flight chunks */
+  inFlightBytes: number;
+  /** Number of chunks currently being uploaded */
+  inFlightChunks: number;
+  /** Current adaptive concurrency window size */
+  window: number;
+  /** Total chunks completed at sample time */
+  completed: number;
+  /** Cumulative retry count at sample time */
+  retries: number;
+};
+
+export type UploadProfileMeta = {
+  /** Absolute path of the file that was uploaded */
+  sourcePath: string;
+  /** Total file size in bytes */
+  sourceSizeBytes: number;
+  /** Chunk size in bytes used for splitting */
+  chunkSizeBytes: number;
+  /** Bulletin RPC endpoint used for the upload */
+  rpc: string;
+  /** ISO timestamp when the upload started */
+  startedAtIso: string;
+  /** ISO timestamp when the upload finished */
+  finishedAtIso: string;
+  /** V8 heap size limit in bytes */
+  heapLimitBytes: number;
+  /** Concurrency window at the start of the upload */
+  initialConcurrency: number;
+  /** Maximum concurrency window allowed */
+  maxConcurrency: number;
+};
+
+export type UploadProfileSummary = {
+  /** Total upload wall-clock time in milliseconds */
+  totalUploadTimeMs: number;
+  /** Total upload wall-clock time in seconds */
+  totalUploadTimeSeconds: number;
+  /** Alias for totalUploadTimeMs (backward compat) */
+  elapsedMs: number;
+  /** Effective throughput in bytes per second */
+  throughputBytesPerSecond: number;
+  /** Peak V8 heap usage observed across all samples */
+  peakHeapUsed: number;
+  /** Peak resident set size observed across all samples */
+  peakRss: number;
+  /** Peak ArrayBuffer allocation observed across all samples */
+  peakArrayBuffers: number;
+  /** Peak external memory observed across all samples */
+  peakExternal: number;
+  /** Total number of retries across all waves */
+  retryCount: number;
+  /** Highest adaptive window size reached during the upload */
+  maxWindowReached: number;
+  /** Final root CID of the uploaded content */
+  finalCid: string;
+};
+
+export type UploadProfileReport = {
+  /** Upload metadata (source file, RPC, concurrency settings) */
+  meta: UploadProfileMeta;
+  /** Periodic memory and scheduler state snapshots */
+  samples: UploadProfileSample[];
+  /** Per-wave upload summaries */
+  waves: UploadWaveSummary[];
+  /** Aggregated upload statistics with peak values */
+  summary: UploadProfileSummary;
 };
 
 export type StoreEnsureAuthResult = {
@@ -754,4 +1076,122 @@ export type StoreEnsureAuthResult = {
   registryAuthorized: boolean;
   /** Transaction hash of the registry authorization, if newly authorized */
   registryTx?: string;
+};
+
+/** EVM address resolved from a Substrate or EVM input */
+export type ResolvedAddress = {
+  /** Checksummed EVM address */
+  evmAddress: Address;
+  /** Original address as provided by the caller */
+  originalAddress: string;
+};
+
+/** Result of merkleizing a directory with IPFS UnixFS */
+export type MerkleizeDirectoryResult = {
+  /** Root CID of the DAG-PB tree */
+  rootCid: import("multiformats/cid").CID;
+  /** Number of blocks in the tree */
+  totalBlocks: number;
+  /** Total size of all blocks in bytes */
+  totalBytes: number;
+};
+
+/** Authorization state for a Bulletin chain account */
+export type AuthorizationState = {
+  /** Block number at which authorization expires */
+  expiration?: number;
+  /** Current block number on the Bulletin chain */
+  currentBlock?: number;
+};
+
+/** Result of verifying a CID against an IPFS gateway */
+export type CidVerificationResult = {
+  /** Whether the gateway returned a successful response */
+  resolvable: boolean;
+  /** Base URL of the gateway that was queried */
+  gateway: string;
+  /** HTTP status code from the gateway, if available */
+  statusCode?: number;
+};
+
+/** A single call descriptor for Multicall3.aggregate3 */
+export type Multicall3Call = {
+  target: Address;
+  allowFailure: boolean;
+  callData: Hex;
+};
+
+/** A single result from Multicall3.aggregate3 */
+export type Multicall3Result = {
+  success: boolean;
+  returnData: Hex;
+};
+
+/** Result of deleting a key from a user's Store contract */
+export type StoreDeleteResult = {
+  /** The bytes32 key that was deleted */
+  key: `0x${string}`;
+  /** Whether the deletion was successful */
+  deleted: boolean;
+};
+
+/** Result of finalizing an upload profile report */
+export type UploadProfileResult = {
+  /** The generated upload profile report */
+  report: UploadProfileReport;
+  /** File path where the report was saved */
+  outputPath: string;
+};
+
+/** A block (CID + raw bytes) queued for wave-based upload */
+export type WaveBlock = {
+  /** CID of the block */
+  cid: import("multiformats/cid").CID;
+  /** Raw encoded bytes of the block */
+  bytes: Uint8Array;
+};
+
+export type CacheCidToStoreOptions = {
+  cid: string;
+  clientWrapper: ReviveClientWrapper;
+  signer: PolkadotSigner;
+  substrateAddress: string;
+  evmAddress: Address;
+};
+
+export type BlockMetadata = {
+  cidString: string;
+  codecValue: number;
+  hashCodeValue: number;
+  size: number;
+};
+
+export type UploadDeps = {
+  rpc: string;
+  signer: PolkadotSigner;
+  accountAddress: string;
+  concurrency: number;
+  waitForFinalization: boolean;
+  onBlockStored?: (meta: BlockMetadata, completedCount: number, totalSoFar: number) => void;
+};
+
+export type FlushWaveOptions = {
+  isFinalWave?: boolean;
+};
+
+export type UploadProfiler = {
+  onSchedulerState: (state: UploadSchedulerState) => void;
+  onWave: (wave: UploadWaveSummary) => void;
+  finalize: (finalCid: string, overrideOutputPath?: string) => Promise<UploadProfileResult>;
+};
+
+export type UploadProfilerOptions = {
+  sourcePath: string;
+  sourceSizeBytes: number;
+  chunkSizeBytes: number;
+  rpc: string;
+  initialConcurrency: number;
+  maxConcurrency: number;
+  outputPath?: string;
+  jsonOutput: boolean;
 };

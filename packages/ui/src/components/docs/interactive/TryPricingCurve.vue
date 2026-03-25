@@ -279,8 +279,10 @@ import { ref, computed } from "vue";
 import { encodeFunctionData, decodeFunctionResult, zeroAddress } from "viem";
 import { useNetworkStore } from "@/store/useNetworkStore";
 import { useTransactionStore } from "@/store/useTransactionStore";
+import { useWalletStore } from "@/store/useWalletStore";
 import { useAbiStore } from "@/store/useAbiStore";
-import { ZERO_SUBSTRATE_ADDRESS } from "@/lib/networks";
+import { ZERO_SUBSTRATE_ADDRESS } from "@/utils";
+import { normalizeNameInput } from "@/lib/docInteractiveHelpers";
 import { PopStatus, type PriceWithMeta } from "@/type";
 import { formatWeiAsEther } from "@/lib/currency";
 import Loader from "@/components/ui/Loader.vue";
@@ -289,6 +291,7 @@ import DocCodeBlock from "../DocCodeBlock.vue";
 
 const networkStore = useNetworkStore();
 const transactionStore = useTransactionStore();
+const walletStore = useWalletStore();
 const abiStore = useAbiStore();
 
 const name = ref("");
@@ -297,12 +300,7 @@ const fetchStatus = ref<"idle" | "loading" | "result" | "error">("idle");
 const errorMsg = ref("");
 const lastQueried = ref("");
 
-const cleanName = computed(() =>
-  name.value
-    .trim()
-    .replace(/\.dot$/, "")
-    .toLowerCase(),
-);
+const cleanName = computed(() => normalizeNameInput(name.value));
 
 const activeLength = computed(() => cleanName.value.length);
 
@@ -439,7 +437,6 @@ function lookup() {
 
     try {
       await abiStore.ensureAbis();
-      const client = await networkStore.getClient();
       const network = networkStore.currentNetwork;
       if (!network?.popOracle) throw new Error("PopOracle not configured");
 
@@ -449,12 +446,9 @@ function lookup() {
         args: [input, zeroAddress],
       });
 
-      const resultData = await transactionStore.ethCall(
-        client,
-        ZERO_SUBSTRATE_ADDRESS,
-        network.popOracle,
-        data,
-      );
+      const client = await networkStore.getClient();
+      const origin = walletStore.substrateAddress || ZERO_SUBSTRATE_ADDRESS;
+      const resultData = await transactionStore.ethCall(client, origin, network.popOracle, data);
 
       if (!resultData || resultData === "0x") {
         throw new Error("Contract returned empty result");

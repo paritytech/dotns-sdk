@@ -52,16 +52,15 @@
         Step 2: Upload to Bulletin or IPFS
       </h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Upload your build output to a decentralised storage backend. Bulletin is the recommended
-        choice for Polkadot-native hosting, as content is stored directly on-chain and is always
-        available.
+        Upload your build output to decentralised storage. Bulletin is the recommended choice for
+        Polkadot-native hosting because content is stored directly on-chain and is always available.
       </p>
       <DocCodeBlock :code="uploadBulletinCode" lang="bash" filename="upload via CLI (Bulletin)" />
       <DocCodeBlock :code="uploadIpfsCode" lang="bash" filename="upload via CLI (IPFS)" />
       <DocCallout variant="tip" title="Bulletin vs IPFS">
-        Bulletin stores content on Polkadot's parachain &mdash; it is always available without
-        relying on pinning services. IPFS is a good choice if you already have pinning
-        infrastructure or want compatibility with the broader IPFS ecosystem.
+        Bulletin stores content on a Polkadot parachain &mdash; always available without relying on
+        external pinning services. IPFS is a good choice if you already use IPFS pinning or want
+        compatibility with the broader IPFS ecosystem.
       </DocCallout>
     </div>
 
@@ -129,12 +128,12 @@ const steps = [
   {
     title: "Upload to Bulletin or IPFS",
     description:
-      "Push your build output to decentralised storage and receive a content hash (CID).",
+      "Push your build output to decentralised storage and receive a CID. Use --as-car for fast chunked CAR directory uploads without an external IPFS binary.",
   },
   {
     title: "Set the content hash",
     description:
-      "Link your .dot name to the content hash by calling setContenthash on the ContentResolver.",
+      "Link your .dot name to the CID by calling setContenthash on the ContentResolver contract.",
   },
   {
     title: "Access via gateway",
@@ -150,18 +149,28 @@ npm run build
 ls dist/
 # index.html  assets/  favicon.ico`;
 
-const uploadBulletinCode = `# Upload a directory to Bulletin chain
-dotns bulletin upload ./dist
+const uploadBulletinCode = `# Upload a directory to Bulletin chain (recommended: --as-car)
+dotns bulletin upload ./dist --as-car
 
 # Output:
-# Uploaded 42 blocks (1.2 MB)
-# Root CID: bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi`;
+# Merkleising directory: 24 files (1.2 MB)
+# Uploading CAR...
+# Root CID: bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi
+
+# --as-car merkleises the directory in-memory and uploads as a
+# chunked CAR file — no external IPFS binary needed
+
+# Cache the uploaded CID in your on-chain Store contract
+dotns bulletin upload ./dist --as-car --cache`;
 
 const uploadIpfsCode = `# Upload to IPFS (requires an IPFS node or pinning service)
 ipfs add -r ./dist --cid-version 1
 
 # Then set the resulting CID as your content hash
-dotns content set mysite <cid-from-ipfs>`;
+dotns content set mysite <cid-from-ipfs>
+
+# Tip: dotns bulletin upload --as-car produces the same root CID
+# as \`ipfs add\` without requiring a local IPFS/Kubo installation`;
 
 const setContentHashCode = `# Set the content hash on your .dot name
 dotns content set mysite bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi

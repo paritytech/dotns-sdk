@@ -4,11 +4,11 @@
       <p class="text-sm font-medium text-dot-accent mb-2">Protocol</p>
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">Reverse Resolution</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
-        Reverse resolution maps an
+        Reverse resolution converts an
         <span class="text-dot-text-primary font-medium">address</span> back to its primary
-        <span class="text-dot-text-primary font-medium">.dot name</span>. This is what allows
-        wallets and dApps to display
-        <span class="font-mono text-dot-accent">alice.dot</span> instead of a hex address.
+        <span class="text-dot-text-primary font-medium">.dot name</span>. This is what lets wallets
+        and apps show <span class="font-mono text-dot-accent">alice.dot</span> instead of a long hex
+        address.
       </p>
     </div>
 
@@ -16,7 +16,7 @@
       <h2 class="text-xl font-semibold text-dot-text-primary">How Reverse Resolution Works</h2>
       <p class="text-dot-text-secondary leading-relaxed">
         The <span class="font-mono text-dot-accent">DotnsReverseResolver</span> contract stores a
-        mapping from addresses to their primary .dot name. It exposes a single read function:
+        mapping from addresses to their primary .dot name. It has one read function:
       </p>
       <DocCodeBlock
         :code="reverseResolverCode"
@@ -38,8 +38,8 @@
           <p class="text-xs text-dot-text-secondary mt-1">
             When a name is registered with
             <span class="font-mono text-dot-accent">reserved = true</span>
-            in the registration struct, the Controller automatically sets the reverse record for the
-            owner's address. This means the address immediately displays the new .dot name.
+            in the registration options, the Controller sets the reverse record for the owner's
+            address automatically. The address displays the new .dot name straight away.
           </p>
         </div>
         <div class="p-4 border border-dot-border rounded-lg bg-dot-surface">

@@ -24,13 +24,11 @@ export const useResolverStore = defineStore("useResolverStore", () => {
 
   async function getText(domain: string, key: string): Promise<string | null> {
     try {
-      networkStore.ensureClient();
       await abiStore.ensureAbis();
 
       const network = networkStore.currentNetwork;
       if (!network?.dotnsContentResolver) throw new Error("Content resolver not configured");
 
-      const client = await networkStore.getClient();
       const node = namehash(`${normalizeDomainName(domain)}.dot`);
 
       const callData = encodeFunctionData({
@@ -39,12 +37,16 @@ export const useResolverStore = defineStore("useResolverStore", () => {
         args: [node, key],
       });
 
+      const client = await networkStore.getClient();
+      const origin = walletStore.substrateAddress || ZERO_SUBSTRATE_ADDRESS;
       const result = await transactionStore.ethCall(
         client,
-        walletStore.substrateAddress!,
+        origin,
         network.dotnsContentResolver,
         callData,
       );
+
+      if (!result || result === "0x") return null;
 
       const decoded = decodeFunctionResult({
         abi: abiStore.getABI("DotnsContentResolver"),
@@ -244,7 +246,6 @@ export const useResolverStore = defineStore("useResolverStore", () => {
 
   async function resolveNameToAddress(username: string): Promise<Address | null> {
     try {
-      networkStore.ensureClient();
       await abiStore.ensureAbis();
 
       const network = networkStore.currentNetwork;
@@ -252,7 +253,6 @@ export const useResolverStore = defineStore("useResolverStore", () => {
         throw new Error("DotnsResolver not configured");
       }
 
-      const client = await networkStore.getClient();
       const node = namehash(`${normalizeDomainName(username)}.dot`);
 
       const callData = encodeFunctionData({
@@ -261,9 +261,11 @@ export const useResolverStore = defineStore("useResolverStore", () => {
         args: [node],
       });
 
+      const client = await networkStore.getClient();
+      const origin = walletStore.substrateAddress || ZERO_SUBSTRATE_ADDRESS;
       const result = await transactionStore.ethCall(
         client,
-        ZERO_SUBSTRATE_ADDRESS,
+        origin,
         network.dotnsResolver as Address,
         callData,
       );
@@ -285,13 +287,11 @@ export const useResolverStore = defineStore("useResolverStore", () => {
 
   async function getOwnerOfDomain(domain: string): Promise<Address | null> {
     try {
-      networkStore.ensureClient();
       await abiStore.ensureAbis();
 
       const network = networkStore.currentNetwork;
       if (!network?.dotnsRegistrar) throw new Error("DotnsRegistrar contract not configured");
 
-      const client = await networkStore.getClient();
       const tokenId = computeDomainTokenId(normalizeDomainName(domain));
 
       const availableData = encodeFunctionData({
@@ -300,9 +300,11 @@ export const useResolverStore = defineStore("useResolverStore", () => {
         args: [tokenId],
       });
 
+      const client = await networkStore.getClient();
+      const origin = walletStore.substrateAddress || ZERO_SUBSTRATE_ADDRESS;
       const availableRaw = await transactionStore.ethCall(
         client,
-        ZERO_SUBSTRATE_ADDRESS,
+        origin,
         network.dotnsRegistrar as Address,
         availableData,
       );
@@ -325,7 +327,7 @@ export const useResolverStore = defineStore("useResolverStore", () => {
 
       const ownerRaw = await transactionStore.ethCall(
         client,
-        ZERO_SUBSTRATE_ADDRESS,
+        origin,
         network.dotnsRegistrar as Address,
         ownerOfData,
       );
@@ -345,9 +347,47 @@ export const useResolverStore = defineStore("useResolverStore", () => {
     }
   }
 
+  async function getOwnerOfSubname(fullName: string): Promise<Address | null> {
+    try {
+      await abiStore.ensureAbis();
+
+      const network = networkStore.currentNetwork;
+      if (!network?.dotnsRegistry) throw new Error("DotnsRegistry not configured");
+
+      const node = namehash(fullName.endsWith(".dot") ? fullName : `${fullName}.dot`);
+
+      const callData = encodeFunctionData({
+        abi: abiStore.getABI("DotnsRegistry"),
+        functionName: "owner",
+        args: [node],
+      });
+
+      const client = await networkStore.getClient();
+      const origin = walletStore.substrateAddress || ZERO_SUBSTRATE_ADDRESS;
+      const result = await transactionStore.ethCall(
+        client,
+        origin,
+        network.dotnsRegistry as Address,
+        callData,
+      );
+
+      if (!result || result === "0x") return null;
+
+      const owner = decodeFunctionResult({
+        abi: abiStore.getABI("DotnsRegistry"),
+        functionName: "owner",
+        data: result,
+      }) as Address;
+
+      return owner === zeroAddress ? null : owner;
+    } catch (error) {
+      console.warn("[ResolverStore:getOwnerOfSubname]", error);
+      return null;
+    }
+  }
+
   async function resolveAddressToName(targetAddress: Address): Promise<string | null> {
     try {
-      networkStore.ensureClient();
       await abiStore.ensureAbis();
 
       const network = networkStore.currentNetwork;
@@ -355,17 +395,17 @@ export const useResolverStore = defineStore("useResolverStore", () => {
         throw new Error("DotnsReverseResolver not configured");
       }
 
-      const client = await networkStore.getClient();
-
       const callData = encodeFunctionData({
         abi: abiStore.getABI("DotnsReverseResolver"),
         functionName: "nameOf",
         args: [targetAddress],
       });
 
+      const client = await networkStore.getClient();
+      const origin = walletStore.substrateAddress || ZERO_SUBSTRATE_ADDRESS;
       const result = await transactionStore.ethCall(
         client,
-        ZERO_SUBSTRATE_ADDRESS,
+        origin,
         network.dotnsReverseResolver as Address,
         callData,
       );
@@ -392,6 +432,7 @@ export const useResolverStore = defineStore("useResolverStore", () => {
     setText,
     setContentHash,
     getOwnerOfDomain,
+    getOwnerOfSubname,
     setProfileRecordsMulticall,
   };
 });

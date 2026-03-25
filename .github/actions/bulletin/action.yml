@@ -12,14 +12,10 @@ inputs:
     description: 'Path to the build directory to upload'
     required: false
     default: './build'
-  parallel:
-    description: 'Upload directory blocks in parallel'
-    required: false
-    default: 'true'
   upload-concurrency:
-    description: 'Number of parallel block uploads'
+    description: 'Adaptive scheduler max window (max: 4)'
     required: false
-    default: '15'
+    default: '4'
   max-retries:
     description: 'Max retry attempts for transient RPC failures'
     required: false
@@ -43,64 +39,88 @@ runs:
     - name: Authorize account for Bulletin
       shell: bash
       run: |
+        set -euo pipefail
+        source "$GITHUB_ACTION_PATH/../lib/run-dotns.sh"
         echo "::add-mask::$DOTNS_MNEMONIC"
 
         ADDRESS=$(dotns account address)
-
-        echo "Authorizing ${ADDRESS} for Bulletin TransactionStorage..."
-
-        ARGS=("$ADDRESS" --json)
+        RESULT_FILE=$(mktemp)
+        ARGS=(bulletin authorize "$ADDRESS" --json --reporter stream)
         [[ -n "$BULLETIN_RPC" ]] && ARGS+=(--bulletin-rpc "$BULLETIN_RPC")
 
-        OUTPUT=$(dotns bulletin authorize "${ARGS[@]}" 2>&1) || {
-          if echo "$OUTPUT" | grep -q "AlreadyAuthorized"; then
-            echo "::notice::Account ${ADDRESS} is already authorized"
-          else
-            echo "::error::Authorization failed: $OUTPUT"
-            exit 1
-          fi
-        }
+        if run_dotns_with_retry \
+          "Authorize account for Bulletin" \
+          "$RESULT_FILE" \
+          "1" \
+          "$RETRY_DELAY" \
+          dotns \
+          "${ARGS[@]}"; then
+          echo "::notice::Account ${ADDRESS} authorized"
+        else
+          ERROR_MESSAGE=$(jq -r '.error // empty' "$RESULT_FILE" 2>/dev/null || true)
+          echo "::error::${ERROR_MESSAGE:-Authorization failed}"
+          rm -f "$RESULT_FILE"
+          exit 1
+        fi
+        rm -f "$RESULT_FILE"
       env:
         DOTNS_MNEMONIC: ${{ inputs.mnemonic }}
         BULLETIN_RPC: ${{ inputs.bulletin-rpc }}
+        CI: "true"
+        FORCE_COLOR: "0"
+        NODE_NO_WARNINGS: "1"
+        RETRY_DELAY: ${{ inputs.retry-delay }}
 
     - name: Upload to Bulletin
       id: upload
       shell: bash
       run: |
+        set -euo pipefail
+        source "$GITHUB_ACTION_PATH/../lib/run-dotns.sh"
         echo "::add-mask::$DOTNS_MNEMONIC"
 
-        ARGS=("$BUILD_PATH" --json)
+        RESULT_FILE=$(mktemp)
+        ARGS=(bulletin upload "$BUILD_PATH" --resume --print-contenthash --json --reporter stream)
+        if [[ -d "$BUILD_PATH" ]]; then
+          ARGS+=(--as-car)
+        fi
         [[ -n "$BULLETIN_RPC" ]] && ARGS+=(--bulletin-rpc "$BULLETIN_RPC")
-        [[ "$PARALLEL" == "true" ]] && ARGS+=(--parallel --concurrency "$UPLOAD_CONCURRENCY")
+        ARGS+=(--concurrency "$UPLOAD_CONCURRENCY")
 
-        for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
-          echo "Upload attempt $ATTEMPT/$MAX_RETRIES"
+        if run_dotns_with_retry \
+          "Upload build to Bulletin" \
+          "$RESULT_FILE" \
+          "$MAX_RETRIES" \
+          "$RETRY_DELAY" \
+          dotns \
+          "${ARGS[@]}"; then
+          CID=$(jq -r '.cid // empty' "$RESULT_FILE")
+          CONTENTHASH=$(jq -r '.contenthash // empty' "$RESULT_FILE")
 
-          if RESULT=$(dotns bulletin upload "${ARGS[@]}" 2>&1); then
-            CID=$(echo "$RESULT" | jq -r '.cid')
-            CONTENTHASH=$(echo "$RESULT" | jq -r '.contenthash')
-
-            if [[ -n "$CID" && "$CID" != "null" ]]; then
-              echo "cid=$CID" >> "$GITHUB_OUTPUT"
-              echo "contenthash=$CONTENTHASH" >> "$GITHUB_OUTPUT"
-              echo "::notice::Uploaded CID: $CID"
-              exit 0
-            fi
+          if [[ -z "$CID" ]]; then
+            echo "::error::Upload completed without a CID"
+            rm -f "$RESULT_FILE"
+            exit 1
           fi
 
-          echo "::warning::Upload attempt $ATTEMPT failed"
-          echo "$RESULT"
-          [[ "$ATTEMPT" -lt "$MAX_RETRIES" ]] && sleep "$RETRY_DELAY"
-        done
+          echo "cid=$CID" >> "$GITHUB_OUTPUT"
+          echo "contenthash=$CONTENTHASH" >> "$GITHUB_OUTPUT"
+          echo "::notice::Uploaded CID: $CID"
+          rm -f "$RESULT_FILE"
+          exit 0
+        fi
 
-        echo "::error::Upload failed after $MAX_RETRIES attempts"
+        ERROR_MESSAGE=$(jq -r '.error // empty' "$RESULT_FILE" 2>/dev/null || true)
+        echo "::error::${ERROR_MESSAGE:-Upload failed after $MAX_RETRIES attempts}"
+        rm -f "$RESULT_FILE"
         exit 1
       env:
         DOTNS_MNEMONIC: ${{ inputs.mnemonic }}
         BULLETIN_RPC: ${{ inputs.bulletin-rpc }}
         BUILD_PATH: ${{ inputs.build-path }}
-        PARALLEL: ${{ inputs.parallel }}
         UPLOAD_CONCURRENCY: ${{ inputs.upload-concurrency }}
         MAX_RETRIES: ${{ inputs.max-retries }}
+        CI: "true"
+        FORCE_COLOR: "0"
+        NODE_NO_WARNINGS: "1"
         RETRY_DELAY: ${{ inputs.retry-delay }}

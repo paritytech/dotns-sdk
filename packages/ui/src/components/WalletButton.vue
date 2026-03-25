@@ -4,13 +4,13 @@
     :disabled="isLoading"
     :loading="isLoading"
     :variant="wallet.isConnected ? 'wallet-connected' : 'wallet'"
+    size="sm"
   >
     <template v-if="wallet.isConnected">
-      <span class="w-2.5 h-2.5 rounded-full animate-pulse bg-success"></span>
+      <span class="w-2 h-2 rounded-full animate-pulse bg-success" />
       {{ truncatedAddress }}
     </template>
-
-    <template v-else>Connect Wallet</template>
+    <template v-else>Sign in</template>
   </Button>
 </template>
 

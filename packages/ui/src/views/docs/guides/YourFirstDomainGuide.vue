@@ -4,8 +4,8 @@
       <p class="text-sm font-medium text-dot-accent mb-2">Guides</p>
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">Your First Domain</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
-        End-to-end: wallet setup, token acquisition, name registration, and verification. The whole
-        thing takes about two minutes.
+        This guide walks you through wallet setup, getting tokens, registering a name, and verifying
+        it. The whole process takes about two minutes.
       </p>
     </div>
 
@@ -46,16 +46,16 @@
       </div>
       <p class="text-dot-text-secondary leading-relaxed">
         Install one, create an account, and save your seed phrase somewhere safe. The wallet gives
-        you a Substrate address (starts with <code class="text-dot-accent">5</code>) and maps it to
-        an EVM address automatically.
+        you a Substrate address (starts with
+        <code class="text-dot-accent">5</code>) and maps it to an EVM address automatically.
       </p>
     </div>
 
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">2. Get PAS Tokens</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        DotNS is deployed on the Paseo AssetHub testnet. You need PAS tokens for gas and
-        registration fees. Get them free from the Paseo faucet:
+        DotNS is deployed on the Paseo AssetHub testnet. You need PAS tokens to pay for transaction
+        fees (gas) and registration. Get them free from the Paseo faucet:
       </p>
       <DocCodeBlock
         code="# Visit the Paseo faucet and request tokens for your Substrate address
@@ -63,8 +63,9 @@
         lang="bash"
       />
       <DocCallout variant="tip" title="How much do you need?">
-        Registration fees range from 0.001 to 0.012 DOT depending on name length. PoP-verified users
-        pay nothing. Either way, 1 PAS is more than enough for several registrations plus gas.
+        Registration fees range from 0.001 to 0.012 DOT depending on name length. Users verified
+        through Proof of Personhood (PoP) pay nothing. Either way, 1 PAS is more than enough for
+        several registrations plus transaction fees.
       </DocCallout>
     </div>
 
@@ -72,33 +73,36 @@
       <h2 class="text-xl font-semibold text-dot-text-primary">3. Connect Your Wallet</h2>
       <p class="text-dot-text-secondary leading-relaxed">
         Connect a Polkadot-compatible wallet to your chosen tool (CLI, SDK, or web interface). Your
-        Substrate address is used to derive your EVM address &mdash; both are needed for interacting
-        with DotNS contracts.
+        Substrate address is used to derive your EVM address. Both are needed because DotNS uses
+        EVM-based smart contracts on Polkadot.
       </p>
     </div>
 
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">4. Search for a Name</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Check your desired name's availability. The
+        Check whether your desired name is available. The
         <RouterLink
           to="/docs/contracts/registry"
           class="text-dot-accent hover:text-dot-accent-hover"
           >Registry</RouterLink
         >
-        contract determines whether a name is taken, its classification (which PoP tier it falls
-        into), and the registration price.
+        contract shows whether a name is taken, which pricing tier it falls into, and the
+        registration cost.
       </p>
-      <TryItSection title="Try it — Check availability now">
-        <TryCheckAvailability />
-      </TryItSection>
+      <DocCallout variant="tip" title="Try it">
+        <RouterLink to="/docs/getting-started" class="text-dot-accent hover:text-dot-accent-hover">
+          Check name availability &rarr;
+        </RouterLink>
+      </DocCallout>
     </div>
 
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">5. Register</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Registration uses commit-reveal to prevent front-running. The process involves two
-        transactions with a mandatory waiting period between them:
+        Registration uses a two-step commit-reveal process. This prevents others from seeing your
+        chosen name and registering it first (front-running). It involves two transactions with a
+        short waiting period between them:
       </p>
       <div class="space-y-2">
         <div
@@ -124,9 +128,9 @@
           class="text-dot-accent hover:text-dot-accent-hover"
           ><code>minCommitmentAge</code></RouterLink
         >
-        wait (currently 6 seconds on Paseo) between commit and register exists so that validators
-        cannot see your desired name in the mempool and front-run you. Your client must wait for the
-        commitment to mature before submitting the reveal transaction.
+        wait (currently 6 seconds on Paseo) between commit and register stops validators from seeing
+        your desired name in the transaction queue and registering it before you. Your client must
+        wait for the commitment to mature before submitting the reveal transaction.
       </DocCallout>
     </div>
 
@@ -137,8 +141,8 @@
       </p>
       <DocCodeBlock :code="verifyCode" lang="bash" filename="Verify via CLI" />
       <p class="text-dot-text-secondary leading-relaxed">
-        The lookup returns the owner address, content hash, store address, and PoP status. If the
-        owner matches your address, you are done.
+        The lookup returns the owner address, content hash, store address, and Proof of Personhood
+        status. If the owner matches your address, you are done.
       </p>
     </div>
 
@@ -201,8 +205,6 @@
 <script setup lang="ts">
 import DocCallout from "@/components/docs/DocCallout.vue";
 import DocCodeBlock from "@/components/docs/DocCodeBlock.vue";
-import TryItSection from "@/components/docs/TryItSection.vue";
-import TryCheckAvailability from "@/components/docs/interactive/TryCheckAvailability.vue";
 
 const prerequisites = [
   {
@@ -213,7 +215,7 @@ const prerequisites = [
   {
     title: "PAS tokens",
     description:
-      "Free from the Paseo faucet. You need a small amount for gas and possibly a registration fee.",
+      "Free from the Paseo faucet. You need a small amount for transaction fees and possibly a registration fee.",
   },
 ];
 

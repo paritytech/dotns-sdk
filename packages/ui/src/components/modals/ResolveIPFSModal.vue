@@ -3,13 +3,13 @@
     <div class="font-sans text-dot-text-primary">
       <h2 class="text-xl font-semibold mb-4">Resolve to IPFS</h2>
 
-      <label class="block text-sm text-dot-text-secondary mb-1">IPFS Hash or Gateway URL</label>
+      <label class="block text-xs text-dot-text-secondary mb-1">IPFS Hash or Gateway URL</label>
       <input
         v-model="hash"
         type="text"
         placeholder="Qm... or bafy... or https://....ipfs.dweb.link/"
         :class="[
-          'w-full border rounded-lg px-3 py-2 focus:ring-2 mb-1 transition',
+          'w-full border rounded-lg px-3 h-9 text-sm focus:ring-2 mb-1 transition',
           isInvalid && hash.length > 0
             ? 'border-error focus:ring-error/30'
             : 'border-dot-border focus:ring-dot-accent/20',

@@ -1,0 +1,109 @@
+name: Deploy Sized Examples
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  config:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      order: ${{ steps.matrix.outputs.order }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Load sized benchmark matrix
+        id: matrix
+        shell: bash
+        run: |
+          MATRIX=$(jq -c '{include: .}' examples/deploy/sized-sites/benchmarks.json)
+          ORDER=$(jq -c '[.[].slug]' examples/deploy/sized-sites/benchmarks.json)
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "order=$ORDER" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: config
+    name: Deploy ${{ matrix.size }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.config.outputs.matrix) }}
+    uses: ./.github/workflows/deploy-sized-benchmark-entry.yml
+    with:
+      size: ${{ matrix.size }}
+      slug: ${{ matrix.slug }}
+      subname: pr${{ github.event.pull_request.number }}-${{ matrix.slug }}
+      report-artifact-prefix: deploy-sized-report
+      report-retention-days: 7
+    secrets:
+      dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
+      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC_BENCHMARK }}
+
+  comment:
+    name: Comment Benchmarks
+    needs: [config, deploy]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download benchmark artifacts
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          pattern: deploy-sized-report-*
+          path: benchmark-artifacts
+          merge-multiple: true
+
+      - name: Build comment body
+        id: body
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+
+          const baseDir = path.join(process.cwd(), "benchmark-artifacts");
+          const order = JSON.parse(process.env.ORDER_JSON);
+          const files = fs.existsSync(baseDir)
+            ? fs.readdirSync(baseDir).filter((file) => file.endsWith(".json"))
+            : [];
+
+          const reports = files
+            .map((file) => JSON.parse(fs.readFileSync(path.join(baseDir, file), "utf8")))
+            .sort((left, right) => order.indexOf(left.slug) - order.indexOf(right.slug));
+
+          const lines = [
+            "## Deploy Sized Examples",
+            "",
+            "| Size | Status | Duration | Domain | URL | CID |",
+            "|------|--------|----------|--------|-----|-----|",
+          ];
+
+          for (const report of reports) {
+            const status = report.status === "success"
+              ? "Passed"
+              : `Failed (${report.failureStage || "unknown"})`;
+            const duration = `${report.durationSeconds}s`;
+            const domain = report.fqdn ? `\`${report.fqdn}\`` : "n/a";
+            const url = report.url ? `[open](${report.url})` : "n/a";
+            const cid = report.cid ? `\`${report.cid}\`` : "n/a";
+            lines.push(`| ${report.size} | ${status} | ${duration} | ${domain} | ${url} | ${cid} |`);
+          }
+
+          lines.push("");
+          lines.push(`[View workflow run](${process.env.RUN_URL})`);
+
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `body<<EOF\n${lines.join("\n")}\nEOF\n`);
+          NODE
+        env:
+          ORDER_JSON: ${{ needs.config.outputs.order }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Update PR comment
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: deploy-sized-examples
+          message: ${{ steps.body.outputs.body }}

@@ -17,8 +17,8 @@
       <p class="text-dot-text-secondary leading-relaxed">
         A subdomain is created by calling
         <span class="font-mono text-dot-accent">setSubnodeOwner</span> on the
-        <span class="font-mono text-dot-text-primary">DotnsRegistry</span>. This sets the owner of
-        the child node in the registry, enabling full resolution and record management for the
+        <span class="font-mono text-dot-text-primary">DotnsRegistry</span>. This records the owner
+        of the child name in the registry, which enables resolution and record management for the
         subdomain.
       </p>
       <DocCodeBlock :code="setSubnodeCode" lang="solidity" filename="DotnsRegistry.sol" />
@@ -27,8 +27,8 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Parent Ownership Required</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Only the owner of the parent node can create subdomains. Namespace authority flows top-down
-        &mdash; you must own
+        Only the owner of the parent name can create subdomains. Authority flows from parent to
+        child &mdash; you must own
         <span class="font-mono text-dot-accent">alice.dot</span> to create any
         <span class="font-mono text-dot-accent">*.alice.dot</span> subdomain.
       </p>
@@ -78,12 +78,13 @@
       <h2 class="text-xl font-semibold text-dot-text-primary">Store Integration</h2>
       <p class="text-dot-text-secondary leading-relaxed">
         When a subdomain is created, the name is written to the owner's
-        <span class="font-mono text-dot-accent">Store</span>. This provides an on-chain record of
-        all names associated with an address, enabling efficient enumeration and lookup.
+        <span class="font-mono text-dot-accent">Store</span> (a personal on-chain key-value
+        contract). This keeps a record of all names linked to an address, making it easy to list and
+        look them up.
       </p>
       <DocCallout variant="tip" title="Subdomain use cases">
-        Subdomains are ideal for organisations (team.company.dot), project namespacing
-        (app.project.dot), and multi-tenant hosting (user.platform.dot). Each subdomain can have its
+        Subdomains are ideal for organisations (team.company.dot), project namespaces
+        (app.project.dot), and multi-user hosting (user.platform.dot). Each subdomain can have its
         own resolver records, text records, and content hash.
       </DocCallout>
     </div>
@@ -112,8 +113,8 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Subnode Creation Sequence</h2>
       <p class="text-dot-text-secondary text-sm leading-relaxed">
-        The full on-chain flow when creating a subdomain. The Registry verifies ownership, then
-        coordinates with the Controller, StoreFactory, and Store to set up the new subnode.
+        The full on-chain flow when creating a subdomain. The Registry checks ownership, then works
+        with the Controller, StoreFactory, and Store to set up the new child name.
       </p>
       <DocDiagramImage
         src="/diagrams/subname.png"

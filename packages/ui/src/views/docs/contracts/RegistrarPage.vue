@@ -5,9 +5,9 @@
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">DotnsRegistrar</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
         The Registrar is an
-        <span class="text-dot-text-primary font-medium">ERC721 NFT contract</span>
-        that backs permanent .dot name ownership. Each registered name is represented as a
-        non-fungible token, enabling standard NFT transfers and marketplace integration.
+        <span class="text-dot-text-primary font-medium">ERC-721 NFT contract</span>
+        that backs permanent .dot name ownership. Each registered name is an NFT, so names can be
+        transferred or sold using any standard ERC-721 tooling.
       </p>
     </div>
 
@@ -30,7 +30,7 @@
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Returns whether a given token ID (derived from the labelhash) is available for
+          Returns whether a given token ID (derived from the label's hash) is available for
           registration.
         </p>
         <DocParamTable
@@ -110,8 +110,8 @@
           <DocBadge variant="transaction">transaction</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Transfers the NFT to a new owner. The transfer hook automatically copies Store records to
-          the new owner, ensuring registration data follows the name.
+          Transfers the NFT to a new owner. The transfer hook automatically copies Store records
+          (on-chain metadata) to the new owner, so registration data follows the name.
         </p>
         <DocParamTable
           :params="[
@@ -138,8 +138,8 @@
 
     <DocCallout variant="warning" title="Transfer hook side effects">
       When a .dot name NFT is transferred, the Registrar automatically copies the sender's Store
-      records to the recipient, so registration metadata (such as resolver settings) follows the
-      name to its new owner.
+      records to the recipient. This means registration metadata (such as resolver settings) follows
+      the name to its new owner.
     </DocCallout>
 
     <div class="border-t border-dot-border pt-6 flex justify-between text-sm">

@@ -4,24 +4,22 @@
       <p class="text-sm font-medium text-dot-accent mb-2">Decentralised Web</p>
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">Overview</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
-        The vision is simple: type
-        <span class="font-mono text-dot-accent">alice.dot</span> into a browser and see a website
-        &mdash; no centralised server, no DNS registrar, no single point of failure. DotNS makes
-        this possible by combining on-chain name resolution with decentralised content storage.
+        Type <span class="font-mono text-dot-accent">alice.dot</span> into a browser and see a
+        website &mdash; no centralised server, no traditional DNS provider, no single point of
+        failure. DotNS makes this possible by combining on-chain name resolution with decentralised
+        content storage.
       </p>
     </div>
 
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">The Full Stack</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Serving a decentralised website through DotNS involves three layers working together.
-        Content is stored on <span class="text-dot-text-primary font-medium">Bulletin</span>
-        (Polkadot's on-chain block storage) or
-        <span class="text-dot-text-primary font-medium">IPFS</span>. The content hash referencing
-        that storage is set in the
-        <span class="font-mono text-dot-accent">DotnsContentResolver</span> contract. Finally, a
-        <span class="text-dot-text-primary font-medium">dweb-proxy</span> gateway resolves the name,
-        fetches the content, and serves it to the browser.
+        Serving a decentralised website through DotNS involves three layers. Content is stored on
+        <span class="text-dot-text-primary font-medium">Bulletin</span> (Polkadot's on-chain block
+        storage) or <span class="text-dot-text-primary font-medium">IPFS</span>. The content hash is
+        saved in the <span class="font-mono text-dot-accent">DotnsContentResolver</span> contract. A
+        <span class="text-dot-text-primary font-medium">dweb-proxy</span> gateway then resolves the
+        name, fetches the content, and serves it to the browser.
       </p>
     </div>
 
@@ -55,8 +53,8 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Storage Backends</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        DotNS supports multiple decentralised storage protocols. The content hash stored in the
-        ContentResolver encodes which protocol to use and where to find the content.
+        DotNS supports several decentralised storage protocols. The content hash stored in the
+        ContentResolver includes which protocol to use and where to find the content.
       </p>
       <div class="overflow-x-auto">
         <table class="w-full text-sm border border-dot-border rounded-lg overflow-hidden">
@@ -93,9 +91,9 @@
     </div>
 
     <DocCallout variant="tip" title="No browser extension required">
-      Unlike ENS which requires a browser extension or special DNS configuration, DotNS uses a
-      gateway proxy that intercepts HTTP requests by Host header. Any standard browser can access
-      .dot websites through the gateway.
+      DotNS uses a gateway proxy that reads the Host header from HTTP requests. Any standard browser
+      can access .dot websites through the gateway &mdash; no browser extension or special DNS
+      configuration needed.
     </DocCallout>
 
     <div class="border-t border-dot-border pt-6 flex justify-between text-sm">
@@ -130,7 +128,7 @@ const flowSteps = [
   {
     title: "Content hash decoded",
     description:
-      "The multicodec-encoded content hash tells the gateway which storage protocol (IPFS, Bulletin, Arweave, etc.) and which CID to fetch.",
+      "The content hash tells the gateway which storage protocol (IPFS, Bulletin, Arweave, etc.) and which CID to fetch.",
   },
   {
     title: "Content fetched from storage",
@@ -158,7 +156,8 @@ const storageBackends = [
   {
     protocol: "Bulletin",
     prefix: "bulletin://",
-    description: "Polkadot's on-chain IPFS block storage for permanent availability",
+    description:
+      "Polkadot's on-chain IPFS block storage for permanent availability. Use --as-car for fast chunked CAR directory uploads",
   },
   {
     protocol: "Arweave",
@@ -176,12 +175,12 @@ const keyConcepts = [
   {
     title: "Content Addressing",
     description:
-      "Files are identified by their cryptographic hash, not by location. The same content always produces the same hash.",
+      "Files are identified by a fingerprint of their contents, not by where they are stored. The same content always produces the same fingerprint.",
   },
   {
     title: "On-chain Resolution",
     description:
-      "Name-to-content-hash mapping lives on Polkadot, making it censorship-resistant and trustless.",
+      "The link between a name and its content hash lives on Polkadot, making it censorship-resistant and verifiable by anyone.",
   },
   {
     title: "Gateway Proxy",

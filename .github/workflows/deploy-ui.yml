@@ -16,6 +16,10 @@ permissions:
   contents: read
   pull-requests: write
 
+concurrency:
+  group: deploy-ui-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Build UI
@@ -34,7 +38,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bun install --frozen-lockfile
+          bun install --no-frozen-lockfile
           for pkg in packages/*; do
             [ -f "$pkg/package.json" ] || continue
             grep -q '"file:' "$pkg/package.json" || continue
@@ -99,9 +103,11 @@ jobs:
       subname-format: pr-number
       artifact-name: ui-site
       register-base: false
+      cli-source: source
+      sdk-ref: ${{ github.head_ref || github.ref }}
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
-      bulletin-mnemonic: ${{ secrets.BULLETIN_MNEMONIC }}
+      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC_DEPLOY_UI }}
 
   deploy-production:
     name: Deploy Production
@@ -113,9 +119,11 @@ jobs:
       mode: production
       artifact-name: ui-site
       register-base: false
+      cli-source: source
+      sdk-ref: ${{ github.head_ref || github.ref }}
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
-      bulletin-mnemonic: ${{ secrets.BULLETIN_MNEMONIC }}
+      bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC_DEPLOY_UI }}
 
   comment:
     name: Update PR Comment

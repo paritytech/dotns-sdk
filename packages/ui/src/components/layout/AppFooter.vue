@@ -1,8 +1,8 @@
 <template>
   <footer
-    class="w-full fixed bottom-0 left-0 border-t border-dot-surface-secondary bg-dot-surface text-dot-text-tertiary text-sm py-4 flex items-center justify-center font-sans"
+    class="w-full border-t border-dot-border bg-dot-bg/95 backdrop-blur-sm text-dot-text-tertiary text-xs py-3 flex items-center justify-center font-sans"
   >
-    © {{ currentYear }} Dotns. All rights reserved.
+    &copy; {{ currentYear }} Dotns
   </footer>
 </template>
 

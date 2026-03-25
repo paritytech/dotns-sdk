@@ -32,6 +32,13 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Finder (MacOS) folder config
 .DS_Store
+TODO.md
 
 # IFPS CLI binary
 ./packages/bin
+
+# benchmark artifacts
+benchmark-baseline.json
+benchmark-report.html
+.benchmark-temp
+arb-generated

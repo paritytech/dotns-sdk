@@ -1,10 +1,10 @@
 <template>
-  <div class="min-h-screen bg-dot-bg">
+  <div class="min-h-screen bg-dot-bg flex flex-col">
     <AppHeader @toggle-menu="toggleMobileMenu" />
     <TopProgress />
     <TransactionTimeline />
 
-    <main class="transition-all duration-300 pb-12">
+    <main class="flex-1 transition-all duration-300 pb-12">
       <RouterView />
     </main>
 

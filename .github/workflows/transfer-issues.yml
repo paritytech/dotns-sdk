@@ -7,7 +7,7 @@ on:
 
 jobs:
   transfer-new:
-    if: github.event_name == 'issues'
+    if: github.event_name == 'issues' && !contains(github.event.issue.labels.*.name, 'benchmark-request')
     runs-on: ubuntu-latest
     steps:
       - name: Transfer to dotns

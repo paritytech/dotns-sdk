@@ -5,9 +5,9 @@
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">DotnsReverseResolver</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
         The Reverse Resolver handles
-        <span class="text-dot-text-primary font-medium">reverse resolution</span>, mapping on-chain
-        addresses back to their primary .dot name. This enables dApps to display human-readable
-        names instead of hex addresses.
+        <span class="text-dot-text-primary font-medium">reverse resolution</span> &mdash; turning a
+        blockchain address back into a .dot name. This lets dApps show human-readable names instead
+        of long hex addresses.
       </p>
     </div>
 
@@ -72,9 +72,14 @@
       </div>
     </div>
 
-    <TryItSection title="Try it — Reverse-resolve an address">
-      <TryReverseResolve />
-    </TryItSection>
+    <DocCallout variant="tip" title="Try it">
+      <RouterLink
+        to="/docs/protocol/reverse-resolution"
+        class="text-dot-accent hover:text-dot-accent-hover"
+      >
+        Reverse resolve an address &rarr;
+      </RouterLink>
+    </DocCallout>
 
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Code Example</h2>
@@ -109,8 +114,6 @@ import DocReturnsTable from "@/components/docs/DocReturnsTable.vue";
 import DocCodeBlock from "@/components/docs/DocCodeBlock.vue";
 import DocCallout from "@/components/docs/DocCallout.vue";
 import DocBadge from "@/components/docs/DocBadge.vue";
-import TryItSection from "@/components/docs/TryItSection.vue";
-import TryReverseResolve from "@/components/docs/interactive/TryReverseResolve.vue";
 
 const setReverseParams = [
   {

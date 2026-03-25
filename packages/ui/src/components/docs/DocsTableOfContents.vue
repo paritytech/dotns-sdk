@@ -4,13 +4,13 @@
       <p class="text-xs font-semibold uppercase tracking-wider text-dot-text-tertiary mb-3">
         On this page
       </p>
-      <nav class="space-y-1">
+      <nav class="space-y-0.5">
         <a
           v-for="heading in headings"
           :key="heading.id"
           :href="`#${heading.id}`"
           @click.prevent="scrollTo(heading.id)"
-          class="block text-xs py-1 transition-colors duration-150 border-l-2 pl-3 truncate"
+          class="block text-xs py-0.5 transition-colors duration-150 border-l-2 pl-3 truncate"
           :title="heading.text"
           :class="
             activeId === heading.id

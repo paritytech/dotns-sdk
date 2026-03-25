@@ -12,12 +12,14 @@ test("bulletin help shows commands and description", async () => {
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 
   expect(result.combinedOutput).toContain("Bulletin storage utilities");
+  expect(result.combinedOutput).toContain("--reporter");
   expect(result.combinedOutput).toContain("upload");
   expect(result.combinedOutput).toContain("authorize");
   expect(result.combinedOutput).toContain("status");
   expect(result.combinedOutput).toContain("history");
   expect(result.combinedOutput).toContain("history:remove");
   expect(result.combinedOutput).toContain("history:clear");
+  expect(result.combinedOutput).toContain("verify");
 });
 
 test("bulletin upload help shows all options", async () => {
@@ -28,12 +30,18 @@ test("bulletin upload help shows all options", async () => {
   expect(result.combinedOutput).toContain("<path>");
   expect(result.combinedOutput).toContain("--bulletin-rpc");
   expect(result.combinedOutput).toContain("--chunk-size");
+  expect(result.combinedOutput).toContain("--max-retries");
   expect(result.combinedOutput).toContain("--force-chunked");
-  expect(result.combinedOutput).toContain("--parallel");
+  expect(result.combinedOutput).toContain("--as-car");
+  expect(result.combinedOutput).toContain("--resume");
   expect(result.combinedOutput).toContain("--concurrency");
+  expect(result.combinedOutput).toContain("--reporter");
+  expect(result.combinedOutput).toContain("--profile-upload");
+  expect(result.combinedOutput).toContain("--profile-output");
   expect(result.combinedOutput).toContain("--print-contenthash");
   expect(result.combinedOutput).toContain("--json");
   expect(result.combinedOutput).toContain("--no-history");
+  expect(result.combinedOutput).toContain("--cache");
 
   expect(result.combinedOutput).toContain("--keystore-path");
   expect(result.combinedOutput).toContain("--account");
@@ -47,6 +55,7 @@ test("bulletin upload help shows default values", async () => {
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 
   expect(result.combinedOutput).toContain("wss://paseo-bulletin-rpc.polkadot.io");
+  expect(result.combinedOutput).toContain("5");
 });
 
 test("bulletin authorize help shows all options", async () => {
@@ -59,6 +68,7 @@ test("bulletin authorize help shows all options", async () => {
   expect(result.combinedOutput).toContain("--transactions");
   expect(result.combinedOutput).toContain("--bytes");
   expect(result.combinedOutput).toContain("--force");
+  expect(result.combinedOutput).toContain("--reporter");
   expect(result.combinedOutput).toContain("--json");
 
   // Auth options are available for resolving the target address
@@ -126,6 +136,7 @@ test("bulletin status help shows all options", async () => {
   expect(result.combinedOutput).toContain("Check authorization status");
   expect(result.combinedOutput).toContain("[address]");
   expect(result.combinedOutput).toContain("--bulletin-rpc");
+  expect(result.combinedOutput).toContain("--reporter");
   expect(result.combinedOutput).toContain("--json");
   expect(result.combinedOutput).toContain("--keystore-path");
   expect(result.combinedOutput).toContain("--account");
@@ -142,4 +153,19 @@ test("bulletin list alias works", async () => {
   const result = await runDotnsCli(["bulletin", "list", "--help"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
   expect(result.combinedOutput).toContain("List all uploaded CIDs");
+});
+
+test("bulletin verify help shows usage", async () => {
+  const result = await runDotnsCli(["bulletin", "verify", "--help"]);
+  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
+  expect(result.combinedOutput).toContain("Verify a CID is resolvable via IPFS gateways");
+  expect(result.combinedOutput).toContain("<cid>");
+  expect(result.combinedOutput).toContain("--reporter");
+  expect(result.combinedOutput).toContain("--json");
+});
+
+test("bulletin help verify shows verify help", async () => {
+  const result = await runDotnsCli(["bulletin", "help", "verify"]);
+  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
+  expect(result.combinedOutput).toContain("Verify a CID is resolvable via IPFS gateways");
 });

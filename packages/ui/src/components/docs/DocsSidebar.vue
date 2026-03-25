@@ -1,10 +1,10 @@
 <template>
-  <aside class="w-64 shrink-0 border-r border-dot-border overflow-y-auto h-full">
-    <nav class="p-4 space-y-6">
+  <aside class="w-64 shrink-0 border-r border-dot-border overflow-y-auto h-full bg-dot-bg">
+    <nav class="p-4 space-y-4">
       <div v-for="group in docsNav" :key="group.title">
         <button
           @click="toggleGroup(group.title)"
-          class="flex items-center justify-between w-full text-xs font-semibold uppercase tracking-wider text-dot-text-tertiary mb-2 px-2 hover:text-dot-text-secondary transition-colors"
+          class="flex items-center justify-between w-full text-[10px] font-semibold uppercase tracking-wider text-dot-text-tertiary mb-1.5 px-2 py-1 rounded hover:text-dot-text-secondary transition-colors duration-150"
         >
           {{ group.title }}
           <svg
@@ -21,30 +21,26 @@
           </svg>
         </button>
 
-        <Transition
-          enter-active-class="transition-all duration-200 ease-out"
-          enter-from-class="opacity-0 max-h-0"
-          enter-to-class="opacity-100 max-h-[1000px]"
-          leave-active-class="transition-all duration-200 ease-in"
-          leave-from-class="opacity-100 max-h-[1000px]"
-          leave-to-class="opacity-0 max-h-0"
+        <div
+          class="grid transition-[grid-template-rows] duration-200 ease-out"
+          :class="openGroups.has(group.title) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'"
         >
-          <ul v-show="openGroups.has(group.title)" class="space-y-0.5 overflow-hidden">
+          <ul class="overflow-hidden space-y-0.5">
             <li v-for="item in group.items" :key="item.path">
               <RouterLink
                 :to="item.path"
-                class="block px-2 py-1.5 text-sm rounded-md transition-colors duration-150"
+                class="block px-3 py-1.5 text-sm rounded-md transition-colors duration-150"
                 :class="
                   isActive(item.path)
-                    ? 'text-dot-accent bg-dot-accent-soft font-medium'
-                    : 'text-dot-text-secondary hover:text-dot-text-primary hover:bg-dot-surface-secondary'
+                    ? 'text-dot-text-primary bg-dot-surface-secondary font-medium border-l-2 border-dot-accent ml-0 pl-[10px]'
+                    : 'text-dot-text-secondary hover:text-dot-text-primary hover:bg-dot-surface-secondary/50'
                 "
               >
                 {{ item.title }}
               </RouterLink>
             </li>
           </ul>
-        </Transition>
+        </div>
       </div>
     </nav>
   </aside>

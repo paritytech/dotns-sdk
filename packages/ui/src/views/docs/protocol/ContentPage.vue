@@ -15,9 +15,9 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Text Records</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Text records are arbitrary key-value pairs associated with a .dot name. They are commonly
-        used for on-chain profiles &mdash; linking social accounts, websites, and descriptions to
-        your identity.
+        Text records are key-value pairs attached to a .dot name. They are commonly used for
+        on-chain profiles &mdash; linking social accounts, websites, and descriptions to your
+        identity.
       </p>
       <div class="overflow-x-auto">
         <table class="w-full text-sm border border-dot-border rounded-lg overflow-hidden">
@@ -54,10 +54,10 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Content Hashes</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Content hashes allow you to point a .dot name at a decentralised website hosted on IPFS. The
-        hash is stored as bytes using the multicodec format:
-        <span class="font-mono text-dot-text-primary">0xe301</span> (IPFS namespace) followed by the
-        CID multihash.
+        Content hashes point a .dot name at a decentralised website hosted on
+        <span class="font-medium">IPFS</span>. The hash is stored as bytes using the multicodec
+        format: <span class="font-mono text-dot-text-primary">0xe301</span> (IPFS namespace)
+        followed by the CID multihash.
       </p>
       <DocCodeBlock :code="contentHashCode" lang="solidity" filename="content hash encoding" />
       <DocCallout variant="info" title="IPFS encoding">
@@ -80,8 +80,8 @@
       <h2 class="text-xl font-semibold text-dot-text-primary">Operator Approvals</h2>
       <p class="text-dot-text-secondary leading-relaxed">
         Name owners can approve third-party operators to manage their text records and content
-        hashes. This enables integrations where a dApp or CI/CD pipeline can update your profile or
-        website content without requiring your private key for every update.
+        hashes. This lets an application or automated deployment pipeline update your profile or
+        website content without needing your private key for every change.
       </p>
       <DocCodeBlock :code="operatorCode" lang="solidity" filename="operator approvals" />
       <DocCallout variant="warning" title="Security note">
