@@ -14,10 +14,10 @@
   --color-dot-text-tertiary: #a8a29e;
   --color-dot-border: #44403c;
   --color-dot-border-strong: #57534e;
-  --color-dot-accent: #ff2867;
-  --color-dot-accent-hover: #e6245d;
-  --color-dot-accent-active: #cc2050;
-  --color-dot-accent-soft: rgba(255, 40, 103, 0.08);
+  --color-dot-accent: #d6d3d1;
+  --color-dot-accent-hover: #fafaf9;
+  --color-dot-accent-active: #e7e5e4;
+  --color-dot-accent-soft: rgba(214, 211, 209, 0.08);
 
   --color-success: #059669;
   --color-success-light: #dcfce7;

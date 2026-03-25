@@ -107,7 +107,9 @@ async function fetchContent() {
     }
     contentType.value = type;
     contentBlob.value = blob;
-    contentUrl.value = URL.createObjectURL(blob);
+    if (blob) {
+      contentUrl.value = URL.createObjectURL(blob);
+    }
     resolvedGatewayUrl.value = resolvedUrl;
   } catch {
     error.value =
