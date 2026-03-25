@@ -1,5 +1,14 @@
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
 import { HARNESS_HELP_SUCCESS_EXIT_CODE, runDotnsCli } from "../../_helpers/cliHelpers";
+import {
+  getCommitmentBufferSeconds,
+  COMMITMENT_POLL_INTERVAL_MS,
+  COMMITMENT_POLL_TIMEOUT_MS,
+} from "../../../src/utils/constants";
+
+afterEach(() => {
+  delete process.env.DOTNS_COMMITMENT_BUFFER;
+});
 
 test("root help lists register command", async () => {
   const result = await runDotnsCli(["--help"]);
@@ -28,6 +37,8 @@ test("register domain help shows options", async () => {
   expect(result.combinedOutput).toContain("--owner");
   expect(result.combinedOutput).toContain("--transfer");
   expect(result.combinedOutput).toContain("--to");
+  expect(result.combinedOutput).toContain("--commitment-buffer");
+  expect(result.combinedOutput).toContain("DOTNS_COMMITMENT_BUFFER");
 });
 
 test("register subname help shows options", async () => {
@@ -70,7 +81,7 @@ test("register domain parses owner option", async () => {
     "register",
     "domain",
     "--owner",
-    "HARNESS_HELP_SUCCESS_EXIT_CODEx3CdHARNESS_HELP_SUCCESS_EXIT_CODEA7HARNESS_HELP_SUCCESS_EXIT_CODE5a2DC65e5b1E12HARNESS_HELP_SUCCESS_EXIT_CODE5896BaA2be8AHARNESS_HELP_SUCCESS_EXIT_CODE7c6eHARNESS_HELP_SUCCESS_EXIT_CODE",
+    "0x3Cd0A705a2DC65e5b1E1205896BaA2be8A07c6e0",
     "--help",
   ]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
@@ -82,7 +93,7 @@ test("register domain parses transfer with destination", async () => {
     "domain",
     "--transfer",
     "--to",
-    "HARNESS_HELP_SUCCESS_EXIT_CODEx3CdHARNESS_HELP_SUCCESS_EXIT_CODEA7HARNESS_HELP_SUCCESS_EXIT_CODE5a2DC65e5b1E12HARNESS_HELP_SUCCESS_EXIT_CODE5896BaA2be8AHARNESS_HELP_SUCCESS_EXIT_CODE7c6eHARNESS_HELP_SUCCESS_EXIT_CODE",
+    "0x3Cd0A705a2DC65e5b1E1205896BaA2be8A07c6e0",
     "--help",
   ]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
@@ -125,6 +136,16 @@ test("register domain parses key-uri option", async () => {
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 });
 
+test("register domain parses commitment-buffer option", async () => {
+  const result = await runDotnsCli(["register", "domain", "--commitment-buffer", "12", "--help"]);
+  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
+});
+
+test("register domain parses commitment-buffer alias --cb", async () => {
+  const result = await runDotnsCli(["register", "domain", "--cb", "10", "--help"]);
+  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
+});
+
 test("register subname parses name and parent", async () => {
   const result = await runDotnsCli([
     "register",
@@ -147,8 +168,26 @@ test("register subname parses owner option", async () => {
     "--parent",
     "claude",
     "--owner",
-    "HARNESS_HELP_SUCCESS_EXIT_CODEx3CdHARNESS_HELP_SUCCESS_EXIT_CODEA7HARNESS_HELP_SUCCESS_EXIT_CODE5a2DC65e5b1E12HARNESS_HELP_SUCCESS_EXIT_CODE5896BaA2be8AHARNESS_HELP_SUCCESS_EXIT_CODE7c6eHARNESS_HELP_SUCCESS_EXIT_CODE",
+    "0x3Cd0A705a2DC65e5b1E1205896BaA2be8A07c6e0",
     "--help",
   ]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
+});
+
+test("getCommitmentBufferSeconds defaults to 6 when env is not set", () => {
+  delete process.env.DOTNS_COMMITMENT_BUFFER;
+  expect(getCommitmentBufferSeconds()).toBe(6);
+});
+
+test("getCommitmentBufferSeconds reads from DOTNS_COMMITMENT_BUFFER env variable", () => {
+  process.env.DOTNS_COMMITMENT_BUFFER = "12";
+  expect(getCommitmentBufferSeconds()).toBe(12);
+});
+
+test("COMMITMENT_POLL_INTERVAL_MS is 2000", () => {
+  expect(COMMITMENT_POLL_INTERVAL_MS).toBe(2_000);
+});
+
+test("COMMITMENT_POLL_TIMEOUT_MS is 30000", () => {
+  expect(COMMITMENT_POLL_TIMEOUT_MS).toBe(30_000);
 });

@@ -56,7 +56,7 @@ async function main() {
   );
 
   await submitCommitment(clientWrapper, substrateAddress, signer, commitment);
-  await waitForMinimumCommitmentAge(clientWrapper, substrateAddress);
+  await waitForMinimumCommitmentAge(clientWrapper, substrateAddress, commitment);
 
   const pricing = await getPriceAndValidateEligibility(
     clientWrapper,
