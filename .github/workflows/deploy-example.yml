@@ -103,6 +103,7 @@ jobs:
       basename: dotns-example-site
       artifact-name: example-site
       cli-source: release
+      use-car: true
       register-base: true
       sdk-repository: ${{ github.event.pull_request.head.repo.full_name }}
       sdk-ref: ${{ github.event.pull_request.head.sha }}
