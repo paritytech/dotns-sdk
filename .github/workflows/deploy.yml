@@ -56,7 +56,7 @@ on:
         default: 'paritytech/dotns-sdk'
 
       use-car:
-        description: '(legacy, ignored) The CLI now merkleizes in-memory via --as-car'
+        description: 'Merkleize with IPFS CLI and upload as a single CAR file'
         required: false
         type: boolean
         default: false
@@ -245,6 +245,28 @@ jobs:
           MODE: ${{ inputs.mode }}
           UPLOAD_CONCURRENCY: ${{ inputs.upload-concurrency }}
 
+      - name: Export CAR file
+        id: car
+        if: steps.cache.outputs.cache-hit != 'true' && inputs.use-car
+        shell: bash
+        run: |
+          # Install IPFS Kubo if not already available
+          if ! command -v ipfs &>/dev/null; then
+            echo "Installing IPFS Kubo..."
+            wget -qO- https://dist.ipfs.tech/kubo/v0.33.2/kubo_v0.33.2_linux-amd64.tar.gz | tar xz
+            sudo mv kubo/ipfs /usr/local/bin/
+            rm -rf kubo
+          fi
+
+          ipfs init --profile server 2>/dev/null || true
+
+          CID=$(ipfs add -Q -r --cid-version=1 --raw-leaves --pin=false ./build)
+          ipfs dag export "$CID" > build.car
+          SIZE=$(stat --printf='%s' build.car)
+
+          echo "ipfs-cid=$CID" >> "$GITHUB_OUTPUT"
+          echo "::notice::CAR file created: $(numfmt --to=iec $SIZE) — IPFS CID: $CID"
+
       - name: Upload to Bulletin
         id: bulletin
         if: steps.cache.outputs.cache-hit != 'true'
@@ -252,7 +274,7 @@ jobs:
         with:
           mnemonic: ${{ secrets.bulletin-mnemonic || 'bottom drive obey lake curtain smoke basket hold race lonely fit walk' }}
           bulletin-rpc: ${{ inputs.bulletin-rpc }}
-          build-path: ./build
+          build-path: ${{ inputs.use-car && './build.car' || './build' }}
           upload-concurrency: ${{ steps.upload-settings.outputs.upload-concurrency }}
           max-retries: ${{ inputs.max-retries }}
           retry-delay: ${{ inputs.retry-delay }}
