@@ -80,6 +80,9 @@ jobs:
           CID: ${{ needs.deploy.outputs.cid || 'n/a' }}
           FQDN: ${{ needs.deploy.outputs.fqdn || 'n/a' }}
           PREVIEW_URL: ${{ needs.deploy.outputs.url || '' }}
+          PREVIEW_URL_DIRECT: ${{ needs.deploy.outputs.url-direct || '' }}
+          PREVIEW_URL_DOTLI_PATH: ${{ needs.deploy.outputs.url-dotli-path || '' }}
+          PREVIEW_URL_DOTLI_HOST: ${{ needs.deploy.outputs.url-dotli-host || '' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
@@ -91,6 +94,9 @@ jobs:
             const cid = process.env.CID;
             const fqdn = process.env.FQDN;
             const previewUrl = process.env.PREVIEW_URL;
+            const previewUrlDirect = process.env.PREVIEW_URL_DIRECT;
+            const previewUrlDotliPath = process.env.PREVIEW_URL_DOTLI_PATH;
+            const previewUrlDotliHost = process.env.PREVIEW_URL_DOTLI_HOST;
             const runUrl = process.env.RUN_URL;
 
             const { owner, repo } = context.repo;
@@ -130,19 +136,34 @@ jobs:
 
             rows[section] = status === "Passed" ? `Passed` : `[Failed](${runUrl})`;
 
+            const previewRows = [];
+            if (previewUrlDotliHost) {
+              previewRows.push(`| Preview | [open](${previewUrlDotliHost}) |`);
+            } else {
+              if (previewUrlDotliPath) {
+                previewRows.push(`| Preview (dot.li) | [open](${previewUrlDotliPath}) |`);
+              }
+              if (previewUrlDirect) {
+                previewRows.push(`| Preview (direct) | [open](${previewUrlDirect}) |`);
+              }
+            }
+            if (previewRows.length === 0 && previewUrl) {
+              previewRows.push(`| Preview | [open](${previewUrl}) |`);
+            }
+
             const benchmarkTable = [
               `| Property | Value |`,
               `|----------|-------|`,
               `| Duration | ${duration}s |`,
               `| Domain | \`${fqdn}\` |`,
               `| CID | \`${cid}\` |`,
-              previewUrl ? `| Preview | [open](${previewUrl}) |` : null,
+              ...previewRows,
               `| Workflow | [view](${runUrl}) |`,
             ].filter(Boolean).join("\n");
 
             existingDetails[section] = `<details>\n<summary><strong>${section}</strong> - ${status} (${duration}s)</summary>\n\n${benchmarkTable}\n\n</details>`;
 
-            const order = ["Lint", "Lint (UI)", "Format", "Format (UI)", "Typecheck", "Typecheck (UI)", "Build", "Build (UI)", "Test", "Release", "Deploy UI", "Deploy Example", "Benchmark UI", "PR Title", "Labels"];
+            const order = ["Lint", "Lint (UI)", "Format", "Format (UI)", "Typecheck", "Typecheck (UI)", "Build", "Build (UI)", "Release", "Deploy UI", "Deploy Example", "Benchmark UI", "PR Title", "Labels", "Test"];
             const sortedKeys = Object.keys(rows).sort((a, b) => {
               const ai = order.indexOf(a), bi = order.indexOf(b);
               return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);

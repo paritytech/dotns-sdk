@@ -211,6 +211,7 @@ describe("CAR upload helpers", () => {
 
     expect(firstFailure).toBe(error);
     expect([...completedChunkIndexes]).toEqual([0, 2]);
+    expect(getPendingCarChunkIndexes(3, completedChunkIndexes)).toEqual([1]);
     expect(waveChunks.map((chunk) => chunk.bytes.length)).toEqual([0, 0, 0]);
   });
 });

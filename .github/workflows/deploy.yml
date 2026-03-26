@@ -122,6 +122,14 @@ on:
         value: ${{ jobs.deploy.outputs.fqdn }}
       url:
         value: ${{ jobs.deploy.outputs.url }}
+      url-alt:
+        value: ${{ jobs.deploy.outputs.url-alt }}
+      url-direct:
+        value: ${{ jobs.deploy.outputs.url-direct }}
+      url-dotli-path:
+        value: ${{ jobs.deploy.outputs.url-dotli-path }}
+      url-dotli-host:
+        value: ${{ jobs.deploy.outputs.url-dotli-host }}
       cache-hit:
         value: ${{ jobs.deploy.outputs.cache-hit }}
       duration-seconds:
@@ -135,6 +143,10 @@ jobs:
       cid: ${{ steps.final.outputs.cid }}
       fqdn: ${{ steps.final.outputs.fqdn }}
       url: ${{ steps.final.outputs.url }}
+      url-alt: ${{ steps.final.outputs.url-alt }}
+      url-direct: ${{ steps.final.outputs.url-direct }}
+      url-dotli-path: ${{ steps.final.outputs.url-dotli-path }}
+      url-dotli-host: ${{ steps.final.outputs.url-dotli-host }}
       cache-hit: ${{ steps.cache.outputs.cache-hit }}
       duration-seconds: ${{ steps.duration.outputs.seconds }}
 
@@ -298,14 +310,29 @@ jobs:
       - name: Set outputs
         id: final
         run: |
+          DOTLI_PATH_URL="https://dot.li/${FQDN}"
+          DIRECT_URL="https://${FQDN}"
+          DOTLI_HOST_URL=""
+
+          if [[ -n "$SUBNAME" ]]; then
+            PRIMARY_URL="$DOTLI_PATH_URL"
+          else
+            DOTLI_HOST_URL="https://${DOMAIN}.dot.li"
+            PRIMARY_URL="$DOTLI_HOST_URL"
+          fi
+
           echo "cid=$CID" >> "$GITHUB_OUTPUT"
           echo "fqdn=$FQDN" >> "$GITHUB_OUTPUT"
-          echo "url=https://${DOMAIN}.paseo.li" >> "$GITHUB_OUTPUT"
-          echo "url-alt=https://${DOMAIN}.dot.li" >> "$GITHUB_OUTPUT"
+          echo "url=$PRIMARY_URL" >> "$GITHUB_OUTPUT"
+          echo "url-alt=$DIRECT_URL" >> "$GITHUB_OUTPUT"
+          echo "url-direct=$DIRECT_URL" >> "$GITHUB_OUTPUT"
+          echo "url-dotli-path=$DOTLI_PATH_URL" >> "$GITHUB_OUTPUT"
+          echo "url-dotli-host=$DOTLI_HOST_URL" >> "$GITHUB_OUTPUT"
         env:
           CID: ${{ steps.cid.outputs.cid }}
           FQDN: ${{ steps.target.outputs.fqdn }}
           DOMAIN: ${{ steps.target.outputs.domain }}
+          SUBNAME: ${{ steps.target.outputs.subname }}
 
       - name: Compute deploy duration
         id: duration
@@ -329,6 +356,16 @@ jobs:
             BULLETIN_AUTH="alice"
           fi
 
+          if [[ -n "$SUBNAME" ]]; then
+            URL_ROWS=$(cat <<EOF
+          | URL (dot.li) | [${URL_DOTLI_PATH}](${URL_DOTLI_PATH}) |
+          | URL (direct) | [${URL_DIRECT}](${URL_DIRECT}) |
+          EOF
+            )
+          else
+            URL_ROWS="| URL | [${URL_DOTLI_HOST}](${URL_DOTLI_HOST}) |"
+          fi
+
           cat >> "$GITHUB_STEP_SUMMARY" <<EOF
           ## Deployment Complete
 
@@ -337,7 +374,7 @@ jobs:
           | Mode | \`${MODE}\` |
           | Domain | \`${FQDN}\` |
           | CID | \`${CID}\`${CACHE_NOTE} |
-          | URL | [${URL}](${URL}) |
+          ${URL_ROWS}
           | Duration | ${DURATION_SECONDS}s |
           | Bulletin Auth | ${BULLETIN_AUTH} |
           EOF
@@ -345,7 +382,10 @@ jobs:
           MODE: ${{ inputs.mode }}
           FQDN: ${{ steps.final.outputs.fqdn }}
           CID: ${{ steps.final.outputs.cid }}
-          URL: ${{ steps.final.outputs.url }}
+          URL_DIRECT: ${{ steps.final.outputs.url-direct }}
+          URL_DOTLI_PATH: ${{ steps.final.outputs.url-dotli-path }}
+          URL_DOTLI_HOST: ${{ steps.final.outputs.url-dotli-host }}
+          SUBNAME: ${{ steps.target.outputs.subname }}
           DURATION_SECONDS: ${{ steps.duration.outputs.seconds }}
           BULLETIN_MNEMONIC: ${{ secrets.bulletin-mnemonic }}
           CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
