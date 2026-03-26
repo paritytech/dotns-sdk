@@ -499,14 +499,18 @@ export async function storeDirectoryAsCar(
     throw new Error("accountAddress is required for directory uploads");
   }
 
-  const { hasIpfsCli, addDirectoryToIpfs, exportCidToCar, provideRootCid, addDirectoryWithDaemon } =
-    await import("../bulletin/ipfs");
+  const {
+    hasIpfsCli,
+    ensureKuboInstalled,
+    addDirectoryToIpfs,
+    exportCidToCar,
+    provideRootCid,
+    addDirectoryWithDaemon,
+  } = await import("../bulletin/ipfs");
 
   if (!hasIpfsCli()) {
-    throw new Error(
-      "Kubo (ipfs) is required for --as-car directory uploads. " +
-        "Install from: https://docs.ipfs.tech/install/",
-    );
+    emitPhase(onPhase, "upload", "update", "Kubo not found, installing automatically");
+    await ensureKuboInstalled();
   }
 
   const normalizedMaxRetries = normalizeUploadMaxRetries(maxRetries);

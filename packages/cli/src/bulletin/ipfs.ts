@@ -1,16 +1,20 @@
 import { execSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, createWriteStream, chmodSync, unlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { pipeline } from "node:stream/promises";
 import type {
   VerificationResult,
   BlockVerificationResult,
   KuboImportResult,
   KuboDaemonResult,
+  KuboPlatformInfo,
 } from "../types/types";
 import { formatErrorMessage } from "../utils/formatting";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+const KUBO_VERSION = "v0.40.1";
 
 function findPackagesDir(): string {
   let dir = __dirname;
@@ -24,7 +28,8 @@ function findPackagesDir(): string {
 }
 
 const IPFS_BINARY_NAME = process.platform === "win32" ? "ipfs.exe" : "ipfs";
-const BUNDLED_IPFS_PATH = join(findPackagesDir(), "bin", IPFS_BINARY_NAME);
+const BIN_DIR = join(findPackagesDir(), "bin");
+const BUNDLED_IPFS_PATH = join(BIN_DIR, IPFS_BINARY_NAME);
 
 function resolveIpfsBinaryPath(): string | null {
   if (existsSync(BUNDLED_IPFS_PATH)) {
@@ -41,10 +46,92 @@ function resolveIpfsBinaryPath(): string | null {
       .split("\n")[0];
     if (systemPath && existsSync(systemPath)) return systemPath;
   } catch {
-    /* not on PATH */
+    // execSync throws when the binary is not found on PATH, which is expected
   }
 
   return null;
+}
+
+function getKuboPlatformInfo(): KuboPlatformInfo {
+  const platformMap: Record<string, KuboPlatformInfo["os"] | undefined> = {
+    darwin: "darwin",
+    linux: "linux",
+    win32: "windows",
+  };
+  const archMap: Record<string, KuboPlatformInfo["cpu"] | undefined> = {
+    x64: "amd64",
+    arm64: "arm64",
+    arm: "arm",
+  };
+
+  const os = platformMap[process.platform];
+  const cpu = archMap[process.arch];
+
+  if (!os || !cpu) {
+    throw new Error(`Unsupported platform: ${process.platform}-${process.arch}`);
+  }
+
+  return {
+    os,
+    cpu,
+    ext: process.platform === "win32" ? ".zip" : ".tar.gz",
+    binName: process.platform === "win32" ? "ipfs.exe" : "ipfs",
+  };
+}
+
+async function downloadFile(url: string, dest: string): Promise<void> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Kubo download failed: ${response.status} ${response.statusText}`);
+  }
+  if (!response.body) {
+    throw new Error("Kubo download failed: empty response body");
+  }
+  const fileStream = createWriteStream(dest);
+  await pipeline(response.body as unknown as NodeJS.ReadableStream, fileStream);
+}
+
+export async function ensureKuboInstalled(): Promise<string> {
+  const existing = resolveIpfsBinaryPath();
+  if (existing) return existing;
+
+  const { os, cpu, ext, binName } = getKuboPlatformInfo();
+  const binaryPath = join(BIN_DIR, binName);
+
+  if (!existsSync(BIN_DIR)) {
+    mkdirSync(BIN_DIR, { recursive: true });
+  }
+
+  const filename = `kubo_${KUBO_VERSION}_${os}-${cpu}${ext}`;
+  const url = `https://dist.ipfs.tech/kubo/${KUBO_VERSION}/${filename}`;
+  const archivePath = join(BIN_DIR, filename);
+
+  await downloadFile(url, archivePath);
+
+  if (ext === ".tar.gz") {
+    execSync(`tar -xzf "${archivePath}" -C "${BIN_DIR}" --strip-components=1 kubo/ipfs`, {
+      stdio: "pipe",
+    });
+  } else {
+    execSync(
+      `powershell -NoProfile -NonInteractive -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${BIN_DIR}' -Force; Move-Item -Path '${BIN_DIR}\\kubo\\ipfs.exe' -Destination '${BIN_DIR}\\ipfs.exe' -Force"`,
+      { stdio: "pipe" },
+    );
+  }
+
+  if (process.platform !== "win32") {
+    chmodSync(binaryPath, 0o755);
+  }
+
+  if (existsSync(archivePath)) {
+    unlinkSync(archivePath);
+  }
+
+  if (!existsSync(binaryPath)) {
+    throw new Error(`Kubo installation failed: binary not found at ${binaryPath}`);
+  }
+
+  return binaryPath;
 }
 
 function runIpfsCommand(args: string): KuboImportResult {
@@ -131,7 +218,9 @@ export async function addDirectoryWithDaemon(
     if (!daemonReady) {
       try {
         daemon.kill("SIGTERM");
-      } catch {}
+      } catch {
+        // Process may have already exited before SIGTERM
+      }
       return {
         success: false,
         error: "IPFS daemon failed to start within 30 seconds",
@@ -145,7 +234,9 @@ export async function addDirectoryWithDaemon(
       setTimeout(() => {
         try {
           daemon.kill("SIGTERM");
-        } catch {}
+        } catch {
+          // Process may have already exited before scheduled SIGTERM
+        }
       }, daemonTtlSeconds * 1_000).unref();
     }
   }
@@ -213,7 +304,7 @@ async function safelyCancelBody(response: Response): Promise<void> {
   try {
     await response.body?.cancel();
   } catch {
-    // Body may already be consumed or stream closed
+    // Body may already be consumed or stream closed by the time we cancel
   }
 }
 

@@ -459,11 +459,17 @@ export type UploadChunkedBlocksOptions = UploadRetryOptions & {
 };
 
 export type StoreDirectoryOptions = UploadRetryOptions & {
+  /** SS58 account address used for storage transactions */
   accountAddress?: string;
+  /** Maximum concurrent upload operations */
   concurrency?: number;
+  /** Size of each data chunk in bytes */
   chunkSizeBytes?: number;
+  /** Optional human-readable progress callback */
   onPhase?: BulletinPhaseHandler;
+  /** IPFS gateway URL used to verify uploaded CIDs */
   verificationGateway?: string;
+  /** Whether to wait for on-chain finalization before returning */
   waitForFinalization?: boolean;
 };
 
@@ -1098,39 +1104,69 @@ export type MerkleizeDirectoryResult = {
 };
 
 export type CollectedBlock = {
+  /** CID of the block */
   cid: import("multiformats/cid").CID;
+  /** Raw encoded bytes of the block */
   bytes: Uint8Array;
 };
 
 export type MerkleizeCollectResult = {
+  /** Root CID of the DAG-PB tree */
   rootCid: import("multiformats/cid").CID;
+  /** All blocks collected during merkleization */
   blocks: CollectedBlock[];
+  /** Total size of all blocks in bytes */
   totalBytes: number;
 };
 
 export type CarUploadWithDhtOptions = UploadRetryOptions & {
+  /** SS58 account address used for storage transactions */
   accountAddress: string;
+  /** Maximum concurrent upload operations */
   concurrency?: number;
+  /** Size of each data chunk in bytes */
   chunkSizeBytes?: number;
+  /** Optional human-readable progress callback */
   onPhase?: BulletinPhaseHandler;
+  /** IPFS gateway URL used to verify uploaded CIDs */
   verificationGateway?: string;
+  /** Whether to wait for on-chain finalization before returning */
   waitForFinalization?: boolean;
+  /** Time-to-live in seconds for the Kubo daemon process */
   daemonTtlSeconds?: number;
 };
 
 export type KuboImportResult = {
+  /** Whether the command completed successfully */
   success: boolean;
+  /** stdout from the command on success */
   output?: string;
+  /** Error message on failure */
   error?: string;
 };
 
 export type KuboDaemonResult = KuboImportResult & {
+  /** Whether a new daemon process was spawned (false if one was already running) */
   daemonStarted: boolean;
 };
 
+export type KuboPlatformInfo = {
+  /** Operating system identifier for the Kubo download URL */
+  os: "darwin" | "linux" | "windows";
+  /** CPU architecture identifier for the Kubo download URL */
+  cpu: "amd64" | "arm64" | "arm";
+  /** Archive file extension */
+  ext: ".tar.gz" | ".zip";
+  /** Binary filename */
+  binName: "ipfs" | "ipfs.exe";
+};
+
 export type DhtAnnounceResult = {
+  /** Total number of CIDs processed */
   completed: number;
+  /** Number of CIDs successfully announced */
   announced: number;
+  /** Number of CIDs that failed to announce */
   failed: number;
 };
 
@@ -1154,14 +1190,19 @@ export type CidVerificationResult = {
 
 /** A single call descriptor for Multicall3.aggregate3 */
 export type Multicall3Call = {
+  /** Contract address to call */
   target: Address;
+  /** Whether a revert in this call should be tolerated */
   allowFailure: boolean;
+  /** ABI-encoded function call data */
   callData: Hex;
 };
 
 /** A single result from Multicall3.aggregate3 */
 export type Multicall3Result = {
+  /** Whether the individual call succeeded */
   success: boolean;
+  /** ABI-encoded return data from the call */
   returnData: Hex;
 };
 
@@ -1190,46 +1231,73 @@ export type WaveBlock = {
 };
 
 export type CacheCidToStoreOptions = {
+  /** Content identifier to cache */
   cid: string;
+  /** Revive client wrapper for contract interactions */
   clientWrapper: ReviveClientWrapper;
+  /** Signer for authorizing the storage transaction */
   signer: PolkadotSigner;
+  /** SS58-encoded Substrate account address */
   substrateAddress: string;
+  /** EVM-compatible account address */
   evmAddress: Address;
 };
 
 export type BlockMetadata = {
+  /** String-encoded CID of the block */
   cidString: string;
+  /** Numeric codec identifier (e.g. dag-pb, raw) */
   codecValue: number;
+  /** Numeric multihash algorithm code */
   hashCodeValue: number;
+  /** Size of the block in bytes */
   size: number;
 };
 
 export type UploadDeps = {
+  /** Bulletin RPC endpoint URL */
   rpc: string;
+  /** Signer for authorizing the storage transaction */
   signer: PolkadotSigner;
+  /** SS58 account address used for storage transactions */
   accountAddress: string;
+  /** Maximum concurrent upload operations */
   concurrency: number;
+  /** Whether to wait for on-chain finalization before returning */
   waitForFinalization: boolean;
+  /** Callback invoked after each block is successfully stored */
   onBlockStored?: (meta: BlockMetadata, completedCount: number, totalSoFar: number) => void;
 };
 
 export type FlushWaveOptions = {
+  /** Whether this is the last wave in the upload sequence */
   isFinalWave?: boolean;
 };
 
 export type UploadProfiler = {
+  /** Callback with adaptive scheduler state snapshots */
   onSchedulerState: (state: UploadSchedulerState) => void;
+  /** Callback emitted after each upload wave */
   onWave: (wave: UploadWaveSummary) => void;
+  /** Generates and writes the final upload profile report */
   finalize: (finalCid: string, overrideOutputPath?: string) => Promise<UploadProfileResult>;
 };
 
 export type UploadProfilerOptions = {
+  /** Local filesystem path of the source file or directory */
   sourcePath: string;
+  /** Total size of the source in bytes */
   sourceSizeBytes: number;
+  /** Size of each data chunk in bytes */
   chunkSizeBytes: number;
+  /** Bulletin RPC endpoint URL */
   rpc: string;
+  /** Starting concurrency level for adaptive scheduling */
   initialConcurrency: number;
+  /** Upper bound for adaptive concurrency scaling */
   maxConcurrency: number;
+  /** File path where the profile report is written */
   outputPath?: string;
+  /** Whether to output the report as JSON */
   jsonOutput: boolean;
 };
