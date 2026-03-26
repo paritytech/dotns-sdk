@@ -8,9 +8,8 @@ import { bulletin } from "@polkadot-api/descriptors";
 import { useWalletStore } from "./useWalletStore";
 import { useUserStoreManager } from "./useUserStoreManager";
 import type { BulletinUploadResult } from "@/type";
-import { verifyCidViaP2P, verifyCidWithGateways, type CidVerificationResult } from "@/lib/ipfs";
+import { verifyCidWithGateways, type CidVerificationResult } from "@/lib/ipfs";
 import {
-  BROWSER_FOLDER_LIMIT,
   BULLETIN_RPC,
   CHUNK_SIZE,
   CODEC_DAG_PB,
@@ -24,7 +23,6 @@ import {
   type CompletedChunk,
 } from "@/lib/bulletinUpload";
 import type {
-  FolderFileEntry,
   PendingUploadInfo,
   PreparedChunk,
   StorePreparedResult,
@@ -128,8 +126,8 @@ interface ResumeState {
 function saveResumeState(state: ResumeState): void {
   try {
     sessionStorage.setItem(RESUME_STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    /* quota exceeded or unavailable */
+  } catch (error) {
+    console.warn("[BulletinStore] Failed to save resume state:", error);
   }
 }
 
@@ -140,7 +138,8 @@ function loadResumeState(fileKey: string): ResumeState | null {
     const state: ResumeState = JSON.parse(raw);
     if (state.fileKey !== fileKey) return null;
     return state;
-  } catch {
+  } catch (error) {
+    console.warn("[BulletinStore] Failed to load resume state:", error);
     return null;
   }
 }
@@ -148,8 +147,8 @@ function loadResumeState(fileKey: string): ResumeState | null {
 function clearResumeState(): void {
   try {
     sessionStorage.removeItem(RESUME_STORAGE_KEY);
-  } catch {
-    /* noop */
+  } catch (error) {
+    console.warn("[BulletinStore] Failed to clear resume state:", error);
   }
 }
 
@@ -158,7 +157,8 @@ function getPendingResumeState(): ResumeState | null {
     const raw = sessionStorage.getItem(RESUME_STORAGE_KEY);
     if (!raw) return null;
     return JSON.parse(raw) as ResumeState;
-  } catch {
+  } catch (error) {
+    console.warn("[BulletinStore] Failed to read pending resume state:", error);
     return null;
   }
 }
@@ -187,8 +187,8 @@ function destroyBulletinClient(): void {
   if (sharedBulletinClient) {
     try {
       sharedBulletinClient.destroy();
-    } catch {
-      /* noop */
+    } catch (error) {
+      console.warn("[BulletinStore] Client destroy failed:", error);
     }
     sharedBulletinClient = null;
   }
@@ -223,9 +223,11 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
   }
 
   function getGatewayHost(gatewayUrl: string): string {
+    if (!gatewayUrl.includes("://")) return gatewayUrl;
     try {
       return new URL(gatewayUrl).host;
-    } catch {
+    } catch (error) {
+      console.warn("[BulletinStore] Failed to parse gateway URL:", gatewayUrl, error);
       return gatewayUrl;
     }
   }
@@ -270,37 +272,51 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
   ];
 
   async function verifyUploadedCid(cid: string): Promise<boolean> {
-    setStage("verifying", "Verifying content across P2P and gateways...", 95);
+    setStage("verifying", "Verifying content is retrievable from IPFS gateways...", 95);
 
-    const p2pPromise = verifyCidViaP2P(cid)
-      .then((ok): CidVerificationResult | null =>
-        ok ? { cid, gateway: "p2p", url: `p2p://${cid}`, resolvable: true } : null,
-      )
-      .catch(() => null);
+    const gatewayResult = await verifyCidWithGateways(cid).catch(
+      (): CidVerificationResult => ({ cid, gateway: "", url: "", resolvable: false }),
+    );
 
-    const gatewayPromise = verifyCidWithGateways(cid)
-      .then((r) => (r.resolvable ? r : null))
-      .catch(() => null);
-
-    const raceResult = await Promise.race([
-      p2pPromise.then((r) => r ?? new Promise<never>(() => {})),
-      gatewayPromise.then((r) => r ?? new Promise<never>(() => {})),
-      Promise.all([p2pPromise, gatewayPromise]).then(([p2p, gw]) => p2p ?? gw),
-    ]);
-
-    if (raceResult?.resolvable) {
-      uploadVerification.value = raceResult;
-      setStage("verifying", `CID verified via ${getGatewayHost(raceResult.gateway)}`, 96);
+    if (gatewayResult.resolvable) {
+      uploadVerification.value = gatewayResult;
+      setStage("verifying", `Content retrievable via ${getGatewayHost(gatewayResult.gateway)}`, 96);
       return true;
     }
 
     uploadVerification.value = { cid, gateway: "", url: "", resolvable: false };
     setStage(
       "verifying",
-      `Content uploaded but not yet resolvable. Verify with: dotns bulletin verify ${cid}`,
+      "Content stored on Bulletin but not yet retrievable from IPFS gateways. " +
+        "It may take time to propagate, or run: dotns bulletin verify " +
+        cid,
       96,
     );
     return false;
+  }
+
+  async function verifyAndCacheUpload(
+    cid: string,
+    options: { cacheToStore?: boolean },
+  ): Promise<void> {
+    const verified = await verifyUploadedCid(cid);
+
+    if (verified && options.cacheToStore) {
+      setStage("caching", "Approve saving the CID to your Store", 97);
+      const userStoreManager = useUserStoreManager();
+      try {
+        const txHash = await userStoreManager.writeCidToStore(cid);
+        storeTransactionHash.value = txHash;
+      } catch (cacheError) {
+        console.warn("[BulletinStore] CID caching failed, upload still succeeded:", cacheError);
+      }
+    } else {
+      setStage(
+        "verifying",
+        `Content uploaded but not yet resolvable. Verify with: dotns bulletin verify ${cid}`,
+        96,
+      );
+    }
   }
 
   function isRetryableError(error: unknown): boolean {
@@ -324,8 +340,8 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
         settled = true;
         try {
           subscription?.unsubscribe();
-        } catch {
-          /* noop */
+        } catch (error) {
+          console.warn("[BulletinStore] Subscription cleanup failed:", error);
         }
         subscription = undefined;
         transactionReference = null;
@@ -338,8 +354,8 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
         clearTimeout(timeout);
         try {
           subscription?.unsubscribe();
-        } catch {
-          /* noop */
+        } catch (error) {
+          console.warn("[BulletinStore] Subscription cleanup failed:", error);
         }
         subscription = undefined;
         transactionReference = null;
@@ -456,21 +472,19 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
     return { cid: cidString, length: byteLength };
   }
 
-  async function uploadFile(
-    file: File,
-    options: { cacheToStore?: boolean } = {},
-  ): Promise<BulletinUploadResult> {
-    const walletStore = useWalletStore();
-
+  async function withUploadLifecycle<T>(
+    timeoutMessage: string,
+    cacheToStore: boolean,
+    fn: () => Promise<T>,
+  ): Promise<T> {
     resetUploadState();
     isUploading.value = true;
-    cachingEnabled.value = Boolean(options.cacheToStore);
+    cachingEnabled.value = cacheToStore;
     window.onbeforeunload = () => "Upload in progress. Are you sure you want to leave?";
 
     const globalTimeout = setTimeout(() => {
       if (isUploading.value) {
-        uploadError.value =
-          "Upload timed out after 5 minutes. Completed chunks are saved — try again to resume.";
+        uploadError.value = timeoutMessage;
         uploadStage.value = "error";
         isUploading.value = false;
         window.onbeforeunload = null;
@@ -478,47 +492,7 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
     }, UPLOAD_GLOBAL_TIMEOUT_MS);
 
     try {
-      if (!isBrowserUploadSizeAllowed(file.size)) {
-        throw new Error(
-          `Browser uploads are limited to ${formatBytes(MAX_BROWSER_UPLOAD_SIZE)}. Use the CLI for larger files or directories.`,
-        );
-      }
-
-      walletStore.ensureConnected();
-      const signer = walletStore.getInjected();
-      const needsChunking = true;
-
-      setStage("preparing", "Connecting to Bulletin chain...", 2);
-      const bulletinClient = getBulletinClient();
-      const typedApi = bulletinClient.getTypedApi(bulletin);
-
-      const result = await withUploadWorker((uploadWorker) =>
-        needsChunking
-          ? uploadChunkedFile(file, typedApi, signer, uploadWorker)
-          : uploadSingleFile(file, typedApi, signer, uploadWorker),
-      );
-
-      const verified = await verifyUploadedCid(result.cid);
-
-      if (verified && options.cacheToStore) {
-        setStage("caching", "Approve saving the CID to your Store", 97);
-        const userStoreManager = useUserStoreManager();
-        try {
-          const txHash = await userStoreManager.writeCidToStore(result.cid);
-          storeTransactionHash.value = txHash;
-        } catch (cacheError) {
-          console.warn("[BulletinStore] CID caching failed, upload still succeeded:", cacheError);
-        }
-      } else {
-        setStage(
-          "verifying",
-          `Content uploaded but not yet resolvable. Verify with: dotns bulletin verify ${result.cid}`,
-          96,
-        );
-      }
-
-      setStage("done", "Upload complete!", 100);
-      return result;
+      return await fn();
     } catch (error) {
       const err = ensureError(error);
       const friendlyMessage = formatTransactionError(err);
@@ -531,29 +505,39 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
     }
   }
 
-  async function uploadSingleFile(
+  async function uploadFile(
     file: File,
-    typedApi: ReturnType<PolkadotClient["getTypedApi"]>,
-    signer: PolkadotSigner,
-    uploadWorker: BulletinUploadWorkerClient,
+    options: { cacheToStore?: boolean } = {},
   ): Promise<BulletinUploadResult> {
-    const preparedFile = await storePreparedBytes(
-      typedApi,
-      signer,
-      "preparing",
-      "signing",
-      "Preparing file in the background...",
-      `Approve upload for ${file.name} in your wallet`,
-      10,
-      CODEC_RAW,
+    return withUploadLifecycle(
+      "Upload timed out after 5 minutes. Completed chunks are saved — try again to resume.",
+      Boolean(options.cacheToStore),
       async () => {
-        const result = await uploadWorker.prepareFile(file, CODEC_RAW);
-        return { ...result, length: file.size };
+        const walletStore = useWalletStore();
+
+        if (!isBrowserUploadSizeAllowed(file.size)) {
+          throw new Error(
+            `Browser uploads are limited to ${formatBytes(MAX_BROWSER_UPLOAD_SIZE)}. Use the CLI for larger files or directories.`,
+          );
+        }
+
+        walletStore.ensureConnected();
+        const signer = walletStore.getInjected();
+
+        setStage("preparing", "Connecting to Bulletin chain...", 2);
+        const bulletinClient = getBulletinClient();
+        const typedApi = bulletinClient.getTypedApi(bulletin);
+
+        const result = await withUploadWorker((uploadWorker) =>
+          uploadChunkedFile(file, typedApi, signer, uploadWorker),
+        );
+
+        await verifyAndCacheUpload(result.cid, options);
+
+        setStage("done", "Upload complete!", 100);
+        return result;
       },
     );
-
-    uploadedCid.value = preparedFile.cid;
-    return { cid: preparedFile.cid };
   }
 
   async function uploadChunkedFile(
@@ -632,141 +616,6 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
     return { cid: preparedRoot.cid };
   }
 
-  async function readFolderFiles(files: File[]): Promise<FolderFileEntry[]> {
-    const entries: FolderFileEntry[] = [];
-
-    for (const file of files) {
-      const relativePath = file.webkitRelativePath || file.name;
-      const content = await file.arrayBuffer();
-      entries.push({ relativePath, content });
-    }
-
-    return entries;
-  }
-
-  async function uploadFolder(
-    files: File[],
-    options: { cacheToStore?: boolean } = {},
-  ): Promise<BulletinUploadResult> {
-    const walletStore = useWalletStore();
-
-    resetUploadState();
-    isUploading.value = true;
-    cachingEnabled.value = Boolean(options.cacheToStore);
-    window.onbeforeunload = () => "Upload in progress. Are you sure you want to leave?";
-
-    const globalTimeout = setTimeout(() => {
-      if (isUploading.value) {
-        uploadError.value =
-          "Upload timed out after 5 minutes. Try again or use the CLI for large folders.";
-        uploadStage.value = "error";
-        isUploading.value = false;
-        window.onbeforeunload = null;
-      }
-    }, UPLOAD_GLOBAL_TIMEOUT_MS);
-
-    try {
-      const totalSize = files.reduce((sum, file) => sum + file.size, 0);
-
-      if (totalSize > BROWSER_FOLDER_LIMIT) {
-        throw new Error(
-          `Browser folder uploads are limited to ${formatBytes(BROWSER_FOLDER_LIMIT)}. Use the CLI with --as-car for larger directories.`,
-        );
-      }
-
-      if (totalSize === 0) {
-        throw new Error("Cannot upload an empty folder.");
-      }
-
-      walletStore.ensureConnected();
-      const signer = walletStore.getInjected();
-
-      setStage("preparing", "Connecting to Bulletin chain...", 2);
-      const bulletinClient = getBulletinClient();
-      const typedApi = bulletinClient.getTypedApi(bulletin);
-
-      setStage("preparing", "Reading folder contents...", 4);
-      const folderFileEntries = await readFolderFiles(files);
-
-      setStage("preparing", "Merkleising folder into CAR...", 5);
-
-      const result = await withUploadWorker(async (uploadWorker) => {
-        const { rootCid, blocks } = await uploadWorker.prepareFolderBlocks(folderFileEntries);
-
-        const { CarWriter } = await import("@ipld/car");
-        const { CID } = await import("multiformats/cid");
-
-        const rootCidParsed = CID.parse(rootCid);
-        const { writer, out } = CarWriter.create([rootCidParsed]);
-
-        const carChunks: Uint8Array[] = [];
-        const collectOutput = (async () => {
-          for await (const chunk of out) {
-            carChunks.push(chunk);
-          }
-        })();
-
-        for (const block of blocks) {
-          await writer.put({ cid: CID.parse(block.cid), bytes: new Uint8Array(block.buffer) });
-        }
-        await writer.close();
-        await collectOutput;
-
-        let carLength = 0;
-        for (const chunk of carChunks) carLength += chunk.byteLength;
-        const carBytes = new Uint8Array(carLength);
-        let offset = 0;
-        for (const chunk of carChunks) {
-          carBytes.set(chunk, offset);
-          offset += chunk.byteLength;
-        }
-
-        setStage("preparing", `CAR ready (${formatBytes(carLength)})`, 15);
-        await yieldToBrowser();
-
-        const carFile = new File([carBytes], `folder-${rootCid}.car`, {
-          type: "application/vnd.ipld.car",
-        });
-
-        await uploadChunkedFile(carFile, typedApi, signer, uploadWorker);
-
-        return { cid: rootCid, ipfsCid: rootCid };
-      });
-
-      const verified = await verifyUploadedCid(result.cid);
-
-      if (verified && options.cacheToStore) {
-        setStage("caching", "Approve saving the CID to your Store", 97);
-        const userStoreManager = useUserStoreManager();
-        try {
-          const txHash = await userStoreManager.writeCidToStore(result.ipfsCid);
-          storeTransactionHash.value = txHash;
-        } catch (cacheError) {
-          console.warn("[BulletinStore] CID caching failed, upload still succeeded:", cacheError);
-        }
-      } else {
-        setStage(
-          "verifying",
-          `Content uploaded but not yet resolvable. Verify with: dotns bulletin verify ${result.cid}`,
-          96,
-        );
-      }
-
-      setStage("done", "Folder upload complete!", 100);
-      uploadedCid.value = result.ipfsCid;
-      return { cid: result.ipfsCid };
-    } catch (error) {
-      const err = ensureError(error);
-      const friendlyMessage = formatTransactionError(err);
-      setStage("error", friendlyMessage, 0);
-      uploadError.value = friendlyMessage;
-      throw err;
-    } finally {
-      clearTimeout(globalTimeout);
-      cleanup();
-    }
-  }
-
   function cleanup(): void {
     destroyBulletinClient();
     isUploading.value = false;
@@ -788,14 +637,12 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
     maxTxSizeBytes: MAX_TX_SIZE,
     chunkSizeBytes: CHUNK_SIZE,
     browserUploadLimitBytes: MAX_BROWSER_UPLOAD_SIZE,
-    browserFolderLimitBytes: BROWSER_FOLDER_LIMIT,
     getUploadApprovalPlan,
     isBrowserUploadSizeAllowed,
     getPendingUploadInfo,
     clearResumeState,
     resetUploadState,
     uploadFile,
-    uploadFolder,
     formatBytes,
   };
 });

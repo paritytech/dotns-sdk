@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, watch } from "vue";
 
+const MAX_TEXT_PREVIEW_BYTES = 1 * 1024 * 1024;
+
 const props = defineProps<{
   url: string;
   contentType: string;
   blob: Blob | null;
   cid: string;
   gatewayUrl: string;
+  previewUnavailableReason?: string | null;
 }>();
 
 const textContent = ref<string | null>(null);
@@ -20,6 +23,7 @@ const isVideo = computed(() => props.contentType.startsWith("video/"));
 const isAudio = computed(() => props.contentType.startsWith("audio/"));
 const isPdf = computed(() => props.contentType === "application/pdf");
 const isHtml = computed(() => props.contentType.includes("html"));
+const previewUnavailableReason = computed(() => props.previewUnavailableReason ?? null);
 const isText = computed(
   () =>
     (props.contentType.startsWith("text/") && !isHtml.value) ||
@@ -78,7 +82,17 @@ function onIframeError() {
 }
 
 async function loadTextContent() {
-  if (!props.blob) return;
+  textContent.value = null;
+  if (!props.blob || !isText.value) return;
+
+  if (props.blob.size > MAX_TEXT_PREVIEW_BYTES) {
+    textContent.value = `Text preview unavailable: content exceeds ${(
+      MAX_TEXT_PREVIEW_BYTES /
+      (1024 * 1024)
+    ).toFixed(1)} MB. Use the download or open link instead.`;
+    return;
+  }
+
   if (isText.value) {
     textContent.value = await props.blob.text();
   }
@@ -209,7 +223,36 @@ watch(() => props.blob, loadTextContent);
 
       <div class="bg-dot-surface border border-dot-border rounded-lg overflow-hidden">
         <div
-          v-if="isImage"
+          v-if="previewUnavailableReason"
+          class="flex items-center justify-center p-6 sm:p-8 min-h-[200px] sm:min-h-[300px]"
+        >
+          <div class="max-w-lg text-center">
+            <div
+              class="w-14 h-14 mx-auto mb-4 rounded-lg bg-dot-surface-secondary border border-dot-border flex items-center justify-center"
+            >
+              <svg
+                class="w-6 h-6 text-dot-text-tertiary"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.5"
+                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </div>
+            <p class="text-dot-text-primary text-sm font-medium mb-2">Inline preview unavailable</p>
+            <p class="text-dot-text-secondary text-sm">
+              {{ previewUnavailableReason }}
+            </p>
+          </div>
+        </div>
+
+        <div
+          v-else-if="isImage"
           class="flex items-center justify-center p-4 sm:p-6 bg-dot-bg min-h-[250px] sm:min-h-[400px]"
         >
           <img

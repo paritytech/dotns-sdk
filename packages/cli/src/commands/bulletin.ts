@@ -1,5 +1,6 @@
 import chalk from "chalk";
 import { promises as filesystem, createReadStream } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import type { PolkadotClient, PolkadotSigner } from "polkadot-api";
 import { createClient } from "polkadot-api";
@@ -36,6 +37,9 @@ import type {
   UploadManifestCompletedBlock,
   UploadSingleBlockOptions,
   MerkleizeDirectoryResult,
+  MerkleizeCollectResult,
+  CollectedBlock,
+  CarUploadWithDhtOptions,
   AuthorizationState,
   WaveBlock,
   BulletinPhaseHandler,
@@ -179,14 +183,18 @@ async function merkleizeAndUploadDirectory(
 
   const blockCache = new Map<string, Uint8Array>();
   const uploadedCids = new Set<string>();
-  let nextNonce = -1;
+  let nextNonce = 0;
+  let nonceReady: Promise<void> | null = null;
 
   const ensureClient = async () => {
-    if (!sharedClient) {
-      sharedClient = createBulletinClient(deps.rpc);
-      nextNonce = await fetchAccountNonce(deps.rpc, deps.accountAddress);
+    if (!nonceReady) {
+      nonceReady = (async () => {
+        sharedClient = createBulletinClient(deps.rpc);
+        nextNonce = await fetchAccountNonce(deps.rpc, deps.accountAddress);
+      })();
     }
-    return sharedClient;
+    await nonceReady;
+    return sharedClient!;
   };
 
   const recreateSharedClient = () => {
@@ -196,6 +204,7 @@ async function merkleizeAndUploadDirectory(
       /* already closed */
     }
     sharedClient = createBulletinClient(deps.rpc);
+    nonceReady = Promise.resolve();
   };
 
   async function flushWave(options: FlushWaveOptions = {}): Promise<void> {
@@ -337,6 +346,350 @@ async function merkleizeAndUploadDirectory(
   }
 
   return { rootCid: rootContentCid, totalBlocks: completedCount, totalBytes };
+}
+
+const CAR_CHUNK_SIZE_BYTES = 2 * 1024 * 1024;
+const MAX_CAR_IN_FLIGHT_BYTES = 8 * 1024 * 1024;
+
+export async function merkleizeDirectoryToBlocks(
+  directoryPath: string,
+): Promise<MerkleizeCollectResult> {
+  const blocks: CollectedBlock[] = [];
+  const blockCache = new Map<string, Uint8Array>();
+  let rootContentCid: CID | undefined;
+  let totalBytes = 0;
+
+  const collectingBlockstore = {
+    put: async (contentCid: CID, contentBytes: Uint8Array): Promise<CID> => {
+      const cidStr = contentCid.toString();
+      if (!blockCache.has(cidStr)) {
+        blockCache.set(cidStr, contentBytes);
+        blocks.push({ cid: contentCid, bytes: contentBytes });
+        totalBytes += contentBytes.length;
+      }
+      return contentCid;
+    },
+    get: async (contentCid: CID): Promise<Uint8Array> => {
+      const cached = blockCache.get(contentCid.toString());
+      if (!cached) throw new Error(`Block not found: ${contentCid}`);
+      return cached;
+    },
+  };
+
+  async function* importerSource() {
+    for await (const file of traverseDirectoryRecursively(directoryPath)) {
+      yield { path: file.path, content: createReadStream(file.fullPath) };
+    }
+  }
+
+  for await (const importedEntry of importer(importerSource(), collectingBlockstore, {
+    wrapWithDirectory: true,
+    cidVersion: 1,
+    rawLeaves: true,
+  })) {
+    rootContentCid = importedEntry.cid;
+  }
+
+  blockCache.clear();
+
+  if (!rootContentCid) {
+    throw new Error("Failed to merkleize directory: no root CID produced");
+  }
+
+  return { rootCid: rootContentCid, blocks, totalBytes };
+}
+
+export function chunkCarBytes(carBytes: Uint8Array, chunkSize: number): Uint8Array[] {
+  const chunks: Uint8Array[] = [];
+  for (let offset = 0; offset < carBytes.length; offset += chunkSize) {
+    chunks.push(carBytes.subarray(offset, Math.min(offset + chunkSize, carBytes.length)));
+  }
+  return chunks;
+}
+
+export function countCarChunks(totalBytes: number, chunkSize: number): number {
+  if (totalBytes <= 0) return 0;
+  return Math.ceil(totalBytes / chunkSize);
+}
+
+export function getCarChunkLength(totalBytes: number, chunkIndex: number, chunkSize: number): number {
+  const offset = chunkIndex * chunkSize;
+  if (offset >= totalBytes) return 0;
+  return Math.min(chunkSize, totalBytes - offset);
+}
+
+export async function readCarChunk(
+  handle: Awaited<ReturnType<typeof filesystem.open>>,
+  totalBytes: number,
+  chunkIndex: number,
+  chunkSize: number,
+): Promise<Uint8Array> {
+  const length = getCarChunkLength(totalBytes, chunkIndex, chunkSize);
+  if (length <= 0) {
+    throw new Error(`CAR chunk ${chunkIndex + 1} is out of range`);
+  }
+
+  const buffer = Buffer.allocUnsafe(length);
+  const offset = chunkIndex * chunkSize;
+  const { bytesRead } = await handle.read(buffer, 0, length, offset);
+  if (bytesRead !== length) {
+    throw new Error(
+      `Failed to read CAR chunk ${chunkIndex + 1}: expected ${length} bytes, read ${bytesRead}`,
+    );
+  }
+
+  return new Uint8Array(buffer.buffer, buffer.byteOffset, length);
+}
+
+export function clampCarWaveSize(requestedConcurrency: number): number {
+  const byBudget = Math.max(1, Math.floor(MAX_CAR_IN_FLIGHT_BYTES / CAR_CHUNK_SIZE_BYTES));
+  return Math.max(1, Math.min(requestedConcurrency, byBudget));
+}
+
+export function getPendingCarChunkIndexes(
+  totalCarChunks: number,
+  completedChunkIndexes: Set<number>,
+): number[] {
+  return Array.from({ length: totalCarChunks }, (_, index) => index).filter(
+    (index) => !completedChunkIndexes.has(index),
+  );
+}
+
+export function applyCarUploadWaveResults(
+  waveChunks: Array<{ index: number; bytes: Uint8Array }>,
+  results: PromiseSettledResult<number>[],
+  completedChunkIndexes: Set<number>,
+): unknown | null {
+  let firstFailure: unknown | null = null;
+
+  for (const [resultIndex, result] of results.entries()) {
+    if (result.status === "fulfilled") {
+      completedChunkIndexes.add(result.value);
+    } else if (!firstFailure) {
+      firstFailure = result.reason;
+    }
+
+    waveChunks[resultIndex]!.bytes = new Uint8Array();
+  }
+
+  return firstFailure;
+}
+
+export async function storeDirectoryAsCar(
+  bulletinRpc: string,
+  signer: PolkadotSigner,
+  directoryPath: string,
+  options: CarUploadWithDhtOptions = { accountAddress: "" },
+): Promise<StoreDirectoryResult> {
+  const {
+    concurrency = 3,
+    accountAddress,
+    onPhase,
+    onRetry,
+    maxRetries = DEFAULT_UPLOAD_MAX_RETRIES,
+    waitForFinalization = false,
+    daemonTtlSeconds = 0,
+  } = options;
+
+  if (!accountAddress) {
+    throw new Error("accountAddress is required for directory uploads");
+  }
+
+  const {
+    hasIpfsCli,
+    addDirectoryToIpfs,
+    exportCidToCar,
+    provideRootCid,
+    addDirectoryWithDaemon,
+  } = await import("../bulletin/ipfs");
+
+  if (!hasIpfsCli()) {
+    throw new Error(
+      "Kubo (ipfs) is required for --as-car directory uploads. " +
+        "Install from: https://docs.ipfs.tech/install/",
+    );
+  }
+
+  const normalizedMaxRetries = normalizeUploadMaxRetries(maxRetries);
+
+  emitPhase(onPhase, "upload", "start", "Merkleizing directory via Kubo");
+
+  const addResult = addDirectoryToIpfs(directoryPath);
+  if (!addResult.success || !addResult.output) {
+    throw new Error(`Kubo merkleization failed: ${addResult.error ?? "unknown error"}`);
+  }
+
+  const ipfsCidString = addResult.output.trim();
+  emitPhase(onPhase, "upload", "update", `Kubo root CID: ${ipfsCidString}`);
+
+  emitPhase(onPhase, "upload", "update", "Exporting DAG to CAR via Kubo");
+
+  const tmpCarPath = path.join(os.tmpdir(), `dotns-${Date.now()}.car`);
+  const exportResult = exportCidToCar(ipfsCidString, tmpCarPath);
+  if (!exportResult.success) {
+    throw new Error(`Kubo CAR export failed: ${exportResult.error ?? "unknown error"}`);
+  }
+
+  const carStats = await filesystem.stat(tmpCarPath);
+  const carSizeBytes = carStats.size;
+  const totalCarChunks = countCarChunks(carSizeBytes, CAR_CHUNK_SIZE_BYTES);
+  const requestedWaveSize = Math.max(1, Math.floor(concurrency));
+  const effectiveWaveSize = clampCarWaveSize(requestedWaveSize);
+
+  emitPhase(
+    onPhase,
+    "upload",
+    "update",
+    `CAR exported: ${formatBytes(carSizeBytes)}, ${totalCarChunks} chunk(s)`,
+  );
+
+  if (effectiveWaveSize !== requestedWaveSize) {
+    emitPhase(
+      onPhase,
+      "upload",
+      "warning",
+      `Clamped CAR upload concurrency from ${requestedWaveSize} to ${effectiveWaveSize} to keep in-flight memory within ${formatBytes(MAX_CAR_IN_FLIGHT_BYTES)}`,
+    );
+  }
+
+  const { createRawCid, CODEC, HASH } = await import("../bulletin/cid");
+
+  const startTime = Date.now();
+  const completedChunkIndexes = new Set<number>();
+
+  try {
+    await runWithUploadRetries({
+      maxRetries: normalizedMaxRetries,
+      onRetry: ({ retry, totalAttempts, delayMs, error }) => {
+        emitRetry(onRetry, "CAR chunk upload", retry, totalAttempts, delayMs, error);
+      },
+      execute: async (attempt, totalAttempts) => {
+        const remainingChunkIndexes = getPendingCarChunkIndexes(
+          totalCarChunks,
+          completedChunkIndexes,
+        );
+
+        emitPhase(
+          onPhase,
+          "upload",
+          attempt === 0 ? "start" : "update",
+          attempt === 0
+            ? `Uploading ${totalCarChunks} CAR chunk(s) to Bulletin`
+            : `Retrying CAR upload (${attempt + 1}/${totalAttempts}) — ${completedChunkIndexes.size}/${totalCarChunks} chunks already stored`,
+        );
+
+        if (remainingChunkIndexes.length === 0) {
+          return ipfsCidString;
+        }
+
+        const sharedClient = createBulletinClient(bulletinRpc);
+        const carHandle = await filesystem.open(tmpCarPath, "r");
+        let nextNonce = await fetchAccountNonce(bulletinRpc, accountAddress);
+
+        try {
+          for (let i = 0; i < remainingChunkIndexes.length; i += effectiveWaveSize) {
+            const waveIndexes = remainingChunkIndexes.slice(i, i + effectiveWaveSize);
+            const waveChunks = await Promise.all(
+              waveIndexes.map(async (chunkIndex) => ({
+                index: chunkIndex,
+                bytes: await readCarChunk(
+                  carHandle,
+                  carSizeBytes,
+                  chunkIndex,
+                  CAR_CHUNK_SIZE_BYTES,
+                ),
+              })),
+            );
+
+            const waveStartNonce = nextNonce;
+            nextNonce += waveChunks.length;
+
+            const results = await Promise.allSettled(
+              waveChunks.map(async (chunk, waveIndex) => {
+                const chunkCid = createRawCid(chunk.bytes, HASH.SHA2_256);
+                await storeBlockToBulletin({
+                  rpc: bulletinRpc,
+                  signer,
+                  contentBytes: chunk.bytes,
+                  contentCid: chunkCid.toString(),
+                  codecValue: CODEC.RAW,
+                  hashCodeValue: HASH.SHA2_256,
+                  nonce: waveStartNonce + waveIndex,
+                  client: sharedClient,
+                  storeTimeoutMs: undefined,
+                  waitForFinalization,
+                });
+
+                return chunk.index;
+              }),
+            );
+
+            const firstFailure = applyCarUploadWaveResults(
+              waveChunks,
+              results,
+              completedChunkIndexes,
+            );
+
+            emitPhase(
+              onPhase,
+              "upload",
+              "update",
+              `Uploaded ${completedChunkIndexes.size}/${totalCarChunks} CAR chunks`,
+            );
+
+            if (firstFailure) {
+              throw firstFailure;
+            }
+          }
+
+          return ipfsCidString;
+        } finally {
+          await carHandle.close();
+          sharedClient.destroy();
+        }
+      },
+    });
+
+    const elapsed = (Date.now() - startTime) / 1000;
+    emitPhase(
+      onPhase,
+      "upload",
+      "success",
+      `CAR uploaded in ${formatDuration(elapsed)} — ${formatBytes(carSizeBytes / Math.max(1, elapsed))}/s`,
+    );
+
+    emitPhase(onPhase, "upload", "update", "Announcing directory to IPFS network via Kubo");
+
+    const daemonResult = await addDirectoryWithDaemon(directoryPath, daemonTtlSeconds);
+    if (daemonResult.success) {
+      let daemonMsg: string;
+      if (!daemonResult.daemonStarted) {
+        daemonMsg = "Directory pinned and providing via existing Kubo daemon";
+      } else if (daemonTtlSeconds > 0) {
+        daemonMsg = `Directory pinned and providing via Kubo (daemon auto-stops in ${daemonTtlSeconds}s)`;
+      } else {
+        daemonMsg =
+          "Directory pinned and providing via Kubo (daemon running — leave it for content to stay reachable)";
+      }
+      emitPhase(onPhase, "upload", "success", daemonMsg);
+    } else {
+      provideRootCid(ipfsCidString);
+      emitPhase(
+        onPhase,
+        "upload",
+        "warning",
+        `Kubo daemon failed: ${daemonResult.error ?? "unknown"}. Content is pinned but may not be reachable. Run 'ipfs daemon' to provide.`,
+      );
+    }
+
+    return { storageCid: ipfsCidString, ipfsCid: ipfsCidString };
+  } finally {
+    try {
+      await filesystem.unlink(tmpCarPath);
+    } catch {
+      /* cleanup best-effort */
+    }
+  }
 }
 
 export async function validateAndReadPath(
@@ -555,8 +908,9 @@ export async function checkAuthorization(
     }
 
     return { authorized: false, currentBlock };
-  } catch {
-    return { authorized: false };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { authorized: false, errorMessage: message };
   } finally {
     client.destroy();
   }

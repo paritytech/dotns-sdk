@@ -25,6 +25,7 @@ import {
   uploadSingleBlock,
   uploadChunkedBlocks,
   storeDirectory,
+  storeDirectoryAsCar,
   generateContenthash,
   ensureAccountAuthorized,
   authorizeAccount,
@@ -589,10 +590,14 @@ export function attachBulletinCommands(root: Command): void {
       .option("--force-chunked", "Force chunked upload (DAG-PB)", false)
       .option(
         "--as-car",
-        "Merkleize directory in-memory and upload individual blocks (no external IPFS binary needed)",
+        "Merkleize directory via Kubo, export to CAR, upload chunks to Bulletin (requires Kubo)",
         false,
       )
       .option("--concurrency <n>", "Adaptive scheduler max window (default: 16, max: 64)", "16")
+      .option(
+        "--daemon-ttl <seconds>",
+        "How long to keep Kubo daemon alive after upload for DHT propagation (0 = indefinitely, default: 0). Env: DOTNS_DAEMON_TTL",
+      )
       .option("--print-contenthash", "Also print 0x-prefixed IPFS contenthash for the CID", false)
       .option("--resume", "Resume a previously interrupted upload", false)
       .option("--profile-upload", "Enable upload profiling and write a JSON report", false)
@@ -635,6 +640,10 @@ export function attachBulletinCommands(root: Command): void {
         const concurrency = Math.max(
           1,
           Math.min(64, Math.floor(Number(mergedOptions.concurrency || 16))),
+        );
+        const daemonTtlSeconds = Math.max(
+          0,
+          Math.floor(Number(mergedOptions.daemonTtl || process.env.DOTNS_DAEMON_TTL || 0)),
         );
         const resume = Boolean(mergedOptions.resume);
         const profileUpload = Boolean(mergedOptions.profileUpload);
@@ -707,117 +716,27 @@ export function attachBulletinCommands(root: Command): void {
               )
             : null;
 
-        const asCar = Boolean(options.asCar);
+        const useAsCar = Boolean(mergedOptions.asCar) && isDirectory;
+
+        if (Boolean(mergedOptions.asCar) && !isDirectory) {
+          console.log(
+            chalk.yellow("  ⚠ --as-car is only applicable to directory uploads, ignoring"),
+          );
+        }
 
         const performUpload = async () => {
-          if (isDirectory && asCar) {
-            onPhase?.({ phase: "merkleize", state: "start", message: "Merkleizing directory" });
-
-            const { importer } = await import("ipfs-unixfs-importer");
-            const { createReadStream } = await import("node:fs");
-
-            const blocks = new Map<string, { cid: any; bytes: Uint8Array }>();
-            const blockstore = {
-              put: async (cid: any, bytes: Uint8Array) => {
-                blocks.set(cid.toString(), { cid, bytes });
-                return cid;
-              },
-              get: async (cid: any) => {
-                const block = blocks.get(cid.toString());
-                if (!block) throw new Error(`Block not found: ${cid}`);
-                return block.bytes;
-              },
-            };
-
-            async function* walkDirectory(
-              dir: string,
-              base: string,
-            ): AsyncIterable<{ path: string; content: any }> {
-              const entries = await filesystem.readdir(dir, { withFileTypes: true });
-              for (const entry of entries) {
-                const full = path.join(dir, entry.name);
-                const rel = path.join(base, entry.name);
-                if (entry.isDirectory()) {
-                  yield* walkDirectory(full, rel);
-                } else {
-                  yield { path: rel, content: createReadStream(full) };
-                }
-              }
-            }
-
-            let rootCid: any;
-            for await (const entry of importer(walkDirectory(resolvedPath, ""), blockstore, {
-              wrapWithDirectory: true,
-              cidVersion: 1,
-              rawLeaves: true,
-            })) {
-              rootCid = entry.cid;
-            }
-
-            if (!rootCid) throw new Error("Merkleization produced no root CID");
-
-            onPhase?.({
-              phase: "merkleize",
-              state: "success",
-              message: `Root CID: ${rootCid} (${blocks.size} blocks)`,
+          if (isDirectory && useAsCar) {
+            const result = await storeDirectoryAsCar(bulletinRpc, context.signer, resolvedPath, {
+              concurrency,
+              accountAddress: context.substrateAddress,
+              maxRetries,
+              onPhase,
+              onRetry,
+              verificationGateway: undefined,
+              daemonTtlSeconds,
+              waitForFinalization: false,
             });
-            onPhase?.({ phase: "export", state: "start", message: "Packing blocks into CAR file" });
-
-            const { CarWriter } = await import("@ipld/car");
-            const { Readable } = await import("node:stream");
-
-            const tmpDir = os.tmpdir();
-            const carPath = path.join(tmpDir, `dotns-${rootCid}.car`);
-
-            const { writer, out } = CarWriter.create([rootCid]);
-            const carStream = Readable.from(out);
-            const writeStream = (await import("node:fs")).createWriteStream(carPath);
-            const pipelineFinished = new Promise<void>((resolve, reject) => {
-              carStream.pipe(writeStream);
-              writeStream.on("finish", resolve);
-              writeStream.on("error", reject);
-            });
-
-            for (const [, block] of blocks) {
-              await writer.put(block);
-            }
-            await writer.close();
-            await pipelineFinished;
-            blocks.clear();
-
-            const carStat = await filesystem.stat(carPath);
-            onPhase?.({
-              phase: "export",
-              state: "success",
-              message: `CAR file: ${formatBytes(carStat.size)}`,
-            });
-
-            try {
-              const carCid = await uploadChunkedBlocks(
-                bulletinRpc,
-                context.signer,
-                carPath,
-                chunkSizeBytes,
-                carStat.size,
-                context.substrateAddress,
-                {
-                  concurrency,
-                  maxRetries,
-                  onPhase,
-                  onRetry,
-                  onSchedulerState: (state) => {
-                    profiler?.onSchedulerState(state);
-                  },
-                  onWave: (wave) => {
-                    profiler?.onWave(wave);
-                  },
-                },
-              );
-
-              return { cid: carCid, ipfsCid: rootCid.toString(), size: carStat.size };
-            } finally {
-              await filesystem.unlink(carPath).catch(() => {});
-            }
+            return { cid: result.ipfsCid, ipfsCid: result.ipfsCid, size: 0 };
           }
 
           if (isDirectory) {
@@ -884,9 +803,11 @@ export function attachBulletinCommands(root: Command): void {
 
         if (!jsonOutput) {
           if (isDirectory) {
+            const modeLabel = useAsCar ? "CAR chunks + DHT announce" : "per-block waves";
             console.log(chalk.blue(`\n▶ Uploading directory: ${pathBasename}`));
             console.log(chalk.gray("  path:        ") + chalk.white(resolvedPath));
             console.log(chalk.gray("  rpc:         ") + chalk.white(bulletinRpc));
+            console.log(chalk.gray("  mode:        ") + chalk.white(modeLabel));
             console.log(
               chalk.gray("  concurrency: ") + chalk.white(`${concurrency}x parallel waves`),
             );
@@ -899,7 +820,7 @@ export function attachBulletinCommands(root: Command): void {
             console.log(
               chalk.gray("  mode:        ") +
                 chalk.white(
-                  `chunked (${totalChunks} × ${formatBytes(chunkSizeBytes)}, adaptive window 1..${concurrency})`,
+                  `chunked (${totalChunks} × ${formatBytes(chunkSizeBytes)}, adaptive window 1..${Math.min(4, concurrency)})`,
                 ),
             );
           } else {
@@ -935,40 +856,28 @@ export function attachBulletinCommands(root: Command): void {
         onPhase({
           phase: "verify",
           state: "start",
-          message: "Verifying content on Bulletin P2P...",
+          message: "Verifying content is retrievable from IPFS gateways...",
         });
-        let verified = false;
-        try {
-          const p2pResult = await verifyCidViaP2P(cid);
-          if (p2pResult.resolvable) {
-            onPhase({ phase: "verify", state: "success", message: "Content verified via P2P" });
-            verified = true;
-          }
-        } catch {
-          /* P2P verification failed, try gateways */
-        }
 
-        if (!verified) {
+        const gatewayResults = await verifyCidWithMultipleGateways(cid);
+        const resolvableGateways = Array.from(gatewayResults.entries())
+          .filter(([, r]) => r.resolvable)
+          .map(([gateway]) => gateway);
+
+        if (resolvableGateways.length > 0) {
           onPhase({
             phase: "verify",
-            state: "update",
-            message: "P2P unavailable, checking IPFS gateways...",
+            state: "success",
+            message: `Content retrievable from ${resolvableGateways.length} gateway(s)`,
           });
-          const gatewayResults = await verifyCidWithMultipleGateways(cid);
-          const resolvable = Array.from(gatewayResults.values()).some((r) => r.resolvable);
-          if (resolvable) {
-            onPhase({
-              phase: "verify",
-              state: "success",
-              message: "Content verified via IPFS gateway",
-            });
-          } else {
-            onPhase({
-              phase: "verify",
-              state: "warning",
-              message: "Content not yet resolvable — it may still be propagating",
-            });
-          }
+        } else {
+          onPhase({
+            phase: "verify",
+            state: "warning",
+            message:
+              "Content stored on Bulletin chain but not yet retrievable from IPFS gateways. " +
+              "To provide content to IPFS: keep a Kubo daemon running (ipfs daemon) with the CAR imported",
+          });
         }
 
         const contenthash = generateContenthash(cid);
@@ -985,8 +894,7 @@ export function attachBulletinCommands(root: Command): void {
         if (jsonOutput) {
           const authExpiresAt = expirationToISOString(authInfo?.currentBlock, authInfo?.expiration);
           writeBulletinJson({
-            cid,
-            ipfsCid: ipfsCid !== cid ? ipfsCid : undefined,
+            cid: ipfsCid,
             contenthash: `0x${contenthash}`,
             preview: previewUrl,
             path: resolvedPath,
@@ -999,10 +907,7 @@ export function attachBulletinCommands(root: Command): void {
             totalUploadTimeSeconds,
           });
         } else {
-          console.log(chalk.gray("\n  cid:         ") + chalk.cyan(cid));
-          if (ipfsCid !== cid) {
-            console.log(chalk.gray("  ipfs-cid:    ") + chalk.cyan(ipfsCid));
-          }
+          console.log(chalk.gray("\n  cid:         ") + chalk.cyan(ipfsCid));
           console.log(chalk.gray("  preview:     ") + chalk.blue(previewUrl));
           console.log(
             chalk.gray("  total time:  ") + chalk.white(formatDuration(totalUploadTimeSeconds)),

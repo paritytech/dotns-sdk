@@ -3,10 +3,8 @@ import type {
   BulletinUploadWorkerRequestInput,
   BulletinUploadWorkerResponse,
   BulletinUploadWorkerSuccessResponse,
-  FolderFileEntry,
   PreparedBlock,
   PreparedChunk,
-  PrepareFolderCarSuccessResponse,
   PrepareRootSuccessResponse,
   PrepareSliceSuccessResponse,
 } from "./bulletinUploadWorkerProtocol";
@@ -74,13 +72,6 @@ export class BulletinUploadWorkerClient {
       bytes: new Uint8Array(response.buffer),
       length: response.length,
     };
-  }
-
-  async prepareFolderBlocks(files: FolderFileEntry[]): Promise<PrepareFolderCarSuccessResponse> {
-    return (await this.post({
-      type: "prepare-folder-car",
-      files,
-    })) as PrepareFolderCarSuccessResponse;
   }
 
   destroy(): void {

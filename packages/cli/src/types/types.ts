@@ -243,8 +243,10 @@ export type BulletinUploadOptions = {
   reporter?: BulletinReporterMode;
   /** Write the CID to the user's on-chain Store after upload */
   cache?: boolean;
-  /** Merkleize directory in-memory and upload as a single CAR file */
+  /** Merkleize directory via Kubo and upload as CAR chunks */
   asCar?: boolean;
+  /** How long to keep Kubo daemon alive after upload (0 = indefinitely) */
+  daemonTtl?: string;
 };
 
 export type BulletinProgressPhase =
@@ -398,6 +400,8 @@ export type AuthorizationStatus = {
   currentBlock?: number;
   /** Whether the current block has passed the expiration block */
   expired?: boolean;
+  /** Error message if the authorization check failed (e.g. RPC error) */
+  errorMessage?: string;
 };
 
 export type AuthorizeAccountResult = {
@@ -1091,6 +1095,43 @@ export type MerkleizeDirectoryResult = {
   totalBlocks: number;
   /** Total size of all blocks in bytes */
   totalBytes: number;
+};
+
+export type CollectedBlock = {
+  cid: import("multiformats/cid").CID;
+  bytes: Uint8Array;
+};
+
+export type MerkleizeCollectResult = {
+  rootCid: import("multiformats/cid").CID;
+  blocks: CollectedBlock[];
+  totalBytes: number;
+};
+
+export type CarUploadWithDhtOptions = UploadRetryOptions & {
+  accountAddress: string;
+  concurrency?: number;
+  chunkSizeBytes?: number;
+  onPhase?: BulletinPhaseHandler;
+  verificationGateway?: string;
+  waitForFinalization?: boolean;
+  daemonTtlSeconds?: number;
+};
+
+export type KuboImportResult = {
+  success: boolean;
+  output?: string;
+  error?: string;
+};
+
+export type KuboDaemonResult = KuboImportResult & {
+  daemonStarted: boolean;
+};
+
+export type DhtAnnounceResult = {
+  completed: number;
+  announced: number;
+  failed: number;
 };
 
 /** Authorization state for a Bulletin chain account */

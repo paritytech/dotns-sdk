@@ -73,14 +73,15 @@ dotns pop set lite --account karim
 
 ## Environment Variables
 
-| Variable                  | Description                |
-| ------------------------- | -------------------------- |
-| `DOTNS_KEYSTORE_PATH`     | Path to keystore directory |
-| `DOTNS_KEYSTORE_PASSWORD` | Keystore password          |
-| `DOTNS_RPC`               | Asset Hub RPC endpoint     |
-| `DOTNS_MNEMONIC`          | BIP39 mnemonic phrase      |
-| `DOTNS_KEY_URI`           | Substrate key URI          |
-| `DOTNS_MIN_BALANCE_PAS`   | Minimum balance in PAS     |
+| Variable                  | Description                                                     |
+| ------------------------- | --------------------------------------------------------------- |
+| `DOTNS_KEYSTORE_PATH`     | Path to keystore directory                                      |
+| `DOTNS_KEYSTORE_PASSWORD` | Keystore password                                               |
+| `DOTNS_RPC`               | Asset Hub RPC endpoint                                          |
+| `DOTNS_MNEMONIC`          | BIP39 mnemonic phrase                                           |
+| `DOTNS_KEY_URI`           | Substrate key URI                                               |
+| `DOTNS_MIN_BALANCE_PAS`   | Minimum balance in PAS                                          |
+| `DOTNS_DAEMON_TTL`        | Kubo daemon lifetime in seconds after upload (0 = indefinitely) |
 
 ## Commands
 
@@ -219,7 +220,14 @@ dotns --password test-password bulletin upload ./image.png --account default
 # Upload directory
 dotns --password test-password bulletin upload ./dist --account default
 
-# Upload directory with concurrency control (max: 4)
+# Upload directory as CAR via Kubo (recommended for IPFS-resolvable directories)
+# Kubo builds the canonical UnixFS directory DAG, exports to CAR, stores on Bulletin
+dotns --password test-password bulletin upload ./dist --as-car --account default
+
+# Control Kubo daemon lifetime after upload (0 = indefinitely, default: 0)
+dotns --password test-password bulletin upload ./dist --as-car --daemon-ttl 300 --account default
+
+# Upload directory with concurrency control (max: 64)
 dotns --password test-password bulletin upload ./dist --concurrency 4 --account default
 
 # Force chunked upload for large files (streams from disk, low memory)

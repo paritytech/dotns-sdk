@@ -308,8 +308,13 @@ jobs:
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
 
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number,
+              labels: ["scope: benchmark", "benchmark-complete"],
+            });
+
             try {
               await github.rest.issues.removeLabel({ owner, repo, issue_number, name: "benchmark-request" });
             } catch {}
-
-            await github.rest.issues.addLabels({ owner, repo, issue_number, labels: ["benchmark-complete"] });

@@ -1,4 +1,16 @@
 import { createHelia, type Helia } from "helia";
+import { createLibp2p } from "libp2p";
+import { tcp } from "@libp2p/tcp";
+import { webSockets } from "@libp2p/websockets";
+import { bootstrap } from "@libp2p/bootstrap";
+import { kadDHT, removePrivateAddressesMapper } from "@libp2p/kad-dht";
+import { identify } from "@libp2p/identify";
+import { ping } from "@libp2p/ping";
+import { noise } from "@chainsafe/libp2p-noise";
+import { yamux } from "@chainsafe/libp2p-yamux";
+import { MemoryBlockstore } from "blockstore-core";
+import { MemoryDatastore } from "datastore-core";
+import type { DhtAnnounceResult } from "../types/types";
 import { CID } from "multiformats/cid";
 import { multiaddr } from "@multiformats/multiaddr";
 import { blake2b256 } from "@multiformats/blake2/blake2b";
@@ -17,6 +29,14 @@ export const PASEO_BULLETIN_PEERS = [
   "/dns4/paseo-bulletin-collator-node-1.parity-testnet.parity.io/tcp/443/wss/p2p/12D3KooWSgdX2egCUiXtDUNV6hGh6JrtTb9vQ6iRfFMdnTemQDDp",
   "/dns4/paseo-bulletin-rpc-node-0.polkadot.io/tcp/443/wss/p2p/12D3KooWG7dt8yAMBaNrWh5juvHMGvJtPKTCaS87kkadWZKpV7ox",
   "/dns4/paseo-bulletin-rpc-node-1.polkadot.io/tcp/443/wss/p2p/12D3KooWSS9QNRiLGBoZrDrtXvPyBV7QrV7F3A1V8f6xAXECSnj5",
+];
+
+const IPFS_BOOTSTRAP_PEERS = [
+  "/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+  "/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
+  "/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
+  "/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
+  "/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
 ];
 
 const FETCH_TIMEOUT_MS = 30_000;
@@ -73,6 +93,131 @@ async function collectAsyncBytes(
     offset += chunk.length;
   }
   return merged;
+}
+
+const DHT_ANNOUNCE_BATCH_SIZE = 50;
+const DHT_PROVIDE_TIMEOUT_MS = 30_000;
+
+export class DhtHeliaClient {
+  private helia: Helia | null = null;
+  private peerAddresses: string[];
+
+  constructor(peerAddresses: string[] = PASEO_BULLETIN_PEERS) {
+    this.peerAddresses = peerAddresses;
+  }
+
+  async initialize(): Promise<void> {
+    if (this.helia) return;
+
+    const datastore = new MemoryDatastore();
+    const blockstore = new MemoryBlockstore();
+
+    const libp2p = await createLibp2p({
+      addresses: { listen: ["/ip4/0.0.0.0/tcp/0"] },
+      transports: [tcp(), webSockets()],
+      streamMuxers: [yamux()],
+      connectionEncrypters: [noise()],
+      peerDiscovery: [bootstrap({ list: [...IPFS_BOOTSTRAP_PEERS, ...this.peerAddresses] })],
+      datastore,
+      services: {
+        aminoDHT: kadDHT({
+          protocol: "/ipfs/kad/1.0.0",
+          peerInfoMapper: removePrivateAddressesMapper,
+          clientMode: false,
+        }),
+        identify: identify(),
+        ping: ping(),
+      },
+    });
+
+    this.helia = await createHelia({
+      libp2p,
+      blockstore,
+      datastore,
+      hashers: [blake2b256, sha256, keccak256Hasher],
+    });
+
+    const dialResults = await Promise.allSettled(
+      this.peerAddresses.map((address) => this.helia!.libp2p.dial(multiaddr(address))),
+    );
+
+    const connectedCount = dialResults.filter((r) => r.status === "fulfilled").length;
+    if (connectedCount === 0) {
+      throw new Error("Failed to connect to any Bulletin peer for DHT announcement");
+    }
+  }
+
+  async putBlock(cid: CID, bytes: Uint8Array): Promise<void> {
+    if (!this.helia) throw new Error("DhtHeliaClient not initialized");
+    await this.helia.blockstore.put(cid, bytes);
+  }
+
+  async announceBlock(cid: CID): Promise<boolean> {
+    if (!this.helia) throw new Error("DhtHeliaClient not initialized");
+    try {
+      await Promise.race([
+        this.helia.routing.provide(cid),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("provide-timeout")), DHT_PROVIDE_TIMEOUT_MS),
+        ),
+      ]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async putAndAnnounceBlocks(
+    blocks: Array<{ cid: CID; bytes: Uint8Array }>,
+    onProgress?: (completed: number, total: number) => void,
+  ): Promise<DhtAnnounceResult> {
+    if (!this.helia) throw new Error("DhtHeliaClient not initialized");
+
+    let completed = 0;
+    let announced = 0;
+    let failed = 0;
+    for (let i = 0; i < blocks.length; i += DHT_ANNOUNCE_BATCH_SIZE) {
+      const batch = blocks.slice(i, i + DHT_ANNOUNCE_BATCH_SIZE);
+      await Promise.all(
+        batch.map(async (block) => {
+          await this.putBlock(block.cid, block.bytes);
+          const success = await this.announceBlock(block.cid);
+          if (success) {
+            announced++;
+          } else {
+            failed++;
+          }
+          completed++;
+          onProgress?.(completed, blocks.length);
+        }),
+      );
+    }
+
+    return { completed, announced, failed };
+  }
+
+  async destroy(): Promise<void> {
+    if (this.helia) {
+      await this.helia.stop();
+      this.helia = null;
+    }
+  }
+}
+
+let sharedDhtInstance: DhtHeliaClient | null = null;
+
+export function getSharedDhtHeliaClient(): DhtHeliaClient {
+  if (!sharedDhtInstance) {
+    sharedDhtInstance = new DhtHeliaClient();
+  }
+  return sharedDhtInstance;
+}
+
+export async function destroySharedDhtHeliaClient(): Promise<void> {
+  if (sharedDhtInstance) {
+    await sharedDhtInstance.destroy();
+    sharedDhtInstance = null;
+  }
 }
 
 let sharedInstance: BulletinHeliaClient | null = null;
@@ -159,8 +304,14 @@ export function getSharedHeliaClient(): BulletinHeliaClient {
 }
 
 export async function destroySharedHeliaClient(): Promise<void> {
+  const teardowns: Promise<void>[] = [];
   if (sharedInstance) {
-    await sharedInstance.destroy();
+    teardowns.push(sharedInstance.destroy());
     sharedInstance = null;
   }
+  if (sharedDhtInstance) {
+    teardowns.push(sharedDhtInstance.destroy());
+    sharedDhtInstance = null;
+  }
+  await Promise.allSettled(teardowns);
 }

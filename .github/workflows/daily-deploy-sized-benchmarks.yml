@@ -417,6 +417,13 @@ jobs:
                 body,
               });
 
+              await github.rest.issues.addLabels({
+                owner: metadata.owner,
+                repo: metadata.repo,
+                issue_number: metadata.existingIssueNumber,
+                labels: ["scope: benchmark"],
+              });
+
               core.setOutput("issue-number", String(updated.data.number));
               core.setOutput("issue-url", updated.data.html_url);
               return;
@@ -427,7 +434,7 @@ jobs:
               repo: metadata.repo,
               title: metadata.title,
               body,
-              labels: ["benchmark-request"],
+              labels: ["scope: benchmark", "benchmark-request"],
             });
 
             core.setOutput("issue-number", String(created.data.number));

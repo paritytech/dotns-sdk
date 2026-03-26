@@ -780,6 +780,8 @@ export async function storeChunkedFileToBulletin(
               waitForFinalization,
             });
 
+            chunk.bytes = null as unknown as Uint8Array;
+
             manifestState.completedBlocks.set(chunk.index, {
               index: chunk.index,
               cid: chunk.cid,
@@ -791,11 +793,17 @@ export async function storeChunkedFileToBulletin(
           },
         });
 
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("wave-timeout")), WAVE_TIMEOUT_MS),
-        );
+        let waveTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          waveTimeoutHandle = setTimeout(() => reject(new Error("wave-timeout")), WAVE_TIMEOUT_MS);
+        });
 
-        const waveResult = await Promise.race([wavePromise, timeoutPromise]);
+        let waveResult: Awaited<ReturnType<typeof runWaveWithRetries>>;
+        try {
+          waveResult = await Promise.race([wavePromise, timeoutPromise]);
+        } finally {
+          clearTimeout(waveTimeoutHandle);
+        }
 
         totalRetries += waveResult.retries;
         await persistManifest(manifestState);
