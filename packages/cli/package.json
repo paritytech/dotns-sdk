@@ -20,7 +20,7 @@
     "test:integration": "bun test tests/integration/",
     "build": "bun build src/cli/index.ts --outfile dist/cli.tmp.js --target node --format esm && echo '#!/usr/bin/env node' | cat - dist/cli.tmp.js > dist/cli.js && rm dist/cli.tmp.js && chmod +x dist/cli.js",
     "prepublishOnly": "bun run build",
-    "prepare": "bun run ./installIPFS.ts || true; bunx papi generate"
+    "prepare": "bunx papi generate"
   },
   "engines": {
     "bun": ">=1.2.6"
