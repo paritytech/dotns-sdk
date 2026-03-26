@@ -180,27 +180,25 @@ const createBulletinClientMock = mock(() => ({
 
 const fetchAccountNonceMock = mock(async () => 100);
 
-const storeBlockToBulletinMock = mock(async (params: {
-  contentBytes: Uint8Array;
-  contentCid: string;
-  nonce: number;
-}) => {
-  const chunkIndex = params.contentBytes[0] ?? 0;
-  state.storeBlockCalls.push({
-    contentCid: params.contentCid,
-    nonce: params.nonce,
-    contentBytes: params.contentBytes,
-  });
+const storeBlockToBulletinMock = mock(
+  async (params: { contentBytes: Uint8Array; contentCid: string; nonce: number }) => {
+    const chunkIndex = params.contentBytes[0] ?? 0;
+    state.storeBlockCalls.push({
+      contentCid: params.contentCid,
+      nonce: params.nonce,
+      contentBytes: params.contentBytes,
+    });
 
-  if (
-    state.failChunkIndex !== null &&
-    chunkIndex === state.failChunkIndex &&
-    state.failChunkOnce
-  ) {
-    state.failChunkOnce = false;
-    throw new Error(`simulated upload failure for chunk ${chunkIndex}`);
-  }
-});
+    if (
+      state.failChunkIndex !== null &&
+      chunkIndex === state.failChunkIndex &&
+      state.failChunkOnce
+    ) {
+      state.failChunkOnce = false;
+      throw new Error(`simulated upload failure for chunk ${chunkIndex}`);
+    }
+  },
+);
 
 const storeModuleMock = {
   FINAL_STORE_CALL_TIMEOUT_MS: 180_000,
@@ -219,38 +217,40 @@ const uploadRetryMock = {
     return Number.isFinite(parsed) ? Math.max(0, Math.min(20, parsed)) : 1;
   }),
   isRetryableUploadError: mock(() => true),
-  runWithUploadRetries: mock(async <T>(options: {
-    execute: (attempt: number, totalAttempts: number) => Promise<T>;
-    onRetry?: (info: {
-      retry: number;
-      totalAttempts: number;
-      delayMs: number;
-      error: unknown;
-    }) => void;
-    maxRetries?: number;
-  }) => {
-    const maxRetries = options.maxRetries ?? 1;
-    const totalAttempts = maxRetries + 1;
+  runWithUploadRetries: mock(
+    async <T>(options: {
+      execute: (attempt: number, totalAttempts: number) => Promise<T>;
+      onRetry?: (info: {
+        retry: number;
+        totalAttempts: number;
+        delayMs: number;
+        error: unknown;
+      }) => void;
+      maxRetries?: number;
+    }) => {
+      const maxRetries = options.maxRetries ?? 1;
+      const totalAttempts = maxRetries + 1;
 
-    for (let attempt = 0; attempt < totalAttempts; attempt++) {
-      try {
-        return await options.execute(attempt, totalAttempts);
-      } catch (error) {
-        if (attempt >= maxRetries) {
-          throw error;
+      for (let attempt = 0; attempt < totalAttempts; attempt++) {
+        try {
+          return await options.execute(attempt, totalAttempts);
+        } catch (error) {
+          if (attempt >= maxRetries) {
+            throw error;
+          }
+
+          options.onRetry?.({
+            retry: attempt + 1,
+            totalAttempts,
+            delayMs: 0,
+            error,
+          });
         }
-
-        options.onRetry?.({
-          retry: attempt + 1,
-          totalAttempts,
-          delayMs: 0,
-          error,
-        });
       }
-    }
 
-    throw new Error("unreachable");
-  }),
+      throw new Error("unreachable");
+    },
+  ),
 };
 
 mock.module("node:fs", () => fsMock);
@@ -384,12 +384,7 @@ describe("storeDirectoryAsCar", () => {
     expect(fsUnlinkMock).toHaveBeenCalledTimes(1);
     expect(state.storeBlockCalls.map((call) => call.contentBytes[0])).toEqual([0, 1, 2, 1]);
     expect(state.storeBlockCalls.map((call) => call.nonce)).toEqual([100, 101, 102, 100]);
-    expect(state.readPositions).toEqual([
-      0,
-      CAR_CHUNK_SIZE,
-      CAR_CHUNK_SIZE * 2,
-      CAR_CHUNK_SIZE,
-    ]);
+    expect(state.readPositions).toEqual([0, CAR_CHUNK_SIZE, CAR_CHUNK_SIZE * 2, CAR_CHUNK_SIZE]);
     expect(state.storeBlockCalls.filter((call) => call.contentBytes[0] === 0)).toHaveLength(1);
     expect(state.storeBlockCalls.filter((call) => call.contentBytes[0] === 2)).toHaveLength(1);
   });

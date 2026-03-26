@@ -412,7 +412,11 @@ export function countCarChunks(totalBytes: number, chunkSize: number): number {
   return Math.ceil(totalBytes / chunkSize);
 }
 
-export function getCarChunkLength(totalBytes: number, chunkIndex: number, chunkSize: number): number {
+export function getCarChunkLength(
+  totalBytes: number,
+  chunkIndex: number,
+  chunkSize: number,
+): number {
   const offset = chunkIndex * chunkSize;
   if (offset >= totalBytes) return 0;
   return Math.min(chunkSize, totalBytes - offset);
@@ -495,13 +499,8 @@ export async function storeDirectoryAsCar(
     throw new Error("accountAddress is required for directory uploads");
   }
 
-  const {
-    hasIpfsCli,
-    addDirectoryToIpfs,
-    exportCidToCar,
-    provideRootCid,
-    addDirectoryWithDaemon,
-  } = await import("../bulletin/ipfs");
+  const { hasIpfsCli, addDirectoryToIpfs, exportCidToCar, provideRootCid, addDirectoryWithDaemon } =
+    await import("../bulletin/ipfs");
 
   if (!hasIpfsCli()) {
     throw new Error(
