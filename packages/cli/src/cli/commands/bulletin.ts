@@ -712,7 +712,7 @@ export function attachBulletinCommands(root: Command): void {
               onRetry,
               waitForFinalization: false,
             });
-            return { cid: result.storageCid, ipfsCid: result.ipfsCid, size: 0 };
+            return { cid: result.cid, size: 0 };
           }
 
           if (shouldUseChunkedUpload) {
@@ -739,7 +739,7 @@ export function attachBulletinCommands(root: Command): void {
                 },
               },
             );
-            return { cid: result, ipfsCid: result, size: effectiveFileSize };
+            return { cid: result, size: effectiveFileSize };
           }
 
           const result = await uploadSingleBlock(bulletinRpc, context.signer, bytes, {
@@ -747,11 +747,10 @@ export function attachBulletinCommands(root: Command): void {
             onPhase,
             onRetry,
           });
-          return { cid: result, ipfsCid: result, size: bytes.length };
+          return { cid: result, size: bytes.length };
         };
 
         let cid: string;
-        let ipfsCid: string;
         let uploadSize: number;
         let profileReportPath: string | undefined;
         let profileReport: UploadProfileReport | undefined;
@@ -798,7 +797,6 @@ export function attachBulletinCommands(root: Command): void {
         try {
           const uploadResult = await withBulletinHumanOutput(reporterMode, performUpload);
           cid = uploadResult.cid;
-          ipfsCid = uploadResult.ipfsCid;
           uploadSize = uploadResult.size;
         } finally {
           chunkedMonitor?.stop();
@@ -822,7 +820,7 @@ export function attachBulletinCommands(root: Command): void {
         });
         let verified = false;
         try {
-          const p2pResult = await verifyCidViaP2P(ipfsCid);
+          const p2pResult = await verifyCidViaP2P(cid);
           if (p2pResult.resolvable) {
             onPhase({ phase: "verify", state: "success", message: "Content verified via P2P" });
             verified = true;
@@ -837,7 +835,7 @@ export function attachBulletinCommands(root: Command): void {
             state: "update",
             message: "P2P unavailable, checking IPFS gateways...",
           });
-          const gatewayResults = await verifyCidWithMultipleGateways(ipfsCid);
+          const gatewayResults = await verifyCidWithMultipleGateways(cid);
           const resolvable = Array.from(gatewayResults.values()).some((r) => r.resolvable);
           if (resolvable) {
             onPhase({
@@ -858,7 +856,6 @@ export function attachBulletinCommands(root: Command): void {
 
         const previewUrl = getPreviewUrl({
           cid,
-          ipfsCid,
           path: resolvedPath,
           type: (isDirectory ? "directory" : "file") as "directory" | "file",
           size: uploadSize,
@@ -868,7 +865,7 @@ export function attachBulletinCommands(root: Command): void {
         if (jsonOutput) {
           const authExpiresAt = expirationToISOString(authInfo?.currentBlock, authInfo?.expiration);
           writeBulletinJson({
-            cid: ipfsCid,
+            cid,
             contenthash: `0x${contenthash}`,
             preview: previewUrl,
             path: resolvedPath,
@@ -881,7 +878,7 @@ export function attachBulletinCommands(root: Command): void {
             totalUploadTimeSeconds,
           });
         } else {
-          console.log(chalk.gray("\n  cid:         ") + chalk.cyan(ipfsCid));
+          console.log(chalk.gray("\n  cid:         ") + chalk.cyan(cid));
           console.log(chalk.gray("  preview:     ") + chalk.blue(previewUrl));
           console.log(
             chalk.gray("  total time:  ") + chalk.white(formatDuration(totalUploadTimeSeconds)),
@@ -926,7 +923,7 @@ export function attachBulletinCommands(root: Command): void {
             const evmAddress = await clientWrapper.getEvmAddress(context.substrateAddress);
 
             await cacheCidToStore({
-              cid: ipfsCid,
+              cid,
               clientWrapper,
               signer: context.signer,
               substrateAddress: context.substrateAddress,
@@ -957,7 +954,6 @@ export function attachBulletinCommands(root: Command): void {
         if (mergedOptions.history !== false) {
           await addUploadRecord({
             cid,
-            ipfsCid,
             path: resolvedPath,
             type: isDirectory ? "directory" : "file",
             size: uploadSize,
@@ -1108,9 +1104,6 @@ export function attachBulletinCommands(root: Command): void {
         const num = (index + 1).toString().padStart(2, " ");
         console.log(chalk.yellow(`  ${num}.`) + chalk.white(` ${formatRecordTimestamp(record)}`));
         console.log(chalk.gray("      cid:     ") + chalk.cyan(record.cid));
-        if (record.ipfsCid) {
-          console.log(chalk.gray("      ipfs:    ") + chalk.cyan(record.ipfsCid));
-        }
         console.log(chalk.gray("      path:    ") + chalk.white(record.path));
         console.log(chalk.gray("      type:    ") + chalk.white(record.type));
         if (record.size > 0) {

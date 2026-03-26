@@ -415,9 +415,7 @@ export type ValidatePathResult = {
 
 export type StoreDirectoryResult = {
   /** CID of the content stored on Bulletin */
-  storageCid: string;
-  /** Original IPFS CID of the merkleized directory structure */
-  ipfsCid: string;
+  cid: string;
 };
 
 export type UploadRetryOptions = {
@@ -457,8 +455,6 @@ export type StoreDirectoryOptions = UploadRetryOptions & {
 export type UploadRecord = {
   /** Content identifier for the uploaded data */
   cid: string;
-  /** Original IPFS CID for directory uploads */
-  ipfsCid?: string;
   /** Local filesystem path that was uploaded */
   path: string;
   /** Whether upload was a single file or directory */
