@@ -210,6 +210,7 @@ async function merkleizeAndUploadDirectory(
     const storeTimeoutMs = options.isFinalWave ? FINAL_STORE_CALL_TIMEOUT_MS : undefined;
 
     while (pendingBlocks.length > 0) {
+      nextNonce = await fetchAccountNonce(deps.rpc, deps.accountAddress);
       const startingNonce = nextNonce;
       nextNonce += pendingBlocks.length;
 
