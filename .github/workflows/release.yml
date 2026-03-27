@@ -209,13 +209,9 @@ jobs:
                 "```",
                 "",
                 "Install globally:",
-                "",
-                "| Package Manager | Command |",
-                "|:----------------|:--------|",
-                `| npm | \`npm install -g ./dotns-cli-${version}.tgz\` |`,
-                `| yarn | \`yarn global add ./dotns-cli-${version}.tgz\` |`,
-                `| bun (macOS/Linux) | \`bun add -g "$(pwd)/dotns-cli-${version}.tgz"\` |`,
-                `| bun (Windows) | \`bun add -g "$PWD\\dotns-cli-${version}.tgz"\` |`,
+                "```bash",
+                `npm install -g ./dotns-cli-${version}.tgz`,
+                "```",
                 "",
                 "Verify:",
                 "```bash",
@@ -375,19 +371,19 @@ jobs:
 
           ### CLI
 
-          Download:
+          Install from npm:
           \`\`\`bash
-          gh release download ${TAG} -p "*.tgz" -R ${REPO}
+          npm install -g @dotns/cli
           \`\`\`
 
-          Install:
+          Or with other package managers:
 
           | Package Manager | Command |
           |:----------------|:--------|
-          | npm | \`npm install -g ./dotns-cli-${VERSION}.tgz\` |
-          | yarn | \`yarn global add ./dotns-cli-${VERSION}.tgz\` |
-          | bun (macOS/Linux) | \`bun add -g "\$(pwd)/dotns-cli-${VERSION}.tgz"\` |
-          | bun (Windows) | \`bun add -g "\$PWD\\dotns-cli-${VERSION}.tgz"\` |
+          | npm | \`npm install -g @dotns/cli\` |
+          | yarn | \`yarn global add @dotns/cli\` |
+          | bun | \`bun add -g @dotns/cli\` |
+          | pnpm | \`pnpm add -g @dotns/cli\` |
 
           Verify:
           \`\`\`bash

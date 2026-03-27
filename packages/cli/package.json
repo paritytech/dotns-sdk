@@ -25,6 +25,9 @@
   "engines": {
     "bun": ">=1.2.6"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "dotns": "./dist/cli.js"
   },
