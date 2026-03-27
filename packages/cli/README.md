@@ -11,12 +11,12 @@ npm install -g @dotns/cli
 <details>
 <summary>Other package managers</summary>
 
-| Package Manager | Command                    |
-| :-------------- | :------------------------- |
-| npm             | `npm install -g @dotns/cli` |
+| Package Manager | Command                      |
+| :-------------- | :--------------------------- |
+| npm             | `npm install -g @dotns/cli`  |
 | yarn            | `yarn global add @dotns/cli` |
-| pnpm            | `pnpm add -g @dotns/cli`    |
-| bun             | `bun add -g @dotns/cli`     |
+| pnpm            | `pnpm add -g @dotns/cli`     |
+| bun             | `bun add -g @dotns/cli`      |
 
 </details>
 
