@@ -28,6 +28,10 @@ inputs:
     description: 'Write uploaded CID to on-chain Store after upload'
     required: false
     default: 'false'
+  use-car:
+    description: 'Merkleize with IPFS CLI and upload as a single CAR file for directories'
+    required: false
+    default: 'false'
 
 outputs:
   cid:
@@ -85,6 +89,9 @@ runs:
 
         RESULT_FILE=$(mktemp)
         ARGS=(bulletin upload "$BUILD_PATH" --resume --print-contenthash --json --reporter stream)
+        if [[ -d "$BUILD_PATH" && "$USE_CAR" == "true" ]]; then
+          ARGS+=(--as-car)
+        fi
         [[ -n "$BULLETIN_RPC" ]] && ARGS+=(--bulletin-rpc "$BULLETIN_RPC")
         ARGS+=(--concurrency "$UPLOAD_CONCURRENCY")
         [[ "$CACHE" == "true" ]] && ARGS+=(--cache)
@@ -127,3 +134,4 @@ runs:
         NODE_NO_WARNINGS: "1"
         RETRY_DELAY: ${{ inputs.retry-delay }}
         CACHE: ${{ inputs.cache }}
+        USE_CAR: ${{ inputs.use-car }}
