@@ -290,7 +290,7 @@ const pipelineSteps = [
   {
     title: "bulletin (upload)",
     description:
-      "Downloads the build artefact and uploads it to Bulletin storage. By default uses --as-car mode, which merkleises the directory in-memory and uploads as a chunked CAR file for faster uploads without needing an external IPFS binary. Outputs the IPFS CID.",
+      "Downloads the build artefact and uploads it to Bulletin storage. Outputs the IPFS CID.",
   },
   {
     title: "dotns (register + contenthash)",

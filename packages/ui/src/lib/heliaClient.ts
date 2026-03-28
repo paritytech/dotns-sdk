@@ -34,6 +34,17 @@ export interface HeliaFetchResult {
   size: number;
 }
 
+export interface HeliaContentFetchResult {
+  blob: Blob;
+  size: number;
+  sniffBytes: Uint8Array;
+}
+
+type HeliaFetchOptions = {
+  signal?: AbortSignal;
+  maxBytes?: number;
+};
+
 function extractAllowedPeerIds(peerAddresses: string[]): Set<string> {
   const peerIds = new Set<string>();
   for (const address of peerAddresses) {
@@ -45,27 +56,73 @@ function extractAllowedPeerIds(peerAddresses: string[]): Set<string> {
   return peerIds;
 }
 
+function abortErrorFromSignal(signal: AbortSignal): Error {
+  if (signal.reason instanceof Error) {
+    return signal.reason;
+  }
+
+  if (typeof signal.reason === "string" && signal.reason.length > 0) {
+    return new Error(signal.reason);
+  }
+
+  return new Error("Request aborted");
+}
+
+function ensureWithinByteLimit(totalBytes: number, maxBytes?: number): void {
+  if (maxBytes !== undefined && totalBytes > maxBytes) {
+    throw new Error(`Content exceeds preview limit of ${maxBytes} bytes`);
+  }
+}
+
 async function collectAsyncBytes(
   source: AsyncIterable<Uint8Array>,
-  timeoutMs: number,
+  options: HeliaFetchOptions,
 ): Promise<Uint8Array> {
+  const { signal, maxBytes } = options;
   const chunks: Uint8Array[] = [];
-  const timeout = new Promise<never>((_, reject) => {
-    setTimeout(
-      () => reject(new Error(`P2P fetch timed out after ${timeoutMs / 1000}s`)),
-      timeoutMs,
-    );
-  });
-
   const iterator = (source as AsyncIterable<Uint8Array>)[Symbol.asyncIterator]();
-  let done = false;
+  let completed = false;
+  let totalBytes = 0;
+  let removeAbortListener: (() => void) | undefined;
 
-  while (!done) {
-    const result = await Promise.race([iterator.next(), timeout]);
-    if (result.done) {
-      done = true;
-    } else {
+  const abortPromise =
+    signal &&
+    new Promise<never>((_, reject) => {
+      const abort = () => reject(abortErrorFromSignal(signal));
+      if (signal.aborted) {
+        abort();
+        return;
+      }
+      signal.addEventListener("abort", abort, { once: true });
+      removeAbortListener = () => signal.removeEventListener("abort", abort);
+    });
+
+  try {
+    while (true) {
+      if (signal?.aborted) {
+        throw abortErrorFromSignal(signal);
+      }
+
+      const result = abortPromise
+        ? await Promise.race([iterator.next(), abortPromise])
+        : await iterator.next();
+      if (result.done) {
+        completed = true;
+        break;
+      }
+
+      totalBytes += result.value.length;
+      ensureWithinByteLimit(totalBytes, maxBytes);
       chunks.push(result.value);
+    }
+  } finally {
+    removeAbortListener?.();
+    if (!completed) {
+      try {
+        await iterator.return?.();
+      } catch {
+        // best-effort cancellation
+      }
     }
   }
 
@@ -132,17 +189,22 @@ export class BulletinHeliaClient {
     }
   }
 
-  async fetchBlock(cidString: string): Promise<HeliaFetchResult> {
+  async fetchBlock(cidString: string, options: HeliaFetchOptions = {}): Promise<HeliaFetchResult> {
     await this.initialize();
 
     const cid = CID.parse(cidString);
     const blockData = await this.helia!.blockstore.get(cid);
+    const signal = options.signal ?? AbortSignal.timeout(FETCH_TIMEOUT_MS);
 
     let data: Uint8Array;
     if (blockData instanceof Uint8Array && blockData.length > 0) {
+      ensureWithinByteLimit(blockData.length, options.maxBytes);
       data = blockData;
     } else if (typeof blockData === "object" && Symbol.asyncIterator in Object(blockData)) {
-      data = await collectAsyncBytes(blockData as AsyncIterable<Uint8Array>, FETCH_TIMEOUT_MS);
+      data = await collectAsyncBytes(blockData as AsyncIterable<Uint8Array>, {
+        signal,
+        maxBytes: options.maxBytes,
+      });
     } else {
       throw new Error("Unexpected response type from Bulletin peer");
     }
@@ -150,36 +212,50 @@ export class BulletinHeliaClient {
     return { data, size: data.length };
   }
 
-  async fetchContent(cidString: string): Promise<HeliaFetchResult> {
+  async fetchContent(
+    cidString: string,
+    options: HeliaFetchOptions = {},
+  ): Promise<HeliaContentFetchResult> {
     await this.initialize();
 
     const cid = CID.parse(cidString);
     const { unixfs } = await import("@helia/unixfs");
     const fs = unixfs(this.helia!);
-    const chunks: Uint8Array[] = [];
+    const blobParts: BlobPart[] = [];
+    const signal = options.signal ?? AbortSignal.timeout(FETCH_TIMEOUT_MS);
+    let totalLength = 0;
+    let sniffBytes = new Uint8Array(0);
 
-    for await (const chunk of fs.cat(cid, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })) {
-      chunks.push(chunk);
+    for await (const chunk of fs.cat(cid, { signal })) {
+      totalLength += chunk.length;
+      ensureWithinByteLimit(totalLength, options.maxBytes);
+
+      if (sniffBytes.length < 512) {
+        const remaining = 512 - sniffBytes.length;
+        const slice = chunk.subarray(0, remaining);
+        const nextSniffBytes = new Uint8Array(sniffBytes.length + slice.length);
+        nextSniffBytes.set(sniffBytes);
+        nextSniffBytes.set(slice, sniffBytes.length);
+        sniffBytes = nextSniffBytes;
+      }
+
+      blobParts.push(new Uint8Array(chunk));
     }
 
-    if (chunks.length === 0) {
+    if (blobParts.length === 0) {
       throw new Error("No content received from Bulletin peers");
     }
 
-    const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-    const merged = new Uint8Array(totalLength);
-    let offset = 0;
-    for (const chunk of chunks) {
-      merged.set(chunk, offset);
-      offset += chunk.length;
-    }
-
-    return { data: merged, size: merged.length };
+    return {
+      blob: new Blob(blobParts),
+      size: totalLength,
+      sniffBytes,
+    };
   }
 
-  async verifyCid(cidString: string): Promise<boolean> {
+  async verifyCid(cidString: string, options: HeliaFetchOptions = {}): Promise<boolean> {
     try {
-      await this.fetchBlock(cidString);
+      await this.fetchBlock(cidString, options);
       return true;
     } catch {
       return false;

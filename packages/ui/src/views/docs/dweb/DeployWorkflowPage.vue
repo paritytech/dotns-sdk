@@ -155,10 +155,7 @@
         Upload Performance &amp; Concurrency
       </h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        For large sites, pass <span class="font-mono text-dot-accent">--as-car</span> to merkleise
-        the directory in-memory and upload it as a chunked CAR file. This is significantly faster
-        than per-block directory uploads and requires no external IPFS binary (Kubo). The workflow
-        also supports concurrency controls and GitHub Actions concurrency groups to prevent
+        The workflow supports concurrency controls and GitHub Actions concurrency groups to prevent
         conflicting deployments.
       </p>
       <DocCodeBlock :code="parallelCode" lang="yaml" filename="parallel configuration" />
@@ -208,12 +205,6 @@ const workflowInputs = [
     required: "No",
     description:
       "Number of parallel Bulletin upload workers. Default: 4. Increase for large sites.",
-  },
-  {
-    name: "as-car",
-    required: "No",
-    description:
-      "Legacy — the bulletin action now auto-detects directories and uses chunked CAR upload by default. Kept for backwards compatibility.",
   },
   {
     name: "concurrency",
@@ -279,9 +270,8 @@ jobs:
       dotns-mnemonic: \${{ secrets.DOTNS_MNEMONIC }}
       bulletin-mnemonic: \${{ secrets.BULLETIN_MNEMONIC }}`;
 
-const parallelCode = `# --as-car mode with concurrency for fast uploads
+const parallelCode = `# Concurrency for fast uploads
 with:
-  as-car: true         # legacy — the action auto-detects directories
   parallel: 8          # 8 concurrent chunk uploads
 
 # Concurrency prevents conflicting deploys
