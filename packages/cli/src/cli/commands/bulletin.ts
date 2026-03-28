@@ -770,6 +770,7 @@ export function attachBulletinCommands(root: Command): void {
             console.log(chalk.blue(`\n▶ Uploading directory: ${pathBasename}`));
             console.log(chalk.gray("  path:        ") + chalk.white(resolvedPath));
             console.log(chalk.gray("  rpc:         ") + chalk.white(bulletinRpc));
+            console.log(chalk.gray("  mode:        ") + chalk.white("per-block waves"));
             console.log(
               chalk.gray("  concurrency: ") + chalk.white(`${concurrency}x parallel waves`),
             );
@@ -782,7 +783,7 @@ export function attachBulletinCommands(root: Command): void {
             console.log(
               chalk.gray("  mode:        ") +
                 chalk.white(
-                  `chunked (${totalChunks} × ${formatBytes(chunkSizeBytes)}, adaptive window 1..${concurrency})`,
+                  `chunked (${totalChunks} × ${formatBytes(chunkSizeBytes)}, adaptive window 1..${Math.min(4, concurrency)})`,
                 ),
             );
           } else {
@@ -818,40 +819,26 @@ export function attachBulletinCommands(root: Command): void {
         onPhase({
           phase: "verify",
           state: "start",
-          message: "Verifying content on Bulletin P2P...",
+          message: "Verifying content is retrievable from IPFS gateways...",
         });
-        let verified = false;
-        try {
-          const p2pResult = await verifyCidViaP2P(ipfsCid);
-          if (p2pResult.resolvable) {
-            onPhase({ phase: "verify", state: "success", message: "Content verified via P2P" });
-            verified = true;
-          }
-        } catch {
-          /* P2P verification failed, try gateways */
-        }
 
-        if (!verified) {
+        const gatewayResults = await verifyCidWithMultipleGateways(cid);
+        const resolvableGateways = Array.from(gatewayResults.entries())
+          .filter(([, r]) => r.resolvable)
+          .map(([gateway]) => gateway);
+
+        if (resolvableGateways.length > 0) {
           onPhase({
             phase: "verify",
-            state: "update",
-            message: "P2P unavailable, checking IPFS gateways...",
+            state: "success",
+            message: `Content retrievable from ${resolvableGateways.length} gateway(s)`,
           });
-          const gatewayResults = await verifyCidWithMultipleGateways(ipfsCid);
-          const resolvable = Array.from(gatewayResults.values()).some((r) => r.resolvable);
-          if (resolvable) {
-            onPhase({
-              phase: "verify",
-              state: "success",
-              message: "Content verified via IPFS gateway",
-            });
-          } else {
-            onPhase({
-              phase: "verify",
-              state: "warning",
-              message: "Content not yet resolvable — it may still be propagating",
-            });
-          }
+        } else {
+          onPhase({
+            phase: "verify",
+            state: "warning",
+            message: "Content stored on Bulletin chain but not yet retrievable from IPFS gateways.",
+          });
         }
 
         const contenthash = generateContenthash(cid);

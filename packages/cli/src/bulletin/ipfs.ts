@@ -1,41 +1,75 @@
 import type { VerificationResult, BlockVerificationResult } from "../types/types";
 import { formatErrorMessage } from "../utils/formatting";
+
 async function loadHeliaClient() {
   const { getSharedHeliaClient } = await import("./heliaClient");
   return getSharedHeliaClient();
 }
 
-const DEFAULT_VERIFICATION_GATEWAY = "https://paseo-ipfs.polkadot.io";
 const VERIFICATION_TIMEOUT_MILLISECONDS = 30000;
+const FALLBACK_GATEWAYS: string[] = [
+  "https://paseo-ipfs.polkadot.io",
+  "https://dweb.link",
+  "https://cloudflare-ipfs.com",
+  "https://w3s.link",
+  "https://ipfs.io",
+];
+const DEFAULT_VERIFICATION_GATEWAY = FALLBACK_GATEWAYS[0]!;
+
+function isResolvableStatus(statusCode: number): boolean {
+  return statusCode === 200;
+}
+
+async function safelyCancelBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // Body may already be consumed or stream closed by the time we cancel
+  }
+}
 
 export async function verifyCidResolution(
   contentCid: string,
   gatewayBaseUrl: string = DEFAULT_VERIFICATION_GATEWAY,
 ): Promise<VerificationResult> {
-  const verificationUrl = `${gatewayBaseUrl}/ipfs/${contentCid}`;
+  const candidateUrls = [
+    `${gatewayBaseUrl}/ipfs/${contentCid}`,
+    `${gatewayBaseUrl}/ipfs/${contentCid}/`,
+  ];
 
-  try {
-    const response = await fetch(verificationUrl, {
-      method: "HEAD",
-      signal: AbortSignal.timeout(VERIFICATION_TIMEOUT_MILLISECONDS),
-    });
+  let lastError: string | undefined;
 
-    return {
-      cid: contentCid,
-      resolvable: response.ok,
-      gateway: gatewayBaseUrl,
-      statusCode: response.status,
-    };
-  } catch (error) {
-    const errorMessage = formatErrorMessage(error);
+  for (const verificationUrl of candidateUrls) {
+    try {
+      const response = await fetch(verificationUrl, {
+        method: "GET",
+        redirect: "follow",
+        signal: AbortSignal.timeout(VERIFICATION_TIMEOUT_MILLISECONDS),
+      });
 
-    return {
-      cid: contentCid,
-      resolvable: false,
-      gateway: gatewayBaseUrl,
-      errorMessage,
-    };
+      if (isResolvableStatus(response.status)) {
+        await safelyCancelBody(response);
+        return {
+          cid: contentCid,
+          resolvable: true,
+          gateway: gatewayBaseUrl,
+          statusCode: response.status,
+        };
+      }
+
+      lastError = `HTTP ${response.status} from ${verificationUrl}`;
+      await safelyCancelBody(response);
+    } catch (error) {
+      lastError = formatErrorMessage(error);
+    }
   }
+
+  return {
+    cid: contentCid,
+    resolvable: false,
+    gateway: gatewayBaseUrl,
+    errorMessage: lastError ?? "Content not retrievable from gateway",
+  };
 }
 
 export async function verifyMultipleCids(
@@ -65,21 +99,16 @@ export async function verifyMultipleCids(
 
 export async function verifyCidWithMultipleGateways(
   contentCid: string,
-  gatewayUrls: string[] = [
-    "https://paseo-ipfs.polkadot.io",
-    "https://dweb.link",
-    "https://cloudflare-ipfs.com",
-    "https://w3s.link",
-  ],
+  gatewayUrls: string[] = FALLBACK_GATEWAYS,
 ): Promise<Map<string, VerificationResult>> {
-  const verificationResults = new Map<string, VerificationResult>();
+  const results = await Promise.all(
+    gatewayUrls.map(async (gatewayUrl) => {
+      const result = await verifyCidResolution(contentCid, gatewayUrl);
+      return [gatewayUrl, result] as const;
+    }),
+  );
 
-  for (const gatewayUrl of gatewayUrls) {
-    const result = await verifyCidResolution(contentCid, gatewayUrl);
-    verificationResults.set(gatewayUrl, result);
-  }
-
-  return verificationResults;
+  return new Map(results);
 }
 
 export async function verifyCidViaP2P(cidString: string): Promise<VerificationResult> {
