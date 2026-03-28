@@ -219,7 +219,7 @@ dotns --password test-password bulletin upload ./image.png --account default
 # Upload directory
 dotns --password test-password bulletin upload ./dist --account default
 
-# Upload directory with concurrency control (max: 4)
+# Upload directory with concurrency control (max: 64)
 dotns --password test-password bulletin upload ./dist --concurrency 4 --account default
 
 # Force chunked upload for large files (streams from disk, low memory)

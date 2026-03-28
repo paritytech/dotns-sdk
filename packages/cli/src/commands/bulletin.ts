@@ -179,14 +179,18 @@ async function merkleizeAndUploadDirectory(
 
   const blockCache = new Map<string, Uint8Array>();
   const uploadedCids = new Set<string>();
-  let nextNonce = -1;
+  let nextNonce = 0;
+  let nonceReady: Promise<void> | null = null;
 
   const ensureClient = async () => {
-    if (!sharedClient) {
-      sharedClient = createBulletinClient(deps.rpc);
-      nextNonce = await fetchAccountNonce(deps.rpc, deps.accountAddress);
+    if (!nonceReady) {
+      nonceReady = (async () => {
+        sharedClient = createBulletinClient(deps.rpc);
+        nextNonce = await fetchAccountNonce(deps.rpc, deps.accountAddress);
+      })();
     }
-    return sharedClient;
+    await nonceReady;
+    return sharedClient!;
   };
 
   const recreateSharedClient = () => {
@@ -196,6 +200,7 @@ async function merkleizeAndUploadDirectory(
       /* already closed */
     }
     sharedClient = createBulletinClient(deps.rpc);
+    nonceReady = Promise.resolve();
   };
 
   async function flushWave(options: FlushWaveOptions = {}): Promise<void> {
@@ -555,8 +560,9 @@ export async function checkAuthorization(
     }
 
     return { authorized: false, currentBlock };
-  } catch {
-    return { authorized: false };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { authorized: false, errorMessage: message };
   } finally {
     client.destroy();
   }
