@@ -172,8 +172,7 @@ const pipelineSteps = [
   },
   {
     title: "Upload to decentralised storage",
-    description:
-      "Push the build output to Bulletin or IPFS. Pass --as-car to merkleise the directory in-memory and upload as a chunked CAR file — significantly faster than per-block uploads (~2 min vs ~22 min for 16 MB). Content resolves on IPFS gateways. No external IPFS binary needed.",
+    description: "Push the build output to Bulletin or IPFS. Content resolves on IPFS gateways.",
   },
   {
     title: "Set the content hash",
@@ -222,8 +221,8 @@ npm run build        # Output: dist/
 # Plain HTML
 # No build step needed — just point to your directory`;
 
-const uploadCode = `# Upload to Bulletin (recommended: --as-car for directories)
-dotns bulletin upload ./dist --as-car
+const uploadCode = `# Upload to Bulletin
+dotns bulletin upload ./dist
 # Root CID: bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi
 
 # Set the content hash on your .dot name

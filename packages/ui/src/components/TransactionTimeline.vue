@@ -68,9 +68,13 @@ const DEFAULT_STEPS = [
   { key: "finalized", label: "Finalized" },
 ];
 
+const verifyingLabel = computed(() =>
+  bulletinStore.statusMessage.startsWith("Verified") ? "Verified" : "Verifying",
+);
+
 const BULLETIN_STEPS = computed(() => [
   ...DEFAULT_STEPS,
-  { key: "verifying", label: "Verifying" },
+  { key: "verifying", label: verifyingLabel.value },
   { key: "caching", label: bulletinStore.cachingEnabled ? "Caching" : "Caching (off)" },
 ]);
 
