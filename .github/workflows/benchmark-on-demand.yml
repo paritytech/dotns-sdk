@@ -181,6 +181,7 @@ jobs:
       sdk-ref: ${{ github.head_ref || github.ref }}
       skip-cache: true
       max-retries: 5
+      use-car: true
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
       bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC_BENCHMARK }}
@@ -308,8 +309,13 @@ jobs:
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
 
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number,
+              labels: ["scope: benchmark", "benchmark-complete"],
+            });
+
             try {
               await github.rest.issues.removeLabel({ owner, repo, issue_number, name: "benchmark-request" });
             } catch {}
-
-            await github.rest.issues.addLabels({ owner, repo, issue_number, labels: ["benchmark-complete"] });
