@@ -859,7 +859,7 @@ export async function storeDirectory(
             console.log(chalk.yellow("  Content may take time to propagate through the network"));
           }
 
-          return { storageCid: rootCidString, ipfsCid: rootCidString };
+          return { cid: rootCidString };
         } catch (error) {
           if (attempt < normalizedMaxRetries) {
             emitPhase(onPhase, "upload", "warning", "Directory upload attempt failed");

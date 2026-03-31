@@ -80,7 +80,7 @@ export async function removeUploadRecord(cid: string): Promise<boolean> {
   const history = await readHistory();
   const initialLength = history.length;
 
-  const filtered = history.filter((r) => r.cid !== cid && r.ipfsCid !== cid);
+  const filtered = history.filter((r) => r.cid !== cid);
 
   if (filtered.length === initialLength) {
     return false;
@@ -108,7 +108,6 @@ function encodeForPreview(cid: string): string {
 }
 
 export function getPreviewUrl(record: UploadRecord): string {
-  const cid = record.ipfsCid || record.cid;
-  const encoded = encodeForPreview(cid);
+  const encoded = encodeForPreview(record.cid);
   return `${PREVIEW_BASE_URL}/${encoded}`;
 }
