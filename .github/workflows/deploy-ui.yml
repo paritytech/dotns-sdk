@@ -103,8 +103,8 @@ jobs:
       subname-format: pr-number
       artifact-name: ui-site
       register-base: false
-      use-car: true
-      cli-source: release
+      use-car: false
+      cli-source: source
       sdk-ref: ${{ github.head_ref || github.ref }}
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
@@ -120,8 +120,8 @@ jobs:
       mode: production
       artifact-name: ui-site
       register-base: false
-      use-car: true
-      cli-source: release
+      use-car: false
+      cli-source: source
       sdk-ref: ${{ github.head_ref || github.ref }}
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
