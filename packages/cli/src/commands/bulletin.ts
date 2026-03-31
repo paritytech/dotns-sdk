@@ -185,6 +185,7 @@ async function merkleizeAndUploadDirectory(
     if (!sharedClient) {
       sharedClient = createBulletinClient(deps.rpc);
       nextNonce = await fetchAccountNonce(deps.rpc, deps.accountAddress);
+      console.error(`[wave-debug] ensureClient: fetched nonce=${nextNonce}`);
     }
     return sharedClient;
   };
@@ -211,9 +212,13 @@ async function merkleizeAndUploadDirectory(
 
     while (pendingBlocks.length > 0) {
       const startingNonce = nextNonce;
+      console.error(
+        `[wave-debug] wave start: startingNonce=${startingNonce}, pendingBlocks=${pendingBlocks.length}, retryCount=${retryCount}, isFinalWave=${!!options.isFinalWave}`,
+      );
 
       const results = await Promise.all(
         pendingBlocks.map(async (block, index) => {
+          const assignedNonce = startingNonce + index;
           try {
             await storeBlockToBulletin({
               rpc: deps.rpc,
@@ -222,7 +227,7 @@ async function merkleizeAndUploadDirectory(
               contentCid: block.cid.toString(),
               codecValue: block.cid.code,
               hashCodeValue: block.cid.multihash.code,
-              nonce: startingNonce + index,
+              nonce: assignedNonce,
               client: sharedClient!,
               storeTimeoutMs,
               waitForFinalization: deps.waitForFinalization,
@@ -230,6 +235,9 @@ async function merkleizeAndUploadDirectory(
 
             return { block, error: null };
           } catch (error) {
+            console.error(
+              `[wave-debug] block failed: cid=${block.cid.toString().slice(0, 16)}… nonce=${assignedNonce} error=${error instanceof Error ? error.message : String(error)}`,
+            );
             return { block, error };
           }
         }),
@@ -263,6 +271,7 @@ async function merkleizeAndUploadDirectory(
 
       if (retryableFailures.length === 0) {
         nextNonce = startingNonce + pendingBlocks.length;
+        console.error(`[wave-debug] wave success: nextNonce bumped to ${nextNonce}`);
         for (const block of wave) {
           blockCache.delete(block.cid.toString());
         }
@@ -275,8 +284,12 @@ async function merkleizeAndUploadDirectory(
         ] ?? DIRECTORY_WAVE_RETRY_BASE_DELAYS_MS[DIRECTORY_WAVE_RETRY_BASE_DELAYS_MS.length - 1];
 
       retryCount += 1;
+      console.error(
+        `[wave-debug] wave retry: retryCount=${retryCount}, failures=${retryableFailures.length}, delayMs=${delayMs}`,
+      );
       recreateSharedClient();
       nextNonce = await fetchAccountNonce(deps.rpc, deps.accountAddress);
+      console.error(`[wave-debug] retry: re-fetched nonce=${nextNonce}`);
       pendingBlocks = retryableFailures;
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
@@ -326,6 +339,9 @@ async function merkleizeAndUploadDirectory(
 
     recreateSharedClient();
     nextNonce = await fetchAccountNonce(deps.rpc, deps.accountAddress);
+    console.error(
+      `[wave-debug] final wave: fetched nonce=${nextNonce}, waveBuffer=${waveBuffer.length}`,
+    );
     await flushWave({ isFinalWave: true });
   } finally {
     if (sharedClient) (sharedClient as ReturnType<typeof createBulletinClient>).destroy();
