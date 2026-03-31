@@ -180,14 +180,18 @@ async function merkleizeAndUploadDirectory(
   const blockCache = new Map<string, Uint8Array>();
   const uploadedCids = new Set<string>();
   let nextNonce = -1;
+  let clientReady: Promise<void> | null = null;
 
   const ensureClient = async () => {
-    if (!sharedClient) {
-      sharedClient = createBulletinClient(deps.rpc);
-      nextNonce = await fetchAccountNonce(deps.rpc, deps.accountAddress);
-      console.error(`[wave-debug] ensureClient: fetched nonce=${nextNonce}`);
+    if (!clientReady) {
+      clientReady = (async () => {
+        sharedClient = createBulletinClient(deps.rpc);
+        nextNonce = await fetchAccountNonce(deps.rpc, deps.accountAddress);
+        console.error(`[wave-debug] ensureClient: fetched nonce=${nextNonce}`);
+      })();
     }
-    return sharedClient;
+    await clientReady;
+    return sharedClient!;
   };
 
   const recreateSharedClient = () => {
@@ -197,6 +201,7 @@ async function merkleizeAndUploadDirectory(
       /* already closed */
     }
     sharedClient = createBulletinClient(deps.rpc);
+    clientReady = Promise.resolve();
   };
 
   async function flushWave(options: FlushWaveOptions = {}): Promise<void> {
