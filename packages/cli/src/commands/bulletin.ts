@@ -181,6 +181,7 @@ async function merkleizeAndUploadDirectory(
   const uploadedCids = new Set<string>();
   let nextNonce = -1;
   let clientReady: Promise<void> | null = null;
+  let waveQueue: Promise<void> = Promise.resolve();
 
   const ensureClient = async () => {
     if (!clientReady) {
@@ -204,13 +205,17 @@ async function merkleizeAndUploadDirectory(
     clientReady = Promise.resolve();
   };
 
-  async function flushWave(options: FlushWaveOptions = {}): Promise<void> {
-    if (waveBuffer.length === 0) return;
+  function flushWave(options: FlushWaveOptions = {}): Promise<void> {
+    if (waveBuffer.length === 0) return Promise.resolve();
+    const blocks = waveBuffer;
+    waveBuffer = [];
+    waveQueue = waveQueue.then(() => executeWave(blocks, options));
+    return waveQueue;
+  }
 
+  async function executeWave(wave: WaveBlock[], options: FlushWaveOptions = {}): Promise<void> {
     await ensureClient();
 
-    const wave = waveBuffer;
-    waveBuffer = [];
     let pendingBlocks = wave;
     let retryCount = 0;
     const storeTimeoutMs = options.isFinalWave ? FINAL_STORE_CALL_TIMEOUT_MS : undefined;
