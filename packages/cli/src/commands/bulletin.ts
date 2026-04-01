@@ -206,10 +206,10 @@ async function merkleizeAndUploadDirectory(
   };
 
   function flushWave(options: FlushWaveOptions = {}): Promise<void> {
-    if (waveBuffer.length === 0) return Promise.resolve();
-    const blocks = waveBuffer;
-    waveBuffer = [];
-    waveQueue = waveQueue.then(() => executeWave(blocks, options));
+    while (waveBuffer.length > 0) {
+      const blocks = waveBuffer.splice(0, WAVE_SIZE);
+      waveQueue = waveQueue.then(() => executeWave(blocks, options));
+    }
     return waveQueue;
   }
 
