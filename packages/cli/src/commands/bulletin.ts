@@ -808,7 +808,7 @@ export async function storeDirectory(
     onRetry,
     verificationGateway = DEFAULT_VERIFICATION_GATEWAY,
     maxRetries = DEFAULT_UPLOAD_MAX_RETRIES,
-    waitForFinalization = true,
+    waitForFinalization = false,
   } = options;
 
   if (!accountAddress) {
