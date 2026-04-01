@@ -105,6 +105,7 @@ jobs:
       register-base: false
       use-car: false
       upload-concurrency: 10
+      skip-cache: true
       cli-source: source
       sdk-ref: ${{ github.head_ref || github.ref }}
     secrets:
