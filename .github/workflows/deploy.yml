@@ -237,8 +237,8 @@ jobs:
         shell: bash
         run: |
           EFFECTIVE_UPLOAD_CONCURRENCY="$UPLOAD_CONCURRENCY"
-          if [[ "$MODE" == "preview" && "$EFFECTIVE_UPLOAD_CONCURRENCY" -gt 3 ]]; then
-            EFFECTIVE_UPLOAD_CONCURRENCY=3
+          if [[ "$MODE" == "preview" && "$EFFECTIVE_UPLOAD_CONCURRENCY" -gt 10 ]]; then
+            EFFECTIVE_UPLOAD_CONCURRENCY=10
           fi
           echo "upload-concurrency=$EFFECTIVE_UPLOAD_CONCURRENCY" >> "$GITHUB_OUTPUT"
         env:

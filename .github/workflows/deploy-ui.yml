@@ -104,6 +104,7 @@ jobs:
       artifact-name: ui-site
       register-base: false
       use-car: false
+      upload-concurrency: 10
       cli-source: source
       sdk-ref: ${{ github.head_ref || github.ref }}
     secrets:
@@ -121,6 +122,7 @@ jobs:
       artifact-name: ui-site
       register-base: false
       use-car: false
+      upload-concurrency: 10
       cli-source: source
       sdk-ref: ${{ github.head_ref || github.ref }}
     secrets:
