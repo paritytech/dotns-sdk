@@ -137,6 +137,9 @@ jobs:
           DEPLOY_CID: ${{ needs.deploy.outputs.cid }}
           DEPLOY_FQDN: ${{ needs.deploy.outputs.fqdn }}
           DEPLOY_URL: ${{ needs.deploy.outputs.url }}
+          DEPLOY_URL_DIRECT: ${{ needs.deploy.outputs.url-direct }}
+          DEPLOY_URL_DOTLI_PATH: ${{ needs.deploy.outputs.url-dotli-path }}
+          DEPLOY_URL_DOTLI_HOST: ${{ needs.deploy.outputs.url-dotli-host }}
           DEPLOY_CACHE_HIT: ${{ needs.deploy.outputs.cache-hit }}
           DEPLOY_DURATION_SECONDS: ${{ needs.deploy.outputs.duration-seconds }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -176,6 +179,9 @@ jobs:
             const cid = process.env.DEPLOY_CID;
             const fqdn = process.env.DEPLOY_FQDN;
             const url = process.env.DEPLOY_URL;
+            const urlDirect = process.env.DEPLOY_URL_DIRECT;
+            const urlDotliPath = process.env.DEPLOY_URL_DOTLI_PATH;
+            const urlDotliHost = process.env.DEPLOY_URL_DOTLI_HOST;
             const cacheHit = process.env.DEPLOY_CACHE_HIT === "true";
             const durationSeconds = process.env.DEPLOY_DURATION_SECONDS;
 
@@ -269,6 +275,20 @@ jobs:
 
             if (allPassed && cid && fqdn) {
               const cidDisplay = cacheHit ? `\`${cid}\` (cached)` : `\`${cid}\``;
+              const urlRows = [];
+              if (urlDotliHost) {
+                urlRows.push(`| URL | [${urlDotliHost}](${urlDotliHost}) |`);
+              } else {
+                if (urlDotliPath) {
+                  urlRows.push(`| URL (dot.li) | [${urlDotliPath}](${urlDotliPath}) |`);
+                }
+                if (urlDirect) {
+                  urlRows.push(`| URL (direct) | [${urlDirect}](${urlDirect}) |`);
+                }
+              }
+              if (urlRows.length === 0 && url) {
+                urlRows.push(`| URL | [${url}](${url}) |`);
+              }
 
               existingDetails[section] = [
                 `<details>`,
@@ -280,7 +300,7 @@ jobs:
                 `|----------|-------|`,
                 `| Domain | \`${fqdn}\` |`,
                 `| CID | ${cidDisplay} |`,
-                `| URL | [${url}](${url}) |`,
+                ...urlRows,
                 `| Duration | ${durationSeconds ? `\`${durationSeconds}s\`` : "n/a"} |`,
                 "",
                 `[View run](${runUrl})`,
@@ -311,7 +331,7 @@ jobs:
               ].join("\n");
             }
 
-            const order = ["Lint", "Lint (UI)", "Format", "Format (UI)", "Typecheck", "Typecheck (UI)", "Build", "Build (UI)", "Test", "Release", "Deploy UI", "Deploy Example", "PR Title", "Labels"];
+            const order = ["Lint", "Lint (UI)", "Format", "Format (UI)", "Typecheck", "Typecheck (UI)", "Build", "Build (UI)", "Release", "Deploy UI", "Deploy Example", "Benchmark UI", "PR Title", "Labels", "Test"];
             const sortedKeys = Object.keys(rows).sort((a, b) => {
               const ai = order.indexOf(a), bi = order.indexOf(b);
               return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
