@@ -5,18 +5,18 @@ A command-line tool for registering and managing `.dot` domains on Polkadot.
 ## Installation
 
 ```bash
-npm install -g @dotns/cli
+npm install -g @parity/dotns-cli
 ```
 
 <details>
 <summary>Other package managers</summary>
 
-| Package Manager | Command                      |
-| :-------------- | :--------------------------- |
-| npm             | `npm install -g @dotns/cli`  |
-| yarn            | `yarn global add @dotns/cli` |
-| pnpm            | `pnpm add -g @dotns/cli`     |
-| bun             | `bun add -g @dotns/cli`      |
+| Package Manager | Command                             |
+| :-------------- | :---------------------------------- |
+| npm             | `npm install -g @parity/dotns-cli`  |
+| yarn            | `yarn global add @parity/dotns-cli` |
+| pnpm            | `pnpm add -g @parity/dotns-cli`     |
+| bun             | `bun add -g @parity/dotns-cli`      |
 
 </details>
 
