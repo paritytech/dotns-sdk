@@ -291,7 +291,6 @@ jobs:
           max-retries: ${{ inputs.max-retries }}
           retry-delay: ${{ inputs.retry-delay }}
           cache: ${{ inputs.cache }}
-          use-car: ${{ inputs.use-car }}
 
       - name: Save CID to cache
         if: steps.cache.outputs.cache-hit != 'true' && steps.bulletin.outputs.cid != ''
