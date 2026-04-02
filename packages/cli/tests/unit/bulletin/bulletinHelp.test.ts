@@ -32,7 +32,6 @@ test("bulletin upload help shows all options", async () => {
   expect(result.combinedOutput).toContain("--chunk-size");
   expect(result.combinedOutput).toContain("--max-retries");
   expect(result.combinedOutput).toContain("--force-chunked");
-  expect(result.combinedOutput).toContain("--as-car");
   expect(result.combinedOutput).toContain("--resume");
   expect(result.combinedOutput).toContain("--concurrency");
   expect(result.combinedOutput).toContain("--reporter");

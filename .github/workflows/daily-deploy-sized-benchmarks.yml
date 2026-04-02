@@ -104,7 +104,7 @@ jobs:
           BENCHMARK_DATE: ${{ needs.gate.outputs.benchmark-date }}
           BENCHMARK_TIMESTAMP: ${{ needs.gate.outputs.benchmark-timestamp }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          DASHBOARD_URL: https://bulletin-benchmarks.paseo.li
+          DASHBOARD_URL: https://bulletin-benchmarks.dot.li
         with:
           script: |
             const fs = require("node:fs");
@@ -233,7 +233,7 @@ jobs:
               "",
               `Local benchmark window: ${process.env.BENCHMARK_TIMESTAMP}`,
               "",
-              `Dashboard: [bulletin-benchmarks.paseo.li](${dashboardUrl})`,
+              `Dashboard: [bulletin-benchmarks.dot.li](${dashboardUrl})`,
               "",
               "Dashboard refresh: __DASHBOARD_STATUS__",
               "",
@@ -382,7 +382,7 @@ jobs:
         id: issue
         uses: actions/github-script@v7
         env:
-          DASHBOARD_URL: https://bulletin-benchmarks.paseo.li
+          DASHBOARD_URL: https://bulletin-benchmarks.dot.li
           DASHBOARD_BULLETIN_OUTCOME: ${{ steps.dashboard-bulletin.outcome }}
           DASHBOARD_DOTNS_OUTCOME: ${{ steps.dashboard-dotns.outcome }}
         with:
@@ -417,6 +417,13 @@ jobs:
                 body,
               });
 
+              await github.rest.issues.addLabels({
+                owner: metadata.owner,
+                repo: metadata.repo,
+                issue_number: metadata.existingIssueNumber,
+                labels: ["scope: benchmark"],
+              });
+
               core.setOutput("issue-number", String(updated.data.number));
               core.setOutput("issue-url", updated.data.html_url);
               return;
@@ -427,7 +434,7 @@ jobs:
               repo: metadata.repo,
               title: metadata.title,
               body,
-              labels: ["benchmark-request"],
+              labels: ["scope: benchmark", "benchmark-request"],
             });
 
             core.setOutput("issue-number", String(created.data.number));
@@ -439,7 +446,7 @@ jobs:
           {
             echo "## Daily benchmark issue"
             echo ""
-            echo "- Dashboard: https://bulletin-benchmarks.paseo.li"
+            echo "- Dashboard: https://bulletin-benchmarks.dot.li"
             echo "- Issue: #${ISSUE_NUMBER}"
             echo "- URL: ${ISSUE_URL}"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -162,7 +162,7 @@ const cicdFlow = [
   {
     title: "Output uploaded to Bulletin",
     description:
-      "The build output is uploaded to Bulletin chain using --as-car mode for fast directory uploads. Content-addressable caching skips existing blocks.",
+      "The build output is uploaded to Bulletin chain. Content-addressable caching skips existing blocks.",
   },
   {
     title: "Preview subname created",

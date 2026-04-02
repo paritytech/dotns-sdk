@@ -45,6 +45,10 @@ runs:
       env:
         GH_TOKEN: ${{ github.token }}
 
+    - name: Setup Bun
+      if: inputs.source == 'source'
+      uses: oven-sh/setup-bun@v2
+
     - name: Install dependencies
       if: inputs.source == 'source'
       shell: bash
