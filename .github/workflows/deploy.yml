@@ -59,7 +59,7 @@ on:
         description: 'Merkleize with IPFS CLI and upload as a single CAR file'
         required: false
         type: boolean
-        default: false
+        default: true
 
       key-uri:
         description: 'Substrate key URI for dev/test (e.g., //Alice)'
