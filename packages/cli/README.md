@@ -11,8 +11,8 @@ npm install -g @parity/dotns-cli
 <details>
 <summary>Other package managers</summary>
 
-| Package Manager | Command                      |
-| :-------------- | :--------------------------- |
+| Package Manager | Command                             |
+| :-------------- | :---------------------------------- |
 | npm             | `npm install -g @parity/dotns-cli`  |
 | yarn            | `yarn global add @parity/dotns-cli` |
 | pnpm            | `pnpm add -g @parity/dotns-cli`     |
