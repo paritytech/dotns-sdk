@@ -15,10 +15,6 @@ import { encodeForPreview } from "@/lib/preview";
 import type { TransactionResult } from "@/type";
 import type { ApprovalStep, PendingUploadInfo } from "@/lib/bulletinUploadWorkerProtocol";
 
-const props = defineProps<{
-  mode: "file" | "folder";
-}>();
-
 const emit = defineEmits<{
   "upload-complete": [cid: string];
   error: [message: string];
@@ -52,9 +48,7 @@ watch(
 
 const isDragging = ref(false);
 const selectedFile = ref<File | null>(null);
-const selectedFolderFiles = ref<File[]>([]);
 const fileInputRef = ref<HTMLInputElement | null>(null);
-const folderInputRef = ref<HTMLInputElement | null>(null);
 const copiedAuthorize = ref(false);
 const acceptedApprovalPrompt = ref(false);
 
@@ -108,23 +102,7 @@ watch(
   },
 );
 
-watch(
-  () => props.mode,
-  () => {
-    acceptedApprovalPrompt.value = false;
-    selectedFile.value = null;
-    selectedFolderFiles.value = [];
-    showTransaction.value = false;
-    transaction.value = { hash: zeroHash, status: undefined };
-    bulletinStore.resetUploadState();
-  },
-);
-
 watch(selectedFile, () => {
-  acceptedApprovalPrompt.value = false;
-});
-
-watch(selectedFolderFiles, () => {
   acceptedApprovalPrompt.value = false;
 });
 
@@ -140,8 +118,8 @@ async function copyAuthorizeCommand(): Promise<void> {
     setTimeout(() => {
       copiedAuthorize.value = false;
     }, 2000);
-  } catch {
-    /* noop */
+  } catch (error) {
+    console.warn("[FileUpload] Clipboard write failed:", error);
   }
 }
 
@@ -149,27 +127,7 @@ const isWalletConnected = computed(() => walletStore.isConnected);
 const browserUploadLimitLabel = computed(() =>
   bulletinStore.formatBytes(bulletinStore.browserUploadLimitBytes),
 );
-const browserFolderLimitLabel = computed(() =>
-  bulletinStore.formatBytes(bulletinStore.browserFolderLimitBytes),
-);
-const folderTotalSize = computed(() =>
-  selectedFolderFiles.value.reduce((sum, file) => sum + file.size, 0),
-);
-const folderFileCount = computed(() => selectedFolderFiles.value.length);
-const exceedsFolderLimit = computed(
-  () => folderTotalSize.value > bulletinStore.browserFolderLimitBytes,
-);
-const folderName = computed(() => {
-  if (selectedFolderFiles.value.length === 0) return "";
-  const firstPath = selectedFolderFiles.value[0]?.webkitRelativePath ?? "";
-  return firstPath.split("/")[0] ?? "";
-});
 const uploadPlan = computed(() => {
-  if (props.mode === "folder") {
-    if (selectedFolderFiles.value.length === 0) return null;
-    return bulletinStore.getUploadApprovalPlan(folderTotalSize.value);
-  }
-
   if (!selectedFile.value) {
     return null;
   }
@@ -179,25 +137,14 @@ const uploadPlan = computed(() => {
 const exceedsBrowserLimit = computed(
   () => !!selectedFile.value && !bulletinStore.isBrowserUploadSizeAllowed(selectedFile.value.size),
 );
-const canUploadFile = computed(
+const canUpload = computed(
   () =>
     isWalletConnected.value &&
     !!selectedFile.value &&
-    props.mode === "file" &&
     !bulletinStore.isUploading &&
     !exceedsBrowserLimit.value &&
     (!requiresApprovalConsent.value || acceptedApprovalPrompt.value),
 );
-const canUploadFolder = computed(
-  () =>
-    isWalletConnected.value &&
-    selectedFolderFiles.value.length > 0 &&
-    props.mode === "folder" &&
-    !bulletinStore.isUploading &&
-    !exceedsFolderLimit.value &&
-    (!requiresApprovalConsent.value || acceptedApprovalPrompt.value),
-);
-const canUpload = computed(() => canUploadFile.value || canUploadFolder.value);
 const isChunked = computed(() => uploadPlan.value?.needsChunking ?? false);
 const requiresApprovalConsent = computed(() => (uploadPlan.value?.totalApprovalCount ?? 0) > 2);
 const approvalBreakdown = computed(() => {
@@ -262,7 +209,6 @@ const completedApprovalCount = computed(() => {
     if (bulletinStore.uploadStage === "verifying" || bulletinStore.uploadStage === "caching") {
       return 1;
     }
-
     return 0;
   }
 
@@ -326,19 +272,15 @@ function handleDrop(event: DragEvent): void {
   event.preventDefault();
   isDragging.value = false;
 
-  if (bulletinStore.isUploading || props.mode !== "file") return;
+  if (bulletinStore.isUploading) return;
 
   const files = event.dataTransfer?.files;
   if (!files?.length) return;
 
-  if (props.mode === "file") {
-    selectFile(files[0]!);
-  }
+  selectFile(files[0]!);
 }
 
 function handleFileInput(event: Event): void {
-  if (props.mode !== "file") return;
-
   const input = event.target as HTMLInputElement;
   if (!input.files?.length) return;
   selectFile(input.files[0]!);
@@ -375,87 +317,7 @@ function removeFile(): void {
 }
 
 function openFileDialog(): void {
-  if (props.mode === "folder") {
-    folderInputRef.value?.click();
-    return;
-  }
   fileInputRef.value?.click();
-}
-
-function handleFolderInput(event: Event): void {
-  if (props.mode !== "folder") return;
-
-  const input = event.target as HTMLInputElement;
-  if (!input.files?.length) return;
-  selectFolder(Array.from(input.files));
-  input.value = "";
-}
-
-function selectFolder(files: File[]): void {
-  bulletinStore.resetUploadState();
-  acceptedApprovalPrompt.value = false;
-
-  const nonEmpty = files.filter((file) => file.size > 0);
-  if (nonEmpty.length === 0) {
-    bulletinStore.uploadError = "The selected folder contains no files.";
-    emit("error", bulletinStore.uploadError);
-    selectedFolderFiles.value = [];
-    return;
-  }
-
-  selectedFolderFiles.value = nonEmpty;
-}
-
-function removeFolderSelection(): void {
-  selectedFolderFiles.value = [];
-  acceptedApprovalPrompt.value = false;
-  bulletinStore.resetUploadState();
-}
-
-async function handleFolderDrop(event: DragEvent): Promise<void> {
-  event.preventDefault();
-  isDragging.value = false;
-
-  if (bulletinStore.isUploading || props.mode !== "folder") return;
-
-  const items = event.dataTransfer?.items;
-  if (!items?.length) return;
-
-  const files: File[] = [];
-
-  async function traverseFileTree(entry: FileSystemEntry, path: string): Promise<void> {
-    if (entry.isFile) {
-      const file = await new Promise<File>((resolve, reject) => {
-        (entry as FileSystemFileEntry).file(resolve, reject);
-      });
-      const relativePath = path + file.name;
-      const fileWithPath = new File([file], file.name, { type: file.type });
-      Object.defineProperty(fileWithPath, "webkitRelativePath", {
-        value: relativePath,
-        writable: false,
-      });
-      files.push(fileWithPath);
-    } else if (entry.isDirectory) {
-      const reader = (entry as FileSystemDirectoryEntry).createReader();
-      const entries = await new Promise<FileSystemEntry[]>((resolve, reject) => {
-        reader.readEntries(resolve, reject);
-      });
-      for (const child of entries) {
-        await traverseFileTree(child, path + entry.name + "/");
-      }
-    }
-  }
-
-  for (let i = 0; i < items.length; i++) {
-    const entry = items[i]?.webkitGetAsEntry?.();
-    if (entry) {
-      await traverseFileTree(entry, "");
-    }
-  }
-
-  if (files.length > 0) {
-    selectFolder(files);
-  }
 }
 
 async function executeUpload(): Promise<void> {
@@ -473,49 +335,13 @@ async function executeUpload(): Promise<void> {
   }
 }
 
-async function executeFolderUpload(): Promise<void> {
-  if (selectedFolderFiles.value.length === 0) return;
-
-  try {
-    const result = await bulletinStore.uploadFolder(selectedFolderFiles.value, {
-      cacheToStore: cacheToStore.value,
-    });
-    emit("upload-complete", result.cid);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Folder upload failed";
-    toast.error("Folder upload failed");
-    emit("error", message);
-  }
-}
-
 async function startUpload(): Promise<void> {
   if (!isWalletConnected.value) return;
 
-  if (props.mode === "folder") {
-    if (selectedFolderFiles.value.length === 0) return;
-
-    if (exceedsFolderLimit.value) {
-      const message = `Browser folder uploads are limited to ${browserFolderLimitLabel.value}. Use the CLI with --as-car for larger directories.`;
-      toast.error(message);
-      emit("error", message);
-      return;
-    }
-
-    if (requiresApprovalConsent.value && !acceptedApprovalPrompt.value) {
-      const message = "Please confirm that this upload will require repeated wallet approvals.";
-      toast.error(message);
-      emit("error", message);
-      return;
-    }
-
-    await authGuard.checkAuthAndProceed(executeFolderUpload);
-    return;
-  }
-
-  if (!selectedFile.value || props.mode !== "file") return;
+  if (!selectedFile.value) return;
 
   if (exceedsBrowserLimit.value) {
-    const message = `Browser uploads are limited to ${browserUploadLimitLabel.value}. Use the CLI with --as-car for larger files or directories.`;
+    const message = `Browser uploads are limited to ${browserUploadLimitLabel.value}. Use the CLI for larger files or directories.`;
     toast.error(message);
     emit("error", message);
     return;
@@ -570,278 +396,6 @@ function handleTransactionClose(): void {
         />
       </svg>
       <p class="text-dot-text-tertiary text-sm">Connect your wallet to upload from the browser.</p>
-    </div>
-
-    <div
-      v-else-if="
-        mode === 'folder' &&
-        selectedFolderFiles.length === 0 &&
-        bulletinStore.uploadStage === 'idle'
-      "
-      class="group border border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-dot-bg"
-      :class="[
-        isDragging
-          ? 'border-dot-accent bg-dot-accent/5'
-          : 'border-dot-border hover:border-dot-border-strong',
-      ]"
-      tabindex="0"
-      role="button"
-      @dragover="handleDragOver"
-      @dragleave="handleDragLeave"
-      @drop="handleFolderDrop"
-      @click="openFileDialog"
-      @keydown.enter="openFileDialog"
-      @keydown.space.prevent="openFileDialog"
-    >
-      <input
-        ref="folderInputRef"
-        type="file"
-        class="hidden"
-        webkitdirectory
-        @change="handleFolderInput"
-      />
-      <svg
-        class="w-8 h-8 mx-auto mb-3 text-dot-text-tertiary transition-colors duration-200 group-hover:text-dot-text-secondary"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="1.5"
-          d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-        />
-      </svg>
-      <p class="text-dot-text-secondary text-sm mb-1">Drop a folder or click to select</p>
-      <p class="text-dot-text-tertiary text-xs">
-        Folders up to {{ browserFolderLimitLabel }} — merkleised into a CAR and uploaded as a
-        chunked file
-      </p>
-    </div>
-
-    <div v-else-if="mode === 'folder' && selectedFolderFiles.length > 0" class="space-y-3">
-      <div class="bg-dot-bg border border-dot-border rounded-lg p-3 flex items-center gap-3">
-        <svg
-          class="w-5 h-5 text-dot-text-tertiary shrink-0"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1.5"
-            d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-          />
-        </svg>
-        <div class="flex-1 min-w-0">
-          <p class="text-dot-text-primary text-sm truncate">{{ folderName }}</p>
-          <p class="text-dot-text-tertiary text-xs">
-            {{ folderFileCount }} {{ folderFileCount === 1 ? "file" : "files" }} &middot;
-            {{ bulletinStore.formatBytes(folderTotalSize) }}
-          </p>
-        </div>
-        <button
-          v-if="!bulletinStore.isUploading"
-          @click="removeFolderSelection"
-          class="min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg text-dot-text-tertiary hover:text-dot-text-secondary hover:bg-dot-surface-secondary transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/40"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
-      </div>
-
-      <div v-if="uploadPlan" class="grid gap-3 sm:grid-cols-3">
-        <div class="rounded-lg border border-dot-border bg-dot-surface p-3">
-          <p class="text-[10px] font-semibold uppercase tracking-wider text-dot-text-tertiary">
-            Folder limit
-          </p>
-          <p class="mt-1 text-sm font-medium text-dot-text-primary tabular-nums">
-            {{ browserFolderLimitLabel }}
-          </p>
-        </div>
-
-        <div class="rounded-lg border border-dot-border bg-dot-surface p-3">
-          <p class="text-[10px] font-semibold uppercase tracking-wider text-dot-text-tertiary">
-            Wallet approvals
-          </p>
-          <p class="mt-1 text-sm font-medium text-dot-text-primary tabular-nums">
-            {{ uploadPlan?.totalApprovalCount ?? 0 }}
-          </p>
-        </div>
-
-        <div class="rounded-lg border border-dot-border bg-dot-surface p-3">
-          <p class="text-[10px] font-semibold uppercase tracking-wider text-dot-text-tertiary">
-            Upload mode
-          </p>
-          <p class="mt-1 text-sm font-medium text-dot-text-primary">Folder as CAR</p>
-        </div>
-      </div>
-
-      <div
-        v-if="exceedsFolderLimit"
-        class="rounded-lg border border-error/30 bg-error/10 p-3 space-y-2"
-      >
-        <p class="text-sm font-medium text-error">Browser folder limit reached</p>
-        <p class="text-xs text-dot-text-secondary">
-          This folder is {{ bulletinStore.formatBytes(folderTotalSize) }}. Browser folder uploads
-          are limited to {{ browserFolderLimitLabel }} to keep memory usage manageable. Use the CLI
-          with <code class="text-dot-accent font-mono">--as-car</code> for anything larger.
-        </p>
-        <a
-          :href="RELEASES_URL"
-          target="_blank"
-          rel="noopener"
-          class="inline-flex min-h-11 items-center justify-center rounded-lg border border-dot-border px-4 text-xs font-medium text-dot-text-primary transition-colors duration-200 ease-out hover:bg-dot-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/40"
-        >
-          Install the CLI
-        </a>
-      </div>
-
-      <div
-        v-else-if="requiresApprovalConsent"
-        class="rounded-lg border border-dot-border bg-dot-surface p-3 space-y-3"
-      >
-        <div class="space-y-1">
-          <p class="text-sm font-medium text-dot-text-primary">
-            Large uploads require repeated wallet approvals
-          </p>
-          <p class="text-xs text-dot-text-secondary">
-            This upload is expected to trigger {{ uploadPlan?.totalApprovalCount ?? 0 }} wallet
-            prompts.
-            {{ approvalBreakdown }}
-          </p>
-        </div>
-
-        <button
-          type="button"
-          class="flex items-center gap-3 rounded-lg border min-h-11 px-3 py-2 text-sm text-left w-full transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/40"
-          :class="
-            acceptedApprovalPrompt
-              ? 'border-dot-accent/40 bg-dot-accent/5 text-dot-text-primary cursor-default'
-              : 'border-dot-border bg-dot-bg text-dot-text-secondary hover:border-dot-border-strong cursor-pointer'
-          "
-          :disabled="acceptedApprovalPrompt"
-          @click="!acceptedApprovalPrompt && (acceptedApprovalPrompt = true)"
-        >
-          <span
-            class="h-4 w-4 shrink-0 rounded border flex items-center justify-center transition-colors duration-200"
-            :class="
-              acceptedApprovalPrompt
-                ? 'bg-dot-text-primary border-dot-text-primary'
-                : 'border-dot-border bg-dot-surface'
-            "
-          >
-            <svg
-              v-if="acceptedApprovalPrompt"
-              class="h-2.5 w-2.5 text-dot-bg"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="3"
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
-          </span>
-          <span>
-            I understand that my wallet will prompt me repeatedly before this upload completes.
-          </span>
-        </button>
-      </div>
-
-      <UploadApprovalStepper
-        v-if="approvalStepStates.length > 0"
-        :steps="approvalStepStates"
-        :active-index="activeApprovalIndex"
-        :completed-count="completedApprovalCount"
-      />
-
-      <div v-if="bulletinStore.isUploading" class="space-y-2">
-        <div class="h-1.5 bg-dot-surface-secondary rounded-full overflow-hidden">
-          <div
-            class="h-full bg-dot-accent rounded-full transition-all duration-500 ease-out"
-            :style="{ width: `${bulletinStore.uploadProgress}%` }"
-          />
-        </div>
-        <div class="flex items-center justify-between gap-2">
-          <p class="text-dot-text-secondary text-xs truncate">
-            {{ bulletinStore.statusMessage }}
-          </p>
-          <div class="flex items-center gap-2 shrink-0">
-            <span
-              v-if="bulletinStore.chunksTotal > 1"
-              class="text-dot-text-tertiary text-xs tabular-nums"
-            >
-              {{ bulletinStore.chunksCompleted }}/{{ bulletinStore.chunksTotal }}
-            </span>
-            <span class="text-dot-text-tertiary text-xs tabular-nums">
-              {{ bulletinStore.uploadProgress }}%
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div
-        v-if="selectedFolderFiles.length > 0 && !bulletinStore.isUploading && isWalletConnected"
-        class="rounded-lg border border-dot-border bg-dot-surface px-3 py-2"
-      >
-        <button
-          type="button"
-          class="flex items-center gap-3 text-sm text-left w-full min-h-11 transition-colors duration-200 ease-out cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/40 rounded-lg"
-          @click="cacheToStore = !cacheToStore"
-        >
-          <span
-            class="h-4 w-4 shrink-0 rounded border flex items-center justify-center transition-colors duration-200"
-            :class="
-              cacheToStore
-                ? 'bg-dot-text-primary border-dot-text-primary'
-                : 'border-dot-border bg-dot-surface'
-            "
-          >
-            <svg
-              v-if="cacheToStore"
-              class="h-2.5 w-2.5 text-dot-bg"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="3"
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
-          </span>
-          <span class="text-dot-text-secondary">
-            Save CID to on-chain Store
-            <span v-if="!hasStore" class="text-dot-text-tertiary">(will deploy a Store)</span>
-          </span>
-        </button>
-      </div>
-
-      <div class="flex justify-end">
-        <Button
-          v-if="!bulletinStore.isUploading && bulletinStore.uploadStage !== 'done'"
-          @click="startUpload"
-          :disabled="!canUpload"
-          variant="primary"
-          size="sm"
-        >
-          {{ exceedsFolderLimit ? "Use CLI for This Upload" : "Upload Folder to Bulletin Chain" }}
-        </Button>
-      </div>
     </div>
 
     <div
@@ -921,11 +475,7 @@ function handleTransactionClose(): void {
           d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
         />
       </svg>
-      <p class="text-dot-text-secondary text-sm mb-1">
-        {{
-          mode === "folder" ? "Drop a folder or click to select" : "Drop a file or click to select"
-        }}
-      </p>
+      <p class="text-dot-text-secondary text-sm mb-1">Drop a file or click to select</p>
       <p class="text-dot-text-tertiary text-xs">
         Files over 8 MB are automatically chunked and reassembled
       </p>
@@ -1009,8 +559,7 @@ function handleTransactionClose(): void {
         <p class="text-xs text-dot-text-secondary">
           This file is {{ bulletinStore.formatBytes(selectedFile.size) }}. Browser uploads are
           limited to {{ browserUploadLimitLabel }} to keep approvals and memory usage manageable.
-          Use the CLI with <code class="text-dot-accent font-mono">--as-car</code> for anything
-          larger.
+          Use the CLI for anything larger.
         </p>
         <a
           :href="RELEASES_URL"
