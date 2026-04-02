@@ -86,6 +86,7 @@ jobs:
       sdk-ref: ${{ github.head_ref || github.ref }}
       skip-cache: true
       max-retries: 5
+      use-car: true
     secrets:
       dotns-mnemonic: ${{ secrets.dotns-mnemonic }}
       bulletin-mnemonic: ${{ secrets.bulletin-mnemonic }}

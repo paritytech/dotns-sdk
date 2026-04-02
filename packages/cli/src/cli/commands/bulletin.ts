@@ -587,11 +587,6 @@ export function attachBulletinCommands(root: Command): void {
         String(DEFAULT_UPLOAD_MAX_RETRIES),
       )
       .option("--force-chunked", "Force chunked upload (DAG-PB)", false)
-      .option(
-        "--as-car",
-        "Merkleize directory in-memory and upload individual blocks (no external IPFS binary needed)",
-        false,
-      )
       .option("--concurrency <n>", "Adaptive scheduler max window (default: 16, max: 64)", "16")
       .option("--print-contenthash", "Also print 0x-prefixed IPFS contenthash for the CID", false)
       .option("--resume", "Resume a previously interrupted upload", false)
@@ -707,119 +702,7 @@ export function attachBulletinCommands(root: Command): void {
               )
             : null;
 
-        const asCar = Boolean(options.asCar);
-
         const performUpload = async () => {
-          if (isDirectory && asCar) {
-            onPhase?.({ phase: "merkleize", state: "start", message: "Merkleizing directory" });
-
-            const { importer } = await import("ipfs-unixfs-importer");
-            const { createReadStream } = await import("node:fs");
-
-            const blocks = new Map<string, { cid: any; bytes: Uint8Array }>();
-            const blockstore = {
-              put: async (cid: any, bytes: Uint8Array) => {
-                blocks.set(cid.toString(), { cid, bytes });
-                return cid;
-              },
-              get: async (cid: any) => {
-                const block = blocks.get(cid.toString());
-                if (!block) throw new Error(`Block not found: ${cid}`);
-                return block.bytes;
-              },
-            };
-
-            async function* walkDirectory(
-              dir: string,
-              base: string,
-            ): AsyncIterable<{ path: string; content: any }> {
-              const entries = await filesystem.readdir(dir, { withFileTypes: true });
-              for (const entry of entries) {
-                const full = path.join(dir, entry.name);
-                const rel = path.join(base, entry.name);
-                if (entry.isDirectory()) {
-                  yield* walkDirectory(full, rel);
-                } else {
-                  yield { path: rel, content: createReadStream(full) };
-                }
-              }
-            }
-
-            let rootCid: any;
-            for await (const entry of importer(walkDirectory(resolvedPath, ""), blockstore, {
-              wrapWithDirectory: true,
-              cidVersion: 1,
-              rawLeaves: true,
-            })) {
-              rootCid = entry.cid;
-            }
-
-            if (!rootCid) throw new Error("Merkleization produced no root CID");
-
-            onPhase?.({
-              phase: "merkleize",
-              state: "success",
-              message: `Root CID: ${rootCid} (${blocks.size} blocks)`,
-            });
-            onPhase?.({ phase: "export", state: "start", message: "Packing blocks into CAR file" });
-
-            const { CarWriter } = await import("@ipld/car");
-            const { Readable } = await import("node:stream");
-
-            const tmpDir = os.tmpdir();
-            const carPath = path.join(tmpDir, `dotns-${rootCid}.car`);
-
-            const { writer, out } = CarWriter.create([rootCid]);
-            const carStream = Readable.from(out);
-            const writeStream = (await import("node:fs")).createWriteStream(carPath);
-            const pipelineFinished = new Promise<void>((resolve, reject) => {
-              carStream.pipe(writeStream);
-              writeStream.on("finish", resolve);
-              writeStream.on("error", reject);
-            });
-
-            for (const [, block] of blocks) {
-              await writer.put(block);
-            }
-            await writer.close();
-            await pipelineFinished;
-            blocks.clear();
-
-            const carStat = await filesystem.stat(carPath);
-            onPhase?.({
-              phase: "export",
-              state: "success",
-              message: `CAR file: ${formatBytes(carStat.size)}`,
-            });
-
-            try {
-              const carCid = await uploadChunkedBlocks(
-                bulletinRpc,
-                context.signer,
-                carPath,
-                chunkSizeBytes,
-                carStat.size,
-                context.substrateAddress,
-                {
-                  concurrency,
-                  maxRetries,
-                  onPhase,
-                  onRetry,
-                  onSchedulerState: (state) => {
-                    profiler?.onSchedulerState(state);
-                  },
-                  onWave: (wave) => {
-                    profiler?.onWave(wave);
-                  },
-                },
-              );
-
-              return { cid: carCid, ipfsCid: rootCid.toString(), size: carStat.size };
-            } finally {
-              await filesystem.unlink(carPath).catch(() => {});
-            }
-          }
-
           if (isDirectory) {
             const result = await storeDirectory(bulletinRpc, context.signer, resolvedPath, {
               concurrency,
@@ -829,7 +712,7 @@ export function attachBulletinCommands(root: Command): void {
               onRetry,
               waitForFinalization: false,
             });
-            return { cid: result.storageCid, ipfsCid: result.ipfsCid, size: 0 };
+            return { cid: result.cid, size: 0 };
           }
 
           if (shouldUseChunkedUpload) {
@@ -856,7 +739,7 @@ export function attachBulletinCommands(root: Command): void {
                 },
               },
             );
-            return { cid: result, ipfsCid: result, size: effectiveFileSize };
+            return { cid: result, size: effectiveFileSize };
           }
 
           const result = await uploadSingleBlock(bulletinRpc, context.signer, bytes, {
@@ -864,11 +747,10 @@ export function attachBulletinCommands(root: Command): void {
             onPhase,
             onRetry,
           });
-          return { cid: result, ipfsCid: result, size: bytes.length };
+          return { cid: result, size: bytes.length };
         };
 
         let cid: string;
-        let ipfsCid: string;
         let uploadSize: number;
         let profileReportPath: string | undefined;
         let profileReport: UploadProfileReport | undefined;
@@ -915,7 +797,6 @@ export function attachBulletinCommands(root: Command): void {
         try {
           const uploadResult = await withBulletinHumanOutput(reporterMode, performUpload);
           cid = uploadResult.cid;
-          ipfsCid = uploadResult.ipfsCid;
           uploadSize = uploadResult.size;
         } finally {
           chunkedMonitor?.stop();
@@ -975,7 +856,6 @@ export function attachBulletinCommands(root: Command): void {
 
         const previewUrl = getPreviewUrl({
           cid,
-          ipfsCid,
           path: resolvedPath,
           type: (isDirectory ? "directory" : "file") as "directory" | "file",
           size: uploadSize,
@@ -986,7 +866,6 @@ export function attachBulletinCommands(root: Command): void {
           const authExpiresAt = expirationToISOString(authInfo?.currentBlock, authInfo?.expiration);
           writeBulletinJson({
             cid,
-            ipfsCid: ipfsCid !== cid ? ipfsCid : undefined,
             contenthash: `0x${contenthash}`,
             preview: previewUrl,
             path: resolvedPath,
@@ -1000,9 +879,6 @@ export function attachBulletinCommands(root: Command): void {
           });
         } else {
           console.log(chalk.gray("\n  cid:         ") + chalk.cyan(cid));
-          if (ipfsCid !== cid) {
-            console.log(chalk.gray("  ipfs-cid:    ") + chalk.cyan(ipfsCid));
-          }
           console.log(chalk.gray("  preview:     ") + chalk.blue(previewUrl));
           console.log(
             chalk.gray("  total time:  ") + chalk.white(formatDuration(totalUploadTimeSeconds)),
@@ -1047,7 +923,7 @@ export function attachBulletinCommands(root: Command): void {
             const evmAddress = await clientWrapper.getEvmAddress(context.substrateAddress);
 
             await cacheCidToStore({
-              cid: ipfsCid,
+              cid,
               clientWrapper,
               signer: context.signer,
               substrateAddress: context.substrateAddress,
@@ -1078,7 +954,6 @@ export function attachBulletinCommands(root: Command): void {
         if (mergedOptions.history !== false) {
           await addUploadRecord({
             cid,
-            ipfsCid,
             path: resolvedPath,
             type: isDirectory ? "directory" : "file",
             size: uploadSize,
@@ -1229,9 +1104,6 @@ export function attachBulletinCommands(root: Command): void {
         const num = (index + 1).toString().padStart(2, " ");
         console.log(chalk.yellow(`  ${num}.`) + chalk.white(` ${formatRecordTimestamp(record)}`));
         console.log(chalk.gray("      cid:     ") + chalk.cyan(record.cid));
-        if (record.ipfsCid) {
-          console.log(chalk.gray("      ipfs:    ") + chalk.cyan(record.ipfsCid));
-        }
         console.log(chalk.gray("      path:    ") + chalk.white(record.path));
         console.log(chalk.gray("      type:    ") + chalk.white(record.type));
         if (record.size > 0) {

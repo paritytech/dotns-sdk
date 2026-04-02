@@ -517,6 +517,10 @@ async function storeContentOnBulletin(
     transactionOptions.nonce = nonce;
   }
 
+  console.error(
+    `[store-debug] storeContentOnBulletin: cid=${contentCid.slice(0, 16)}… codec=${codecValue} hash=${hashCodeValue} nonce=${nonce ?? "auto"} bytes=${contentBytes.length}`,
+  );
+
   return new Promise((resolve, reject) => {
     let settled = false;
     let subscription: { unsubscribe: () => void } | undefined;

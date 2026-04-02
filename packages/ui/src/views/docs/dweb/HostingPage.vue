@@ -127,8 +127,7 @@ const steps = [
   },
   {
     title: "Upload to Bulletin or IPFS",
-    description:
-      "Push your build output to decentralised storage and receive a CID. Use --as-car for fast chunked CAR directory uploads without an external IPFS binary.",
+    description: "Push your build output to decentralised storage and receive a CID.",
   },
   {
     title: "Set the content hash",
@@ -149,19 +148,15 @@ npm run build
 ls dist/
 # index.html  assets/  favicon.ico`;
 
-const uploadBulletinCode = `# Upload a directory to Bulletin chain (recommended: --as-car)
-dotns bulletin upload ./dist --as-car
+const uploadBulletinCode = `# Upload a directory to Bulletin chain
+dotns bulletin upload ./dist
 
 # Output:
 # Merkleising directory: 24 files (1.2 MB)
-# Uploading CAR...
 # Root CID: bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi
 
-# --as-car merkleises the directory in-memory and uploads as a
-# chunked CAR file — no external IPFS binary needed
-
 # Cache the uploaded CID in your on-chain Store contract
-dotns bulletin upload ./dist --as-car --cache`;
+dotns bulletin upload ./dist --cache`;
 
 const uploadIpfsCode = `# Upload to IPFS (requires an IPFS node or pinning service)
 ipfs add -r ./dist --cid-version 1
@@ -169,8 +164,8 @@ ipfs add -r ./dist --cid-version 1
 # Then set the resulting CID as your content hash
 dotns content set mysite <cid-from-ipfs>
 
-# Tip: dotns bulletin upload --as-car produces the same root CID
-# as \`ipfs add\` without requiring a local IPFS/Kubo installation`;
+# Tip: dotns bulletin upload produces the same root CID
+# as \`ipfs add\` without requiring a local IPFS installation`;
 
 const setContentHashCode = `# Set the content hash on your .dot name
 dotns content set mysite bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi

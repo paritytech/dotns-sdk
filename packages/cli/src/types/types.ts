@@ -243,18 +243,9 @@ export type BulletinUploadOptions = {
   reporter?: BulletinReporterMode;
   /** Write the CID to the user's on-chain Store after upload */
   cache?: boolean;
-  /** Merkleize directory in-memory and upload as a single CAR file */
-  asCar?: boolean;
 };
 
-export type BulletinProgressPhase =
-  | "validate"
-  | "authorize"
-  | "upload"
-  | "verify"
-  | "merkleize"
-  | "export"
-  | "cache";
+export type BulletinProgressPhase = "validate" | "authorize" | "upload" | "verify" | "cache";
 
 export type BulletinProgressState = "start" | "update" | "success" | "warning" | "failure";
 
@@ -424,9 +415,7 @@ export type ValidatePathResult = {
 
 export type StoreDirectoryResult = {
   /** CID of the content stored on Bulletin */
-  storageCid: string;
-  /** Original IPFS CID of the merkleized directory structure */
-  ipfsCid: string;
+  cid: string;
 };
 
 export type UploadRetryOptions = {
@@ -466,8 +455,6 @@ export type StoreDirectoryOptions = UploadRetryOptions & {
 export type UploadRecord = {
   /** Content identifier for the uploaded data */
   cid: string;
-  /** Original IPFS CID for directory uploads */
-  ipfsCid?: string;
   /** Local filesystem path that was uploaded */
   path: string;
   /** Whether upload was a single file or directory */
@@ -494,13 +481,6 @@ export type StoreChunkedParams = {
   signer: PolkadotSigner;
   /** Array of data chunks to be stored */
   chunks: Uint8Array[];
-};
-
-export type MerkleizedDirectory = {
-  /** Root CID of the merkleized directory (DAG-PB) */
-  rootCid: string;
-  /** CAR file bytes representing the merkleized directory */
-  carFileBytes: Uint8Array;
 };
 
 export type VerificationResult = {

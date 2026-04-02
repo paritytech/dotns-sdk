@@ -7,7 +7,6 @@ export const BULLETIN_RPC = "wss://paseo-bulletin-rpc.polkadot.io";
 export const MAX_TX_SIZE = 8 * 1024 * 1024;
 export const CHUNK_SIZE = 2 * 1024 * 1024;
 export const MAX_BROWSER_UPLOAD_SIZE = 5 * 1024 * 1024;
-export const BROWSER_FOLDER_LIMIT = 5 * 1024 * 1024;
 export const CODEC_RAW = 0x55;
 export const CODEC_DAG_PB = 0x70;
 export const HASH_SHA2_256 = 0x12;
