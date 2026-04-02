@@ -418,7 +418,11 @@ jobs:
         if: needs.build.outputs.prerelease != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run npm-release.yml --ref main -f "tag=${{ needs.build.outputs.tag }}"
+        run: |
+          gh workflow run npm-release.yml \
+            --ref main \
+            -f "tag=${{ needs.build.outputs.tag }}" \
+            -R "${{ github.repository }}"
 
   deploy-production:
     name: Deploy Production
