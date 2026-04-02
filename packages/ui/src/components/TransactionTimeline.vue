@@ -69,7 +69,7 @@ const DEFAULT_STEPS = [
 ];
 
 const verifyingLabel = computed(() =>
-  bulletinStore.statusMessage.startsWith("Verified") ? "Verified" : "Verifying",
+  bulletinStore.uploadVerification?.resolvable ? "Verified" : "Verifying",
 );
 
 const BULLETIN_STEPS = computed(() => [

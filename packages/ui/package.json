@@ -1,11 +1,11 @@
 {
   "name": "dotns-ui",
-  "version": "0.4.6",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "packageManager": "bun@1.2.6",
   "scripts": {
-    "dev": "bunx vite --port 2000",
+    "dev": "bunx vite",
     "build": "bunx vue-tsc --noEmit -p tsconfig.app.json && bunx vite build",
     "preview": "bunx vite preview",
     "lint": "bunx eslint \"src/**/*.{ts,vue}\" --max-warnings=0",
