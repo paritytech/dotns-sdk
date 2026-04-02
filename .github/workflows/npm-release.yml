@@ -1,22 +1,33 @@
 name: NPM Release
 
 on:
-  release:
-    types: [released]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.5.2)"
+        required: true
+        type: string
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
+      # When dispatched automatically from release.yml, the release assets
+      # may not be available yet (GitHub processes uploads asynchronously).
+      # Retry up to 5 times with 15s delay to handle this race condition.
       - name: Download CLI tarball from release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p packs
-          gh release download "${{ github.event.release.tag_name }}" \
-            --pattern "*.tgz" \
-            --dir packs \
-            --repo "${{ github.repository }}"
+          for i in 1 2 3 4 5; do
+            gh release download "${{ inputs.tag }}" \
+              --pattern "*.tgz" \
+              --dir packs \
+              --repo "${{ github.repository }}" && break
+            echo "Attempt $i failed, retrying in 15s..."
+            sleep 15
+          done
           ls -ltr packs
 
       - name: Upload packages artifact

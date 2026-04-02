@@ -12,6 +12,7 @@ on:
       - ".github/workflows/release.yml"
 
 permissions:
+  actions: write
   contents: write
   pull-requests: write
 
@@ -412,6 +413,12 @@ jobs:
           body_path: release-body.md
           generate_release_notes: true
           prerelease: ${{ needs.build.outputs.prerelease == 'true' }}
+
+      - name: Trigger NPM Release
+        if: needs.build.outputs.prerelease != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run npm-release.yml --ref main -f "tag=${{ needs.build.outputs.tag }}"
 
   deploy-production:
     name: Deploy Production
