@@ -32,7 +32,7 @@
 
 - name: "pkg: cli"
   color: "c5def5"
-  description: "@dotns/cli"
+  description: "@parity/dotns-cli"
 
 - name: "pkg: ui"
   color: "c5def5"
