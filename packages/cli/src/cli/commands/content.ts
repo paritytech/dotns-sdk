@@ -4,8 +4,9 @@ import type { CommandOptions } from "../../types/types";
 import { viewDomainContentHash, setDomainContentHash } from "../../commands/contentHash";
 import { addAuthOptions } from "./authOptions";
 import { prepareContext } from "../context";
-import { prepareReadOnlyContext } from "./lookup";
-import { formatErrorMessage } from "../../utils/formatting";
+import { prepareReadOnlyContext, getJsonFlag } from "./lookup";
+import { maybeQuiet } from "./bulletin";
+import { emitJsonResult, handleCommandError } from "./jsonHelpers";
 import ora from "ora";
 
 export interface ContentViewOptions {
@@ -42,34 +43,46 @@ export function attachContentCommands(root: Command) {
 
   const viewContentCommand = contentCommand
     .command("view <name>")
-    .description("View domain content hash");
+    .description("View domain content hash")
+    .option("--json", "Output result as JSON (suppresses all other output)", false);
   addAuthOptions(viewContentCommand).action(
     async (name: string, options: ContentViewOptions, command: Command) => {
+      const jsonOutput = getJsonFlag(command);
       try {
         const mergedOptions = getMergedOptions(command, options);
 
-        const context = await prepareReadOnlyContext(mergedOptions as any);
+        const context = await maybeQuiet(jsonOutput, () =>
+          prepareReadOnlyContext(mergedOptions as any),
+        );
 
-        console.log(chalk.bold("\n▶ Content View\n"));
+        if (!jsonOutput) console.log(chalk.bold("\n▶ Content View\n"));
+        // Ora caches process.stderr (the object), not .write (the method).
+        // withCapturedConsole replaces .write on the object, so spinner
+        // output is captured as long as start/succeed/fail run inside maybeQuiet.
         const spinner = ora();
 
-        await viewDomainContentHash(context.clientWrapper!, context.account.address, name, spinner);
+        const result = await maybeQuiet(jsonOutput, () =>
+          viewDomainContentHash(context.clientWrapper!, context.account.address, name, spinner),
+        );
 
-        console.log(chalk.green("\n✓ Complete\n"));
+        if (!emitJsonResult(jsonOutput, result)) {
+          console.log(chalk.green("\n✓ Complete\n"));
+        }
         process.exit(0);
       } catch (error) {
-        console.error(chalk.red(`\n✗ Error: ${formatErrorMessage(error)}\n`));
-        process.exit(1);
+        handleCommandError(jsonOutput, error);
       }
     },
   );
 
   const setContentCommand = contentCommand
     .command("set <name> <cid>")
-    .description("Set domain content hash (IPFS CID)");
+    .description("Set domain content hash (IPFS CID)")
+    .option("--json", "Output result as JSON (suppresses all other output)", false);
 
   addAuthOptions(setContentCommand).action(
     async (name: string, cid: string, options: ContentSetOptions, command: Command) => {
+      const jsonOutput = getJsonFlag(command);
       try {
         const mergedOptions = getMergedOptions(command, options);
 
@@ -77,25 +90,31 @@ export function attachContentCommands(root: Command) {
           throw new Error("Cannot specify both --mnemonic and --key-uri");
         }
 
-        const context = await prepareContext({ ...mergedOptions, useRevive: true });
-
-        console.log(chalk.bold("\n▶ Content Set\n"));
-        const spinner = ora();
-
-        await setDomainContentHash(
-          context.clientWrapper!,
-          context.substrateAddress,
-          context.signer,
-          name,
-          cid,
-          spinner,
+        const context = await maybeQuiet(jsonOutput, () =>
+          prepareContext({ ...mergedOptions, useRevive: true }),
         );
 
-        console.log(chalk.green("\n✓ Complete\n"));
+        if (!jsonOutput) console.log(chalk.bold("\n▶ Content Set\n"));
+        // See view handler above for why ora is safe inside maybeQuiet.
+        const spinner = ora();
+
+        const result = await maybeQuiet(jsonOutput, () =>
+          setDomainContentHash(
+            context.clientWrapper!,
+            context.substrateAddress,
+            context.signer,
+            name,
+            cid,
+            spinner,
+          ),
+        );
+
+        if (!emitJsonResult(jsonOutput, result)) {
+          console.log(chalk.green("\n✓ Complete\n"));
+        }
         process.exit(0);
       } catch (error) {
-        console.error(chalk.red(`\n✗ Error: ${formatErrorMessage(error)}\n`));
-        process.exit(1);
+        handleCommandError(jsonOutput, error);
       }
     },
   );
