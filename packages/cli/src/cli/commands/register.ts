@@ -77,7 +77,24 @@ export function isValidTransferDestination(destination: string): boolean {
   );
 }
 
-export async function executeRegistration(options: Partial<RegisterActionOptions> = {}) {
+export type DomainRegistrationResult = {
+  ok: true;
+  label: string;
+  domain: string;
+  owner: string;
+};
+
+export type SubnameRegistrationResult = {
+  ok: true;
+  label: string;
+  parent: string;
+  domain: string;
+  owner: string;
+};
+
+export async function executeRegistration(
+  options: Partial<RegisterActionOptions> = {},
+): Promise<DomainRegistrationResult | SubnameRegistrationResult> {
   if (options.mnemonic && options.keyUri) {
     throw new Error("Cannot specify both --mnemonic and --key-uri");
   }
@@ -152,11 +169,13 @@ export async function executeRegistration(options: Partial<RegisterActionOptions
   console.log(`${chalk.bold.green("         ✓ Operation Complete          ")}`);
   console.log(`${chalk.bold.green("═══════════════════════════════════════")}\n`);
   console.log(chalk.gray("  Domain: ") + chalk.cyan(label + ".dot"));
+
+  return { ok: true as const, label, domain: `${label}.dot`, owner: evmAddress };
 }
 
 export async function executeSubnameRegistration(
   options: Partial<RegisterActionOptions>,
-): Promise<void> {
+): Promise<SubnameRegistrationResult> {
   if (!options.name) {
     throw new Error("Missing subname: use --name <sublabel>");
   }
@@ -196,6 +215,14 @@ export async function executeSubnameRegistration(
   console.log(`${chalk.bold.green("         ✓ Subname Registered          ")}`);
   console.log(`${chalk.bold.green("═══════════════════════════════════════")}\n`);
   console.log(chalk.gray("  Domain: ") + chalk.cyan(fullName));
+
+  return {
+    ok: true as const,
+    label: sublabel,
+    parent: parentLabel,
+    domain: fullName,
+    owner: ownerAddress,
+  };
 }
 
 async function executeGovernanceRegistration(

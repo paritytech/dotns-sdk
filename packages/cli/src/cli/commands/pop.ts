@@ -10,7 +10,8 @@ import { addAuthOptions } from "./authOptions";
 import type { CommandOptions } from "../../types/types";
 import { formatErrorMessage } from "../../utils/formatting";
 import { ProofOfPersonhoodStatus } from "../../types/types";
-import { prepareReadOnlyContext } from "./lookup";
+import { prepareReadOnlyContext, getJsonFlag } from "./lookup";
+import { maybeQuiet } from "./bulletin";
 import type { Address } from "viem";
 
 export type PopInfoResult = {
@@ -61,50 +62,91 @@ export function attachPopCommands(root: Command): void {
 
   const setPopCommand = popCommand
     .command("set <status>")
-    .description("Set ProofOfPersonhood status (none, lite, or full)");
+    .description("Set ProofOfPersonhood status (none, lite, or full)")
+    .option("--json", "Output result as JSON (suppresses all other output)", false);
 
   addAuthOptions(setPopCommand).action(
     async (status: string, options: CommandOptions, command: Command) => {
+      const jsonOutput = getJsonFlag(command);
       try {
         const mergedOptions = getMergedOptions(command, options);
-        const context = await prepareContext(mergedOptions);
+        const context = await maybeQuiet(jsonOutput, () => prepareContext(mergedOptions));
 
         const parsedStatus = parseProofOfPersonhoodStatus(status);
 
-        await setUserProofOfPersonhoodStatus(
-          context.clientWrapper!,
-          context.substrateAddress,
-          context.signer,
-          context.evmAddress!,
-          "",
-          parsedStatus,
+        await maybeQuiet(jsonOutput, () =>
+          setUserProofOfPersonhoodStatus(
+            context.clientWrapper!,
+            context.substrateAddress,
+            context.signer,
+            context.evmAddress!,
+            "",
+            parsedStatus,
+          ),
         );
 
-        console.log(chalk.green("\n✓ PoP Status Updated\n"));
+        if (jsonOutput) {
+          process.stdout.write(
+            JSON.stringify({
+              ok: true,
+              status: ProofOfPersonhoodStatus[parsedStatus].toLowerCase(),
+              statusCode: parsedStatus,
+            }) + "\n",
+          );
+        } else {
+          console.log(chalk.green("\n✓ PoP Status Updated\n"));
+        }
         process.exit(0);
       } catch (error) {
-        console.error(chalk.red(`\n✗ Error: ${formatErrorMessage(error)}\n`));
+        const errorMessage = formatErrorMessage(error);
+        if (jsonOutput) {
+          process.stderr.write(JSON.stringify({ error: errorMessage }) + "\n");
+          process.exit(1);
+        }
+        console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
         process.exit(1);
       }
     },
   );
 
-  const infoCommand = popCommand.command("info").description("Display ProofOfPersonhood status");
+  const infoCommand = popCommand
+    .command("info")
+    .description("Display ProofOfPersonhood status")
+    .option("--json", "Output result as JSON (suppresses all other output)", false);
 
   addAuthOptions(infoCommand).action(async (options: CommandOptions, command: Command) => {
+    const jsonOutput = getJsonFlag(command);
     try {
       const mergedOptions = getMergedOptions(command, options);
-      const info = await readPopInfo(mergedOptions);
+      const info = await maybeQuiet(jsonOutput, () => readPopInfo(mergedOptions));
 
-      console.log(chalk.bold("\n📋 ProofOfPersonhood Status\n"));
-      console.log(chalk.gray("  substrate: ") + chalk.white(info.substrate));
-      console.log(chalk.gray("  evm:       ") + chalk.white(info.evm));
-      console.log(chalk.gray("  status:    ") + chalk.white(ProofOfPersonhoodStatus[info.status]));
-      console.log(chalk.green("\n✓ PoP Status Retrieved\n"));
+      if (jsonOutput) {
+        process.stdout.write(
+          JSON.stringify({
+            substrate: info.substrate,
+            evm: info.evm,
+            status: ProofOfPersonhoodStatus[info.status].toLowerCase(),
+            statusCode: info.status,
+          }) + "\n",
+        );
+      } else {
+        console.log(chalk.bold("\n📋 ProofOfPersonhood Status\n"));
+        console.log(chalk.gray("  substrate: ") + chalk.white(info.substrate));
+        console.log(chalk.gray("  evm:       ") + chalk.white(info.evm));
+        console.log(
+          chalk.gray("  status:    ") + chalk.white(ProofOfPersonhoodStatus[info.status]),
+        );
+        console.log(chalk.green("\n✓ PoP Status Retrieved\n"));
+      }
 
       process.exit(0);
     } catch (error) {
-      console.error(chalk.red(`\n✗ Error: ${formatErrorMessage(error)}\n`));
+      const errorMessage = formatErrorMessage(error);
+      if (jsonOutput) {
+        process.stderr.write(JSON.stringify({ error: errorMessage }) + "\n");
+        process.exit(1);
+      }
+      console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
       process.exit(1);
     }
   });
