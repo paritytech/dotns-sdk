@@ -1,12 +1,11 @@
 import { Command } from "commander";
-import chalk from "chalk";
 import { executeRegistration, executeSubnameRegistration } from "./register";
 import { type RegistrationCommandOptions } from "../../types/types";
 import { addAuthOptions, getAuthOptions } from "./authOptions";
-import { formatErrorMessage } from "../../utils/formatting";
 import { DEFAULT_COMMITMENT_BUFFER_SECONDS } from "../../utils/constants";
 import { getJsonFlag } from "./lookup";
 import { maybeQuiet } from "./bulletin";
+import { emitJsonResult, handleCommandError } from "./jsonHelpers";
 
 export type RegisterActionOptions = RegistrationCommandOptions & {
   __statusProvided?: boolean;
@@ -61,18 +60,10 @@ export function attachRegisterCommand(root: Command) {
 
         const result = await maybeQuiet(jsonOutput, () => executeRegistration(merged));
 
-        if (jsonOutput) {
-          console.log(JSON.stringify(result));
-        }
+        emitJsonResult(jsonOutput, result);
         process.exit(0);
       } catch (error) {
-        const errorMessage = formatErrorMessage(error);
-        if (jsonOutput) {
-          console.error(JSON.stringify({ error: errorMessage }));
-          process.exit(1);
-        }
-        console.error(`\n${chalk.red.bold("✗ Error:")} ${errorMessage}\n`);
-        process.exit(1);
+        handleCommandError(jsonOutput, error);
       }
     });
 
@@ -92,18 +83,10 @@ export function attachRegisterCommand(root: Command) {
 
         const result = await maybeQuiet(jsonOutput, () => executeSubnameRegistration(merged));
 
-        if (jsonOutput) {
-          console.log(JSON.stringify(result));
-        }
+        emitJsonResult(jsonOutput, result);
         process.exit(0);
       } catch (error) {
-        const errorMessage = formatErrorMessage(error);
-        if (jsonOutput) {
-          console.error(JSON.stringify({ error: errorMessage }));
-          process.exit(1);
-        }
-        console.error(`\n${chalk.red.bold("✗ Error:")} ${errorMessage}\n`);
-        process.exit(1);
+        handleCommandError(jsonOutput, error);
       }
     });
 

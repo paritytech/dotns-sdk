@@ -8,10 +8,10 @@ import { parseProofOfPersonhoodStatus } from "../labels";
 import { prepareContext } from "../context";
 import { addAuthOptions } from "./authOptions";
 import type { CommandOptions } from "../../types/types";
-import { formatErrorMessage } from "../../utils/formatting";
 import { ProofOfPersonhoodStatus } from "../../types/types";
 import { prepareReadOnlyContext, getJsonFlag } from "./lookup";
 import { maybeQuiet } from "./bulletin";
+import { emitJsonResult, handleCommandError } from "./jsonHelpers";
 import type { Address } from "viem";
 
 export type PopInfoResult = {
@@ -85,26 +85,18 @@ export function attachPopCommands(root: Command): void {
           ),
         );
 
-        if (jsonOutput) {
-          console.log(
-            JSON.stringify({
-              ok: true,
-              status: ProofOfPersonhoodStatus[parsedStatus].toLowerCase(),
-              statusCode: parsedStatus,
-            }),
-          );
-        } else {
+        if (
+          !emitJsonResult(jsonOutput, {
+            ok: true,
+            status: ProofOfPersonhoodStatus[parsedStatus].toLowerCase(),
+            statusCode: parsedStatus,
+          })
+        ) {
           console.log(chalk.green("\n✓ PoP Status Updated\n"));
         }
         process.exit(0);
       } catch (error) {
-        const errorMessage = formatErrorMessage(error);
-        if (jsonOutput) {
-          console.error(JSON.stringify({ error: errorMessage }));
-          process.exit(1);
-        }
-        console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
-        process.exit(1);
+        handleCommandError(jsonOutput, error);
       }
     },
   );
@@ -120,16 +112,14 @@ export function attachPopCommands(root: Command): void {
       const mergedOptions = getMergedOptions(command, options);
       const info = await maybeQuiet(jsonOutput, () => readPopInfo(mergedOptions));
 
-      if (jsonOutput) {
-        console.log(
-          JSON.stringify({
-            substrate: info.substrate,
-            evm: info.evm,
-            status: ProofOfPersonhoodStatus[info.status].toLowerCase(),
-            statusCode: info.status,
-          }),
-        );
-      } else {
+      if (
+        !emitJsonResult(jsonOutput, {
+          substrate: info.substrate,
+          evm: info.evm,
+          status: ProofOfPersonhoodStatus[info.status].toLowerCase(),
+          statusCode: info.status,
+        })
+      ) {
         console.log(chalk.bold("\n📋 ProofOfPersonhood Status\n"));
         console.log(chalk.gray("  substrate: ") + chalk.white(info.substrate));
         console.log(chalk.gray("  evm:       ") + chalk.white(info.evm));
@@ -141,13 +131,7 @@ export function attachPopCommands(root: Command): void {
 
       process.exit(0);
     } catch (error) {
-      const errorMessage = formatErrorMessage(error);
-      if (jsonOutput) {
-        console.error(JSON.stringify({ error: errorMessage }));
-        process.exit(1);
-      }
-      console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
-      process.exit(1);
+      handleCommandError(jsonOutput, error);
     }
   });
 }

@@ -6,7 +6,7 @@ import { addAuthOptions } from "./authOptions";
 import { prepareContext } from "../context";
 import { prepareReadOnlyContext, getJsonFlag } from "./lookup";
 import { maybeQuiet } from "./bulletin";
-import { formatErrorMessage } from "../../utils/formatting";
+import { emitJsonResult, handleCommandError } from "./jsonHelpers";
 import ora from "ora";
 
 export interface ContentViewOptions {
@@ -65,20 +65,12 @@ export function attachContentCommands(root: Command) {
           viewDomainContentHash(context.clientWrapper!, context.account.address, name, spinner),
         );
 
-        if (jsonOutput) {
-          console.log(JSON.stringify(result));
-        } else {
+        if (!emitJsonResult(jsonOutput, result)) {
           console.log(chalk.green("\n✓ Complete\n"));
         }
         process.exit(0);
       } catch (error) {
-        const errorMessage = formatErrorMessage(error);
-        if (jsonOutput) {
-          console.error(JSON.stringify({ error: errorMessage }));
-          process.exit(1);
-        }
-        console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
-        process.exit(1);
+        handleCommandError(jsonOutput, error);
       }
     },
   );
@@ -117,20 +109,12 @@ export function attachContentCommands(root: Command) {
           ),
         );
 
-        if (jsonOutput) {
-          console.log(JSON.stringify(result));
-        } else {
+        if (!emitJsonResult(jsonOutput, result)) {
           console.log(chalk.green("\n✓ Complete\n"));
         }
         process.exit(0);
       } catch (error) {
-        const errorMessage = formatErrorMessage(error);
-        if (jsonOutput) {
-          console.error(JSON.stringify({ error: errorMessage }));
-          process.exit(1);
-        }
-        console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
-        process.exit(1);
+        handleCommandError(jsonOutput, error);
       }
     },
   );
