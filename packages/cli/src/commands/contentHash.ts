@@ -22,12 +22,26 @@ function encodeCidToContenthash(cidString: string): Hex {
   return `0x${encoded}` as Hex;
 }
 
+export type ContentViewResult = {
+  domain: string;
+  contenthash: string | null;
+  cid: string | null;
+};
+
+export type ContentSetResult = {
+  ok: true;
+  domain: string;
+  cid: string;
+  contenthash: string;
+  txHash: string;
+};
+
 export async function viewDomainContentHash(
   clientWrapper: ReviveClientWrapper,
   originSubstrateAddress: string,
   label: string,
   spinner: Ora,
-): Promise<void> {
+): Promise<ContentViewResult> {
   const namehashNode = namehash(`${label}.dot`);
   spinner.start("Querying registry");
 
@@ -60,7 +74,7 @@ export async function viewDomainContentHash(
 
   if (!recordExists || ownerAddress === zeroAddress) {
     console.log(chalk.yellow("  status: Domain not registered"));
-    return;
+    return { domain: `${label}.dot`, contenthash: null, cid: null };
   }
 
   const contentHashBytes = await performContractCall<Hex>(
@@ -77,6 +91,13 @@ export async function viewDomainContentHash(
   console.log(chalk.gray("  resolver:    ") + chalk.white(CONTRACTS.DOTNS_CONTENT_RESOLVER));
   console.log(chalk.gray("  contenthash: ") + chalk.white(contentHashBytes));
   console.log(chalk.gray("  cid:         ") + chalk.cyan(decodedCid));
+
+  const hasContent = contentHashBytes !== "0x" && contentHashBytes !== "0x0" && contentHashBytes.length >= 6;
+  return {
+    domain: `${label}.dot`,
+    contenthash: hasContent ? contentHashBytes : null,
+    cid: hasContent && decodedCid !== `Unable to decode: ${contentHashBytes}` ? decodedCid : null,
+  };
 }
 
 export async function setDomainContentHash(
@@ -86,7 +107,7 @@ export async function setDomainContentHash(
   label: string,
   contentId: string,
   spinner: Ora,
-): Promise<void> {
+): Promise<ContentSetResult> {
   const namehashNode = namehash(`${label}.dot`);
 
   console.log(chalk.gray("  domain: ") + chalk.cyan(`${label}.dot`));
@@ -165,4 +186,12 @@ export async function setDomainContentHash(
 
   console.log();
   console.log(chalk.gray("  new: ") + chalk.cyan(updatedCid));
+
+  return {
+    ok: true as const,
+    domain: `${label}.dot`,
+    cid: contentId,
+    contenthash: contentBytes,
+    txHash: transactionHash,
+  };
 }
