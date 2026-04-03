@@ -86,12 +86,12 @@ export function attachPopCommands(root: Command): void {
         );
 
         if (jsonOutput) {
-          process.stdout.write(
+          console.log(
             JSON.stringify({
               ok: true,
               status: ProofOfPersonhoodStatus[parsedStatus].toLowerCase(),
               statusCode: parsedStatus,
-            }) + "\n",
+            }),
           );
         } else {
           console.log(chalk.green("\n✓ PoP Status Updated\n"));
@@ -100,7 +100,7 @@ export function attachPopCommands(root: Command): void {
       } catch (error) {
         const errorMessage = formatErrorMessage(error);
         if (jsonOutput) {
-          process.stderr.write(JSON.stringify({ error: errorMessage }) + "\n");
+          console.error(JSON.stringify({ error: errorMessage }));
           process.exit(1);
         }
         console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
@@ -121,13 +121,13 @@ export function attachPopCommands(root: Command): void {
       const info = await maybeQuiet(jsonOutput, () => readPopInfo(mergedOptions));
 
       if (jsonOutput) {
-        process.stdout.write(
+        console.log(
           JSON.stringify({
             substrate: info.substrate,
             evm: info.evm,
             status: ProofOfPersonhoodStatus[info.status].toLowerCase(),
             statusCode: info.status,
-          }) + "\n",
+          }),
         );
       } else {
         console.log(chalk.bold("\n📋 ProofOfPersonhood Status\n"));
@@ -143,7 +143,7 @@ export function attachPopCommands(root: Command): void {
     } catch (error) {
       const errorMessage = formatErrorMessage(error);
       if (jsonOutput) {
-        process.stderr.write(JSON.stringify({ error: errorMessage }) + "\n");
+        console.error(JSON.stringify({ error: errorMessage }));
         process.exit(1);
       }
       console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));

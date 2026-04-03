@@ -56,6 +56,9 @@ export function attachContentCommands(root: Command) {
         );
 
         if (!jsonOutput) console.log(chalk.bold("\n▶ Content View\n"));
+        // Ora caches process.stderr (the object), not .write (the method).
+        // withCapturedConsole replaces .write on the object, so spinner
+        // output is captured as long as start/succeed/fail run inside maybeQuiet.
         const spinner = ora();
 
         const result = await maybeQuiet(jsonOutput, () =>
@@ -63,7 +66,7 @@ export function attachContentCommands(root: Command) {
         );
 
         if (jsonOutput) {
-          process.stdout.write(JSON.stringify(result) + "\n");
+          console.log(JSON.stringify(result));
         } else {
           console.log(chalk.green("\n✓ Complete\n"));
         }
@@ -71,7 +74,7 @@ export function attachContentCommands(root: Command) {
       } catch (error) {
         const errorMessage = formatErrorMessage(error);
         if (jsonOutput) {
-          process.stderr.write(JSON.stringify({ error: errorMessage }) + "\n");
+          console.error(JSON.stringify({ error: errorMessage }));
           process.exit(1);
         }
         console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
@@ -100,6 +103,7 @@ export function attachContentCommands(root: Command) {
         );
 
         if (!jsonOutput) console.log(chalk.bold("\n▶ Content Set\n"));
+        // See view handler above for why ora is safe inside maybeQuiet.
         const spinner = ora();
 
         const result = await maybeQuiet(jsonOutput, () =>
@@ -114,7 +118,7 @@ export function attachContentCommands(root: Command) {
         );
 
         if (jsonOutput) {
-          process.stdout.write(JSON.stringify(result) + "\n");
+          console.log(JSON.stringify(result));
         } else {
           console.log(chalk.green("\n✓ Complete\n"));
         }
@@ -122,7 +126,7 @@ export function attachContentCommands(root: Command) {
       } catch (error) {
         const errorMessage = formatErrorMessage(error);
         if (jsonOutput) {
-          process.stderr.write(JSON.stringify({ error: errorMessage }) + "\n");
+          console.error(JSON.stringify({ error: errorMessage }));
           process.exit(1);
         }
         console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));

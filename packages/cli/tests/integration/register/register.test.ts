@@ -254,3 +254,33 @@ test(
   },
   { timeout: REGISTER_TEST_TIMEOUT_MS },
 );
+
+// --json tests
+
+test(
+  "register domain --json returns structured result",
+  async () => {
+    createPathsForTest("register_domain_json");
+    const keystorePath = await ensureDefaultKeystore();
+    const label = generateRandomLabel(ProofOfPersonhoodStatus.NoStatus);
+
+    const result = await runDotnsCli(
+      ["register", "domain", "--account", TEST_ACCOUNT, "--name", label, "--json"],
+      { DOTNS_KEYSTORE_PATH: keystorePath, DOTNS_KEYSTORE_PASSWORD: TEST_PASSWORD },
+    );
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+
+    expect(result.combinedOutput).not.toContain("═══");
+    expect(result.combinedOutput).not.toContain("▶");
+    expect(result.combinedOutput).not.toContain("✓");
+
+    const parsed = JSON.parse(result.combinedOutput.trim());
+
+    expect(parsed.ok).toBe(true);
+    expect(parsed.label).toBe(label);
+    expect(parsed.domain).toBe(`${label}.dot`);
+    expect(parsed.owner).toBeString();
+  },
+  { timeout: REGISTER_TEST_TIMEOUT_MS },
+);
