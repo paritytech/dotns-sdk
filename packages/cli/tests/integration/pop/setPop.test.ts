@@ -227,3 +227,43 @@ test(
   },
   { timeout: TEST_TIMEOUT_MS },
 );
+
+// --json tests
+
+test(
+  "pop info --json returns structured result",
+  async () => {
+    const result = await runDotnsCli(["pop", "--key-uri", "//Alice", "info", "--json"]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+
+    expect(result.combinedOutput).not.toContain("📋");
+    expect(result.combinedOutput).not.toContain("✓");
+
+    const parsed = JSON.parse(result.combinedOutput.trim());
+
+    expect(parsed.substrate).toBeString();
+    expect(parsed.evm).toBeString();
+    expect(parsed.status).toBeString();
+    expect(parsed.statusCode).toBeNumber();
+  },
+  { timeout: TEST_TIMEOUT_MS },
+);
+
+test(
+  "pop set --json returns structured result",
+  async () => {
+    const result = await runDotnsCli(["pop", "--key-uri", "//Alice", "set", "lite", "--json"]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+
+    expect(result.combinedOutput).not.toContain("✓ PoP Status Updated");
+
+    const parsed = JSON.parse(result.combinedOutput.trim());
+
+    expect(parsed.ok).toBe(true);
+    expect(parsed.status).toBeString();
+    expect(parsed.statusCode).toBeNumber();
+  },
+  { timeout: TEST_TIMEOUT_MS },
+);

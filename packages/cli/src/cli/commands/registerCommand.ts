@@ -62,13 +62,13 @@ export function attachRegisterCommand(root: Command) {
         const result = await maybeQuiet(jsonOutput, () => executeRegistration(merged));
 
         if (jsonOutput) {
-          process.stdout.write(JSON.stringify(result) + "\n");
+          console.log(JSON.stringify(result));
         }
         process.exit(0);
       } catch (error) {
         const errorMessage = formatErrorMessage(error);
         if (jsonOutput) {
-          process.stderr.write(JSON.stringify({ error: errorMessage }) + "\n");
+          console.error(JSON.stringify({ error: errorMessage }));
           process.exit(1);
         }
         console.error(`\n${chalk.red.bold("✗ Error:")} ${errorMessage}\n`);
@@ -93,13 +93,13 @@ export function attachRegisterCommand(root: Command) {
         const result = await maybeQuiet(jsonOutput, () => executeSubnameRegistration(merged));
 
         if (jsonOutput) {
-          process.stdout.write(JSON.stringify(result) + "\n");
+          console.log(JSON.stringify(result));
         }
         process.exit(0);
       } catch (error) {
         const errorMessage = formatErrorMessage(error);
         if (jsonOutput) {
-          process.stderr.write(JSON.stringify({ error: errorMessage }) + "\n");
+          console.error(JSON.stringify({ error: errorMessage }));
           process.exit(1);
         }
         console.error(`\n${chalk.red.bold("✗ Error:")} ${errorMessage}\n`);

@@ -223,3 +223,90 @@ test(
   },
   { timeout: TEST_TIMEOUT_MS },
 );
+
+// --json tests
+
+test(
+  "content view --json returns structured result for registered domain",
+  async () => {
+    const result = await runDotnsCli(["content", "view", REGISTERED_DOMAIN, "--json"]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+
+    expect(result.combinedOutput).not.toContain("▶");
+    expect(result.combinedOutput).not.toContain("✓");
+
+    const parsed = JSON.parse(result.combinedOutput.trim());
+
+    expect(parsed.domain).toBe(`${REGISTERED_DOMAIN}.dot`);
+    expect(parsed).toHaveProperty("contenthash");
+    expect(parsed).toHaveProperty("cid");
+  },
+  { timeout: TEST_TIMEOUT_MS },
+);
+
+test(
+  "content view --json returns nulls for unregistered domain",
+  async () => {
+    const result = await runDotnsCli(["content", "view", UNREGISTERED_DOMAIN, "--json"]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+
+    const parsed = JSON.parse(result.combinedOutput.trim());
+
+    expect(parsed.domain).toBe(`${UNREGISTERED_DOMAIN}.dot`);
+    expect(parsed.contenthash).toBeNull();
+    expect(parsed.cid).toBeNull();
+  },
+  { timeout: TEST_TIMEOUT_MS },
+);
+
+test(
+  "content set --json returns structured result",
+  async () => {
+    const result = await runDotnsCli([
+      "content",
+      "--key-uri",
+      "//Alice",
+      "set",
+      REGISTERED_DOMAIN,
+      TEST_CID,
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+
+    expect(result.combinedOutput).not.toContain("▶");
+    expect(result.combinedOutput).not.toContain("✓");
+
+    const parsed = JSON.parse(result.combinedOutput.trim());
+
+    expect(parsed.ok).toBe(true);
+    expect(parsed.domain).toBe(`${REGISTERED_DOMAIN}.dot`);
+    expect(parsed.cid).toBeString();
+    expect(parsed.contenthash).toBeString();
+    expect(parsed.txHash).toBeString();
+  },
+  { timeout: TEST_TIMEOUT_MS },
+);
+
+test(
+  "content set --json emits JSON error for unregistered domain",
+  async () => {
+    const result = await runDotnsCli([
+      "content",
+      "--key-uri",
+      "//Alice",
+      "set",
+      UNREGISTERED_DOMAIN,
+      TEST_CID,
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+
+    const parsed = JSON.parse(result.standardError.trim());
+    expect(parsed.error).toContain("is not registered");
+  },
+  { timeout: TEST_TIMEOUT_MS },
+);
