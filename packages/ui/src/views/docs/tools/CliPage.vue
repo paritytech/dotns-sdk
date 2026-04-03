@@ -207,23 +207,17 @@ const installTabs = [
   {
     id: "npm",
     label: "npm",
-    code:
-      'gh release download --pattern "dotns-cli-*.tgz" --repo paritytech/dotns-sdk\n' +
-      "npm install -g ./dotns-cli-*.tgz",
+    code: "npm install -g @parity/dotns-cli",
   },
   {
     id: "bun",
     label: "bun",
-    code:
-      'gh release download --pattern "dotns-cli-*.tgz" --repo paritytech/dotns-sdk\n' +
-      'bun add -g "$(pwd)/dotns-cli-*.tgz"',
+    code: "bun add -g @parity/dotns-cli",
   },
   {
     id: "yarn",
     label: "yarn",
-    code:
-      'gh release download --pattern "dotns-cli-*.tgz" --repo paritytech/dotns-sdk\n' +
-      "yarn global add ./dotns-cli-*.tgz",
+    code: "yarn global add @parity/dotns-cli",
   },
 ];
 

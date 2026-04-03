@@ -211,7 +211,7 @@ jobs:
                 "",
                 "Install globally:",
                 "```bash",
-                `npm install -g ./dotns-cli-${version}.tgz`,
+                `npm install -g ./parity-dotns-cli-${version}.tgz`,
                 "```",
                 "",
                 "Verify:",

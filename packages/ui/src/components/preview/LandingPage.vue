@@ -8,10 +8,10 @@ const selectedPm = ref<"npm" | "yarn" | "bun-mac" | "bun-win">("npm");
 const RELEASES_URL = "https://github.com/paritytech/dotns-sdk/releases";
 
 const installCommands = {
-  npm: "npm install -g ./dotns-cli-*.tgz",
-  yarn: "yarn global add ./dotns-cli-*.tgz",
-  "bun-mac": 'bun add -g "$(pwd)/dotns-cli-*.tgz"',
-  "bun-win": 'bun add -g "$PWD\\dotns-cli-*.tgz"',
+  npm: "npm install -g @parity/dotns-cli",
+  yarn: "yarn global add @parity/dotns-cli",
+  "bun-mac": "bun add -g @parity/dotns-cli",
+  "bun-win": "bun add -g @parity/dotns-cli",
 };
 
 const pmLabels = {
@@ -22,12 +22,11 @@ const pmLabels = {
 };
 
 const commands = {
-  download: 'gh release download --pattern "dotns-cli-*.tgz" --repo paritytech/dotns-sdk',
   install: installCommands[selectedPm.value],
   upload: "dotns bulletin upload ./dist",
 };
 
-type CommandKey = "download" | "install" | "upload";
+type CommandKey = "install" | "upload";
 
 function getCommand(key: CommandKey): string {
   if (key === "install") return installCommands[selectedPm.value];
@@ -76,47 +75,8 @@ function handleUploadError(message: string) {
           <div class="space-y-2">
             <div class="bg-dot-bg border border-dot-border rounded-lg overflow-hidden">
               <div class="flex items-center justify-between px-3 py-1.5 border-b border-dot-border">
-                <span class="text-dot-text-tertiary text-xs">1. Download</span>
-                <button
-                  @click="copyToClipboard('download')"
-                  class="min-h-11 min-w-11 -mr-1.5 inline-flex items-center justify-center rounded-lg text-dot-text-tertiary hover:text-dot-text-secondary transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/40"
-                  title="Copy"
-                >
-                  <svg
-                    v-if="copiedCommand === 'download'"
-                    class="w-4 h-4 text-success"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                  <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                    />
-                  </svg>
-                </button>
-              </div>
-              <div class="px-3 py-2 font-mono text-xs overflow-x-auto">
-                <span class="text-dot-text-tertiary select-none">$ </span>
-                <span class="text-dot-text-secondary">gh release download -p </span>
-                <span class="text-dot-text-primary">"*.tgz" -R paritytech/dotns-sdk</span>
-              </div>
-            </div>
-
-            <div class="bg-dot-bg border border-dot-border rounded-lg overflow-hidden">
-              <div class="flex items-center justify-between px-3 py-1.5 border-b border-dot-border">
                 <div class="flex items-center gap-2 overflow-x-auto">
-                  <span class="text-dot-text-tertiary text-xs shrink-0">2. Install</span>
+                  <span class="text-dot-text-tertiary text-xs shrink-0">1. Install</span>
                   <div class="flex gap-1">
                     <button
                       v-for="(label, key) in pmLabels"
@@ -170,7 +130,7 @@ function handleUploadError(message: string) {
 
             <div class="bg-dot-bg border border-dot-border rounded-lg overflow-hidden">
               <div class="flex items-center justify-between px-3 py-1.5 border-b border-dot-border">
-                <span class="text-dot-text-tertiary text-xs">3. Upload</span>
+                <span class="text-dot-text-tertiary text-xs">2. Upload</span>
                 <button
                   @click="copyToClipboard('upload')"
                   class="min-h-11 min-w-11 -mr-1.5 inline-flex items-center justify-center rounded-lg text-dot-text-tertiary hover:text-dot-text-secondary transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dot-accent/40 shrink-0"
