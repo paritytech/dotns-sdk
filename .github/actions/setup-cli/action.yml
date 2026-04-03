@@ -1,5 +1,5 @@
 name: Setup CLI
-description: Install the DotNS CLI from the latest release or from source
+description: Install the DotNS CLI from npm, GitHub release tarball, or from source
 
 inputs:
   source:
@@ -10,12 +10,20 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Download latest CLI release
-      id: download
+    - name: Install CLI from npm
+      id: npm-install
       if: inputs.source == 'release'
+      continue-on-error: true
+      shell: bash
+      run: npm install -g @parity/dotns-cli
+
+    - name: Download CLI release tarball (fallback)
+      id: download
+      if: inputs.source == 'release' && steps.npm-install.outcome != 'success'
       shell: bash
       run: |
         set -euo pipefail
+        echo "::warning::npm install failed, falling back to GitHub release tarball"
         RELEASE_DIR="${RUNNER_TEMP}/dotns-cli-release"
         rm -rf "$RELEASE_DIR"
         mkdir -p "$RELEASE_DIR"
@@ -25,7 +33,7 @@ runs:
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${GH_TOKEN}" \
             https://api.github.com/repos/paritytech/dotns-sdk/releases/latest |
-            jq -r '.assets[] | select(.name | test("^parity-dotns-cli-.*\\.tgz$")) | .url' |
+            jq -r '.assets[] | select(.name | test("dotns-cli.*\\.tgz$")) | .url' |
             head -n 1
         )
 
@@ -41,7 +49,7 @@ runs:
           "$ASSET_URL" \
           -o "$TARBALL_PATH"
 
-        echo "tarball=${TARBALL_PATH}" >> "$GITHUB_OUTPUT"
+        npm install -g "$TARBALL_PATH"
       env:
         GH_TOKEN: ${{ github.token }}
 
@@ -82,11 +90,6 @@ runs:
       run: |
         TARBALL=$(npm pack | tail -n 1)
         echo "tarball=${PWD}/${TARBALL}" >> "$GITHUB_OUTPUT"
-
-    - name: Install released CLI
-      if: inputs.source == 'release'
-      shell: bash
-      run: npm install -g "${{ steps.download.outputs.tarball }}"
 
     - name: Install built CLI
       if: inputs.source == 'source'
