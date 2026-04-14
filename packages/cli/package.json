@@ -10,6 +10,7 @@
   ],
   "scripts": {
     "dev": "bun run src/cli/index.ts",
+    "benchmark:strategies": "bun run benchmarks/strategy-benchmark.ts",
     "lint": "bunx eslint .",
     "lint:fix": "bunx eslint . --fix",
     "format": "bunx prettier --check .",

@@ -438,8 +438,11 @@ export function destroyBulletinClient(
   if (!client) return;
   try {
     client.destroy();
-  } catch {
-    /* benign — chainhead disjointed or already closed */
+  } catch (error) {
+    if (isBenignClientDestroyError(error)) {
+      return;
+    }
+    throw error;
   }
 }
 

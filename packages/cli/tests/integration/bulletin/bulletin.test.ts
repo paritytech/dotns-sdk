@@ -38,6 +38,11 @@ import {
   normalizeUploadMaxRetries,
   runWithUploadRetries,
 } from "../../../src/bulletin/uploadRetry";
+import {
+  ALL_STRATEGY_NAMES,
+  buildDefaultAggregateOutputPath,
+  expandStrategySelection,
+} from "../../../benchmarks/strategy-benchmark";
 
 const createdTestTemporaryDirectoryPaths: string[] = [];
 let testFileTemporaryRootDirectoryPath: string | undefined;
@@ -980,5 +985,33 @@ describe("single-file Bulletin store finality policy", () => {
     ]);
     expect(fakeClient.getUnsubscribeCalls()).toBe(1);
     expect(fakeClient.getDestroyCalls()).toBe(0);
+  });
+});
+
+describe("benchmark strategy selection", () => {
+  test("expands all to every published result row", () => {
+    expect(expandStrategySelection("all")).toEqual(ALL_STRATEGY_NAMES);
+    expect(expandStrategySelection("")).toEqual(ALL_STRATEGY_NAMES);
+  });
+
+  test("keeps the canonical published row order", () => {
+    expect(expandStrategySelection("waves-64,sequential-1,batch-all-4")).toEqual([
+      "sequential-1",
+      "waves-64",
+      "batch-all-4",
+    ]);
+  });
+
+  test("rejects unknown strategy names", () => {
+    expect(() => expandStrategySelection("waves-4,not-real")).toThrow(
+      "Unknown strategy: not-real",
+    );
+  });
+
+  test("writes aggregate results to the benchmark results directory", () => {
+    const outputPath = buildDefaultAggregateOutputPath();
+
+    expect(outputPath).toContain(`${path.sep}benchmarks${path.sep}results${path.sep}`);
+    expect(path.basename(outputPath)).toMatch(/^strategy-benchmark-.*\.json$/);
   });
 });
