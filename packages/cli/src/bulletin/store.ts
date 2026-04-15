@@ -788,34 +788,26 @@ export async function storeChunkedFileToBulletin(
           submitChunk: async (chunk) => {
             const nonce = waveNonces.get(chunk.index)!;
 
-            try {
-              await storeContentOnBulletin({
-                rpc: parameters.rpc,
-                signer: parameters.signer,
-                contentBytes: chunk.bytes,
-                contentCid: chunk.cid,
-                codecValue: CODEC.RAW,
-                hashCodeValue: HASH.SHA2_256,
-                nonce,
-                client: activeClient,
-                waitForFinalization,
-              });
+            await storeContentOnBulletin({
+              rpc: parameters.rpc,
+              signer: parameters.signer,
+              contentBytes: chunk.bytes,
+              contentCid: chunk.cid,
+              codecValue: CODEC.RAW,
+              hashCodeValue: HASH.SHA2_256,
+              nonce,
+              client: activeClient,
+              waitForFinalization,
+            });
 
-              manifestState.completedBlocks.set(chunk.index, {
-                index: chunk.index,
-                cid: chunk.cid,
-                length: chunk.length,
-              });
+            manifestState.completedBlocks.set(chunk.index, {
+              index: chunk.index,
+              cid: chunk.cid,
+              length: chunk.length,
+            });
 
-              completedChunks += 1;
-              parameters.onProgress?.(chunk.index + 1, totalChunks, "stored");
-            } finally {
-              // Release the chunk's 2 MiB Buffer regardless of outcome. On
-              // success it is already persisted; on failure it must not pin
-              // memory while the caller decides whether to retry — the
-              // payload is re-streamed from disk on the next attempt.
-              chunk.bytes = null as unknown as Uint8Array;
-            }
+            completedChunks += 1;
+            parameters.onProgress?.(chunk.index + 1, totalChunks, "stored");
           },
         });
 
