@@ -43,6 +43,15 @@ const WAVE_TIMEOUT_MS = 60_000;
 const STORE_CALL_TIMEOUT_MS = 60_000;
 export const FINAL_STORE_CALL_TIMEOUT_MS = 180_000;
 const FETCH_NONCE_TIMEOUT_MS = 15_000;
+// polkadot-api ws-provider defaults to 40_000 ms, which is shorter than a
+// single Bulletin chunk's worst-case best-block inclusion latency under
+// contention (we observed >50 s outliers). Raise it well above WAVE_TIMEOUT_MS
+// so the transport layer never tears down a healthy WS while the chain is
+// still acknowledging an in-flight extrinsic.
+const WS_HEARTBEAT_TIMEOUT_MS = 300_000;
+// polkadot-api ws-provider default is 3_500 ms; give the handshake more
+// headroom on slow links (CI runners → Scaleway can spike past that).
+const WS_CONNECT_TIMEOUT_MS = 10_000;
 let rxUnhandledErrorGuardInstalled = false;
 
 export type AdaptiveWindowUpdateInput = {
@@ -468,7 +477,14 @@ export function formatTransactionWatchFailure(
 
 export function createBulletinClient(rpc: string): PolkadotClient {
   installRxUnhandledErrorGuard();
-  return createPolkadotClient(withPolkadotSdkCompat(getWsProvider(rpc)));
+  return createPolkadotClient(
+    withPolkadotSdkCompat(
+      getWsProvider(rpc, {
+        heartbeatTimeout: WS_HEARTBEAT_TIMEOUT_MS,
+        timeout: WS_CONNECT_TIMEOUT_MS,
+      }),
+    ),
+  );
 }
 
 async function storeContentOnBulletin(

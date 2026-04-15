@@ -72,6 +72,11 @@ runs:
         CI: "true"
         FORCE_COLOR: "0"
         NODE_NO_WARNINGS: "1"
+        # ubuntu-latest runners have ≥16 GiB RAM; default ~2 GiB Node heap
+        # leaves no headroom if a transient leak window opens during a WS
+        # halt teardown. Raising it is a cheap safety net independent of
+        # the in-CLI cancellation fixes.
+        NODE_OPTIONS: "--max-old-space-size=4096"
         RETRY_DELAY: ${{ inputs.retry-delay }}
 
     - name: Upload to Bulletin
@@ -124,5 +129,7 @@ runs:
         CI: "true"
         FORCE_COLOR: "0"
         NODE_NO_WARNINGS: "1"
+        # See note in the authorize step above.
+        NODE_OPTIONS: "--max-old-space-size=4096"
         RETRY_DELAY: ${{ inputs.retry-delay }}
         CACHE: ${{ inputs.cache }}
