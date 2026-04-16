@@ -10,7 +10,6 @@ import type {
   BulletinReporterMode,
   BulletinRetryHandler,
   BulletinUploadOptions,
-  CommandOptions,
   UploadProfiler,
   UploadProfilerOptions,
   UploadProfileReport,
@@ -68,7 +67,7 @@ import {
   DEFAULT_AUTHORIZATION_TRANSACTIONS,
   DEFAULT_AUTHORIZATION_BYTES,
 } from "../../utils/constants";
-import { getJsonFlag } from "./lookup";
+import { getJsonFlag, getMergedOptions, withCapturedConsole } from "./jsonHelpers";
 import { clampChunkSizeBytes } from "../../bulletin/store";
 import {
   createCliReporter,
@@ -78,28 +77,6 @@ import {
   type ReporterTask,
   type ResolvedReporterMode,
 } from "../reporter";
-
-function getMergedOptions(
-  command: Command | undefined,
-  fallback: BulletinUploadOptions,
-): CommandOptions & BulletinUploadOptions {
-  const mergedOptions: any = { ...(fallback ?? {}) };
-
-  let currentCommand: Command | null | undefined = command?.parent;
-  while (currentCommand) {
-    if (typeof currentCommand.opts === "function") {
-      const parentOptions = currentCommand.opts();
-      for (const key in parentOptions) {
-        if (!(key in mergedOptions) && parentOptions[key] !== undefined) {
-          mergedOptions[key] = parentOptions[key];
-        }
-      }
-    }
-    currentCommand = currentCommand.parent;
-  }
-
-  return mergedOptions;
-}
 
 const PROFILE_SAMPLE_INTERVAL_MS = 2_000;
 
@@ -234,58 +211,6 @@ export function createUploadProfiler(options: UploadProfilerOptions): UploadProf
     },
     finalize: summarizeAndWrite,
   };
-}
-
-export async function withCapturedConsole<T>(callback: () => Promise<T>): Promise<T> {
-  const MAX_CAPTURED_ENTRIES = 400;
-  const captured: string[] = [];
-  const pushCaptured = (value: string) => {
-    captured.push(value);
-    if (captured.length > MAX_CAPTURED_ENTRIES) {
-      captured.splice(0, captured.length - MAX_CAPTURED_ENTRIES);
-    }
-  };
-  const capture = (...args: any[]) => {
-    pushCaptured(args.map(String).join(" "));
-  };
-  const captureWrite = (chunk: any) => {
-    pushCaptured(String(chunk));
-    return true;
-  };
-
-  const saved = {
-    log: console.log,
-    error: console.error,
-    warn: console.warn,
-    info: console.info,
-    stdoutWrite: process.stdout.write.bind(process.stdout),
-    stderrWrite: process.stderr.write.bind(process.stderr),
-  };
-
-  console.log = capture;
-  console.error = capture;
-  console.warn = capture;
-  console.info = capture;
-  process.stdout.write = captureWrite as any;
-  process.stderr.write = captureWrite as any;
-
-  try {
-    return await callback();
-  } catch (error) {
-    saved.error("[captured output before failure]\n" + captured.join("\n"));
-    throw error;
-  } finally {
-    console.log = saved.log;
-    console.error = saved.error;
-    console.warn = saved.warn;
-    console.info = saved.info;
-    process.stdout.write = saved.stdoutWrite;
-    process.stderr.write = saved.stderrWrite;
-  }
-}
-
-export function maybeQuiet<T>(jsonOutput: boolean, callback: () => Promise<T>): Promise<T> {
-  return jsonOutput ? withCapturedConsole(callback) : callback();
 }
 
 async function withBulletinHumanOutput<T>(

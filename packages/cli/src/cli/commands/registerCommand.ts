@@ -3,9 +3,7 @@ import { executeRegistration, executeSubnameRegistration } from "./register";
 import { type RegistrationCommandOptions } from "../../types/types";
 import { addAuthOptions, getAuthOptions } from "./authOptions";
 import { DEFAULT_COMMITMENT_BUFFER_SECONDS } from "../../utils/constants";
-import { getJsonFlag } from "./lookup";
-import { maybeQuiet } from "./bulletin";
-import { emitJsonResult, handleCommandError } from "./jsonHelpers";
+import { getJsonFlag, maybeQuiet, emitJsonResult, handleCommandError } from "./jsonHelpers";
 
 export type RegisterActionOptions = RegistrationCommandOptions & {
   __statusProvided?: boolean;

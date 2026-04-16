@@ -9,9 +9,14 @@ import { prepareContext } from "../context";
 import { addAuthOptions } from "./authOptions";
 import type { CommandOptions } from "../../types/types";
 import { ProofOfPersonhoodStatus } from "../../types/types";
-import { prepareReadOnlyContext, getJsonFlag } from "./lookup";
-import { maybeQuiet } from "./bulletin";
-import { emitJsonResult, handleCommandError } from "./jsonHelpers";
+import { prepareReadOnlyContext } from "./lookup";
+import {
+  getMergedOptions,
+  getJsonFlag,
+  maybeQuiet,
+  emitJsonResult,
+  handleCommandError,
+} from "./jsonHelpers";
 import type { Address } from "viem";
 
 export type PopInfoResult = {
@@ -19,26 +24,6 @@ export type PopInfoResult = {
   evm: string;
   status: ProofOfPersonhoodStatus;
 };
-
-function getMergedOptions(command: Command | undefined, fallback: CommandOptions): CommandOptions {
-  const mergedOptions: CommandOptions = { ...(fallback ?? {}) };
-
-  let currentCommand: Command | null | undefined = command?.parent;
-  while (currentCommand) {
-    if (typeof currentCommand.opts === "function") {
-      const parentOptions = currentCommand.opts() as CommandOptions;
-      for (const key in parentOptions) {
-        const optionKey = key as keyof CommandOptions;
-        if (!(optionKey in mergedOptions) && parentOptions[optionKey] !== undefined) {
-          mergedOptions[optionKey] = parentOptions[optionKey];
-        }
-      }
-    }
-    currentCommand = currentCommand.parent;
-  }
-
-  return mergedOptions;
-}
 
 async function readPopInfo(options: CommandOptions): Promise<PopInfoResult> {
   const context = await prepareReadOnlyContext(options as any);

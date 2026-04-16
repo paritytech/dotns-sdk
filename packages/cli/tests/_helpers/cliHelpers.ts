@@ -215,6 +215,13 @@ export async function createDefaultAccountKeystore(
   return { testMnemonic };
 }
 
+export async function expectJsonHelpOption(args: string[]): Promise<void> {
+  const result = await runDotnsCli([...args, "--help"]);
+  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
+  expect(result.combinedOutput).toContain("--json");
+  expect(result.combinedOutput).toContain("Output result as JSON");
+}
+
 export function generateGovernanceLabel(maxLen = 5): string {
   const alphabet = "abcdefghijklmnopqrstuvwxyz";
   const len = Math.max(1, Math.min(5, maxLen));

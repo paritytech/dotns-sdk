@@ -1,26 +1,14 @@
 import { expect, test } from "bun:test";
 import {
-  HARNESS_HELP_SUCCESS_EXIT_CODE,
   HARNESS_SUCCESS_EXIT_CODE,
   runDotnsCli,
+  expectJsonHelpOption,
 } from "../../_helpers/cliHelpers";
 import { DEFAULT_MNEMONIC } from "../../../src/utils/constants";
 
-test("content view --help shows --json option", async () => {
-  const result = await runDotnsCli(["content", "view", "--help"]);
+test("content view --help shows --json option", () => expectJsonHelpOption(["content", "view"]));
 
-  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
-  expect(result.combinedOutput).toContain("--json");
-  expect(result.combinedOutput).toContain("Output result as JSON");
-});
-
-test("content set --help shows --json option", async () => {
-  const result = await runDotnsCli(["content", "set", "--help"]);
-
-  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
-  expect(result.combinedOutput).toContain("--json");
-  expect(result.combinedOutput).toContain("Output result as JSON");
-});
+test("content set --help shows --json option", () => expectJsonHelpOption(["content", "set"]));
 
 test("content set --json emits JSON error when both mnemonic and key-uri provided", async () => {
   const result = await runDotnsCli([
