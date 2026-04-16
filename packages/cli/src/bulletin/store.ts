@@ -14,6 +14,7 @@ import {
   saveManifest,
 } from "./uploadManifest";
 import { isReconnectRequiredUploadError, isRetryableUploadError } from "./uploadRetry";
+import { verifyCidResolution } from "./ipfs";
 import type {
   HashingEnumVariant,
   StoreContentParameters,
@@ -811,7 +812,7 @@ export async function storeChunkedFileToBulletin(
           submitChunk: async (chunk) => {
             const nonce = waveNonces.get(chunk.index)!;
 
-            await storeContentOnBulletin({
+            const storeResult = await storeContentOnBulletin({
               rpc: parameters.rpc,
               signer: parameters.signer,
               contentBytes: chunk.bytes,
@@ -823,6 +824,19 @@ export async function storeChunkedFileToBulletin(
               client: activeClient,
               waitForFinalization,
             });
+
+            if (storeResult.storedIndex === undefined && storeResult.blockHash === undefined) {
+              for (let verifyAttempt = 0; verifyAttempt < 2; verifyAttempt++) {
+                if (verifyAttempt > 0) await sleep(3_000);
+                const verification = await verifyCidResolution(chunk.cid);
+                if (verification.resolvable) break;
+                if (verifyAttempt === 1) {
+                  throw new Error(
+                    `nonce-advance false positive: chunk ${chunk.index + 1} CID ${chunk.cid} not resolvable via gateway after nonce fallback`,
+                  );
+                }
+              }
+            }
 
             manifestState.completedBlocks.set(chunk.index, {
               index: chunk.index,
