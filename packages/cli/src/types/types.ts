@@ -527,6 +527,8 @@ export type StoreContentParameters = {
   hashCodeValue: number;
   /** Optional nonce for transaction ordering */
   nonce?: number;
+  /** SS58 address for nonce-advance fallback on timeout */
+  accountAddress?: string;
   /** Callback for progress updates */
   onProgress?: (status: string) => void;
   /** Optional shared client — caller owns lifecycle when provided */

@@ -498,6 +498,7 @@ async function storeContentOnBulletin(
     codecValue,
     hashCodeValue,
     nonce,
+    accountAddress,
     onProgress,
     client: externalClient,
     storeTimeoutMs = STORE_CALL_TIMEOUT_MS,
@@ -540,7 +541,25 @@ async function storeContentOnBulletin(
   return new Promise((resolve, reject) => {
     let settled = false;
     let subscription: { unsubscribe: () => void } | undefined;
-    const timeout = setTimeout(() => {
+    const timeout = setTimeout(async () => {
+      if (settled) return;
+      if (accountAddress && nonce !== undefined) {
+        try {
+          const currentNonce = await fetchAccountNonce(rpc, accountAddress);
+          if (settled) return;
+          if (currentNonce > nonce) {
+            console.error(
+              `[store-debug] nonce-advance fallback: nonce ${nonce} consumed (current=${currentNonce}), treating as included`,
+            );
+            settled = true;
+            cleanup(subscription);
+            resolve({ cid: contentCid, storedIndex: undefined, blockHash: undefined });
+            return;
+          }
+        } catch {
+          if (settled) return;
+        }
+      }
       if (settled) return;
       settled = true;
       cleanup(subscription);
@@ -709,6 +728,7 @@ export async function storeChunkedFileToBulletin(
 
   const startingNonce = await fetchAccountNonce(parameters.rpc, parameters.accountAddress);
   let nextNonce = startingNonce;
+  const assignedNonces = new Map<number, number>();
 
   const emitSchedulerState = (inFlightBytes: number, inFlightChunks: number) => {
     parameters.onSchedulerState?.({
@@ -776,8 +796,11 @@ export async function storeChunkedFileToBulletin(
 
       const waveNonces = new Map<number, number>();
       for (const chunk of waveChunks) {
-        waveNonces.set(chunk.index, nextNonce);
-        nextNonce += 1;
+        if (!assignedNonces.has(chunk.index)) {
+          assignedNonces.set(chunk.index, nextNonce);
+          nextNonce += 1;
+        }
+        waveNonces.set(chunk.index, assignedNonces.get(chunk.index)!);
       }
 
       try {
@@ -796,6 +819,7 @@ export async function storeChunkedFileToBulletin(
               codecValue: CODEC.RAW,
               hashCodeValue: HASH.SHA2_256,
               nonce,
+              accountAddress: parameters.accountAddress,
               client: activeClient,
               waitForFinalization,
             });
@@ -805,6 +829,7 @@ export async function storeChunkedFileToBulletin(
               cid: chunk.cid,
               length: chunk.length,
             });
+            assignedNonces.delete(chunk.index);
 
             completedChunks += 1;
             parameters.onProgress?.(chunk.index + 1, totalChunks, "stored");
@@ -861,7 +886,27 @@ export async function storeChunkedFileToBulletin(
 
         if (isStall || isNonceError || isReconnectRequired) {
           recreateOwnedClient();
-          nextNonce = await fetchAccountNonce(parameters.rpc, parameters.accountAddress);
+          const currentNonce = await fetchAccountNonce(parameters.rpc, parameters.accountAddress);
+
+          for (const chunk of waveChunks) {
+            if (manifestState.completedBlocks.has(chunk.index)) continue;
+            const chunkNonce = assignedNonces.get(chunk.index);
+            if (chunkNonce !== undefined && chunkNonce < currentNonce) {
+              console.error(
+                `[store-debug] nonce-advance fallback: chunk ${chunk.index + 1} nonce ${chunkNonce} consumed (current=${currentNonce})`,
+              );
+              manifestState.completedBlocks.set(chunk.index, {
+                index: chunk.index,
+                cid: chunk.cid,
+                length: chunk.length,
+              });
+              assignedNonces.delete(chunk.index);
+              completedChunks += 1;
+              parameters.onProgress?.(chunk.index + 1, totalChunks, "stored");
+            }
+          }
+
+          nextNonce = Math.max(nextNonce, currentNonce);
           window = Math.max(ADAPTIVE_WINDOW_MIN, Math.floor(window / 2));
           cleanWaveStreak = 0;
 
@@ -942,6 +987,7 @@ export async function storeChunkedFileToBulletin(
           codecValue: CODEC.DAG_PB,
           hashCodeValue: HASH.SHA2_256,
           nonce: nextNonce,
+          accountAddress: parameters.accountAddress,
           client: activeClient,
           storeTimeoutMs: FINAL_STORE_CALL_TIMEOUT_MS,
           waitForFinalization,
