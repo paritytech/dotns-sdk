@@ -24,25 +24,12 @@ import type {
   LookupActionOptions,
   ResolvedReadOnlyAuth,
 } from "../../types/types";
-import { maybeQuiet } from "./bulletin";
+import { getJsonFlag, maybeQuiet } from "./jsonHelpers";
 import type { Address } from "viem";
 
 function createClientWrapper(rpc: string) {
   const client = createClient(getWsProvider(rpc)).getTypedApi(paseo);
   return new ReviveClientWrapper(client as PolkadotApiClient);
-}
-
-export function getJsonFlag(command: any): boolean {
-  if (command && typeof (command as any).optsWithGlobals === "function") {
-    const options = (command as any).optsWithGlobals();
-    if (typeof options?.json === "boolean") return options.json;
-  }
-
-  const localOptions =
-    command && typeof command.opts === "function" ? (command.opts() as any) : undefined;
-  if (typeof localOptions?.json === "boolean") return localOptions.json;
-
-  return process.argv.includes("--json");
 }
 
 function hasAnyAuthHint(opts: AuthSource): boolean {

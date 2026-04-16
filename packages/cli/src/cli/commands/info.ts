@@ -11,32 +11,13 @@ import { resolveRpc, resolveKeystorePath } from "../env";
 import { formatErrorMessage } from "../../utils/formatting";
 import { resolveAuthSource, createAccountFromSource } from "../../commands/auth";
 import { step } from "../ui";
-import { getJsonFlag, prepareReadOnlyContext } from "./lookup";
-import { maybeQuiet } from "./bulletin";
+import { prepareReadOnlyContext } from "./lookup";
+import { getJsonFlag, getMergedOptions, maybeQuiet } from "./jsonHelpers";
 import {
   checkAccountMapped,
   checkWhitelisted,
   whitelistAddress,
 } from "../../commands/accountChecks";
-
-function getMergedOptions<T>(command: Command | undefined, fallback: T): CommandOptions & T {
-  const mergedOptions: any = { ...(fallback ?? {}) };
-
-  let currentCommand: Command | null | undefined = command?.parent;
-  while (currentCommand) {
-    if (typeof currentCommand.opts === "function") {
-      const parentOptions = currentCommand.opts();
-      for (const key in parentOptions) {
-        if (!(key in mergedOptions) && parentOptions[key] !== undefined) {
-          mergedOptions[key] = parentOptions[key];
-        }
-      }
-    }
-    currentCommand = currentCommand.parent;
-  }
-
-  return mergedOptions;
-}
 
 export function attachAccountCommands(root: Command) {
   const accountCommand = root.command("account").description("Account management utilities");

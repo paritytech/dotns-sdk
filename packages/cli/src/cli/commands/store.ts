@@ -3,8 +3,8 @@ import chalk from "chalk";
 import { isAddress, getAddress, type Address } from "viem";
 import { addAuthOptions, getAuthOptions } from "./authOptions";
 import { prepareAssetHubContext } from "../context";
-import { prepareReadOnlyContext, getJsonFlag } from "./lookup";
-import { maybeQuiet } from "./bulletin";
+import { prepareReadOnlyContext } from "./lookup";
+import { getJsonFlag, maybeQuiet } from "./jsonHelpers";
 import { formatErrorMessage } from "../../utils/formatting";
 import {
   getStoreInfo,

@@ -1,10 +1,10 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import type { CommandOptions } from "../../types/types";
 import { viewDomainText, setDomainText } from "../../commands/textRecord";
 import { addAuthOptions } from "./authOptions";
 import { prepareContext } from "../context";
 import { prepareReadOnlyContext } from "./lookup";
+import { getMergedOptions } from "./jsonHelpers";
 import { formatErrorMessage } from "../../utils/formatting";
 import ora from "ora";
 
@@ -14,25 +14,6 @@ export interface TextViewOptions {
 
 export interface TextSetOptions {
   rpc?: string;
-}
-
-function getMergedOptions<T>(command: Command | undefined, fallback: T): CommandOptions & T {
-  const mergedOptions: any = { ...(fallback ?? {}) };
-
-  let currentCommand: Command | null | undefined = command?.parent;
-  while (currentCommand) {
-    if (typeof currentCommand.opts === "function") {
-      const parentOptions = currentCommand.opts();
-      for (const key in parentOptions) {
-        if (!(key in mergedOptions) && parentOptions[key] !== undefined) {
-          mergedOptions[key] = parentOptions[key];
-        }
-      }
-    }
-    currentCommand = currentCommand.parent;
-  }
-
-  return mergedOptions;
 }
 
 export function attachTextCommands(root: Command) {

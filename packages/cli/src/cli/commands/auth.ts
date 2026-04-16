@@ -24,29 +24,11 @@ import type {
 const DEFAULT_ACCOUNT_POINTER_FILE = ".default";
 const KEYSTORE_FILE_EXTENSION = ".json";
 
+import { getMergedOptions } from "./jsonHelpers";
+
 const MNEMONIC_PROMPT = "mnemonic";
 const KEY_URI_PROMPT = "key-uri";
 const AUTH_TYPE_UNKNOWN: AuthType = "unknown";
-
-function getMergedOptions(command: Command | undefined, fallback: CommandOptions): CommandOptions {
-  const mergedOptions: CommandOptions = { ...(fallback ?? {}) };
-
-  let currentCommand: Command | null | undefined = command?.parent;
-  while (currentCommand) {
-    if (typeof currentCommand.opts === "function") {
-      const parentOptions = currentCommand.opts() as CommandOptions;
-      for (const key in parentOptions) {
-        const optionKey = key as keyof CommandOptions;
-        if (!(optionKey in mergedOptions) && parentOptions[optionKey] !== undefined) {
-          mergedOptions[optionKey] = parentOptions[optionKey];
-        }
-      }
-    }
-    currentCommand = currentCommand.parent;
-  }
-
-  return mergedOptions;
-}
 
 function resolvePasswordForCreate(options: CommandOptions): Promise<string> | string {
   const fromCli = String(options.password ?? "").trim();

@@ -1,10 +1,9 @@
 import { Command } from "commander";
-import chalk from "chalk";
 import { executeRegistration, executeSubnameRegistration } from "./register";
 import { type RegistrationCommandOptions } from "../../types/types";
 import { addAuthOptions, getAuthOptions } from "./authOptions";
-import { formatErrorMessage } from "../../utils/formatting";
 import { DEFAULT_COMMITMENT_BUFFER_SECONDS } from "../../utils/constants";
+import { getJsonFlag, maybeQuiet, emitJsonResult, handleCommandError } from "./jsonHelpers";
 
 export type RegisterActionOptions = RegistrationCommandOptions & {
   __statusProvided?: boolean;
@@ -41,7 +40,9 @@ export function attachRegisterCommand(root: Command) {
       "--cb, --commitment-buffer <seconds>",
       `Extra seconds to wait after minCommitmentAge (default: ${DEFAULT_COMMITMENT_BUFFER_SECONDS}, env: DOTNS_COMMITMENT_BUFFER)`,
     )
+    .option("--json", "Output result as JSON (suppresses all other output)", false)
     .action(async (options: RegistrationCommandOptions, cmd: any) => {
+      const jsonOutput = getJsonFlag(cmd);
       try {
         const merged = { ...options, ...getAuthOptions(cmd) } as RegisterActionOptions;
 
@@ -55,11 +56,12 @@ export function attachRegisterCommand(root: Command) {
           throw new Error("Missing transfer destination: use --to <evm|ss58|label>");
         }
 
-        await executeRegistration(merged);
+        const result = await maybeQuiet(jsonOutput, () => executeRegistration(merged));
+
+        emitJsonResult(jsonOutput, result);
         process.exit(0);
       } catch (error) {
-        console.error(`\n${chalk.red.bold("✗ Error:")} ${formatErrorMessage(error)}\n`);
-        process.exit(1);
+        handleCommandError(jsonOutput, error);
       }
     });
 
@@ -71,15 +73,18 @@ export function attachRegisterCommand(root: Command) {
     .requiredOption("-n, --name <label>", "Subname label to register")
     .requiredOption("-p, --parent <label>", "Parent domain label (without .dot)")
     .option("-o, --owner <address>", "Owner address (EVM or Substrate, or label)")
+    .option("--json", "Output result as JSON (suppresses all other output)", false)
     .action(async (options: any, cmd: any) => {
+      const jsonOutput = getJsonFlag(cmd);
       try {
         const merged = { ...options, ...getAuthOptions(cmd) } as RegisterActionOptions;
 
-        await executeSubnameRegistration(merged);
+        const result = await maybeQuiet(jsonOutput, () => executeSubnameRegistration(merged));
+
+        emitJsonResult(jsonOutput, result);
         process.exit(0);
       } catch (error) {
-        console.error(`\n${chalk.red.bold("✗ Error:")} ${formatErrorMessage(error)}\n`);
-        process.exit(1);
+        handleCommandError(jsonOutput, error);
       }
     });
 
