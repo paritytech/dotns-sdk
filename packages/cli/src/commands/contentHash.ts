@@ -92,12 +92,12 @@ export async function viewDomainContentHash(
   console.log(chalk.gray("  contenthash: ") + chalk.white(contentHashBytes));
   console.log(chalk.gray("  cid:         ") + chalk.cyan(decodedCid));
 
-  const hasContent =
-    contentHashBytes !== "0x" && contentHashBytes !== "0x0" && contentHashBytes.length >= 6;
+  const hasContent = decodedCid !== "No CID set";
+  const cidResolved = hasContent && !decodedCid.startsWith("Unable to decode:") ? decodedCid : null;
   return {
     domain: `${label}.dot`,
     contenthash: hasContent ? contentHashBytes : null,
-    cid: hasContent && decodedCid !== `Unable to decode: ${contentHashBytes}` ? decodedCid : null,
+    cid: cidResolved,
   };
 }
 
