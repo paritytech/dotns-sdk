@@ -33,7 +33,24 @@ function toSafeAccountFilename(accountName: string): string {
   return `${safeFilename}.json`;
 }
 
+function resolveAuthSourceFromEnv(account: string): ResolvedAuthSource | undefined {
+  const envMnemonic = process.env[ENV.MNEMONIC];
+  if (envMnemonic && envMnemonic.length > 0) {
+    return { source: envMnemonic, isKeyUri: false, resolvedFrom: "env", account };
+  }
+
+  const envKeyUri = process.env[ENV.KEY_URI];
+  if (envKeyUri && envKeyUri.length > 0) {
+    return { source: envKeyUri, isKeyUri: true, resolvedFrom: "env", account };
+  }
+
+  return undefined;
+}
+
 export async function resolveAuthSourceReadOnly(): Promise<ResolvedAuthSource> {
+  const fromEnv = resolveAuthSourceFromEnv("readonly");
+  if (fromEnv) return fromEnv;
+
   return {
     source: DEFAULT_MNEMONIC,
     isKeyUri: false,
@@ -52,15 +69,8 @@ export async function resolveAuthSource(opts: AuthSource): Promise<ResolvedAuthS
     return { source: opts.keyUri, isKeyUri: true, resolvedFrom: "cli", account: accountName };
   }
 
-  const envMnemonic = process.env[ENV.MNEMONIC];
-  const envKeyUri = process.env[ENV.KEY_URI];
-
-  if (envMnemonic && envMnemonic.length > 0) {
-    return { source: envMnemonic, isKeyUri: false, resolvedFrom: "env", account: accountName };
-  }
-  if (envKeyUri && envKeyUri.length > 0) {
-    return { source: envKeyUri, isKeyUri: true, resolvedFrom: "env", account: accountName };
-  }
+  const fromEnv = resolveAuthSourceFromEnv(accountName);
+  if (fromEnv) return fromEnv;
 
   const keystoreDirectoryPath = resolveKeystorePath(opts.keystorePath);
 

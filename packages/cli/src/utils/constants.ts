@@ -23,6 +23,8 @@ export const DOT_NODE: Hex = "0x3fce7d1364a893e213bc4212792b517ffc88f5b13b86c8ef
 
 export const DECIMALS = 12n;
 
+export const DECIMALS_DOT = 10n;
+
 export const NATIVE_TO_ETH_RATIO = 1_000_000n;
 
 export const DEFAULT_MNEMONIC =

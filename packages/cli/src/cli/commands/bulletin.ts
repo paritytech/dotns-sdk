@@ -421,7 +421,7 @@ export function attachBulletinCommands(root: Command): void {
         );
 
         const signerContext = await withBulletinHumanOutput(reporterMode, () =>
-          prepareContext({ keyUri: signerKeyUri, useBulletin: true }),
+          prepareContext({ keyUri: signerKeyUri, useBulletin: true, bulletinRpc }),
         );
 
         if (!jsonOutput) {
