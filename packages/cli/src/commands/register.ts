@@ -714,6 +714,8 @@ export async function setUserProofOfPersonhoodStatus(
   const checkSpinner = ora(`Checking current PoP status for ${displayName}`).start();
 
   try {
+    await clientWrapper.ensureAccountMapped(substrateAddress, signer);
+
     const currentStatus = await getUserProofOfPersonhoodStatus(
       clientWrapper,
       substrateAddress,

@@ -3,15 +3,15 @@ import type { Ora } from "ora";
 import { formatEther } from "viem";
 import { printHumanDetail, printHumanFailure, printHumanSuccess } from "../cli/reporter";
 import type { TransactionStatus } from "../types/types";
-import { DECIMALS, NATIVE_TO_ETH_RATIO } from "./constants";
+import { DECIMALS_DOT, NATIVE_TO_ETH_RATIO } from "./constants";
 
 export function formatNativeBalance(valueInNativeUnits: bigint): string {
-  const divisor = 10n ** DECIMALS;
+  const divisor = 10n ** DECIMALS_DOT;
   const wholePart = valueInNativeUnits / divisor;
   const fractionalPart = valueInNativeUnits % divisor;
 
   let fractionalString = fractionalPart.toString();
-  const missingZeroCount = DECIMALS - BigInt(fractionalString.length);
+  const missingZeroCount = DECIMALS_DOT - BigInt(fractionalString.length);
   if (missingZeroCount > 0n) {
     fractionalString = "0".repeat(Number(missingZeroCount)) + fractionalString;
   }
@@ -24,9 +24,11 @@ export function parseNativeBalance(decimalValue: string): bigint {
   const wholePart = BigInt(parts[0] || "0");
   const fractionalPart = parts[1] || "0";
 
-  const paddedFraction = fractionalPart.padEnd(Number(DECIMALS), "0").slice(0, Number(DECIMALS));
+  const paddedFraction = fractionalPart
+    .padEnd(Number(DECIMALS_DOT), "0")
+    .slice(0, Number(DECIMALS_DOT));
 
-  return wholePart * 10n ** DECIMALS + BigInt(paddedFraction);
+  return wholePart * 10n ** DECIMALS_DOT + BigInt(paddedFraction);
 }
 
 export function convertNativeToWei(nativeValue: bigint): bigint {
