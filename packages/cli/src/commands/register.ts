@@ -257,7 +257,16 @@ export async function waitForMinimumCommitmentAge(
 
   waitSpinner.text = "Verifying commitment age on-chain";
 
+  // Compare block-time to block-time, not wall-clock to block-time. The
+  // contract's CommitmentTooNew check is `block.timestamp - commitTimestamp
+  // >= minCommitmentAge`, so the verify poll has to use the chain's current
+  // block timestamp as "now" — otherwise block-time can lag wall-clock by
+  // several seconds (e.g. on a parachain between blocks) and we submit the
+  // reveal while the contract still sees the commitment as too new. The
+  // Timestamp pallet stores block.timestamp in milliseconds.
   const pollDeadline = Date.now() + COMMITMENT_POLL_TIMEOUT_MS;
+
+  const timestampQuery = (clientWrapper.client as any).query?.Timestamp?.Now;
   while (Date.now() < pollDeadline) {
     const polledTimestamp = await performContractCall<bigint | number>(
       clientWrapper,
@@ -271,9 +280,18 @@ export async function waitForMinimumCommitmentAge(
     const polledCommitTime =
       typeof polledTimestamp === "bigint" ? Number(polledTimestamp) : polledTimestamp;
 
-    const nowSeconds = Math.floor(Date.now() / 1000);
+    // Prefer chain block.timestamp via Timestamp::Now; fall back to wall-clock
+    // only if the pallet storage isn't available on this runtime (defensive —
+    // every Substrate chain we care about has it).
+    let chainNowSeconds: number;
+    if (timestampQuery?.getValue) {
+      const timestampMs = (await timestampQuery.getValue()) as bigint | number;
+      chainNowSeconds = Math.floor(Number(timestampMs) / 1000);
+    } else {
+      chainNowSeconds = Math.floor(Date.now() / 1000);
+    }
 
-    if (polledCommitTime > 0 && nowSeconds - polledCommitTime >= minimumAgeSeconds) {
+    if (polledCommitTime > 0 && chainNowSeconds - polledCommitTime >= minimumAgeSeconds) {
       waitSpinner.succeed("Commitment age requirement met (verified on-chain)");
       return;
     }

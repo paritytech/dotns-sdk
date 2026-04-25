@@ -1,28 +1,20 @@
 import { createClient } from "polkadot-api";
-import { getPolkadotSigner } from "polkadot-api/signer";
 import { getWsProvider } from "polkadot-api/ws-provider";
 import { bulletin, paseo } from "@polkadot-api/descriptors";
-import { Keyring } from "@polkadot/keyring";
-import { cryptoWaitReady } from "@polkadot/util-crypto";
+import type { PolkadotSigner } from "polkadot-api";
 import { type Address } from "viem";
 
 import { ReviveClientWrapper, type PolkadotApiClient } from "../client/polkadotClient";
-import { DEFAULT_MNEMONIC, RPC_ENDPOINTS } from "../utils/constants";
-const DEFAULT_BULLETIN_RPC = "wss://paseo-bulletin-rpc.polkadot.io";
+import { DEFAULT_BULLETIN_RPC, DEFAULT_MNEMONIC, RPC_ENDPOINTS } from "../utils/constants";
+import { createAccountFromSource, createSubstrateSigner } from "../commands/auth";
 
 export type ConnectedDotns = {
   client: PolkadotApiClient;
   clientWrapper: ReviveClientWrapper;
   substrateAddress: string;
   evmAddress: Address;
-  signer: ReturnType<typeof getPolkadotSigner>;
+  signer: PolkadotSigner;
 };
-
-export async function createAccountFromSource(source: string, isKeyUri: boolean) {
-  await cryptoWaitReady();
-  const keyring = new Keyring({ type: "sr25519" });
-  return isKeyUri ? keyring.addFromUri(source) : keyring.addFromMnemonic(source);
-}
 
 export async function connectDotns(): Promise<ConnectedDotns> {
   const rpc = process.env.DOTNS_RPC ?? RPC_ENDPOINTS[0];
@@ -37,9 +29,7 @@ export async function connectDotns(): Promise<ConnectedDotns> {
   const substrateAddress = account.address;
   const evmAddress = await clientWrapper.getEvmAddress(substrateAddress);
 
-  const signer = getPolkadotSigner(account.publicKey, "Sr25519", async (input) =>
-    account.sign(input),
-  );
+  const signer = createSubstrateSigner(account);
 
   return { client, clientWrapper, substrateAddress, evmAddress, signer };
 }
@@ -52,9 +42,7 @@ export async function connectBulletin() {
   const account = await createAccountFromSource(mnemonic ?? keyUri, mnemonic ? false : true);
 
   const substrateAddress = account.address;
-  const signer = getPolkadotSigner(account.publicKey, "Sr25519", async (input) =>
-    account.sign(input),
-  );
+  const signer = createSubstrateSigner(account);
 
   const rawClient = createClient(getWsProvider(rpc));
   const client = rawClient.getTypedApi(bulletin);

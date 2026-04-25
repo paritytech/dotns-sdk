@@ -1,8 +1,11 @@
 import { expect, test } from "bun:test";
-import { HARNESS_SUCCESS_EXIT_CODE, runDotnsCli, TEST_TIMEOUT_MS } from "../../_helpers/cliHelpers";
-
-const ALICE_KEY_URI = "//Alice";
-const BOB_ADDRESS = "0x0000000000000000000000000000000000000001";
+import {
+  ALICE_KEY_URI,
+  BOB_EVM_ADDRESS,
+  HARNESS_SUCCESS_EXIT_CODE,
+  runDotnsCli,
+  TEST_TIMEOUT_MS,
+} from "../../_helpers/cliHelpers";
 
 test(
   "store info shows store status",
@@ -68,7 +71,13 @@ test(
 test(
   "store check shows authorization status",
   async () => {
-    const result = await runDotnsCli(["store", "check", BOB_ADDRESS, "--key-uri", ALICE_KEY_URI]);
+    const result = await runDotnsCli([
+      "store",
+      "check",
+      BOB_EVM_ADDRESS,
+      "--key-uri",
+      ALICE_KEY_URI,
+    ]);
 
     expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
     expect(result.combinedOutput).not.toContain("✗ Error:");
@@ -85,7 +94,7 @@ test(
     const result = await runDotnsCli([
       "store",
       "check",
-      BOB_ADDRESS,
+      BOB_EVM_ADDRESS,
       "--key-uri",
       ALICE_KEY_URI,
       "--json",
@@ -111,7 +120,7 @@ test(
     const authorizeResult = await runDotnsCli([
       "store",
       "authorize",
-      BOB_ADDRESS,
+      BOB_EVM_ADDRESS,
       "--key-uri",
       ALICE_KEY_URI,
     ]);
@@ -122,7 +131,7 @@ test(
     const checkAfterAuth = await runDotnsCli([
       "store",
       "check",
-      BOB_ADDRESS,
+      BOB_EVM_ADDRESS,
       "--key-uri",
       ALICE_KEY_URI,
       "--json",
@@ -134,7 +143,7 @@ test(
     const unauthorizeResult = await runDotnsCli([
       "store",
       "unauthorize",
-      BOB_ADDRESS,
+      BOB_EVM_ADDRESS,
       "--key-uri",
       ALICE_KEY_URI,
     ]);
@@ -145,7 +154,7 @@ test(
     const checkAfterRevoke = await runDotnsCli([
       "store",
       "check",
-      BOB_ADDRESS,
+      BOB_EVM_ADDRESS,
       "--key-uri",
       ALICE_KEY_URI,
       "--json",
@@ -163,7 +172,7 @@ test(
     const authorizeResult = await runDotnsCli([
       "store",
       "authorize-controller",
-      BOB_ADDRESS,
+      BOB_EVM_ADDRESS,
       "--key-uri",
       ALICE_KEY_URI,
     ]);
@@ -174,7 +183,7 @@ test(
     const checkAfterAuth = await runDotnsCli([
       "store",
       "check",
-      BOB_ADDRESS,
+      BOB_EVM_ADDRESS,
       "--key-uri",
       ALICE_KEY_URI,
       "--json",
@@ -186,7 +195,7 @@ test(
     const unauthorizeResult = await runDotnsCli([
       "store",
       "unauthorize-controller",
-      BOB_ADDRESS,
+      BOB_EVM_ADDRESS,
       "--key-uri",
       ALICE_KEY_URI,
     ]);
@@ -197,7 +206,7 @@ test(
     const checkAfterRevoke = await runDotnsCli([
       "store",
       "check",
-      BOB_ADDRESS,
+      BOB_EVM_ADDRESS,
       "--key-uri",
       ALICE_KEY_URI,
       "--json",

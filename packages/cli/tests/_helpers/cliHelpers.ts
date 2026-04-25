@@ -21,6 +21,11 @@ export const TEST_PASSWORD = "test-password";
 export const TEST_MNEMONIC =
   "bottom drive obey lake curtain smoke basket hold race lonely fit walk";
 export const ALICE_KEY_URI = "//Alice";
+export const ALICE_SS58 = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
+export const ALICE_EVM = "0xf24FF3a9CF04c71Dbc94D0b566f7A27B94566cac" as const;
+export const BOB_EVM_ADDRESS = "0x0000000000000000000000000000000000000001" as const;
+export const PLACEHOLDER_EVM_ADDRESS = "0x000000000000000000000000000000000000dead" as const;
+export const TEST_OWNER_EVM_ADDRESS = "0x3Cd0A705a2DC65e5b1E1205896BaA2be8A07c6e0" as const;
 export const TEST_ACCOUNT = "default";
 export const TEST_TIMEOUT_MS = 120_000;
 
@@ -195,7 +200,7 @@ export async function createDefaultAccountKeystore(
   keystorePassword: string,
   accountName: string = "default",
 ): Promise<{ testMnemonic: string }> {
-  const testMnemonic = "bottom drive obey lake curtain smoke basket hold race lonely fit walk";
+  const testMnemonic = TEST_MNEMONIC;
 
   const createResult = await runDotnsCli([
     "--keystore-path",

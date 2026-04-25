@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
   HARNESS_SUCCESS_EXIT_CODE,
+  ALICE_KEY_URI,
   runDotnsCli,
   TEST_TIMEOUT_MS,
   type CliRunResult,
@@ -41,7 +42,7 @@ async function registerFreshDomainForAlice(): Promise<string> {
     "--status",
     "full",
     "--key-uri",
-    "//Alice",
+    ALICE_KEY_URI,
   ]);
 
   expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
@@ -176,7 +177,7 @@ test(
       "-d",
       BOB_SS58,
       "--key-uri",
-      "//Alice",
+      ALICE_KEY_URI,
     ]);
 
     expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
@@ -200,7 +201,7 @@ test(
       "-d",
       BOB_SS58,
       "--key-uri",
-      "//Alice",
+      ALICE_KEY_URI,
     ]);
 
     expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
@@ -223,7 +224,7 @@ test(
       "-d",
       BOB_SS58,
       "--key-uri",
-      "//Alice",
+      ALICE_KEY_URI,
       "--json",
     ]);
 

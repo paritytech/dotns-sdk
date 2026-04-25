@@ -1,5 +1,11 @@
 import { afterEach, expect, test } from "bun:test";
-import { HARNESS_HELP_SUCCESS_EXIT_CODE, runDotnsCli } from "../../_helpers/cliHelpers";
+import {
+  HARNESS_HELP_SUCCESS_EXIT_CODE,
+  ALICE_KEY_URI,
+  runDotnsCli,
+  TEST_MNEMONIC,
+  TEST_OWNER_EVM_ADDRESS,
+} from "../../_helpers/cliHelpers";
 import {
   getCommitmentBufferSeconds,
   COMMITMENT_POLL_INTERVAL_MS,
@@ -81,7 +87,7 @@ test("register domain parses owner option", async () => {
     "register",
     "domain",
     "--owner",
-    "0x3Cd0A705a2DC65e5b1E1205896BaA2be8A07c6e0",
+    TEST_OWNER_EVM_ADDRESS,
     "--help",
   ]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
@@ -93,7 +99,7 @@ test("register domain parses transfer with destination", async () => {
     "domain",
     "--transfer",
     "--to",
-    "0x3Cd0A705a2DC65e5b1E1205896BaA2be8A07c6e0",
+    TEST_OWNER_EVM_ADDRESS,
     "--help",
   ]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
@@ -121,18 +127,12 @@ test("register domain parses password option", async () => {
 });
 
 test("register domain parses mnemonic option", async () => {
-  const result = await runDotnsCli([
-    "register",
-    "domain",
-    "--mnemonic",
-    "bottom drive obey lake curtain smoke basket hold race lonely fit walk",
-    "--help",
-  ]);
+  const result = await runDotnsCli(["register", "domain", "--mnemonic", TEST_MNEMONIC, "--help"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 });
 
 test("register domain parses key-uri option", async () => {
-  const result = await runDotnsCli(["register", "domain", "--key-uri", "//Alice", "--help"]);
+  const result = await runDotnsCli(["register", "domain", "--key-uri", ALICE_KEY_URI, "--help"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 });
 
@@ -168,7 +168,7 @@ test("register subname parses owner option", async () => {
     "--parent",
     "claude",
     "--owner",
-    "0x3Cd0A705a2DC65e5b1E1205896BaA2be8A07c6e0",
+    TEST_OWNER_EVM_ADDRESS,
     "--help",
   ]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);

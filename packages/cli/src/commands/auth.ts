@@ -1,5 +1,8 @@
 import { Keyring } from "@polkadot/keyring";
+import type { KeyringPair } from "@polkadot/keyring/types";
 import { cryptoWaitReady } from "@polkadot/util-crypto";
+import { getPolkadotSigner } from "polkadot-api/signer";
+import type { PolkadotSigner } from "polkadot-api";
 import path from "node:path";
 import fs from "node:fs/promises";
 
@@ -15,6 +18,10 @@ export async function createAccountFromSource(source: string, isKeyUri: boolean)
   await cryptoWaitReady();
   const keyring = new Keyring({ type: "sr25519" });
   return isKeyUri ? keyring.addFromUri(source) : keyring.addFromMnemonic(source);
+}
+
+export function createSubstrateSigner(keypair: KeyringPair): PolkadotSigner {
+  return getPolkadotSigner(keypair.publicKey, "Sr25519", async (input) => keypair.sign(input));
 }
 
 async function readDefaultAccountName(keystoreDirectoryPath: string): Promise<string | undefined> {

@@ -1,5 +1,10 @@
 import { expect, test } from "bun:test";
-import { HARNESS_HELP_SUCCESS_EXIT_CODE, runDotnsCli } from "../../_helpers/cliHelpers";
+import {
+  ALICE_KEY_URI,
+  BOB_EVM_ADDRESS,
+  HARNESS_HELP_SUCCESS_EXIT_CODE,
+  runDotnsCli,
+} from "../../_helpers/cliHelpers";
 
 test("lookup --help lists subcommands and auth options", async () => {
   const result = await runDotnsCli(["lookup", "--help"]);
@@ -51,14 +56,7 @@ test("lookup transfer --help shows label argument and destination option", async
 });
 
 test("lookup transfer parses destination at transfer level", async () => {
-  const result = await runDotnsCli([
-    "lookup",
-    "transfer",
-    "test",
-    "-d",
-    "0x0000000000000000000000000000000000000001",
-    "--help",
-  ]);
+  const result = await runDotnsCli(["lookup", "transfer", "test", "-d", BOB_EVM_ADDRESS, "--help"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 });
 
@@ -66,11 +64,11 @@ test("lookup transfer parses auth options at lookup level", async () => {
   const result = await runDotnsCli([
     "lookup",
     "--key-uri",
-    "//Alice",
+    ALICE_KEY_URI,
     "transfer",
     "test",
     "-d",
-    "0x0000000000000000000000000000000000000001",
+    BOB_EVM_ADDRESS,
     "--help",
   ]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
