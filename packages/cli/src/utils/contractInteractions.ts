@@ -15,6 +15,32 @@ import type { ReviveClientWrapper } from "../client/polkadotClient";
 import { DOT_NODE, OPERATION_TIMEOUT_MILLISECONDS } from "./constants";
 import { createTransactionStatusHandler, withTimeout } from "./formatting";
 
+export const UNMAPPED_ORIGIN_REVERT_HINT =
+  "Contract reverted with empty data. The origin SS58 is likely not mapped on " +
+  "Asset Hub Revive. Run `dotns account map` (or any signed transaction from " +
+  "this account), then retry.";
+
+export function isRevertFlag(flags: bigint): boolean {
+  return (flags & 1n) === 1n;
+}
+
+export function buildRevertError(data: Hex, abi: Abi): Error {
+  if (data === "0x") {
+    return new Error(UNMAPPED_ORIGIN_REVERT_HINT);
+  }
+
+  let revertReason: string = data;
+  try {
+    const decoded = decodeErrorResult({ abi, data });
+    revertReason = decoded.args
+      ? `${decoded.errorName}(${decoded.args.map(String).join(", ")})`
+      : decoded.errorName;
+  } catch {
+    // Unknown error selector — fall back to raw hex
+  }
+  return new Error(`Contract reverted: ${revertReason}`);
+}
+
 export async function performContractCall<T>(
   clientWrapper: ReviveClientWrapper,
   originSubstrateAddress: string,
@@ -39,17 +65,8 @@ export async function performContractCall<T>(
   const data = (call?.result?.value?.data ?? "0x") as `0x${string}`;
   const flags = (call?.result?.value?.flags ?? 1n) as bigint;
 
-  if ((flags & 1n) === 1n) {
-    let revertReason: string = data;
-    try {
-      const decoded = decodeErrorResult({ abi, data });
-      revertReason = decoded.args
-        ? `${decoded.errorName}(${decoded.args.map(String).join(", ")})`
-        : decoded.errorName;
-    } catch {
-      // Unknown error selector — fall back to raw hex
-    }
-    throw new Error(`Contract reverted: ${revertReason}`);
+  if (isRevertFlag(flags)) {
+    throw buildRevertError(data, abi);
   }
 
   const decoded = decodeFunctionResult({

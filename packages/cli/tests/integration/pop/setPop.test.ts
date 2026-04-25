@@ -2,6 +2,7 @@ import { afterAll, afterEach, expect, test } from "bun:test";
 import {
   createDefaultAccountKeystore,
   HARNESS_SUCCESS_EXIT_CODE,
+  ALICE_KEY_URI,
   runDotnsCli,
   TEST_ACCOUNT,
   TEST_PASSWORD,
@@ -13,6 +14,11 @@ import {
   cleanupTestTemporaryDirectory,
   createKeystorePathsForTest,
 } from "../../_helpers/testPaths";
+import {
+  deriveSubstrateAddress,
+  fundAccountFromAlice,
+  generateFreshMnemonic,
+} from "../../_helpers/fundAccount";
 import { DEFAULT_MNEMONIC } from "../../../src/utils/constants";
 
 const createdTestTemporaryDirectoryPaths: string[] = [];
@@ -128,7 +134,7 @@ test(
 test(
   "pop set lite with key-uri flag",
   async () => {
-    const result = await runDotnsCli(["pop", "--key-uri", "//Alice", "set", "lite"]);
+    const result = await runDotnsCli(["pop", "--key-uri", ALICE_KEY_URI, "set", "lite"]);
 
     expectSuccessfulPopSet(result);
   },
@@ -182,7 +188,7 @@ test(
 test(
   "pop info with key-uri flag at pop level",
   async () => {
-    const result = await runDotnsCli(["pop", "--key-uri", "//Alice", "info"]);
+    const result = await runDotnsCli(["pop", "--key-uri", ALICE_KEY_URI, "info"]);
 
     expectSuccessfulInfo(result);
   },
@@ -233,7 +239,7 @@ test(
 test(
   "pop info --json returns structured result",
   async () => {
-    const result = await runDotnsCli(["pop", "--key-uri", "//Alice", "info", "--json"]);
+    const result = await runDotnsCli(["pop", "--key-uri", ALICE_KEY_URI, "info", "--json"]);
 
     expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
 
@@ -251,9 +257,31 @@ test(
 );
 
 test(
+  "pop info auto-maps a fresh, funded mnemonic and returns statusCode 0",
+  async () => {
+    const freshMnemonic = await generateFreshMnemonic();
+    const freshSubstrateAddress = await deriveSubstrateAddress(freshMnemonic);
+
+    await fundAccountFromAlice(freshSubstrateAddress);
+
+    const result = await runDotnsCli(["pop", "info", "--mnemonic", freshMnemonic, "--json"]);
+
+    expect(result.combinedOutput).not.toContain("Contract reverted");
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+
+    const parsed = JSON.parse(result.combinedOutput.trim());
+    expect(parsed.substrate).toBe(freshSubstrateAddress);
+    expect(parsed.evm).toBeString();
+    expect(parsed.statusCode).toBe(0);
+    expect(parsed.status).toBe("nostatus");
+  },
+  { timeout: TEST_TIMEOUT_MS * 2 },
+);
+
+test(
   "pop set --json returns structured result",
   async () => {
-    const result = await runDotnsCli(["pop", "--key-uri", "//Alice", "set", "lite", "--json"]);
+    const result = await runDotnsCli(["pop", "--key-uri", ALICE_KEY_URI, "set", "lite", "--json"]);
 
     expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
 

@@ -265,7 +265,7 @@ export async function waitForMinimumCommitmentAge(
   // reveal while the contract still sees the commitment as too new. The
   // Timestamp pallet stores block.timestamp in milliseconds.
   const pollDeadline = Date.now() + COMMITMENT_POLL_TIMEOUT_MS;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   const timestampQuery = (clientWrapper.client as any).query?.Timestamp?.Now;
   while (Date.now() < pollDeadline) {
     const polledTimestamp = await performContractCall<bigint | number>(

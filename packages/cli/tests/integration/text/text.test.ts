@@ -2,6 +2,7 @@ import { afterAll, afterEach, expect, test } from "bun:test";
 import {
   createDefaultAccountKeystore,
   HARNESS_SUCCESS_EXIT_CODE,
+  ALICE_KEY_URI,
   runDotnsCli,
   TEST_ACCOUNT,
   TEST_PASSWORD,
@@ -184,7 +185,7 @@ test(
   "text set with key-uri shows ownership verification",
   async () => {
     const result = await runTextSet(
-      ["--key-uri", "//Alice"],
+      ["--key-uri", ALICE_KEY_URI],
       REGISTERED_DOMAIN,
       TEST_KEY,
       TEST_VALUE,
@@ -202,7 +203,7 @@ test(
   "text set rejects both mnemonic and key-uri",
   async () => {
     const result = await runTextSet(
-      ["--mnemonic", DEFAULT_MNEMONIC, "--key-uri", "//Alice"],
+      ["--mnemonic", DEFAULT_MNEMONIC, "--key-uri", ALICE_KEY_URI],
       REGISTERED_DOMAIN,
       TEST_KEY,
       TEST_VALUE,
@@ -233,7 +234,7 @@ test(
   "text set rejects unregistered domain",
   async () => {
     const result = await runTextSet(
-      ["--key-uri", "//Alice"],
+      ["--key-uri", ALICE_KEY_URI],
       UNREGISTERED_DOMAIN,
       TEST_KEY,
       TEST_VALUE,

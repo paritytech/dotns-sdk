@@ -2,12 +2,11 @@ import { expect, test } from "bun:test";
 import {
   HARNESS_SUCCESS_EXIT_CODE,
   ALICE_KEY_URI,
+  ALICE_SS58,
+  ALICE_EVM,
   TEST_TIMEOUT_MS,
   runDotnsCli,
 } from "../../_helpers/cliHelpers";
-
-const ALICE_SS58 = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
-const ALICE_EVM = "0xf24FF3a9CF04c71Dbc94D0b566f7A27B94566cac";
 
 test(
   "account is-mapped with Alice SS58 returns mapped status",

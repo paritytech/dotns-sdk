@@ -5,6 +5,7 @@ import { promises as fs } from "node:fs";
 import {
   createDefaultAccountKeystore,
   HARNESS_SUCCESS_EXIT_CODE,
+  ALICE_KEY_URI,
   runDotnsCli,
   TEST_ACCOUNT,
   TEST_PASSWORD,
@@ -303,7 +304,7 @@ test(
     expect(result.combinedOutput).toContain("rpc:");
     expect(result.combinedOutput).toContain("transactions:");
     expect(result.combinedOutput).toContain("signer:");
-    expect(result.combinedOutput).toContain("//Alice");
+    expect(result.combinedOutput).toContain(ALICE_KEY_URI);
   },
   { timeout: BULLETIN_TEST_TIMEOUT_MS },
 );
@@ -318,7 +319,7 @@ test(
     expectSuccessfulAuthorize(result);
     expect(result.combinedOutput).toContain("target:");
     expect(result.combinedOutput).toContain("signer:");
-    expect(result.combinedOutput).toContain("//Alice");
+    expect(result.combinedOutput).toContain(ALICE_KEY_URI);
   },
   { timeout: BULLETIN_TEST_TIMEOUT_MS },
 );

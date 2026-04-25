@@ -7,6 +7,7 @@ import {
   HARNESS_SUCCESS_EXIT_CODE,
   TEST_PASSWORD,
   TEST_ACCOUNT,
+  TEST_OWNER_EVM_ADDRESS,
   runDotnsCli,
   type CliRunResult,
 } from "../../_helpers/cliHelpers";
@@ -141,7 +142,7 @@ test(
     createPathsForTest("register_domain_for_someone_else_using_owner");
     const keystorePath = await ensureDefaultKeystore();
     const label = generateRandomLabel(ProofOfPersonhoodStatus.NoStatus);
-    const ownerAddress = "0x3Cd0A705a2DC65e5b1E1205896BaA2be8A07c6e0";
+    const ownerAddress = TEST_OWNER_EVM_ADDRESS;
 
     const registerResult = await registerDomain(keystorePath, [
       "--name",
@@ -168,7 +169,7 @@ test(
       label,
       "--transfer",
       "--to",
-      "0x3Cd0A705a2DC65e5b1E1205896BaA2be8A07c6e0",
+      TEST_OWNER_EVM_ADDRESS,
     ]);
 
     expectNoPopStatusMutationAttempt(registerResult);
@@ -209,7 +210,7 @@ test(
       "--governance",
       "--transfer",
       "--to",
-      "0x3Cd0A705a2DC65e5b1E1205896BaA2be8A07c6e0",
+      TEST_OWNER_EVM_ADDRESS,
     ]);
 
     expectNoPopStatusMutationAttempt(registerResult);
@@ -224,7 +225,7 @@ test(
     createPathsForTest("register_domain_governance_for_someone_else_using_owner");
     const keystorePath = await ensureDefaultKeystore();
     const governanceLabel = generateGovernanceLabel(5);
-    const ownerAddress = "0x3Cd0A705a2DC65e5b1E1205896BaA2be8A07c6e0";
+    const ownerAddress = TEST_OWNER_EVM_ADDRESS;
 
     const registerResult = await registerDomain(keystorePath, [
       "--name",

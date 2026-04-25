@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
   HARNESS_SUCCESS_EXIT_CODE,
+  ALICE_KEY_URI,
   runDotnsCli,
   expectJsonHelpOption,
 } from "../../_helpers/cliHelpers";
@@ -16,7 +17,7 @@ test("content set --json emits JSON error when both mnemonic and key-uri provide
     "--mnemonic",
     DEFAULT_MNEMONIC,
     "--key-uri",
-    "//Alice",
+    ALICE_KEY_URI,
     "set",
     "testdomain",
     "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",

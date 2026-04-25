@@ -63,7 +63,7 @@ const envCases: EnvCase[] = [
   },
 ];
 
-describe("resolveAuthSourceReadOnly honours environment variables (regression for #114)", () => {
+describe("resolveAuthSourceReadOnly honours environment variables", () => {
   test.each(envCases)("$label", async ({ env, expected }) => {
     clearAuthEnv();
     if (env.mnemonic !== undefined) process.env[ENV.MNEMONIC] = env.mnemonic;

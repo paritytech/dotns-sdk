@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
   HARNESS_SUCCESS_EXIT_CODE,
+  ALICE_KEY_URI,
   runDotnsCli,
   expectJsonHelpOption,
 } from "../../_helpers/cliHelpers";
@@ -19,7 +20,7 @@ test("register domain --json emits JSON error when --transfer without --to", asy
     "testlabel",
     "--transfer",
     "--key-uri",
-    "//Alice",
+    ALICE_KEY_URI,
     "--json",
   ]);
 

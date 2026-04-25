@@ -1,5 +1,10 @@
 import { expect, test } from "bun:test";
-import { HARNESS_HELP_SUCCESS_EXIT_CODE, runDotnsCli } from "../../_helpers/cliHelpers";
+import {
+  ALICE_KEY_URI,
+  HARNESS_HELP_SUCCESS_EXIT_CODE,
+  runDotnsCli,
+  TEST_MNEMONIC,
+} from "../../_helpers/cliHelpers";
 
 test("root help lists pop command", async () => {
   const result = await runDotnsCli(["--help"]);
@@ -110,19 +115,12 @@ test("pop set parses password option", async () => {
 });
 
 test("pop set parses mnemonic option", async () => {
-  const result = await runDotnsCli([
-    "pop",
-    "set",
-    "lite",
-    "--mnemonic",
-    "bottom drive obey lake curtain smoke basket hold race lonely fit walk",
-    "--help",
-  ]);
+  const result = await runDotnsCli(["pop", "set", "lite", "--mnemonic", TEST_MNEMONIC, "--help"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 });
 
 test("pop set parses key-uri option", async () => {
-  const result = await runDotnsCli(["pop", "set", "lite", "--key-uri", "//Alice", "--help"]);
+  const result = await runDotnsCli(["pop", "set", "lite", "--key-uri", ALICE_KEY_URI, "--help"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 });
 

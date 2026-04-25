@@ -2,6 +2,7 @@ import { afterAll, afterEach, expect, test } from "bun:test";
 import {
   createDefaultAccountKeystore,
   HARNESS_SUCCESS_EXIT_CODE,
+  ALICE_KEY_URI,
   runDotnsCli,
   TEST_ACCOUNT,
   TEST_PASSWORD,
@@ -179,7 +180,7 @@ test(
 test(
   "content set with key-uri shows ownership verification",
   async () => {
-    const result = await runContentSet(["--key-uri", "//Alice"], REGISTERED_DOMAIN, TEST_CID);
+    const result = await runContentSet(["--key-uri", ALICE_KEY_URI], REGISTERED_DOMAIN, TEST_CID);
 
     expectContentSetHeader(result, REGISTERED_DOMAIN);
     expect(result.combinedOutput).toContain("exists:");
@@ -193,7 +194,7 @@ test(
   "content set rejects both mnemonic and key-uri",
   async () => {
     const result = await runContentSet(
-      ["--mnemonic", DEFAULT_MNEMONIC, "--key-uri", "//Alice"],
+      ["--mnemonic", DEFAULT_MNEMONIC, "--key-uri", ALICE_KEY_URI],
       REGISTERED_DOMAIN,
       TEST_CID,
     );
@@ -217,7 +218,7 @@ test(
 test(
   "content set rejects unregistered domain",
   async () => {
-    const result = await runContentSet(["--key-uri", "//Alice"], UNREGISTERED_DOMAIN, TEST_CID);
+    const result = await runContentSet(["--key-uri", ALICE_KEY_URI], UNREGISTERED_DOMAIN, TEST_CID);
 
     expect(result.combinedOutput).toContain("is not registered");
   },
@@ -267,7 +268,7 @@ test(
     const result = await runDotnsCli([
       "content",
       "--key-uri",
-      "//Alice",
+      ALICE_KEY_URI,
       "set",
       REGISTERED_DOMAIN,
       TEST_CID,
@@ -296,7 +297,7 @@ test(
     const result = await runDotnsCli([
       "content",
       "--key-uri",
-      "//Alice",
+      ALICE_KEY_URI,
       "set",
       UNREGISTERED_DOMAIN,
       TEST_CID,

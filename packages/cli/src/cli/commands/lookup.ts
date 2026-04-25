@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import chalk from "chalk";
+import type { KeyringPair } from "@polkadot/keyring/types";
 import { createClient } from "polkadot-api";
 import { getWsProvider } from "polkadot-api/ws-provider";
 import { paseo } from "@polkadot-api/descriptors";
@@ -12,6 +13,7 @@ import {
   resolveAuthSourceReadOnly,
   resolveAuthSource,
   createAccountFromSource,
+  createSubstrateSigner,
 } from "../../commands/auth";
 import { addAuthOptions, getAuthOptions } from "./authOptions";
 import { step } from "../ui";
@@ -85,6 +87,8 @@ export async function prepareReadOnlyContext(
     createAccountFromSource(auth.source, auth.isKeyUri),
   );
 
+  await ensureAccountMappedWhenAuthenticated(clientWrapper, keypair, auth.resolvedFrom);
+
   const evmAddress = await step("Resolving EVM address", async () =>
     clientWrapper.getEvmAddress(keypair.address),
   );
@@ -93,6 +97,26 @@ export async function prepareReadOnlyContext(
   console.log(chalk.gray("  Account: ") + chalk.white(keypair.address));
 
   return { clientWrapper, account: { address: keypair.address }, rpc, evmAddress };
+}
+
+export async function ensureAccountMappedWhenAuthenticated(
+  clientWrapper: ReviveClientWrapper,
+  keypair: KeyringPair,
+  resolvedFrom: ResolvedReadOnlyAuth["resolvedFrom"],
+): Promise<void> {
+  if (resolvedFrom === "default") return;
+  const signer = createSubstrateSigner(keypair);
+  try {
+    await step("Ensuring account mapped", async () =>
+      clientWrapper.ensureAccountMapped(keypair.address, signer),
+    );
+  } catch (mapError) {
+    console.log(
+      chalk.yellow(
+        `  ⚠ Account mapping skipped: ${mapError instanceof Error ? mapError.message : String(mapError)}`,
+      ),
+    );
+  }
 }
 
 async function resolveRecipientByKind(

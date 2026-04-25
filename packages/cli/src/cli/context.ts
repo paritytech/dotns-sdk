@@ -1,14 +1,17 @@
 import chalk from "chalk";
 import { createClient } from "polkadot-api";
 import { getWsProvider } from "polkadot-api/ws-provider";
-import { getPolkadotSigner } from "polkadot-api/signer";
 import { bulletin, paseo } from "@polkadot-api/descriptors";
 import { type Address } from "viem";
 import { ReviveClientWrapper, type PolkadotApiClient } from "../client/polkadotClient";
 import { parseNativeBalance, formatNativeBalance } from "../utils/formatting";
 import { resolveRpc, resolveMinBalancePas, resolveKeystorePath } from "./env";
 import { step } from "./ui";
-import { resolveAuthSource, createAccountFromSource } from "../commands/auth";
+import {
+  resolveAuthSource,
+  createAccountFromSource,
+  createSubstrateSigner,
+} from "../commands/auth";
 import type { AssetHubContext, BulletinContext, ChainContext, BalanceStatus } from "../types/types";
 
 export async function getBalanceStatus(
@@ -72,9 +75,7 @@ export async function prepareAssetHubContext(options: any): Promise<AssetHubCont
   );
 
   const substrateAddress = account.address;
-  const signer = getPolkadotSigner(account.publicKey, "Sr25519", async (input) =>
-    account.sign(input),
-  );
+  const signer = createSubstrateSigner(account);
 
   const clientWrapper = new ReviveClientWrapper(client as PolkadotApiClient);
 
@@ -144,9 +145,7 @@ export async function prepareBulletinContext(options: any): Promise<BulletinCont
   );
 
   const substrateAddress = account.address;
-  const signer = getPolkadotSigner(account.publicKey, "Sr25519", async (input) =>
-    account.sign(input),
-  );
+  const signer = createSubstrateSigner(account);
 
   console.log(chalk.bold("\n📋 Configuration\n"));
   console.log(chalk.gray("  RPC:       ") + chalk.white(rpc));
