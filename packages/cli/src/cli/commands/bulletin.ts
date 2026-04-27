@@ -79,6 +79,85 @@ import {
   type ResolvedReporterMode,
 } from "../reporter";
 
+async function checkHopRpc(
+  rpcUrl: string,
+  hopMethods: string[],
+): Promise<{ methods: string[]; poolStatus: Record<string, unknown> | null }> {
+  const WebSocketImpl = globalThis.WebSocket ?? (await import("ws")).default;
+  const ws = new WebSocketImpl(rpcUrl);
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try { ws.close(); } catch { /* ignore */ }
+      reject(new Error(`Connection to ${rpcUrl} timed out after 15s`));
+    }, 15_000);
+
+    const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      fn();
+    };
+
+    let methods: string[] = [];
+    let poolStatus: Record<string, unknown> | null = null;
+    let pendingCalls = 1; // rpc_methods
+
+    ws.onerror = () => {
+      finish(() => {
+        try { ws.close(); } catch { /* ignore */ }
+        reject(new Error(`WebSocket connection to ${rpcUrl} failed`));
+      });
+    };
+
+    ws.onopen = () => {
+      if (settled) return;
+      ws.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "rpc_methods" }));
+    };
+
+    ws.onmessage = (event: { data: string | { toString: () => string } }) => {
+      try {
+        if (settled) return;
+        const raw = typeof event.data === "string" ? event.data : event.data.toString();
+        const msg = JSON.parse(raw) as {
+          id?: number;
+          result?: any;
+          error?: { message?: string };
+        };
+
+        if (msg.id === 1) {
+          methods = msg.result?.methods ?? [];
+          if (methods.includes("hop_poolStatus")) {
+            pendingCalls++;
+            ws.send(
+              JSON.stringify({ jsonrpc: "2.0", id: 2, method: "hop_poolStatus", params: [] }),
+            );
+          }
+          pendingCalls--;
+        } else if (msg.id === 2) {
+          poolStatus = msg.result ?? null;
+          pendingCalls--;
+        }
+
+        if (pendingCalls === 0) {
+          finish(() => {
+            ws.close();
+            resolve({ methods, poolStatus });
+          });
+        }
+      } catch (err) {
+        finish(() => {
+          try { ws.close(); } catch { /* ignore */ }
+          reject(err);
+        });
+      }
+    };
+  });
+}
+
 function getMergedOptions(
   command: Command | undefined,
   fallback: BulletinUploadOptions,
@@ -1256,6 +1335,86 @@ export function attachBulletinCommands(root: Command): void {
       } else {
         console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
         cleanupHeliaAndExit(1);
+      }
+    }
+  });
+
+  addReporterOption(
+    bulletinCommand
+      .command("hop-check")
+      .description("Check if a Bulletin collator has HOP enabled")
+      .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint", DEFAULT_BULLETIN_RPC)
+      .option("--json", "Write machine-readable JSON to stdout", false),
+  ).action(async (options: any, command: any) => {
+    const mergedOptions = getMergedOptions(command, options);
+    const jsonOutput = getJsonFlag(command) || Boolean(options.json);
+    const reporter = createCliReporter(mergedOptions.reporter as BulletinReporterMode);
+    const rpc = String(mergedOptions.bulletinRpc || DEFAULT_BULLETIN_RPC);
+
+    const methodsTask = reporter.task(`Connecting to ${rpc}`);
+
+    try {
+      const hopMethods = ["hop_submit", "hop_claim", "hop_poolStatus"];
+      const { methods, poolStatus } = await checkHopRpc(rpc, hopMethods);
+
+      const results = hopMethods.map((m) => ({
+        method: m,
+        available: methods.includes(m),
+      }));
+      const allPresent = results.every((r) => r.available);
+
+      if (allPresent) {
+        methodsTask.succeed("HOP is enabled");
+      } else {
+        methodsTask.fail("HOP methods missing");
+      }
+
+      if (jsonOutput) {
+        writeBulletinJson({
+          rpc,
+          hopEnabled: allPresent,
+          methods: results,
+          ...(poolStatus ? { poolStatus } : {}),
+        });
+        process.exit(allPresent ? 0 : 1);
+      }
+
+      console.log(chalk.blue("\n▶ HOP RPC Check"));
+      console.log(chalk.gray("  endpoint: ") + chalk.white(rpc));
+      console.log();
+
+      for (const r of results) {
+        const icon = r.available ? chalk.green("✓") : chalk.red("✗");
+        const label = r.available ? chalk.white(r.method) : chalk.red(r.method + " MISSING");
+        console.log(`  ${icon} ${label}`);
+      }
+
+      if (poolStatus) {
+        const totalBytes = Number(poolStatus.totalBytes ?? 0);
+        const maxBytes = Number(poolStatus.maxBytes ?? 0);
+        console.log(chalk.blue("\n▶ Pool Status"));
+        console.log(
+          chalk.gray("  entries:   ") + chalk.white(String(poolStatus.entryCount ?? 0)),
+        );
+        console.log(
+          chalk.gray("  used:      ") + chalk.white(formatBytes(totalBytes)),
+        );
+        console.log(
+          chalk.gray("  capacity:  ") + chalk.white(formatBytes(maxBytes)),
+        );
+      }
+
+      console.log();
+      process.exit(allPresent ? 0 : 1);
+    } catch (error) {
+      methodsTask.fail("Connection failed");
+      const errorMessage = formatErrorMessage(error);
+
+      if (jsonOutput) {
+        writeBulletinJsonError(errorMessage);
+      } else {
+        console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
+        process.exit(1);
       }
     }
   });
