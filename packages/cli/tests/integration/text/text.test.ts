@@ -244,3 +244,96 @@ test(
   },
   { timeout: TEST_TIMEOUT_MS },
 );
+
+// --json tests
+
+test(
+  "text view --json returns structured result for registered domain",
+  async () => {
+    const result = await runDotnsCli(["text", "view", REGISTERED_DOMAIN, TEST_KEY, "--json"]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+
+    expect(result.combinedOutput).not.toContain("▶");
+    expect(result.combinedOutput).not.toContain("✓");
+
+    const parsed = JSON.parse(result.combinedOutput.trim());
+
+    expect(parsed.domain).toBe(`${REGISTERED_DOMAIN}.dot`);
+    expect(parsed.key).toBe(TEST_KEY);
+    expect(parsed.exists).toBe(true);
+    expect(parsed).toHaveProperty("owner");
+    expect(parsed).toHaveProperty("value");
+  },
+  { timeout: TEST_TIMEOUT_MS },
+);
+
+test(
+  "text view --json returns exists=false for unregistered domain",
+  async () => {
+    const result = await runDotnsCli(["text", "view", UNREGISTERED_DOMAIN, TEST_KEY, "--json"]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+
+    const parsed = JSON.parse(result.combinedOutput.trim());
+
+    expect(parsed.domain).toBe(`${UNREGISTERED_DOMAIN}.dot`);
+    expect(parsed.key).toBe(TEST_KEY);
+    expect(parsed.exists).toBe(false);
+    expect(parsed.owner).toBeNull();
+    expect(parsed.value).toBeNull();
+  },
+  { timeout: TEST_TIMEOUT_MS },
+);
+
+test(
+  "text set --json returns structured result",
+  async () => {
+    const result = await runDotnsCli([
+      "text",
+      "--key-uri",
+      ALICE_KEY_URI,
+      "set",
+      REGISTERED_DOMAIN,
+      TEST_KEY,
+      TEST_VALUE,
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+
+    expect(result.combinedOutput).not.toContain("▶");
+    expect(result.combinedOutput).not.toContain("✓");
+
+    const parsed = JSON.parse(result.combinedOutput.trim());
+
+    expect(parsed.ok).toBe(true);
+    expect(parsed.domain).toBe(`${REGISTERED_DOMAIN}.dot`);
+    expect(parsed.key).toBe(TEST_KEY);
+    expect(parsed.value).toBe(TEST_VALUE);
+    expect(parsed.txHash).toBeString();
+  },
+  { timeout: TEST_TIMEOUT_MS },
+);
+
+test(
+  "text set --json emits JSON error for unregistered domain",
+  async () => {
+    const result = await runDotnsCli([
+      "text",
+      "--key-uri",
+      ALICE_KEY_URI,
+      "set",
+      UNREGISTERED_DOMAIN,
+      TEST_KEY,
+      TEST_VALUE,
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+
+    const parsed = JSON.parse(result.standardError.trim());
+    expect(parsed.error).toContain("is not registered");
+  },
+  { timeout: TEST_TIMEOUT_MS },
+);

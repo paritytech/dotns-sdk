@@ -7,14 +7,31 @@ import { CONTRACTS, DOTNS_REGISTRY_ABI, DOTNS_CONTENT_RESOLVER_ABI } from "../ut
 import { performContractCall, submitContractTransaction } from "../utils/contractInteractions";
 import { getResolverNodeInfo, requireResolverAuthorization } from "./resolverAuth";
 
+export type TextViewResult = {
+  domain: string;
+  key: string;
+  exists: boolean;
+  owner: string | null;
+  value: string | null;
+};
+
+export type TextSetResult = {
+  ok: true;
+  domain: string;
+  key: string;
+  value: string;
+  txHash: string;
+};
+
 export async function viewDomainText(
   clientWrapper: ReviveClientWrapper,
   originSubstrateAddress: string,
   label: string,
   key: string,
   spinner: Ora,
-): Promise<string | undefined> {
+): Promise<TextViewResult> {
   const namehashNode = namehash(`${label}.dot`);
+  const domain = `${label}.dot`;
   spinner.start("Querying registry");
 
   const recordExists = await performContractCall<boolean>(
@@ -38,7 +55,7 @@ export async function viewDomainText(
   spinner.succeed("Registry read");
 
   console.log(chalk.gray("  registry: ") + chalk.white(CONTRACTS.DOTNS_REGISTRY));
-  console.log(chalk.gray("  domain:   ") + chalk.cyan(`${label}.dot`));
+  console.log(chalk.gray("  domain:   ") + chalk.cyan(domain));
   console.log(chalk.gray("  node:     ") + chalk.white(namehashNode));
   console.log(chalk.gray("  exists:   ") + chalk.white(String(recordExists)));
   console.log(chalk.gray("  owner:    ") + chalk.white(ownerAddress));
@@ -46,7 +63,7 @@ export async function viewDomainText(
 
   if (!recordExists || ownerAddress === zeroAddress) {
     console.log(chalk.yellow("  status: Domain not registered"));
-    return undefined;
+    return { domain, key, exists: false, owner: null, value: null };
   }
 
   const value = await performContractCall<string>(
@@ -62,7 +79,13 @@ export async function viewDomainText(
   console.log(chalk.gray("  key:      ") + chalk.white(key));
   console.log(chalk.gray("  value:    ") + chalk.cyan(value || "(not set)"));
 
-  return value;
+  return {
+    domain,
+    key,
+    exists: true,
+    owner: ownerAddress,
+    value: value === "" ? null : value,
+  };
 }
 
 export async function setDomainText(
@@ -73,10 +96,11 @@ export async function setDomainText(
   key: string,
   value: string,
   spinner: Ora,
-): Promise<void> {
+): Promise<TextSetResult> {
   const namehashNode = namehash(`${label}.dot`);
+  const domain = `${label}.dot`;
 
-  console.log(chalk.gray("  domain: ") + chalk.cyan(`${label}.dot`));
+  console.log(chalk.gray("  domain: ") + chalk.cyan(domain));
   console.log(chalk.gray("  node:   ") + chalk.white(namehashNode));
   console.log();
 
@@ -92,7 +116,7 @@ export async function setDomainText(
   console.log();
 
   if (!exists) {
-    throw new Error(`Domain ${label}.dot is not registered`);
+    throw new Error(`Domain ${domain} is not registered`);
   }
 
   await requireResolverAuthorization(clientWrapper, originSubstrateAddress, owner, caller);
@@ -147,4 +171,12 @@ export async function setDomainText(
 
   console.log();
   console.log(chalk.gray("  new: ") + chalk.cyan(updatedValue));
+
+  return {
+    ok: true,
+    domain,
+    key,
+    value,
+    txHash: transactionHash,
+  };
 }
