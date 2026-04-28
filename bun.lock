@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "dotns-sdk",
@@ -13,7 +14,7 @@
     },
     "packages/cli": {
       "name": "@parity/dotns-cli",
-      "version": "0.5.2",
+      "version": "0.6.0",
       "bin": {
         "dotns": "./dist/cli.js",
       },
