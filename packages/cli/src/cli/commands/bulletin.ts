@@ -933,8 +933,8 @@ export function attachBulletinCommands(root: Command): void {
             rpc: bulletinRpc,
             authorized: authStatus.authorized,
             expired: authStatus.expired ?? false,
-            transactions: authStatus.transactions ?? 0,
-            bytes: (authStatus.bytes ?? BigInt(0)).toString(),
+            transactions: authStatus.transactions_allowance ?? 0,
+            bytes: (authStatus.bytes_allowance ?? BigInt(0)).toString(),
             expiresAt: expirationToISOString(authStatus.currentBlock, authStatus.expiration),
           });
         } else {
@@ -964,11 +964,11 @@ export function attachBulletinCommands(root: Command): void {
             );
             console.log(
               chalk.gray("  transactions: ") +
-                chalk.white((authStatus.transactions ?? 0).toLocaleString()),
+                chalk.white((authStatus.transactions_allowance ?? 0).toLocaleString()),
             );
             console.log(
               chalk.gray("  bytes:        ") +
-                chalk.white(formatBytes(authStatus.bytes ?? BigInt(0))),
+                chalk.white(formatBytes(authStatus.bytes_allowance ?? BigInt(0))),
             );
 
             if (isExpired) {

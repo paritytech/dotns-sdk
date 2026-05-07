@@ -379,10 +379,10 @@ export type AuthorizeAccountOptions = {
 export type AuthorizationStatus = {
   /** Whether an authorization entry exists in chain storage */
   authorized: boolean;
-  /** Remaining transaction allowance */
-  transactions?: number;
-  /** Remaining byte allowance */
-  bytes?: bigint;
+  /** Total transaction allowance granted by `authorize_account` */
+  transactions_allowance?: number;
+  /** Total byte allowance granted by `authorize_account` */
+  bytes_allowance?: bigint;
   /** Block number at which the authorization expires */
   expiration?: number;
   /** Current chain block number at time of query */

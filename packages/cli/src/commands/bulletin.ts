@@ -432,8 +432,8 @@ export async function authorizeAccount(
     const existingAuthorization = await checkAuthorization(rpc, targetAddress);
 
     if (existingAuthorization.authorized) {
-      const existingTransactions = existingAuthorization.transactions ?? 0;
-      const existingBytes = existingAuthorization.bytes ?? BigInt(0);
+      const existingTransactions = existingAuthorization.transactions_allowance ?? 0;
+      const existingBytes = existingAuthorization.bytes_allowance ?? BigInt(0);
 
       if (existingAuthorization.expired) {
         emitPhase(onPhase, "authorize", "warning", "Authorization expired");
@@ -496,8 +496,8 @@ export async function authorizeAccount(
                   if (
                     verification.authorized &&
                     !verification.expired &&
-                    (verification.transactions ?? 0) >= transactions &&
-                    (verification.bytes ?? BigInt(0)) >= bytes
+                    (verification.transactions_allowance ?? 0) >= transactions &&
+                    (verification.bytes_allowance ?? BigInt(0)) >= bytes
                   ) {
                     emitPhase(onPhase, "authorize", "success", "Account authorized");
                     resolve({ txHash, blockHash: event.block.hash });
@@ -572,8 +572,8 @@ export async function checkAuthorization(
 
       return {
         authorized: true,
-        transactions: authorizationState.extent.transactions,
-        bytes: authorizationState.extent.bytes,
+        transactions_allowance: authorizationState.extent.transactions_allowance,
+        bytes_allowance: authorizationState.extent.bytes_allowance,
         expiration,
         currentBlock,
         expired,
