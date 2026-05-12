@@ -17,7 +17,6 @@ export default defineConfig({
       "@polkadot-api/descriptors",
       "@polkadot-api/substrate-bindings",
       "@polkadot-api/metadata-builders",
-      "@polkadot-api/polkadot-sdk-compat",
       "@polkadot-api/signer",
       "@polkadot-api/pjs-signer",
 
@@ -37,7 +36,6 @@ export default defineConfig({
       "@polkadot-api/descriptors",
       "@polkadot-api/substrate-bindings",
       "@polkadot-api/metadata-builders",
-      "@polkadot-api/polkadot-sdk-compat",
       "@polkadot-api/signer",
       "@polkadot-api/pjs-signer",
     ],

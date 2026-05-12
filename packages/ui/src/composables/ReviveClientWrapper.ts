@@ -1,6 +1,13 @@
 import type { Paseo } from "@polkadot-api/descriptors";
-import { Binary, type PolkadotSigner, type TypedApi } from "polkadot-api";
+import type { PolkadotSigner, TypedApi } from "polkadot-api";
+import { fromHex } from "polkadot-api/utils";
 import { bytesToHex, isAddress, isHex, toHex, type Address, type Hash, type Hex } from "viem";
+
+/**
+ * v2 ReviveApi expects fixed-size addresses (SizedHex<20>) as hex strings, not Uint8Array.
+ * Lowercased to avoid EIP-55 checksum-related dry-run discrepancies (see Ed's TRIANGLE_MIGRATION.md).
+ */
+const toAddressHex = (addr: Address): `0x${string}` => addr.toLowerCase() as `0x${string}`;
 import type { SpWeightsWeightV2Weight } from "@dedot/chaintypes/substrate";
 
 /**
@@ -86,13 +93,12 @@ function normalizeWeight(weight: any): SpWeightsWeightV2Weight {
 export function convertToHexString(value: unknown): `0x${string}` {
   if (!value) return "0x";
 
-  if (typeof (value as any)?.asHex === "function") return (value as any).asHex();
-
-  if (typeof (value as any)?.toHex === "function") return (value as any).toHex();
+  // v2 PAPI: byte-arrays are plain Uint8Array. Check this FIRST — modern browsers
+  // shipped a native Uint8Array.prototype.toHex() (TC39 base64/hex proposal) that
+  // returns hex WITHOUT a "0x" prefix, breaking downstream viem decoders.
+  if (value instanceof Uint8Array) return bytesToHex(value);
 
   if (typeof value === "string" && isHex(value)) return value;
-
-  if (value instanceof Uint8Array) return bytesToHex(value);
 
   try {
     return toHex(value as any);
@@ -132,6 +138,16 @@ function unwrapExecutionResult(rawResult: any): {
   successFlag: boolean | null;
 } {
   if (!rawResult) return { ok: null, err: null, successFlag: null };
+
+  // v2 PAPI Enum: { type: "Ok" | "Err", value: ... }
+  if (typeof rawResult.type === "string") {
+    if (rawResult.type === "Ok" || rawResult.type === "ok") {
+      return { ok: rawResult.value ?? null, err: null, successFlag: true };
+    }
+    if (rawResult.type === "Err" || rawResult.type === "err") {
+      return { ok: null, err: rawResult.value ?? null, successFlag: false };
+    }
+  }
 
   if (typeof rawResult.success === "boolean") {
     return rawResult.success
@@ -174,11 +190,11 @@ class ClientWrapper {
   async evmAddress(accountSs58: string): Promise<Address> {
     if (isAddress(accountSs58)) return accountSs58 as Address;
     const addr = await this.client.apis.ReviveApi.address(accountSs58);
-    return addr.asHex() as Address;
+    return addr as Address;
   }
 
   async substrateAddress(evm: Address): Promise<string> {
-    return await this.client.apis.ReviveApi.account_id(Binary.fromHex(evm));
+    return await this.client.apis.ReviveApi.account_id(toAddressHex(evm));
   }
 
   async reviveCall(
@@ -193,11 +209,11 @@ class ClientWrapper {
 
     const executionResults = await this.client.apis.ReviveApi.call(
       originSs58,
-      Binary.fromHex(to),
+      toAddressHex(to),
       value,
       ClientWrapper.DRY_RUN_WEIGHT_LIMIT,
       ClientWrapper.DRY_RUN_STORAGE_LIMIT,
-      Binary.fromHex(data),
+      fromHex(data),
     );
 
     const { ok, err, successFlag } = unwrapExecutionResult((executionResults as any).result);
@@ -258,7 +274,7 @@ class ClientWrapper {
   private async checkIfMapped(accountSs58: string): Promise<boolean> {
     try {
       const evm = await this.evmAddress(accountSs58);
-      const key = Binary.fromHex(evm);
+      const key = toAddressHex(evm);
       const mapped = await this.client.query.Revive.OriginalAccount.getValue(key);
       return mapped !== null && mapped !== undefined;
     } catch {
@@ -376,11 +392,11 @@ class ClientWrapper {
     }
 
     const extrinsic = this.client.tx.Revive.call({
-      dest: Binary.fromHex(dest),
+      dest: toAddressHex(dest),
       value,
       weight_limit: weightLimit,
       storage_deposit_limit: storageDepositLimit,
-      data: Binary.fromHex(data),
+      data: fromHex(data),
     });
 
     return await this.signExtrinsic(extrinsic, signer, setTransactionStatus);
@@ -413,14 +429,14 @@ class ClientWrapper {
         }
 
         return this.client.tx.Revive.call({
-          dest: Binary.fromHex(call.dest),
+          dest: toAddressHex(call.dest),
           value: call.value,
           weight_limit: {
             proof_size: gasEstimate.gasRequired.proofSize,
             ref_time: gasEstimate.gasRequired.refTime,
           },
           storage_deposit_limit: storageDepositLimit,
-          data: Binary.fromHex(call.data),
+          data: fromHex(call.data),
         }).decodedCall;
       }),
     );

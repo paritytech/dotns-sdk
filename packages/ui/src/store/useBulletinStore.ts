@@ -1,10 +1,8 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { createClient, type PolkadotClient, type PolkadotSigner } from "polkadot-api";
-import { getWsProvider } from "polkadot-api/ws-provider";
-import { withPolkadotSdkCompat } from "polkadot-api/polkadot-sdk-compat";
-import { Binary } from "polkadot-api";
-import { bulletin } from "@polkadot-api/descriptors";
+import { createClient, type PolkadotClient, type PolkadotSigner, type TypedApi } from "polkadot-api";
+import { getWsProvider } from "polkadot-api/ws";
+import { bulletin, type Bulletin } from "@polkadot-api/descriptors";
 import { useWalletStore } from "./useWalletStore";
 import { useUserStoreManager } from "./useUserStoreManager";
 import type { BulletinUploadResult } from "@/type";
@@ -178,7 +176,7 @@ let sharedBulletinClient: PolkadotClient | null = null;
 
 function getBulletinClient(): PolkadotClient {
   if (!sharedBulletinClient) {
-    sharedBulletinClient = createClient(withPolkadotSdkCompat(getWsProvider(BULLETIN_RPC)));
+    sharedBulletinClient = createClient(getWsProvider(BULLETIN_RPC));
   }
   return sharedBulletinClient;
 }
@@ -330,7 +328,7 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
   }
 
   function storeContent(
-    typedApi: ReturnType<PolkadotClient["getTypedApi"]>,
+    typedApi: TypedApi<Bulletin>,
     signer: PolkadotSigner,
     contentBytes: Uint8Array,
     codec: number,
@@ -374,7 +372,7 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
           codec: BigInt(codec),
           hashing: { type: "Sha2_256", value: undefined },
         },
-        data: Binary.fromBytes(contentBytes),
+        data: contentBytes,
       });
 
       const walletStore = useWalletStore();
@@ -415,7 +413,7 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
   }
 
   async function storeWithRetries(
-    typedApi: ReturnType<PolkadotClient["getTypedApi"]>,
+    typedApi: TypedApi<Bulletin>,
     signer: PolkadotSigner,
     contentBytes: Uint8Array,
     codec: number,
@@ -446,7 +444,7 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
   }
 
   async function storePreparedBytes(
-    typedApi: ReturnType<PolkadotClient["getTypedApi"]>,
+    typedApi: TypedApi<Bulletin>,
     signer: PolkadotSigner,
     prepareStage: UploadStage,
     signStage: UploadStage,
@@ -547,7 +545,7 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
 
   async function uploadChunkedFile(
     file: File,
-    typedApi: ReturnType<PolkadotClient["getTypedApi"]>,
+    typedApi: TypedApi<Bulletin>,
     signer: PolkadotSigner,
     uploadWorker: BulletinUploadWorkerClient,
   ): Promise<BulletinUploadResult> {

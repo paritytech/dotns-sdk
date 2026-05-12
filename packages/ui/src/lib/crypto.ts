@@ -1,8 +1,8 @@
 import { concat, keccak256, toBytes } from "viem";
 import type { SS58String } from "polkadot-api";
-import { AccountId, Binary, type TypedApi } from "polkadot-api";
+import { AccountId, type TypedApi } from "polkadot-api";
 import type { Paseo } from "@polkadot-api/descriptors";
-import { hexToU8a, isHex } from "@polkadot/util";
+import { isHex } from "@polkadot/util";
 import { decodeAddress, encodeAddress } from "@polkadot/util-crypto";
 
 /**
@@ -96,10 +96,10 @@ function normalizeSingleLabel(label: string): string {
  * Convert SS58 address to Ethereum format
  *
  * @param address - SS58 formatted address
- * @returns Ethereum address as Binary
+ * @returns Ethereum address as `0x`-prefixed 20-byte hex string (matches v2 `SizedHex<20>`)
  */
-export const ss58ToEthereum = (address: SS58String): Binary =>
-  Binary.fromBytes(hexToU8a(keccak256(AccountId().enc(address))).slice(12));
+export const ss58ToEthereum = (address: SS58String): `0x${string}` =>
+  `0x${keccak256(AccountId().enc(address)).slice(-40)}` as `0x${string}`;
 
 /**
  * Check if an address is mapped in the Revive pallet

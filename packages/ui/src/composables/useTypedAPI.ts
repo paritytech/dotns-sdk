@@ -1,7 +1,6 @@
 import { paseo, type Paseo } from "@polkadot-api/descriptors";
 import { createClient, type PolkadotClient, type TypedApi } from "polkadot-api";
-import { getWsProvider } from "polkadot-api/ws-provider";
-import { withPolkadotSdkCompat } from "polkadot-api/polkadot-sdk-compat";
+import { getWsProvider } from "polkadot-api/ws";
 
 let rawClient: PolkadotClient | null = null;
 let typedApiInstance: TypedApi<Paseo> | null = null;
@@ -24,7 +23,7 @@ export const useTypeClientAPI = async (rpcEndPoints: string[]): Promise<TypedApi
     typedApiInstance = null;
   }
 
-  rawClient = createClient(withPolkadotSdkCompat(getWsProvider(rpcEndPoints)));
+  rawClient = createClient(getWsProvider(rpcEndPoints));
   typedApiInstance = rawClient.getTypedApi(paseo);
   currentRpcKey = rpcKey;
 
