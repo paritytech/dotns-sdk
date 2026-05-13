@@ -10,7 +10,7 @@ import {
   getPriceAndValidateEligibility,
   finalizeRegularRegistration,
   verifyDomainOwnership,
-  displayDeployedStore,
+  claimUserStoreIfNeeded,
 } from "../commands/register";
 
 async function main() {
@@ -53,7 +53,7 @@ async function main() {
   );
 
   await verifyDomainOwnership(clientWrapper, substrateAddress, label, evmAddress);
-  await displayDeployedStore(clientWrapper, substrateAddress, evmAddress);
+  await claimUserStoreIfNeeded(clientWrapper, substrateAddress, signer, evmAddress);
 
   console.log("Registered:", `${label}.dot`);
   console.log("Owner:     ", evmAddress);

@@ -26,7 +26,6 @@ import {
   PERSONHOOD_CONTEXT,
   PERSONHOOD_PRECOMPILE_ADDRESS,
   STORE_FACTORY_ABI,
-  STORE_ABI,
   DEFAULT_COMMITMENT_BUFFER_SECONDS,
   COMMITMENT_POLL_TIMEOUT_MS,
   COMMITMENT_POLL_INTERVAL_MS,
@@ -609,134 +608,63 @@ export async function verifyDomainOwnership(
   }
 }
 
-export async function displayDeployedStore(
+async function readUserStore(
   clientWrapper: ReviveClientWrapper,
   originSubstrateAddress: string,
   ownerAddress: Address,
-): Promise<void> {
-  const spinner = ora("Reading deployed Store address").start();
-
-  try {
-    const storeAddress = await withTimeout(
+): Promise<Address> {
+  return getAddress(
+    await withTimeout(
       performContractCall<Address>(
         clientWrapper,
         originSubstrateAddress,
         CONTRACTS.STORE_FACTORY,
         STORE_FACTORY_ABI,
-        "getDeployedStore",
+        "getUserStore",
         [ownerAddress],
       ),
       30000,
-      "getDeployedStore",
-    );
-
-    spinner.succeed("Store");
-    console.log(
-      chalk.gray("  store:     ") +
-        (storeAddress === zeroAddress ? chalk.yellow("not deployed") : chalk.cyan(storeAddress)),
-    );
-  } catch (error) {
-    spinner.fail("Failed to read Store address");
-    throw error;
-  }
+      "getUserStore",
+    ),
+  );
 }
 
-export async function ensureStoreAuthorizations(
+export async function claimUserStoreIfNeeded(
   clientWrapper: ReviveClientWrapper,
   substrateAddress: string,
   signer: PolkadotSigner,
-  evmAddress: Address,
+  ownerAddress: Address,
 ): Promise<void> {
-  const storeAddress = getAddress(
-    await withTimeout(
-      performContractCall<Address>(
-        clientWrapper,
-        substrateAddress,
-        CONTRACTS.STORE_FACTORY,
-        STORE_FACTORY_ABI,
-        "getDeployedStore",
-        [evmAddress],
-      ),
-      30000,
-      "getDeployedStore",
-    ),
-  );
+  const readSpinner = ora("Reading user store").start();
 
-  if (storeAddress === zeroAddress) return;
-
-  const spinner = ora("Checking Store authorizations").start();
-
-  const [controllerAuthorized, registryAuthorized] = await Promise.all([
-    Boolean(
-      await performContractCall<boolean>(
-        clientWrapper,
-        substrateAddress,
-        storeAddress,
-        STORE_ABI,
-        "isAuthorized",
-        [CONTRACTS.DOTNS_REGISTRAR_CONTROLLER],
-      ),
-    ),
-    Boolean(
-      await performContractCall<boolean>(
-        clientWrapper,
-        substrateAddress,
-        storeAddress,
-        STORE_ABI,
-        "isAuthorized",
-        [CONTRACTS.DOTNS_REGISTRY],
-      ),
-    ),
-  ]);
-
-  if (controllerAuthorized && registryAuthorized) {
-    spinner.succeed("Store authorizations verified");
-    console.log(chalk.gray("  controller: ") + chalk.white(CONTRACTS.DOTNS_REGISTRAR_CONTROLLER));
-    console.log(chalk.gray("  registry:   ") + chalk.white(CONTRACTS.DOTNS_REGISTRY));
-    return;
+  let userStore: Address;
+  try {
+    userStore = await readUserStore(clientWrapper, substrateAddress, ownerAddress);
+    readSpinner.succeed("User store");
+  } catch (error) {
+    readSpinner.fail("Failed to read user store");
+    throw error;
   }
 
-  spinner.warn("Store authorizations need update");
-
-  if (!controllerAuthorized) {
-    const controllerSpinner = ora("Authorizing registrar controller as Store writer").start();
-
+  if (userStore === zeroAddress) {
+    const claimSpinner = ora("Claiming user store").start();
     const tx = await submitContractTransaction(
       clientWrapper,
-      storeAddress,
+      CONTRACTS.STORE_FACTORY,
       0n,
-      STORE_ABI,
-      "authorizeStore",
-      [CONTRACTS.DOTNS_REGISTRAR_CONTROLLER],
+      STORE_FACTORY_ABI,
+      "claimUserStore",
+      [],
       substrateAddress,
       signer,
-      controllerSpinner,
-      "Authorize controller",
+      claimSpinner,
+      "Claim user store",
     );
-
+    userStore = await readUserStore(clientWrapper, substrateAddress, ownerAddress);
     console.log(chalk.gray("  tx:         ") + chalk.blue(tx));
-    console.log(chalk.gray("  controller: ") + chalk.white(CONTRACTS.DOTNS_REGISTRAR_CONTROLLER));
   }
 
-  if (!registryAuthorized) {
-    const registrySpinner = ora("Authorizing registry as Store writer").start();
-
-    const tx = await submitContractTransaction(
-      clientWrapper,
-      storeAddress,
-      0n,
-      STORE_ABI,
-      "authorizeStore",
-      [CONTRACTS.DOTNS_REGISTRY],
-      substrateAddress,
-      signer,
-      registrySpinner,
-      "Authorize registry",
-    );
-
-    console.log(chalk.gray("  tx:         ") + chalk.blue(tx));
-    console.log(chalk.gray("  registry:   ") + chalk.white(CONTRACTS.DOTNS_REGISTRY));
-  }
+  console.log(chalk.gray("  user store: ") + chalk.cyan(userStore));
 }
 
 // TODO: remove this before any new environment deployment
