@@ -34,6 +34,52 @@ import {
   type PriceWithMeta,
 } from "@/type";
 
+const PERSONHOOD_PRECOMPILE_ADDRESS = "0x000000000000000000000000000000000a010000" as const;
+const PERSONHOOD_CONTEXT =
+  "0x646f746e73000000000000000000000000000000000000000000000000000000" as const;
+const PERSONHOOD_ABI = [
+  {
+    type: "function",
+    name: "personhoodStatus",
+    inputs: [
+      { name: "account", type: "address" },
+      { name: "context", type: "bytes32" },
+    ],
+    outputs: [
+      {
+        name: "info",
+        type: "tuple",
+        components: [
+          { name: "status", type: "uint8" },
+          { name: "contextAlias", type: "bytes32" },
+        ],
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "personhoodInfoByProof",
+    inputs: [
+      {
+        name: "request",
+        type: "tuple",
+        components: [
+          { name: "expectedStatus", type: "uint8" },
+          { name: "proof", type: "bytes" },
+          { name: "expectedAlias", type: "bytes32" },
+          { name: "ringIndex", type: "uint32" },
+          { name: "context", type: "bytes32" },
+          { name: "revision", type: "uint32" },
+          { name: "message", type: "bytes" },
+        ],
+      },
+    ],
+    outputs: [{ name: "ok", type: "bool" }],
+    stateMutability: "view",
+  },
+] as const;
+
 export const useDomainStore = defineStore("useDomainStore", () => {
   const networkStore = useNetworkStore();
   const transactionStore = useTransactionStore();
@@ -328,33 +374,29 @@ export const useDomainStore = defineStore("useDomainStore", () => {
   async function userPopStatus(user: Address): Promise<PopStatus> {
     try {
       networkStore.ensureClient();
-      await abiStore.ensureAbis();
       walletStore.ensureWalletConnected();
 
-      const network = networkStore.currentNetwork;
-      if (!network?.popOracle) throw new Error("PopOracle not configured");
-
       const data = encodeFunctionData({
-        abi: abiStore.getABI("PopRules"),
-        functionName: "userPopStatus",
-        args: [user],
+        abi: PERSONHOOD_ABI,
+        functionName: "personhoodStatus",
+        args: [user, PERSONHOOD_CONTEXT],
       });
       const client = await networkStore.getClient();
 
       const result = await transactionStore.ethCall(
         client,
         walletStore.substrateAddress!,
-        network.popOracle,
+        PERSONHOOD_PRECOMPILE_ADDRESS,
         data,
       );
 
-      const status = decodeFunctionResult({
-        abi: abiStore.getABI("PopRules"),
-        functionName: "userPopStatus",
+      const info = decodeFunctionResult({
+        abi: PERSONHOOD_ABI,
+        functionName: "personhoodStatus",
         data: result,
-      }) as PopStatus;
+      });
 
-      return status;
+      return Number(info.status) as PopStatus;
     } catch (error) {
       console.warn("[DomainStore:userPopStatus]", error);
       return PopStatus.NoStatus;

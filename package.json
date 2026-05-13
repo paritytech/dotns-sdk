@@ -3,6 +3,15 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "hooks:install": "git config core.hooksPath .githooks",
+    "prepare": "git config core.hooksPath .githooks || true",
+    "format": "bun run --cwd packages/cli format && bun run --cwd packages/ui format",
+    "format:fix": "bun run --cwd packages/cli format:fix && bun run --cwd packages/ui format:fix",
+    "lint": "bun run --cwd packages/cli lint && bun run --cwd packages/ui lint",
+    "lint:fix": "bun run --cwd packages/cli lint:fix && bun run --cwd packages/ui lint:fix",
+    "precommit": "bun run format:fix && bun run lint:fix && bun run format && bun run lint"
+  },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/ws": "^8.18.1"

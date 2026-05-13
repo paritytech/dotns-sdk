@@ -76,6 +76,12 @@ on:
         required: false
         type: string
 
+      env:
+        description: 'DotNS environment'
+        required: false
+        type: string
+        default: 'paseo-v2'
+
       upload-concurrency:
         description: 'Adaptive scheduler max window (max: 4)'
         required: false
@@ -285,6 +291,7 @@ jobs:
         uses: ./.github/actions/bulletin
         with:
           mnemonic: ${{ secrets.bulletin-mnemonic || 'bottom drive obey lake curtain smoke basket hold race lonely fit walk' }}
+          env: ${{ inputs.env }}
           bulletin-rpc: ${{ inputs.bulletin-rpc }}
           build-path: ${{ inputs.use-car && './build.car' || './build' }}
           upload-concurrency: ${{ steps.upload-settings.outputs.upload-concurrency }}
@@ -319,6 +326,7 @@ jobs:
         uses: ./.github/actions/dotns
         with:
           mnemonic: ${{ secrets.dotns-mnemonic }}
+          env: ${{ inputs.env }}
           rpc: ${{ inputs.rpc }}
           basename: ${{ inputs.basename }}
           mode: ${{ inputs.mode }}

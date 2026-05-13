@@ -8,6 +8,10 @@ inputs:
   bulletin-rpc:
     description: 'Bulletin chain WebSocket RPC endpoint (default: CLI built-in)'
     required: false
+  env:
+    description: 'DotNS environment used by cache/store operations'
+    required: false
+    default: 'paseo-v2'
   build-path:
     description: 'Path to the build directory to upload'
     required: false
@@ -68,6 +72,7 @@ runs:
         rm -f "$RESULT_FILE"
       env:
         DOTNS_MNEMONIC: ${{ inputs.mnemonic }}
+        DOTNS_ENV: ${{ inputs.env }}
         BULLETIN_RPC: ${{ inputs.bulletin-rpc }}
         CI: "true"
         FORCE_COLOR: "0"
@@ -122,6 +127,7 @@ runs:
         exit 1
       env:
         DOTNS_MNEMONIC: ${{ inputs.mnemonic }}
+        DOTNS_ENV: ${{ inputs.env }}
         BULLETIN_RPC: ${{ inputs.bulletin-rpc }}
         BUILD_PATH: ${{ inputs.build-path }}
         UPLOAD_CONCURRENCY: ${{ inputs.upload-concurrency }}

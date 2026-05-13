@@ -128,6 +128,10 @@ export type DomainOwnership = {
 export type AuthType = "mnemonic" | "key-uri" | "unknown";
 
 export type AuthOptionValues = {
+  /** DotNS environment selector */
+  env?: string;
+  /** Alias for env */
+  network?: string;
   /** WebSocket RPC endpoint URL */
   rpc?: string;
   /** Path to keystore directory */
@@ -156,6 +160,10 @@ export type AccountKeystorePayload = {
 };
 
 export type CommandOptions = {
+  /** DotNS environment selector */
+  env?: string;
+  /** Alias for env */
+  network?: string;
   /** Path to keystore directory */
   keystorePath?: string;
   /** Password to decrypt keystore */
@@ -329,6 +337,10 @@ export type BalanceStatus = {
 };
 
 export type AccountInfoOptions = {
+  /** DotNS environment selector */
+  env?: string;
+  /** Alias for env */
+  network?: string;
   /** WebSocket RPC endpoint URL */
   rpc?: string;
 };
@@ -351,9 +363,9 @@ export type PricingAndEligibility = {
   price: bigint;
   /** Proof-of-personhood status required to register the label */
   requiredStatus: ProofOfPersonhoodStatus;
-  /** Current user proof-of-personhood status from PopRules.userPopStatus */
+  /** Current user proof-of-personhood status from the personhood precompile */
   status: ProofOfPersonhoodStatus;
-  /** Current user proof-of-personhood status from PopRules.userPopStatus */
+  /** Current user proof-of-personhood status from the personhood precompile */
   userStatus: ProofOfPersonhoodStatus;
   /** Human-readable explanation from PopRules */
   message: string;
@@ -660,6 +672,10 @@ export type StoredChunkReference = {
 };
 
 export type AuthSource = {
+  /** DotNS environment selector */
+  env?: string;
+  /** Alias for env */
+  network?: string;
   /** BIP-39 mnemonic phrase used to derive the signing key */
   mnemonic?: string;
   /** Substrate secret URI (SURI) used to derive/load a signing key (e.g. "//Alice") */
@@ -694,6 +710,12 @@ export type ReadOnlyContext = {
   account: ReadOnlyContextAccount;
   /** RPC endpoint used to connect to the chain */
   rpc: string;
+  /** DotNS environment selector */
+  environment?: string;
+  /** Native token decimals read from chain metadata */
+  nativeTokenDecimals: number;
+  /** Native token symbol read from chain metadata */
+  nativeTokenSymbol: string;
   /** EVM address corresponding to the Substrate address, when resolvable */
   evmAddress: string;
 };
@@ -719,6 +741,8 @@ export type LoadedAccount = {
 };
 
 type BaseChainContext = {
+  /** DotNS environment selector */
+  environment?: string;
   /** WebSocket RPC endpoint URL */
   rpc: string;
   /** Minimum balance in PAS required for operations */
@@ -733,6 +757,10 @@ type BaseChainContext = {
   substrateAddress: string;
   /** Polkadot signer for transaction signing */
   signer: PolkadotSigner;
+  /** Native token decimals read from chain metadata */
+  nativeTokenDecimals: number;
+  /** Native token symbol read from chain metadata */
+  nativeTokenSymbol: string;
 };
 
 export type AssetHubContext = BaseChainContext & {

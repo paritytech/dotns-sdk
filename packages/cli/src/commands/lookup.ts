@@ -20,6 +20,8 @@ export async function performDomainLookup(
   label: string,
   originSubstrateAddress: string,
   clientWrapper: ReviveClientWrapper,
+  nativeTokenDecimals?: number,
+  nativeTokenSymbol: string = "PAS",
 ): Promise<DomainLookupResult> {
   const fullyQualifiedDomainName = `${label}.dot`;
   const namehashNode = namehash(fullyQualifiedDomainName);
@@ -168,12 +170,15 @@ export async function performDomainLookup(
 
     result.ownerBalance = {
       substrate: ownerSubstrateAddress,
-      free: formatNativeBalance(freeBalance),
+      free: formatNativeBalance(freeBalance, nativeTokenDecimals),
     };
 
     console.log(chalk.gray("  substrate: ") + chalk.white(ownerSubstrateAddress));
     console.log(
-      chalk.gray("  free:      ") + chalk.white(formatNativeBalance(freeBalance) + " PAS"),
+      chalk.gray("  free:      ") +
+        chalk.white(
+          `${formatNativeBalance(freeBalance, nativeTokenDecimals)} ${nativeTokenSymbol}`,
+        ),
     );
   } catch {
     console.log(chalk.gray("  balance: ") + chalk.yellow("unavailable"));
