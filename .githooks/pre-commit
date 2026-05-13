@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+set -eu
+
+echo "Running formatters and linters before commit..."
+bun run precommit
+
+if ! git diff --quiet; then
+  echo ""
+  echo "Formatters or linters changed files. Review and stage the updates, then commit again."
+  git diff --name-only
+  exit 1
+fi
