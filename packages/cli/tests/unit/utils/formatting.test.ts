@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { formatNativeBalance, parseNativeBalance } from "../../../src/utils/formatting";
-import { DECIMALS, DECIMALS_DOT } from "../../../src/utils/constants";
+import { DEFAULT_NATIVE_TOKEN_DECIMALS, EVM_TOKEN_DECIMALS } from "../../../src/utils/constants";
 
 describe("native balance formatting uses DOT/PAS 10 decimals", () => {
-  test("DECIMALS_DOT is 10 (native DOT/PAS) and DECIMALS is 12 (Revive native)", () => {
-    expect(DECIMALS_DOT).toBe(10n);
-    expect(DECIMALS).toBe(12n);
+  test("defaults to 10 native decimals and 18 EVM decimals", () => {
+    expect(DEFAULT_NATIVE_TOKEN_DECIMALS).toBe(10);
+    expect(EVM_TOKEN_DECIMALS).toBe(18);
   });
 
   test("formatNativeBalance renders 5000 PAS from 5000 * 10^10 units", () => {

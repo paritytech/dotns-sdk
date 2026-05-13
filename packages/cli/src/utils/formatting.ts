@@ -3,15 +3,34 @@ import type { Ora } from "ora";
 import { formatEther } from "viem";
 import { printHumanDetail, printHumanFailure, printHumanSuccess } from "../cli/reporter";
 import type { TransactionStatus } from "../types/types";
-import { DECIMALS_DOT, NATIVE_TO_ETH_RATIO } from "./constants";
+import { DEFAULT_NATIVE_TOKEN_DECIMALS, EVM_TOKEN_DECIMALS } from "./constants";
 
-export function formatNativeBalance(valueInNativeUnits: bigint): string {
-  const divisor = 10n ** DECIMALS_DOT;
+function normalizeNativeDecimals(decimals?: number): bigint {
+  if (decimals == null || !Number.isInteger(decimals) || decimals < 0) {
+    return BigInt(DEFAULT_NATIVE_TOKEN_DECIMALS);
+  }
+  return BigInt(decimals);
+}
+
+function getNativeToWeiRatio(nativeDecimals?: number): bigint {
+  const decimals = normalizeNativeDecimals(nativeDecimals);
+  const exponent = BigInt(EVM_TOKEN_DECIMALS) - decimals;
+  if (exponent < 0n) {
+    throw new Error(
+      `Native token decimals (${decimals}) exceed EVM decimals (${EVM_TOKEN_DECIMALS})`,
+    );
+  }
+  return 10n ** exponent;
+}
+
+export function formatNativeBalance(valueInNativeUnits: bigint, decimals?: number): string {
+  const nativeDecimals = normalizeNativeDecimals(decimals);
+  const divisor = 10n ** nativeDecimals;
   const wholePart = valueInNativeUnits / divisor;
   const fractionalPart = valueInNativeUnits % divisor;
 
   let fractionalString = fractionalPart.toString();
-  const missingZeroCount = DECIMALS_DOT - BigInt(fractionalString.length);
+  const missingZeroCount = nativeDecimals - BigInt(fractionalString.length);
   if (missingZeroCount > 0n) {
     fractionalString = "0".repeat(Number(missingZeroCount)) + fractionalString;
   }
@@ -19,24 +38,25 @@ export function formatNativeBalance(valueInNativeUnits: bigint): string {
   return `${wholePart}.${fractionalString}`;
 }
 
-export function parseNativeBalance(decimalValue: string): bigint {
+export function parseNativeBalance(decimalValue: string, decimals?: number): bigint {
+  const nativeDecimals = normalizeNativeDecimals(decimals);
   const parts = decimalValue.split(".");
   const wholePart = BigInt(parts[0] || "0");
   const fractionalPart = parts[1] || "0";
 
   const paddedFraction = fractionalPart
-    .padEnd(Number(DECIMALS_DOT), "0")
-    .slice(0, Number(DECIMALS_DOT));
+    .padEnd(Number(nativeDecimals), "0")
+    .slice(0, Number(nativeDecimals));
 
-  return wholePart * 10n ** DECIMALS_DOT + BigInt(paddedFraction);
+  return wholePart * 10n ** nativeDecimals + BigInt(paddedFraction);
 }
 
-export function convertNativeToWei(nativeValue: bigint): bigint {
-  return nativeValue * NATIVE_TO_ETH_RATIO;
+export function convertNativeToWei(nativeValue: bigint, nativeDecimals?: number): bigint {
+  return nativeValue * getNativeToWeiRatio(nativeDecimals);
 }
 
-export function convertWeiToNative(weiValue: bigint): bigint {
-  return weiValue / NATIVE_TO_ETH_RATIO;
+export function convertWeiToNative(weiValue: bigint, nativeDecimals?: number): bigint {
+  return weiValue / getNativeToWeiRatio(nativeDecimals);
 }
 
 export function formatWeiAsEther(weiValue: bigint): string {

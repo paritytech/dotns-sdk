@@ -8,6 +8,10 @@ inputs:
   rpc:
     description: 'WebSocket RPC endpoint (default: CLI built-in)'
     required: false
+  env:
+    description: 'DotNS environment'
+    required: false
+    default: 'paseo-v2'
   basename:
     description: 'Base domain without .dot'
     required: true
@@ -59,6 +63,7 @@ runs:
         fi
       env:
         BASENAME: ${{ inputs.basename }}
+        DOTNS_ENV: ${{ inputs.env }}
 
     - name: Fail if base domain not registered
       if: steps.check-base.outputs.exists != 'true' && inputs.register-base != 'true'
@@ -76,10 +81,11 @@ runs:
         echo "To have this workflow register it automatically, set register-base: true."
         echo ""
         echo "If registration requires Proof-of-Personhood, ensure your account has"
-        echo "the correct POP status first. See: dotns pop set --help"
+        echo "the correct POP status first. See: dotns pop status --help"
         exit 1
       env:
         BASENAME: ${{ inputs.basename }}
+        DOTNS_ENV: ${{ inputs.env }}
 
     - name: Register base domain
       if: steps.check-base.outputs.exists != 'true' && inputs.register-base == 'true'
@@ -106,13 +112,14 @@ runs:
         echo ""
         echo "To fix this:"
         echo "  1. Check your POP status:  dotns pop status"
-        echo "  2. Set POP if needed:      dotns pop set --help"
+        echo "  2. Complete personhood verification outside DotNS if needed."
         echo "  3. Then re-run this workflow."
         echo ""
         echo "You can also register manually at https://dotns.paseo.li"
         exit 1
       env:
         DOTNS_MNEMONIC: ${{ inputs.mnemonic }}
+        DOTNS_ENV: ${{ inputs.env }}
         BASENAME: ${{ inputs.basename }}
         MAX_RETRIES: ${{ inputs.max-retries }}
         RETRY_DELAY: ${{ inputs.retry-delay }}
@@ -144,6 +151,7 @@ runs:
       env:
         SUBNAME: ${{ inputs.subname }}
         BASENAME: ${{ inputs.basename }}
+        DOTNS_ENV: ${{ inputs.env }}
 
     - name: Register subname
       if: inputs.mode == 'preview' && steps.check-subname.outputs.exists != 'true'
@@ -195,6 +203,7 @@ runs:
         exit 1
       env:
         DOTNS_MNEMONIC: ${{ inputs.mnemonic }}
+        DOTNS_ENV: ${{ inputs.env }}
         SUBNAME: ${{ inputs.subname }}
         BASENAME: ${{ inputs.basename }}
         MAX_RETRIES: ${{ inputs.max-retries }}
@@ -227,6 +236,7 @@ runs:
         exit 1
       env:
         DOTNS_MNEMONIC: ${{ inputs.mnemonic }}
+        DOTNS_ENV: ${{ inputs.env }}
         DOMAIN: ${{ inputs.domain }}
         CID: ${{ inputs.cid }}
         RPC: ${{ inputs.rpc }}

@@ -10,11 +10,15 @@ import { attachAccountCommands } from "./commands/info";
 import { version } from "../../package.json";
 import { banner } from "./ui";
 import { attachStoreCommands } from "./commands/store";
+import { ENV } from "./env";
 
 export function createProgram() {
   const program = new Command();
   program.name("dotns").description("dotns developer CLI");
   program.version(version, "-v, --version");
+  program
+    .option("--env <environment>", `DotNS environment: paseo-v2 (env: ${ENV.DOTNS_ENV})`)
+    .option("--network <environment>", "Alias for --env");
   attachPopCommands(program);
   attachAuthCommands(program);
   attachRegisterCommand(program);

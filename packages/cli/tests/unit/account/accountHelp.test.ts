@@ -21,6 +21,8 @@ test("account is-mapped --help shows address argument and --json", async () => {
   expect(result.combinedOutput).toContain("Check if a Substrate or EVM address is mapped");
   expect(result.combinedOutput).toContain("<address>");
   expect(result.combinedOutput).toContain("--json");
+  expect(result.combinedOutput).toContain("--env");
+  expect(result.combinedOutput).toContain("paseo-v2");
   expect(result.combinedOutput).toContain("--mnemonic");
   expect(result.combinedOutput).toContain("--key-uri");
 });
@@ -32,6 +34,8 @@ test("account is-whitelisted --help shows address argument and --json", async ()
   expect(result.combinedOutput).toContain("Check if an address is whitelisted");
   expect(result.combinedOutput).toContain("<address>");
   expect(result.combinedOutput).toContain("--json");
+  expect(result.combinedOutput).toContain("--env");
+  expect(result.combinedOutput).toContain("paseo-v2");
   expect(result.combinedOutput).toContain("--mnemonic");
   expect(result.combinedOutput).toContain("--key-uri");
 });
@@ -44,6 +48,8 @@ test("account whitelist --help shows address argument, --remove, and --json", as
   expect(result.combinedOutput).toContain("<address>");
   expect(result.combinedOutput).toContain("-r, --remove");
   expect(result.combinedOutput).toContain("--json");
+  expect(result.combinedOutput).toContain("--env");
+  expect(result.combinedOutput).toContain("--network");
   expect(result.combinedOutput).toContain("--mnemonic");
   expect(result.combinedOutput).toContain("--key-uri");
 });

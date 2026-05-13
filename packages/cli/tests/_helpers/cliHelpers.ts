@@ -51,7 +51,11 @@ export function createDotnsTestProgram(): Command {
   rootCommand.name("dotns");
   rootCommand.exitOverride();
 
-  rootCommand.option("--keystore-path <path>").option("--password <pw>");
+  rootCommand
+    .option("--env <environment>")
+    .option("--network <environment>")
+    .option("--keystore-path <path>")
+    .option("--password <pw>");
   attachBulletinCommands(rootCommand);
   attachPopCommands(rootCommand);
   attachAuthCommands(rootCommand);

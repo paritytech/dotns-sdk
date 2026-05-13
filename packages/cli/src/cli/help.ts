@@ -6,6 +6,7 @@ export function addHelpFooter(cmd: Command) {
     "after",
     `
 Environment variables:
+  ${ENV.DOTNS_ENV}          DotNS environment: paseo-v2 (default: paseo-v2)
   ${ENV.RPC}                WebSocket RPC endpoint (default: RPC_ENDPOINTS[0])
   ${ENV.MNEMONIC}           Mnemonic for sr25519 account (optional)
   ${ENV.KEY_URI}            Substrate key URI (optional)
@@ -24,6 +25,7 @@ export function addPopHelpFooter(cmd: Command) {
     "after",
     `
 Environment variables:
+  ${ENV.DOTNS_ENV}
   ${ENV.RPC}
   ${ENV.MNEMONIC}
   ${ENV.KEY_URI}

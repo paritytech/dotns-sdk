@@ -58,7 +58,8 @@ export function attachAccountCommands(root: Command) {
     try {
       const mergedOptions = getMergedOptions(command, options);
 
-      const rpc = resolveRpc(mergedOptions.rpc);
+      const environment = mergedOptions.env ?? mergedOptions.network;
+      const rpc = resolveRpc(mergedOptions.rpc, environment);
       const keystorePath = resolveKeystorePath(mergedOptions.keystorePath);
 
       const client = await step(`Connecting RPC ${rpc}`, async () =>
@@ -90,6 +91,8 @@ export function attachAccountCommands(root: Command) {
         client as PolkadotApiClient,
         evmAddress,
         context.substrateAddress,
+        context.nativeTokenDecimals,
+        context.nativeTokenSymbol,
       );
 
       console.log(chalk.green("\n✓ Complete\n"));
@@ -108,7 +111,8 @@ export function attachAccountCommands(root: Command) {
     try {
       const mergedOptions = getMergedOptions(command, options);
 
-      const rpc = resolveRpc(mergedOptions.rpc);
+      const environment = mergedOptions.env ?? mergedOptions.network;
+      const rpc = resolveRpc(mergedOptions.rpc, environment);
 
       const client = await step(`Connecting RPC ${rpc}`, async () =>
         createClient(getWsProvider(rpc)).getTypedApi(paseo),

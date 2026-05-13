@@ -7,7 +7,7 @@ import { paseo } from "@polkadot-api/descriptors";
 import { ReviveClientWrapper, type PolkadotApiClient } from "../../client/polkadotClient";
 import { performDomainLookup, performOwnerOfLookup } from "../../commands/lookup";
 import { verifyDomainOwnership } from "../../commands/register";
-import { resolveRpc } from "../env";
+import { resolveDotnsEnvironment, resolveRpc } from "../env";
 import { formatErrorMessage } from "../../utils/formatting";
 import {
   resolveAuthSourceReadOnly,
@@ -17,7 +17,7 @@ import {
 } from "../../commands/auth";
 import { addAuthOptions, getAuthOptions } from "./authOptions";
 import { step } from "../ui";
-import { prepareAssetHubContext } from "../context";
+import { getChainTokenInfo, prepareAssetHubContext } from "../context";
 import { resolveTransferRecipient, transferDomain } from "../transfer";
 import { classifyTransferDestination, isValidTransferDestination } from "./register";
 import type {
@@ -29,9 +29,14 @@ import type {
 import { getJsonFlag, maybeQuiet } from "./jsonHelpers";
 import type { Address } from "viem";
 
-function createClientWrapper(rpc: string) {
-  const client = createClient(getWsProvider(rpc)).getTypedApi(paseo);
-  return new ReviveClientWrapper(client as PolkadotApiClient);
+async function createReadOnlyChainContext(rpc: string) {
+  const rawClient = createClient(getWsProvider(rpc));
+  const client = rawClient.getTypedApi(paseo);
+  const tokenInfo = await getChainTokenInfo(rawClient);
+  return {
+    clientWrapper: new ReviveClientWrapper(client as PolkadotApiClient),
+    ...tokenInfo,
+  };
 }
 
 function hasAnyAuthHint(opts: AuthSource): boolean {
@@ -59,9 +64,13 @@ function withReadOnlyPasswordFallback<T extends AuthSource>(opts: T): T {
 export async function prepareReadOnlyContext(
   options: AuthSource & { rpc?: string },
 ): Promise<ReadOnlyContext> {
-  const rpc = resolveRpc(options.rpc);
+  const environment = resolveDotnsEnvironment(options.env ?? options.network);
+  const rpc = resolveRpc(options.rpc, environment.id);
 
-  const clientWrapper = await step(`Connecting RPC ${rpc}`, async () => createClientWrapper(rpc));
+  const readOnlyContext = await step(`Connecting RPC ${rpc}`, async () =>
+    createReadOnlyChainContext(rpc),
+  );
+  const { clientWrapper, nativeTokenDecimals, nativeTokenSymbol } = readOnlyContext;
 
   const auth = await step("Resolving read-only account", async () => {
     if (hasAnyAuthHint(options)) {
@@ -94,9 +103,22 @@ export async function prepareReadOnlyContext(
   );
 
   console.log(chalk.gray("\n  RPC:     ") + chalk.white(rpc));
+  console.log(chalk.gray("  Env:     ") + chalk.white(environment.label));
+  console.log(
+    chalk.gray("  Token:   ") +
+      chalk.white(`${nativeTokenSymbol} (${nativeTokenDecimals} decimals)`),
+  );
   console.log(chalk.gray("  Account: ") + chalk.white(keypair.address));
 
-  return { clientWrapper, account: { address: keypair.address }, rpc, evmAddress };
+  return {
+    clientWrapper,
+    account: { address: keypair.address },
+    rpc,
+    environment: environment.id,
+    nativeTokenDecimals,
+    nativeTokenSymbol,
+    evmAddress,
+  };
 }
 
 export async function ensureAccountMappedWhenAuthenticated(
@@ -170,14 +192,21 @@ export function attachLookupCommands(root: Command): void {
           process.exit(1);
         }
 
-        const { clientWrapper, account } = await maybeQuiet(jsonOutput, () =>
-          prepareReadOnlyContext(merged),
+        const { clientWrapper, account, nativeTokenDecimals, nativeTokenSymbol } = await maybeQuiet(
+          jsonOutput,
+          () => prepareReadOnlyContext(merged),
         );
 
         if (!jsonOutput) console.log(chalk.bold("\n▶ Domain Lookup\n"));
 
         const result = await maybeQuiet(jsonOutput, () =>
-          performDomainLookup(label, account.address, clientWrapper),
+          performDomainLookup(
+            label,
+            account.address,
+            clientWrapper,
+            nativeTokenDecimals,
+            nativeTokenSymbol,
+          ),
         );
 
         if (jsonOutput) {
@@ -214,14 +243,19 @@ export function attachLookupCommands(root: Command): void {
           const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
           const jsonOutput = getJsonFlag(cmd);
 
-          const { clientWrapper, account } = await maybeQuiet(jsonOutput, () =>
-            prepareReadOnlyContext(merged),
-          );
+          const { clientWrapper, account, nativeTokenDecimals, nativeTokenSymbol } =
+            await maybeQuiet(jsonOutput, () => prepareReadOnlyContext(merged));
 
           if (!jsonOutput) console.log(chalk.bold("\n▶ Domain Lookup\n"));
 
           const result = await maybeQuiet(jsonOutput, () =>
-            performDomainLookup(merged.name as string, account.address, clientWrapper),
+            performDomainLookup(
+              merged.name as string,
+              account.address,
+              clientWrapper,
+              nativeTokenDecimals,
+              nativeTokenSymbol,
+            ),
           );
 
           if (jsonOutput) {

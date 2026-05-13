@@ -1,10 +1,11 @@
 import os from "node:os";
 import path from "node:path";
 
-import { RPC_ENDPOINTS } from "../utils/constants";
+import { setActiveDotnsEnvironment, type DotnsEnvironmentConfig } from "../utils/constants";
 import { normalizeAccountName } from "./keystore/payload";
 
 export const ENV = {
+  DOTNS_ENV: "DOTNS_ENV",
   RPC: "DOTNS_RPC",
   MNEMONIC: "DOTNS_MNEMONIC",
   KEY_URI: "DOTNS_KEY_URI",
@@ -20,8 +21,13 @@ export function getDefaultKeystoreDir(): string {
   return path.join(os.homedir(), ".dotns", "keystore");
 }
 
-export function resolveRpc(maybeRpc?: string): string {
-  return maybeRpc || process.env[ENV.RPC] || RPC_ENDPOINTS[0];
+export function resolveDotnsEnvironment(maybeEnvironment?: string): DotnsEnvironmentConfig {
+  return setActiveDotnsEnvironment(maybeEnvironment || process.env[ENV.DOTNS_ENV]);
+}
+
+export function resolveRpc(maybeRpc?: string, maybeEnvironment?: string): string {
+  const environment = resolveDotnsEnvironment(maybeEnvironment);
+  return maybeRpc || process.env[ENV.RPC] || environment.rpc;
 }
 
 export function resolveMinBalancePas(maybeMin?: string): string {
