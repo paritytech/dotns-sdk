@@ -1,18 +1,24 @@
 import type { VerificationResult, BlockVerificationResult } from "../types/types";
+import { PASEO_IPFS_GATEWAY_URL } from "../utils/constants";
 import { formatErrorMessage } from "../utils/formatting";
 async function loadHeliaClient() {
   const { getSharedHeliaClient } = await import("./heliaClient");
   return getSharedHeliaClient();
 }
 
-const DEFAULT_VERIFICATION_GATEWAY = "https://paseo-ipfs.polkadot.io";
+const DEFAULT_VERIFICATION_GATEWAY = PASEO_IPFS_GATEWAY_URL;
 const VERIFICATION_TIMEOUT_MILLISECONDS = 30000;
+
+function createIpfsGatewayUrl(gatewayBaseUrl: string, cid: string): string {
+  const gateway = gatewayBaseUrl.replace(/\/+$/, "");
+  return gateway.endsWith("/ipfs") ? `${gateway}/${cid}` : `${gateway}/ipfs/${cid}`;
+}
 
 export async function verifyCidResolution(
   contentCid: string,
   gatewayBaseUrl: string = DEFAULT_VERIFICATION_GATEWAY,
 ): Promise<VerificationResult> {
-  const verificationUrl = `${gatewayBaseUrl}/ipfs/${contentCid}`;
+  const verificationUrl = createIpfsGatewayUrl(gatewayBaseUrl, contentCid);
 
   try {
     const response = await fetch(verificationUrl, {
@@ -66,7 +72,7 @@ export async function verifyMultipleCids(
 export async function verifyCidWithMultipleGateways(
   contentCid: string,
   gatewayUrls: string[] = [
-    "https://paseo-ipfs.polkadot.io",
+    PASEO_IPFS_GATEWAY_URL,
     "https://dweb.link",
     "https://cloudflare-ipfs.com",
     "https://w3s.link",

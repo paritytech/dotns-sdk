@@ -341,10 +341,6 @@ const commandReference: CmdGroup[] = [
           "Register a new base domain. Runs the full commit-reveal flow: commit, wait, then reveal.",
         options: [
           { flag: "-n, --name <label>", description: "Domain label to register (without .dot)" },
-          {
-            flag: "-s, --status <level>",
-            description: "ProofOfPersonhood status: none, lite, or full",
-          },
           { flag: "-r, --reverse", description: "Also set as the reverse record" },
           { flag: "-g, --governance", description: "Use the governance registration path" },
           {
@@ -441,14 +437,10 @@ const commandReference: CmdGroup[] = [
   },
   {
     name: "pop",
-    description: "Manage ProofOfPersonhood status. Set your PoP tier or check your current level.",
+    description: "Read ProofOfPersonhood status from the personhood precompile.",
     subcommands: [
       {
-        usage: "pop set <status>",
-        description: "Set your ProofOfPersonhood status. Accepted values: none, lite, full.",
-      },
-      {
-        usage: "pop info",
+        usage: "pop status",
         description:
           "Display your current PoP status, including Substrate address and EVM address.",
       },
@@ -734,11 +726,8 @@ dotns account map
 # Check if an address is mapped
 dotns account is-mapped 5DtFfW...
 
-# Set PoP status
-dotns pop set lite
-
 # Check PoP status
-dotns pop info
+dotns pop status
 
 # Store: write a key-value pair
 dotns store set my-key "my-value"

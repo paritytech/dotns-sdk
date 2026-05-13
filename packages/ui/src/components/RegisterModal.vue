@@ -127,7 +127,7 @@
                       {{ userPopStatus.message }}
                     </p>
                     <p v-if="!requirementMet" class="text-xs mt-2 text-amber-400 font-medium">
-                      Please update your PoP status to
+                      Your personhood verification must be
                       {{ PopStatusLabels[userPopStatus.requirement] }} to register this name.
                     </p>
                   </div>
