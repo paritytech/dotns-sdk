@@ -59,19 +59,37 @@ export DOTNS_KEYSTORE_PASSWORD=test-password
 # Then simply use --account
 dotns register domain --account karim --name coolname42
 dotns content set dotns bafybei... --account karim
-dotns pop set lite --account karim
+dotns pop status --account karim
 ```
 
 ## Environment Variables
 
-| Variable                  | Description                |
-| ------------------------- | -------------------------- |
-| `DOTNS_KEYSTORE_PATH`     | Path to keystore directory |
-| `DOTNS_KEYSTORE_PASSWORD` | Keystore password          |
-| `DOTNS_RPC`               | Asset Hub RPC endpoint     |
-| `DOTNS_MNEMONIC`          | BIP39 mnemonic phrase      |
-| `DOTNS_KEY_URI`           | Substrate key URI          |
-| `DOTNS_MIN_BALANCE_PAS`   | Minimum balance in PAS     |
+| Variable                  | Description                                        |
+| ------------------------- | -------------------------------------------------- |
+| `DOTNS_ENV`               | DotNS environment (`paseo-v2`; default `paseo-v2`) |
+| `DOTNS_KEYSTORE_PATH`     | Path to keystore directory                         |
+| `DOTNS_KEYSTORE_PASSWORD` | Keystore password                                  |
+| `DOTNS_RPC`               | Asset Hub RPC endpoint                             |
+| `DOTNS_MNEMONIC`          | BIP39 mnemonic phrase                              |
+| `DOTNS_KEY_URI`           | Substrate key URI                                  |
+| `DOTNS_MIN_BALANCE_PAS`   | Minimum balance in PAS                             |
+
+Select an environment with either an environment variable or a per-command option:
+
+```bash
+# Default: Paseo V2
+dotns account is-whitelisted 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
+
+# Explicitly use Paseo V2 for this shell
+export DOTNS_ENV=paseo-v2
+dotns account is-whitelisted 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
+
+# Or override for a single command
+dotns --env paseo-v2 account is-whitelisted 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
+dotns account whitelist 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY --env paseo-v2 --key-uri //Alice
+```
+
+`--rpc` still overrides the endpoint URL, but it does not change the selected DotNS contract addresses. Use `--env`/`DOTNS_ENV` to select the DotNS deployment.
 
 ## Commands
 
@@ -83,11 +101,11 @@ All registration commands require authentication.
 # Register a base domain
 dotns --password test-password register domain --account default --name coolname42
 
-# With PoP Lite status
-dotns --password test-password register domain --account default --name alice99 --status lite
+# Register a name that requires PoP Lite
+dotns --password test-password register domain --account default --name alice99
 
-# With PoP Full status
-dotns --password test-password register domain --account default --name premium --status full
+# Register a name that requires PoP Full
+dotns --password test-password register domain --account default --name premium
 
 # Governance registration (≤5 chars, reserved names)
 dotns --password test-password register domain --account default --name short --governance
@@ -182,16 +200,17 @@ echo "https://alice.dev" | dotns --password test-password text set alice url --a
 
 ### Proof of Personhood
 
+The CLI reads PoP status directly from the personhood precompile at
+`0x000000000000000000000000000000000a010000` using the `bytes32("dotns")`
+context. Returned tiers are `none`, `lite`, or `full`; DotNS does not set this
+status.
+
 ```bash
-# Set PoP status with keystore
-dotns pop --password test-password --account default set lite
-dotns pop set full --password test-password --account default
-
-# Set PoP status with mnemonic
-dotns pop --mnemonic "bottom drive obey lake curtain smoke basket hold race lonely fit walk" set lite
-
-# Set PoP status with key-uri
-dotns pop --key-uri //Alice set lite
+# Check PoP status from the personhood precompile
+dotns pop --password test-password --account default status
+dotns pop status --password test-password --account default
+dotns pop --mnemonic "bottom drive obey lake curtain smoke basket hold race lonely fit walk" status
+dotns pop --key-uri //Alice status
 
 # View account info
 dotns pop --password test-password --account default info

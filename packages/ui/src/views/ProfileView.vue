@@ -467,7 +467,7 @@
                       </Button>
                       <Button size="sm" variant="secondary" as-child>
                         <a
-                          :href="`https://paseo-ipfs.polkadot.io/ipfs/${cid}`"
+                          :href="`https://paseo-bulletin-next-ipfs.polkadot.io/ipfs/${cid}`"
                           target="_blank"
                           rel="noopener noreferrer"
                         >

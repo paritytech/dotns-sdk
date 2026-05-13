@@ -1,6 +1,6 @@
 import { getSharedHeliaClient, type HeliaContentFetchResult } from "@/lib/heliaClient";
 
-const BULLETIN_VERIFICATION_GATEWAY = "https://paseo-ipfs.polkadot.io";
+const BULLETIN_VERIFICATION_GATEWAY = "https://paseo-bulletin-next-ipfs.polkadot.io/ipfs";
 const GATEWAY_FETCH_TIMEOUT_MS = 15_000;
 const IPFS_VERIFICATION_TIMEOUT_MS = 15_000;
 const P2P_FETCH_TIMEOUT_MS = 10_000;
@@ -44,7 +44,8 @@ function normalizeGatewayUrl(gatewayBaseUrl: string): string {
 
 function getGatewayCandidateUrls(gatewayBaseUrl: string, cid: string): string[] {
   const gateway = normalizeGatewayUrl(gatewayBaseUrl);
-  return [`${gateway}/ipfs/${cid}`, `${gateway}/ipfs/${cid}/`];
+  const cidUrl = gateway.endsWith("/ipfs") ? `${gateway}/${cid}` : `${gateway}/ipfs/${cid}`;
+  return [cidUrl, `${cidUrl}/`];
 }
 
 function formatErrorMessage(error: unknown): string {
