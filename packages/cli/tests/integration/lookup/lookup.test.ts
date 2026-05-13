@@ -32,15 +32,13 @@ function expectSuccessfulOwnerLookup(result: CliRunResult, label: string) {
 }
 
 async function registerFreshDomainForAlice(): Promise<string> {
-  const label = generateRandomLabel(ProofOfPersonhoodStatus.ProofOfPersonhoodFull);
+  const label = generateRandomLabel(ProofOfPersonhoodStatus.NoStatus);
 
   const result = await runDotnsCli([
     "register",
     "domain",
     "--name",
     label,
-    "--status",
-    "full",
     "--key-uri",
     ALICE_KEY_URI,
   ]);

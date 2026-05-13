@@ -99,44 +99,6 @@ test(
 );
 
 test(
-  "register domain: pop lite",
-  async () => {
-    createPathsForTest("register_domain_pop_lite");
-    const keystorePath = await ensureDefaultKeystore();
-    const label = generateRandomLabel(ProofOfPersonhoodStatus.ProofOfPersonhoodLite);
-
-    const registerResult = await registerDomain(keystorePath, [
-      "--name",
-      label,
-      "--status",
-      "lite",
-    ]);
-
-    expectSuccessfulRegistration(registerResult, label);
-  },
-  { timeout: REGISTER_TEST_TIMEOUT_MS },
-);
-
-test(
-  "register domain: pop full",
-  async () => {
-    createPathsForTest("register_domain_pop_full");
-    const keystorePath = await ensureDefaultKeystore();
-    const label = generateRandomLabel(ProofOfPersonhoodStatus.ProofOfPersonhoodFull);
-
-    const registerResult = await registerDomain(keystorePath, [
-      "--name",
-      label,
-      "--status",
-      "full",
-    ]);
-
-    expectSuccessfulRegistration(registerResult, label);
-  },
-  { timeout: REGISTER_TEST_TIMEOUT_MS },
-);
-
-test(
   "register domain for someone else using owner flag",
   async () => {
     createPathsForTest("register_domain_for_someone_else_using_owner");
@@ -242,7 +204,7 @@ test(
 );
 
 test(
-  "regression: register domain must not implicitly set PoP status when --status is omitted",
+  "regression: register domain must not implicitly set PoP status",
   async () => {
     createPathsForTest("regression_register_domain_does_not_set_pop");
     const keystorePath = await ensureDefaultKeystore();

@@ -36,13 +36,3 @@ export function generateRandomLabel(status: ProofOfPersonhoodStatus): string {
 
   throw new Error("Cannot auto-generate Reserved names");
 }
-
-export function parseProofOfPersonhoodStatus(statusString: string): ProofOfPersonhoodStatus {
-  const normalized = statusString.toLowerCase();
-  if (normalized === "none" || normalized === "nostatus") return ProofOfPersonhoodStatus.NoStatus;
-  if (normalized === "lite" || normalized === "poplite")
-    return ProofOfPersonhoodStatus.ProofOfPersonhoodLite;
-  if (normalized === "full" || normalized === "popfull")
-    return ProofOfPersonhoodStatus.ProofOfPersonhoodFull;
-  throw new Error("Invalid status: use none, lite, or full");
-}

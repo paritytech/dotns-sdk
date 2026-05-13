@@ -37,7 +37,6 @@ test("register domain help shows options", async () => {
 
   expect(result.combinedOutput).toContain("Register a new base domain");
   expect(result.combinedOutput).toContain("--name");
-  expect(result.combinedOutput).toContain("--status");
   expect(result.combinedOutput).toContain("--reverse");
   expect(result.combinedOutput).toContain("--governance");
   expect(result.combinedOutput).toContain("--owner");
@@ -55,21 +54,6 @@ test("register subname help shows options", async () => {
   expect(result.combinedOutput).toContain("--name");
   expect(result.combinedOutput).toContain("--parent");
   expect(result.combinedOutput).toContain("--owner");
-});
-
-test("register domain parses status none", async () => {
-  const result = await runDotnsCli(["register", "domain", "--status", "none", "--help"]);
-  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
-});
-
-test("register domain parses status lite", async () => {
-  const result = await runDotnsCli(["register", "domain", "--status", "lite", "--help"]);
-  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
-});
-
-test("register domain parses status full", async () => {
-  const result = await runDotnsCli(["register", "domain", "--status", "full", "--help"]);
-  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 });
 
 test("register domain parses reverse flag", async () => {

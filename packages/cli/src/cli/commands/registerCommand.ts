@@ -6,7 +6,6 @@ import { DEFAULT_COMMITMENT_BUFFER_SECONDS } from "../../utils/constants";
 import { getJsonFlag, maybeQuiet, emitJsonResult, handleCommandError } from "./jsonHelpers";
 
 export type RegisterActionOptions = RegistrationCommandOptions & {
-  __statusProvided?: boolean;
   transfer?: boolean;
   to?: string;
   parent?: string;
@@ -30,7 +29,6 @@ export function attachRegisterCommand(root: Command) {
     .command("domain")
     .description("Register a new base domain")
     .option("-n, --name <label>", "Domain label to register (without .dot)")
-    .option("-s, --status <level>", "ProofOfPersonhood status: none, lite, or full")
     .option("-r, --reverse", "Enable reverse record registration", false)
     .option("-g, --governance", "Use governance registration path", false)
     .option("-o, --owner <address>", "Owner address (EVM or Substrate, or label)")
@@ -49,7 +47,6 @@ export function attachRegisterCommand(root: Command) {
         const allOpts =
           typeof cmd.optsWithGlobals === "function" ? cmd.optsWithGlobals() : cmd.opts();
 
-        merged.__statusProvided = allOpts?.status != null;
         merged.commitmentBuffer = resolveCommitmentBuffer(allOpts?.commitmentBuffer);
 
         if (merged.transfer === true && !merged.to) {

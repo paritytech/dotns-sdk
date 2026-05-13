@@ -1,10 +1,5 @@
 import { expect, test } from "bun:test";
-import {
-  ALICE_KEY_URI,
-  HARNESS_HELP_SUCCESS_EXIT_CODE,
-  runDotnsCli,
-  TEST_MNEMONIC,
-} from "../../_helpers/cliHelpers";
+import { HARNESS_HELP_SUCCESS_EXIT_CODE, runDotnsCli } from "../../_helpers/cliHelpers";
 
 test("root help lists pop command", async () => {
   const result = await runDotnsCli(["--help"]);
@@ -16,37 +11,14 @@ test("pop help shows commands and description", async () => {
   const result = await runDotnsCli(["pop", "--help"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 
-  expect(result.combinedOutput).toContain("ProofOfPersonhood status management");
-  expect(result.combinedOutput).toContain("set [options] <status>");
-  expect(result.combinedOutput).toContain("Set ProofOfPersonhood status (none, lite, or full)");
-  expect(result.combinedOutput).toContain("info [options]");
-  expect(result.combinedOutput).toContain("Display ProofOfPersonhood status");
+  expect(result.combinedOutput).toContain("ProofOfPersonhood status lookup");
+  expect(result.combinedOutput).toContain("info|status [options]");
+  expect(result.combinedOutput).toContain("personhood");
+  expect(result.combinedOutput).toContain("precompile");
 });
 
 test("pop help shows auth options", async () => {
   const result = await runDotnsCli(["pop", "--help"]);
-  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
-
-  expect(result.combinedOutput).toContain("--rpc <wsUrl>");
-  expect(result.combinedOutput).toContain("--keystore-path <path>");
-  expect(result.combinedOutput).toContain("--account <name>");
-  expect(result.combinedOutput).toContain("--password <pw>");
-  expect(result.combinedOutput).toContain("--mnemonic <phrase>");
-  expect(result.combinedOutput).toContain("--key-uri <uri>");
-});
-
-test("pop set help shows status parameter", async () => {
-  const result = await runDotnsCli(["pop", "set", "--help"]);
-  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
-
-  expect(result.combinedOutput).toContain("Usage: dotns pop set");
-  expect(result.combinedOutput).toContain("Set ProofOfPersonhood status (none, lite, or full)");
-  expect(result.combinedOutput).toContain("<status>");
-  expect(result.combinedOutput).toContain("none, lite, or full");
-});
-
-test("pop set help shows auth options", async () => {
-  const result = await runDotnsCli(["pop", "set", "--help"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 
   expect(result.combinedOutput).toContain("--rpc <wsUrl>");
@@ -65,6 +37,14 @@ test("pop info help shows description", async () => {
   expect(result.combinedOutput).toContain("Display ProofOfPersonhood status");
 });
 
+test("pop status help shows description", async () => {
+  const result = await runDotnsCli(["pop", "status", "--help"]);
+  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
+
+  expect(result.combinedOutput).toContain("Usage: dotns pop info");
+  expect(result.combinedOutput).toContain("personhood precompile");
+});
+
 test("pop info help shows auth options", async () => {
   const result = await runDotnsCli(["pop", "info", "--help"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
@@ -75,53 +55,6 @@ test("pop info help shows auth options", async () => {
   expect(result.combinedOutput).toContain("--password <pw>");
   expect(result.combinedOutput).toContain("--mnemonic <phrase>");
   expect(result.combinedOutput).toContain("--key-uri <uri>");
-});
-
-test("pop set parses rpc option at pop level", async () => {
-  const result = await runDotnsCli(["pop", "--rpc", "wss://custom.com", "set", "lite", "--help"]);
-  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
-});
-
-test("pop set parses rpc option at set level", async () => {
-  const result = await runDotnsCli(["pop", "set", "lite", "--rpc", "wss://custom.com", "--help"]);
-  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
-});
-
-test("pop set parses keystore-path option", async () => {
-  const result = await runDotnsCli([
-    "pop",
-    "--keystore-path",
-    "/custom/path",
-    "set",
-    "lite",
-    "--help",
-  ]);
-  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
-});
-
-test("pop set parses account option at pop level", async () => {
-  const result = await runDotnsCli(["pop", "--account", "test", "set", "lite", "--help"]);
-  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
-});
-
-test("pop set parses account option at set level", async () => {
-  const result = await runDotnsCli(["pop", "set", "lite", "--account", "test", "--help"]);
-  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
-});
-
-test("pop set parses password option", async () => {
-  const result = await runDotnsCli(["pop", "set", "lite", "--password", "test123", "--help"]);
-  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
-});
-
-test("pop set parses mnemonic option", async () => {
-  const result = await runDotnsCli(["pop", "set", "lite", "--mnemonic", TEST_MNEMONIC, "--help"]);
-  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
-});
-
-test("pop set parses key-uri option", async () => {
-  const result = await runDotnsCli(["pop", "set", "lite", "--key-uri", ALICE_KEY_URI, "--help"]);
-  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 });
 
 test("pop info parses auth options at pop level", async () => {
@@ -150,30 +83,16 @@ test("pop info parses auth options at info level", async () => {
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 });
 
-test("pop set parses mixed options across levels", async () => {
-  const result = await runDotnsCli([
-    "pop",
-    "--password",
-    "test",
-    "set",
-    "lite",
-    "--account",
-    "acc",
-    "--help",
-  ]);
-  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
-});
-
 test("pop help command shows pop help", async () => {
   const result = await runDotnsCli(["pop", "help"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
-  expect(result.combinedOutput).toContain("ProofOfPersonhood status management");
+  expect(result.combinedOutput).toContain("ProofOfPersonhood status lookup");
 });
 
-test("pop help set shows set help", async () => {
-  const result = await runDotnsCli(["pop", "help", "set"]);
+test("pop help status shows info help", async () => {
+  const result = await runDotnsCli(["pop", "help", "status"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
-  expect(result.combinedOutput).toContain("Usage: dotns pop set");
+  expect(result.combinedOutput).toContain("Usage: dotns pop info");
 });
 
 test("pop help info shows info help", async () => {

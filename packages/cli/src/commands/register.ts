@@ -22,6 +22,9 @@ import {
   DOTNS_REGISTRAR_ABI,
   DOTNS_REGISTRY_ABI,
   POP_RULES_ABI,
+  PERSONHOOD_ABI,
+  PERSONHOOD_CONTEXT,
+  PERSONHOOD_PRECOMPILE_ADDRESS,
   STORE_FACTORY_ABI,
   STORE_ABI,
   DEFAULT_COMMITMENT_BUFFER_SECONDS,
@@ -47,7 +50,22 @@ function redactSecret(secret: Hex): string {
 function convertToProofOfPersonhoodStatus(value: unknown): ProofOfPersonhoodStatus {
   if (typeof value === "number") return value as ProofOfPersonhoodStatus;
   if (typeof value === "bigint") return Number(value) as ProofOfPersonhoodStatus;
+  if (typeof value === "string") return Number(value) as ProofOfPersonhoodStatus;
   throw new Error(`Unexpected ProofOfPersonhoodStatus type: ${typeof value}`);
+}
+
+type PersonhoodInfo = {
+  status: ProofOfPersonhoodStatus | number | bigint | string;
+  contextAlias: `0x${string}`;
+};
+
+function isReadonlyArray(value: unknown): value is readonly unknown[] {
+  return Array.isArray(value);
+}
+
+function getPersonhoodStatusValue(info: PersonhoodInfo | readonly unknown[]): unknown {
+  if (isReadonlyArray(info)) return info[0];
+  return info.status;
 }
 
 export async function classifyDomainName(
@@ -311,20 +329,20 @@ export async function getUserProofOfPersonhoodStatus(
   originSubstrateAddress: string,
   ownerAddress: Address,
 ): Promise<ProofOfPersonhoodStatus> {
-  const userStatusRaw = await withTimeout(
-    performContractCall<ProofOfPersonhoodStatus | number | bigint>(
+  const personhoodInfo = await withTimeout(
+    performContractCall<PersonhoodInfo | readonly unknown[]>(
       clientWrapper,
       originSubstrateAddress,
-      CONTRACTS.DOTNS_RULES,
-      POP_RULES_ABI,
-      "userPopStatus",
-      [ownerAddress],
+      PERSONHOOD_PRECOMPILE_ADDRESS,
+      PERSONHOOD_ABI,
+      "personhoodStatus",
+      [ownerAddress, PERSONHOOD_CONTEXT],
     ),
     30000,
-    "userPopStatus",
+    "personhoodStatus",
   );
 
-  return convertToProofOfPersonhoodStatus(userStatusRaw);
+  return convertToProofOfPersonhoodStatus(getPersonhoodStatusValue(personhoodInfo));
 }
 
 export async function getPriceAndValidateEligibility(
@@ -442,12 +460,13 @@ export async function finalizeRegularRegistration(
   signer: PolkadotSigner,
   registration: DomainRegistration,
   priceWei: bigint,
+  nativeTokenDecimals?: number,
 ): Promise<void> {
   const spinner = ora(`Registering ${chalk.cyan(registration.label + ".dot")}`).start();
 
   try {
     const bufferedPaymentWei = (priceWei * 110n) / 100n;
-    const bufferedPaymentNative = convertWeiToNative(bufferedPaymentWei);
+    const bufferedPaymentNative = convertWeiToNative(bufferedPaymentWei, nativeTokenDecimals);
 
     console.log(chalk.gray("  oracle:    ") + chalk.green(formatWeiAsEther(priceWei) + " PAS"));
     console.log(
@@ -717,63 +736,6 @@ export async function ensureStoreAuthorizations(
 
     console.log(chalk.gray("  tx:         ") + chalk.blue(tx));
     console.log(chalk.gray("  registry:   ") + chalk.white(CONTRACTS.DOTNS_REGISTRY));
-  }
-}
-
-export async function setUserProofOfPersonhoodStatus(
-  clientWrapper: ReviveClientWrapper,
-  substrateAddress: string,
-  signer: PolkadotSigner,
-  ownerAddress: Address,
-  label: string,
-  status: ProofOfPersonhoodStatus,
-): Promise<void> {
-  const displayName = label ? chalk.cyan(label) : "account";
-  const checkSpinner = ora(`Checking current PoP status for ${displayName}`).start();
-
-  try {
-    await clientWrapper.ensureAccountMapped(substrateAddress, signer);
-
-    const currentStatus = await getUserProofOfPersonhoodStatus(
-      clientWrapper,
-      substrateAddress,
-      ownerAddress,
-    );
-
-    checkSpinner.succeed("Current PoP status");
-    console.log(chalk.gray("  current:   ") + chalk.white(ProofOfPersonhoodStatus[currentStatus]));
-    console.log(chalk.gray("  desired:   ") + chalk.white(ProofOfPersonhoodStatus[status]));
-
-    if (currentStatus === status) {
-      console.log(
-        chalk.yellow(
-          `  ↳ Status already set to ${ProofOfPersonhoodStatus[status]}, skipping update`,
-        ),
-      );
-      return;
-    }
-
-    const updateSpinner = ora(
-      `Setting PoP status for ${displayName} to ${chalk.yellow(ProofOfPersonhoodStatus[status])}`,
-    ).start();
-
-    const transactionHash = await submitContractTransaction(
-      clientWrapper,
-      CONTRACTS.DOTNS_RULES,
-      0n,
-      POP_RULES_ABI,
-      "setUserPopStatus",
-      [status],
-      substrateAddress,
-      signer,
-      updateSpinner,
-      "PoP status update",
-    );
-
-    console.log(chalk.gray("  tx:        ") + chalk.blue(transactionHash));
-  } catch (error) {
-    if (checkSpinner.isSpinning) checkSpinner.fail("Failed to check PoP status");
-    throw error;
   }
 }
 
