@@ -55,7 +55,8 @@ jobs:
       artifact-name: pr-ui-build-${{ github.event.pull_request.number }}
       mode: preview
       subname: pr${{ github.event.pull_request.number }}-ui
-      register-base: false
+      register-base: true
+      env: paseo-v2
       cli-source: release
       sdk-ref: ${{ github.head_ref || github.ref }}
       skip-cache: true
