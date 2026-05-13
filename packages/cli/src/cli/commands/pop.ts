@@ -1,11 +1,6 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import {
-  getUserProofOfPersonhoodStatus,
-  setUserProofOfPersonhoodStatus,
-} from "../../commands/register";
-import { parseProofOfPersonhoodStatus } from "../labels";
-import { prepareContext } from "../context";
+import { getUserProofOfPersonhoodStatus } from "../../commands/register";
 import { addAuthOptions } from "./authOptions";
 import type { CommandOptions } from "../../types/types";
 import { ProofOfPersonhoodStatus } from "../../types/types";
@@ -25,6 +20,20 @@ export type PopInfoResult = {
   status: ProofOfPersonhoodStatus;
 };
 
+function formatPopStatus(status: ProofOfPersonhoodStatus): "none" | "lite" | "full" | "reserved" {
+  switch (status) {
+    case ProofOfPersonhoodStatus.ProofOfPersonhoodLite:
+      return "lite";
+    case ProofOfPersonhoodStatus.ProofOfPersonhoodFull:
+      return "full";
+    case ProofOfPersonhoodStatus.Reserved:
+      return "reserved";
+    case ProofOfPersonhoodStatus.NoStatus:
+    default:
+      return "none";
+  }
+}
+
 async function readPopInfo(options: CommandOptions): Promise<PopInfoResult> {
   const context = await prepareReadOnlyContext(options as any);
   const status = await getUserProofOfPersonhoodStatus(
@@ -41,54 +50,14 @@ async function readPopInfo(options: CommandOptions): Promise<PopInfoResult> {
 }
 
 export function attachPopCommands(root: Command): void {
-  const popCommand = root.command("pop").description("ProofOfPersonhood status management");
+  const popCommand = root.command("pop").description("ProofOfPersonhood status lookup");
 
   addAuthOptions(popCommand);
 
-  const setPopCommand = popCommand
-    .command("set <status>")
-    .description("Set ProofOfPersonhood status (none, lite, or full)")
-    .option("--json", "Output result as JSON (suppresses all other output)", false);
-
-  addAuthOptions(setPopCommand).action(
-    async (status: string, options: CommandOptions, command: Command) => {
-      const jsonOutput = getJsonFlag(command);
-      try {
-        const mergedOptions = getMergedOptions(command, options);
-        const context = await maybeQuiet(jsonOutput, () => prepareContext(mergedOptions));
-
-        const parsedStatus = parseProofOfPersonhoodStatus(status);
-
-        await maybeQuiet(jsonOutput, () =>
-          setUserProofOfPersonhoodStatus(
-            context.clientWrapper!,
-            context.substrateAddress,
-            context.signer,
-            context.evmAddress!,
-            "",
-            parsedStatus,
-          ),
-        );
-
-        if (
-          !emitJsonResult(jsonOutput, {
-            ok: true,
-            status: ProofOfPersonhoodStatus[parsedStatus].toLowerCase(),
-            statusCode: parsedStatus,
-          })
-        ) {
-          console.log(chalk.green("\n✓ PoP Status Updated\n"));
-        }
-        process.exit(0);
-      } catch (error) {
-        handleCommandError(jsonOutput, error);
-      }
-    },
-  );
-
   const infoCommand = popCommand
     .command("info")
-    .description("Display ProofOfPersonhood status")
+    .alias("status")
+    .description("Display ProofOfPersonhood status from the personhood precompile")
     .option("--json", "Output result as JSON (suppresses all other output)", false);
 
   addAuthOptions(infoCommand).action(async (options: CommandOptions, command: Command) => {
@@ -101,16 +70,14 @@ export function attachPopCommands(root: Command): void {
         !emitJsonResult(jsonOutput, {
           substrate: info.substrate,
           evm: info.evm,
-          status: ProofOfPersonhoodStatus[info.status].toLowerCase(),
+          status: formatPopStatus(info.status),
           statusCode: info.status,
         })
       ) {
         console.log(chalk.bold("\n📋 ProofOfPersonhood Status\n"));
         console.log(chalk.gray("  substrate: ") + chalk.white(info.substrate));
         console.log(chalk.gray("  evm:       ") + chalk.white(info.evm));
-        console.log(
-          chalk.gray("  status:    ") + chalk.white(ProofOfPersonhoodStatus[info.status]),
-        );
+        console.log(chalk.gray("  status:    ") + chalk.white(formatPopStatus(info.status)));
         console.log(chalk.green("\n✓ PoP Status Retrieved\n"));
       }
 

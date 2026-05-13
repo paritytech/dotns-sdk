@@ -124,20 +124,48 @@ const client = createPublicClient({
 const userAddress = '${addr}'
 
 const status = await client.readContract({
-  address: '0x4e8920B1E69d0cEA9b23CBFC87A17Ee6fE02d2d3',
+  address: '0x000000000000000000000000000000000a010000',
   abi: [{
     type: 'function',
-    name: 'userPopStatus',
-    inputs: [{ name: 'user', type: 'address' }],
-    outputs: [{ name: '', type: 'uint8' }],
+    name: 'personhoodStatus',
+    inputs: [
+      { name: 'account', type: 'address' },
+      { name: 'context', type: 'bytes32' },
+    ],
+    outputs: [{
+      name: 'info',
+      type: 'tuple',
+      components: [
+        { name: 'status', type: 'uint8' },
+        { name: 'contextAlias', type: 'bytes32' },
+      ],
+    }],
+    stateMutability: 'view',
+  }, {
+    type: 'function',
+    name: 'personhoodInfoByProof',
+    inputs: [{
+      name: 'request',
+      type: 'tuple',
+      components: [
+        { name: 'expectedStatus', type: 'uint8' },
+        { name: 'proof', type: 'bytes' },
+        { name: 'expectedAlias', type: 'bytes32' },
+        { name: 'ringIndex', type: 'uint32' },
+        { name: 'context', type: 'bytes32' },
+        { name: 'revision', type: 'uint32' },
+        { name: 'message', type: 'bytes' },
+      ],
+    }],
+    outputs: [{ name: 'ok', type: 'bool' }],
     stateMutability: 'view',
   }],
-  functionName: 'userPopStatus',
-  args: [userAddress],
+  functionName: 'personhoodStatus',
+  args: [userAddress, '0x646f746e73000000000000000000000000000000000000000000000000000000'],
 })
 
-const tiers = ['No Status', 'PoP Lite', 'PoP Full', 'Reserved']
-console.log('PoP status:', tiers[status] ?? 'Unknown')`;
+const tiers = ['none', 'lite', 'full', 'reserved']
+console.log('PoP status:', tiers[status.status] ?? 'Unknown')`;
 });
 
 async function connectWallet() {

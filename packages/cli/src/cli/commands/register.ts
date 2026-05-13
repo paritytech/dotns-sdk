@@ -13,7 +13,6 @@ import {
   verifyDomainOwnership,
   displayDeployedStore,
   ensureStoreAuthorizations,
-  setUserProofOfPersonhoodStatus,
 } from "../../commands/register";
 import {
   isValidSubstrateAddress,
@@ -28,17 +27,12 @@ import {
 } from "../../types/types";
 import { step } from "../ui";
 import { prepareAssetHubContext } from "../context";
-import { generateRandomLabel, parseProofOfPersonhoodStatus } from "../labels";
+import { generateRandomLabel } from "../labels";
 import { resolveTransferRecipient, transferDomain } from "../transfer";
 
 export type TransferDestinationKind = "evm" | "substrate" | "label";
 
-export type RegistrationPopStatusConfig =
-  | { mode: "unchanged" }
-  | { mode: "set"; status: ProofOfPersonhoodStatus };
-
 export type RegisterActionOptions = RegistrationCommandOptions & {
-  __statusProvided?: boolean;
   transfer?: boolean;
   to?: string;
   parent?: string;
@@ -114,17 +108,7 @@ export async function executeRegistration(
   const context = await prepareAssetHubContext(options);
   const { clientWrapper, substrateAddress, signer, evmAddress } = context;
 
-  const statusWasProvided = options.__statusProvided === true;
-
-  const popStatusConfig: RegistrationPopStatusConfig = statusWasProvided
-    ? { mode: "set", status: parseProofOfPersonhoodStatus(options.status ?? "none") }
-    : { mode: "unchanged" };
-
-  const label =
-    options.name ??
-    generateRandomLabel(
-      popStatusConfig.mode === "set" ? popStatusConfig.status : ProofOfPersonhoodStatus.NoStatus,
-    );
+  const label = options.name ?? generateRandomLabel(ProofOfPersonhoodStatus.NoStatus);
 
   console.log(
     chalk.gray("  Mode:      ") +
@@ -158,7 +142,7 @@ export async function executeRegistration(
       signer,
       evmAddress,
       label,
-      popStatusConfig,
+      context.nativeTokenDecimals,
       options.reverse ?? false,
       transferDestination,
       options.commitmentBuffer,
@@ -301,7 +285,7 @@ async function executeRegularRegistration(
   signer: any,
   evmAddress: Address,
   label: string,
-  popStatusConfig: RegistrationPopStatusConfig,
+  nativeTokenDecimals: number,
   enableReverseRecord: boolean,
   transferDestination: string | undefined,
   commitmentBuffer?: number,
@@ -313,19 +297,6 @@ async function executeRegularRegistration(
   const classification: NameClassification = await step("Classifying name", async () =>
     classifyDomainName(clientWrapper, substrateAddress, label),
   );
-
-  if (popStatusConfig.mode === "set") {
-    await step("Setting PoP status", async () =>
-      setUserProofOfPersonhoodStatus(
-        clientWrapper,
-        substrateAddress,
-        signer,
-        evmAddress,
-        label,
-        popStatusConfig.status,
-      ),
-    );
-  }
 
   await step("Checking availability", async () =>
     ensureDomainNotRegistered(clientWrapper, substrateAddress, label),
@@ -354,6 +325,7 @@ async function executeRegularRegistration(
       signer,
       registration,
       pricing.priceWei,
+      nativeTokenDecimals,
     ),
   );
 
