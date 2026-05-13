@@ -3,15 +3,15 @@
   "descriptorPath": ".papi/descriptors",
   "entries": {
     "paseo": {
-      "wsUrl": "wss://asset-hub-paseo-rpc.n.dwellir.com",
+      "wsUrl": "wss://paseo-asset-hub-next-rpc.polkadot.io",
       "metadata": ".papi/metadata/paseo.scale",
-      "genesis": "0xd6eec26135305a8ad257a20d003357284c8aa03d0bdb2b357ab0a22371e11ef2",
+      "genesis": "0x173cea9df45656cf612c8b8ece56e04e9a693c69cfaac47d3628dae735067af8",
       "codeHash": "0xc66e1574f0df569b29c04d46ae77aeebb622c79fd582de906913886f7853e74b"
     },
     "bulletin": {
-      "wsUrl": "wss://paseo-bulletin-rpc.polkadot.io",
+      "wsUrl": "wss://paseo-bulletin-next-rpc.polkadot.io",
       "metadata": ".papi/metadata/bulletin.scale",
-      "genesis": "0x744960c32e3a3df5440e1ecd4d34096f1ce2230d7016a5ada8a765d5a622b4ea",
+      "genesis": "0x8cfe6717dc4becfda2e13c488a1e2061ff2dfee96e7d031157f72d36716c0a22",
       "codeHash": "0x9838682961f13a0665e7dac54178aa99531391530e60e879a9eab84d6dc2a199"
     }
   }
