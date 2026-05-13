@@ -11,8 +11,7 @@ import {
   finalizeGovernanceRegistration,
   registerSubnode,
   verifyDomainOwnership,
-  displayDeployedStore,
-  ensureStoreAuthorizations,
+  claimUserStoreIfNeeded,
 } from "../../commands/register";
 import {
   isValidSubstrateAddress,
@@ -256,12 +255,8 @@ async function executeGovernanceRegistration(
     verifyDomainOwnership(clientWrapper, substrateAddress, label, evmAddress),
   );
 
-  await step("Displaying store", async () =>
-    displayDeployedStore(clientWrapper, substrateAddress, evmAddress),
-  );
-
-  await step("Ensuring store authorizations", async () =>
-    ensureStoreAuthorizations(clientWrapper, substrateAddress, signer, evmAddress),
+  await step("Claiming user store", async () =>
+    claimUserStoreIfNeeded(clientWrapper, substrateAddress, signer, evmAddress),
   );
 
   if (transferDestination) {
@@ -333,12 +328,8 @@ async function executeRegularRegistration(
     verifyDomainOwnership(clientWrapper, substrateAddress, label, evmAddress),
   );
 
-  await step("Displaying store", async () =>
-    displayDeployedStore(clientWrapper, substrateAddress, evmAddress),
-  );
-
-  await step("Ensuring store authorizations", async () =>
-    ensureStoreAuthorizations(clientWrapper, substrateAddress, signer, evmAddress),
+  await step("Claiming user store", async () =>
+    claimUserStoreIfNeeded(clientWrapper, substrateAddress, signer, evmAddress),
   );
 
   if (transferDestination) {
