@@ -9,7 +9,7 @@ import {
 import { useNetworkStore } from "@/store/useNetworkStore";
 import { useAbiStore } from "@/store/useAbiStore";
 import { useTransactionStore } from "@/store/useTransactionStore";
-import { computeDomainTokenId, normalizeDomainName } from "@/utils";
+import { computeDomainTokenId, normalizeDomainName, ZERO_SUBSTRATE_ADDRESS } from "@/utils";
 import type { Aggregate3Call, Aggregate3Result } from "@/type";
 
 const MULTICALL_CHUNK_SIZE = 20;
@@ -85,9 +85,6 @@ export function useMulticallOwnership() {
 
     await abiStore.ensureAbis();
 
-    const client = await networkStore.getClient();
-    const originSs58 = await client.getSubstrateAddress(ownerAddress);
-
     const registrar = network.dotnsRegistrar as Address;
     const registry = network.dotnsRegistry as Address;
     const encodedCalls = names.map((value) => encodeOwnerOfCall(value));
@@ -100,7 +97,11 @@ export function useMulticallOwnership() {
     const results: Aggregate3Result[] = [];
     for (let i = 0; i < calls.length; i += MULTICALL_CHUNK_SIZE) {
       const chunk = calls.slice(i, i + MULTICALL_CHUNK_SIZE);
-      const chunkResults = await multicallOwnerOfChunk(network.multiCall, chunk, originSs58);
+      const chunkResults = await multicallOwnerOfChunk(
+        network.multiCall,
+        chunk,
+        ZERO_SUBSTRATE_ADDRESS,
+      );
       results.push(...chunkResults);
     }
 

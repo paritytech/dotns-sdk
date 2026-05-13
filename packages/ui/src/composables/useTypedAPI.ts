@@ -1,32 +1,16 @@
 import { paseo, type Paseo } from "@polkadot-api/descriptors";
+import { createPapiProvider } from "@novasamatech/product-sdk";
 import { createClient, type PolkadotClient, type TypedApi } from "polkadot-api";
-import { getWsProvider } from "polkadot-api/ws";
+import { PASEO_NEXT_ASSET_HUB_GENESIS } from "@/lib/networks";
 
 let rawClient: PolkadotClient | null = null;
 let typedApiInstance: TypedApi<Paseo> | null = null;
-let currentRpcKey: string | null = null;
 
-export const useTypeClientAPI = async (rpcEndPoints: string[]): Promise<TypedApi<Paseo>> => {
-  const rpcKey = rpcEndPoints.join(",");
+export const useTypeClientAPI = async (): Promise<TypedApi<Paseo>> => {
+  if (typedApiInstance) return typedApiInstance;
 
-  if (typedApiInstance && currentRpcKey === rpcKey) {
-    return typedApiInstance;
-  }
-
-  if (rawClient) {
-    try {
-      rawClient.destroy();
-    } catch {
-      /* already destroyed */
-    }
-    rawClient = null;
-    typedApiInstance = null;
-  }
-
-  rawClient = createClient(getWsProvider(rpcEndPoints));
+  rawClient = createClient(createPapiProvider(PASEO_NEXT_ASSET_HUB_GENESIS));
   typedApiInstance = rawClient.getTypedApi(paseo);
-  currentRpcKey = rpcKey;
-
   return typedApiInstance;
 };
 
@@ -39,6 +23,5 @@ export function destroyTypeClientAPI(): void {
     }
     rawClient = null;
     typedApiInstance = null;
-    currentRpcKey = null;
   }
 }

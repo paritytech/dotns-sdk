@@ -9,7 +9,6 @@ export type NetworkConfig = {
     symbol: string;
     decimals: number;
   };
-  rpcUrls: string[];
   blockExplorerUrls?: string[];
 };
 

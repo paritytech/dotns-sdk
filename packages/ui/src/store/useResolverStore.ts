@@ -38,7 +38,7 @@ export const useResolverStore = defineStore("useResolverStore", () => {
       });
 
       const client = await networkStore.getClient();
-      const origin = walletStore.substrateAddress || ZERO_SUBSTRATE_ADDRESS;
+      const origin = ZERO_SUBSTRATE_ADDRESS;
       const result = await transactionStore.ethCall(
         client,
         origin,
@@ -169,7 +169,7 @@ export const useResolverStore = defineStore("useResolverStore", () => {
 
       const approvedRaw = await transactionStore.ethCall(
         client,
-        walletStore.substrateAddress!,
+        ZERO_SUBSTRATE_ADDRESS,
         network.dotnsContentResolver,
         approvalData,
       );
@@ -262,7 +262,7 @@ export const useResolverStore = defineStore("useResolverStore", () => {
       });
 
       const client = await networkStore.getClient();
-      const origin = walletStore.substrateAddress || ZERO_SUBSTRATE_ADDRESS;
+      const origin = ZERO_SUBSTRATE_ADDRESS;
       const result = await transactionStore.ethCall(
         client,
         origin,
@@ -301,7 +301,7 @@ export const useResolverStore = defineStore("useResolverStore", () => {
       });
 
       const client = await networkStore.getClient();
-      const origin = walletStore.substrateAddress || ZERO_SUBSTRATE_ADDRESS;
+      const origin = ZERO_SUBSTRATE_ADDRESS;
       const availableRaw = await transactionStore.ethCall(
         client,
         origin,
@@ -363,7 +363,7 @@ export const useResolverStore = defineStore("useResolverStore", () => {
       });
 
       const client = await networkStore.getClient();
-      const origin = walletStore.substrateAddress || ZERO_SUBSTRATE_ADDRESS;
+      const origin = ZERO_SUBSTRATE_ADDRESS;
       const result = await transactionStore.ethCall(
         client,
         origin,
@@ -402,7 +402,7 @@ export const useResolverStore = defineStore("useResolverStore", () => {
       });
 
       const client = await networkStore.getClient();
-      const origin = walletStore.substrateAddress || ZERO_SUBSTRATE_ADDRESS;
+      const origin = ZERO_SUBSTRATE_ADDRESS;
       const result = await transactionStore.ethCall(
         client,
         origin,

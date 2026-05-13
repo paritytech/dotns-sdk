@@ -59,7 +59,6 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
     functionName: string,
     abiName: "Store" | "StoreFactory",
     args: readonly unknown[],
-    targetEvm?: Address,
   ): Promise<`0x${string}`> {
     const data = encodeFunctionData({
       abi: abiStore.getABI(abiName),
@@ -67,11 +66,7 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
       args,
     });
     const client = await networkStore.getClient();
-    let origin = walletStore.substrateAddress;
-    if (!origin && targetEvm) {
-      origin = await client.getSubstrateAddress(targetEvm);
-    }
-    return transactionStore.ethCall(client, origin || ZERO_SUBSTRATE_ADDRESS, to, data);
+    return transactionStore.ethCall(client, ZERO_SUBSTRATE_ADDRESS, to, data);
   }
 
   async function ethWrite(to: Address, data: `0x${string}`): Promise<Hash> {
@@ -179,7 +174,6 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
         "getDeployedStore",
         "StoreFactory",
         [targetEvm],
-        targetEvm,
       );
 
       if (!storeRaw || storeRaw === "0x") return [];
@@ -192,7 +186,7 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
 
       if (store === zeroAddress) return [];
 
-      const valuesRaw = await ethRead(store, "getValues", "Store", [], targetEvm);
+      const valuesRaw = await ethRead(store, "getValues", "Store", []);
 
       if (!valuesRaw || valuesRaw === "0x") return [];
 

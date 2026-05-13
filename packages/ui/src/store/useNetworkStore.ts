@@ -25,7 +25,7 @@ export const useNetworkStore = defineStore("useNetworkStore", () => {
         selectedNetwork.chainName,
       );
 
-      const typedApi = await useTypeClientAPI(selectedNetwork.rpcUrls);
+      const typedApi = await useTypeClientAPI();
       client.value = new ReviveClientWrapper(typedApi);
 
       if (!currentNetwork.value) {
@@ -61,7 +61,7 @@ export const useNetworkStore = defineStore("useNetworkStore", () => {
       console.time("[NetworkStore:initClient]");
 
       // Create new Polkadot API client
-      const typedApi = await useTypeClientAPI(targetNetwork.rpcUrls);
+      const typedApi = await useTypeClientAPI();
       client.value = new ReviveClientWrapper(typedApi);
 
       console.timeEnd("[NetworkStore:initClient]");

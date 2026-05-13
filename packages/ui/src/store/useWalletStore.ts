@@ -1,16 +1,15 @@
 import { defineStore } from "pinia";
-import { web3AccountsSubscribe, web3Enable, web3FromAddress } from "@polkadot/extension-dapp";
-import type { InjectedAccountWithMeta } from "@polkadot/extension-inject/types";
 import { ref } from "vue";
 import { isAddress, zeroAddress, type Address } from "viem";
-import {
-  getInjectedExtensions,
-  connectInjectedExtension,
-  type InjectedPolkadotAccount,
-} from "polkadot-api/pjs-signer";
+import { encodeAddress } from "@polkadot/util-crypto";
+import type { PolkadotSigner } from "polkadot-api";
+import { createAccountsProvider, type LegacyAccount } from "@novasamatech/product-sdk";
 import { useNetworkStore } from "./useNetworkStore";
 import { useUserStoreManager } from "./useUserStoreManager";
 import { PopStatus, type TransactionStatus } from "@/type";
+import { hostBackedSyncStorage } from "@/lib/host/persistedStorage";
+
+const accountsProvider = createAccountsProvider();
 
 export const useWalletStore = defineStore(
   "useWalletStore",
@@ -20,9 +19,8 @@ export const useWalletStore = defineStore(
     const substrateAddress = ref<string | null>(null);
     const hasWalletExtension = ref(false);
     const isLoading = ref(false);
-    const injected = ref<any>(null);
-    const accountChangeUnsub = ref<(() => void) | null>(null);
-    const currentAccount = ref<InjectedAccountWithMeta | InjectedPolkadotAccount | null>(null);
+    const injected = ref<PolkadotSigner | null>(null);
+    const currentAccount = ref<LegacyAccount | null>(null);
 
     const transactionStatus = ref<TransactionStatus>("idle");
 
@@ -40,11 +38,9 @@ export const useWalletStore = defineStore(
     }
 
     async function init(): Promise<void> {
-      if (!isConnected.value || !substrateAddress.value) return;
-
       try {
-        const reconnected = await connectWallet();
-        if (!reconnected) {
+        const connected = await connectWallet();
+        if (!connected) {
           handleDisconnect();
         }
       } catch {
@@ -56,55 +52,30 @@ export const useWalletStore = defineStore(
       try {
         const clientInstance = await networkStore.getClient();
 
-        const papiExtensionNames = getInjectedExtensions();
-
-        if (papiExtensionNames.length > 0) {
-          const papiExtension = await connectInjectedExtension(papiExtensionNames[0]!);
-          const papiAccounts = papiExtension.getAccounts();
-
-          if (papiAccounts.length > 0 && papiAccounts[0]!.polkadotSigner) {
-            const papiAccount = papiAccounts[0];
-            currentAccount.value = papiAccount!;
-            injected.value = papiAccount!.polkadotSigner;
-
-            substrateAddress.value = papiAccount!.address;
-
-            evmAddress.value = await clientInstance.getEvmAddress(papiAccount!.address);
-
-            hasWalletExtension.value = true;
-            isConnected.value = true;
-
-            await userStoreManager.getUserStore(evmAddress.value);
-            accountChangeUnsub.value = await listenForAccountChanges();
-            return true;
-          }
+        const result = await accountsProvider.getLegacyAccounts();
+        if (result.isErr()) {
+          // Common case: user not logged into the host — kept at debug to avoid console noise.
+          console.debug("[WalletStore:connectWallet] no host accounts", result.error);
+          hasWalletExtension.value = false;
+          return false;
         }
 
-        const legacyExtensions = await web3Enable("dotNS");
-        if (!legacyExtensions.length) {
+        const accounts = result.value;
+        if (accounts.length === 0) {
           hasWalletExtension.value = false;
           return false;
         }
 
         hasWalletExtension.value = true;
 
-        const legacyAccounts = await legacyExtensions[0]!.accounts.get();
-        if (!legacyAccounts.length) {
-          return false;
-        }
+        const account = accounts[0]!;
+        currentAccount.value = account;
+        injected.value = accountsProvider.getLegacyAccountSigner(account);
 
-        const legacyAccount = legacyAccounts[0]!;
-        currentAccount.value = legacyAccount as InjectedAccountWithMeta;
-
-        const injector = await web3FromAddress(legacyAccount.address);
-        injected.value = injector.signer;
-
-        substrateAddress.value = legacyAccount.address;
-
-        evmAddress.value = await clientInstance.getEvmAddress(legacyAccount.address);
+        substrateAddress.value = encodeAddress(account.publicKey);
+        evmAddress.value = await clientInstance.getEvmAddress(substrateAddress.value);
 
         await userStoreManager.getUserStore(evmAddress.value);
-
         isConnected.value = true;
         return true;
       } catch (error) {
@@ -113,83 +84,7 @@ export const useWalletStore = defineStore(
       }
     }
 
-    async function listenForAccountChanges(): Promise<() => void> {
-      try {
-        const legacyExtensions = await web3Enable("dotNS");
-        if (!legacyExtensions.length) {
-          hasWalletExtension.value = false;
-          return () => {};
-        }
-
-        hasWalletExtension.value = true;
-
-        const unsubscribe = await web3AccountsSubscribe(async (accounts) => {
-          await handleAccountChange(accounts);
-        });
-
-        return unsubscribe;
-      } catch (error) {
-        console.warn("[WalletStore:listenForAccountChanges]", error);
-        hasWalletExtension.value = false;
-        return () => {};
-      }
-    }
-
-    async function handleAccountChange(accounts: InjectedAccountWithMeta[]): Promise<void> {
-      if (accounts.length === 0) {
-        handleDisconnect();
-        return;
-      }
-
-      try {
-        const clientInstance = await networkStore.getClient();
-
-        const papiExtensionNames = getInjectedExtensions();
-        if (papiExtensionNames.length > 0) {
-          const papiExtension = await connectInjectedExtension(papiExtensionNames[0]!);
-          const papiAccounts = papiExtension.getAccounts();
-
-          const matchingPapiAccount = papiAccounts.find(
-            (account) => account.address === accounts[0]!.address,
-          );
-
-          if (matchingPapiAccount && matchingPapiAccount.polkadotSigner) {
-            currentAccount.value = matchingPapiAccount;
-            injected.value = matchingPapiAccount.polkadotSigner;
-
-            substrateAddress.value = matchingPapiAccount.address;
-
-            evmAddress.value = await clientInstance.getEvmAddress(matchingPapiAccount.address);
-
-            await userStoreManager.getUserStore(evmAddress.value);
-
-            isConnected.value = true;
-
-            return;
-          }
-        }
-
-        currentAccount.value = accounts[0]!;
-        const injector = await web3FromAddress(accounts[0]!.address);
-        injected.value = injector.signer;
-
-        substrateAddress.value = accounts[0]!.address;
-
-        evmAddress.value = await clientInstance.getEvmAddress(accounts[0]!.address);
-
-        await userStoreManager.getUserStore(evmAddress.value);
-
-        isConnected.value = true;
-      } catch (error) {
-        console.warn("[WalletStore:handleAccountChange]", error);
-      }
-    }
-
     function handleDisconnect(): void {
-      if (accountChangeUnsub.value) {
-        accountChangeUnsub.value();
-        accountChangeUnsub.value = null;
-      }
       isConnected.value = false;
       evmAddress.value = null;
       substrateAddress.value = null;
@@ -224,9 +119,9 @@ export const useWalletStore = defineStore(
       }
     }
 
-    function getInjected(): any {
+    function getInjected(): PolkadotSigner {
       ensureConnected();
-      return injected.value;
+      return injected.value!;
     }
 
     async function convertToEVM(substrateAddr: string): Promise<Address> {
@@ -278,5 +173,14 @@ export const useWalletStore = defineStore(
       convertToEVM,
     };
   },
-  { persist: { storage: sessionStorage } },
+  {
+    persist: {
+      storage: hostBackedSyncStorage,
+      // Only persist durable fields. Ephemeral state (isLoading, transactionStatus,
+      // currentAccount, injected, hasWalletExtension) is recomputed every boot via
+      // connectWallet() and would otherwise hammer the host's storage rate limit on
+      // every keystroke that toggles loading state.
+      pick: ["isConnected", "substrateAddress", "evmAddress", "userPopState"],
+    },
+  },
 );
