@@ -572,8 +572,8 @@ export async function checkAuthorization(
 
       return {
         authorized: true,
-        transactions_allowance: authorizationState.extent.transactions_allowance,
-        bytes_allowance: authorizationState.extent.bytes_allowance,
+        transactions_allowance: authorizationState.extent.transactions,
+        bytes_allowance: authorizationState.extent.bytes,
         expiration,
         currentBlock,
         expired,

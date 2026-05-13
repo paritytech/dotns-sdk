@@ -95,7 +95,7 @@ function handleRetry() {
           </button>
           <a
             v-if="cid"
-            :href="`https://paseo-ipfs.polkadot.io/ipfs/${cid}/`"
+            :href="`https://paseo-bulletin-next-ipfs.polkadot.io/ipfs/${cid}/`"
             target="_blank"
             rel="noopener noreferrer"
             class="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-dot-text-secondary hover:text-dot-text-primary rounded-lg border border-dot-border hover:border-dot-border-strong transition-colors text-sm"
