@@ -16,8 +16,7 @@
     "test": "bunx vitest run",
     "test:watch": "bunx vitest",
     "lint:format": "bun run lint && bun run format",
-    "lint:format:fix": "bun run lint:fix && bun run format:fix",
-    "postinstall": "bunx papi"
+    "lint:format:fix": "bun run lint:fix && bun run format:fix"
   },
   "dependencies": {
     "@chainsafe/libp2p-noise": "^17.0.0",
@@ -31,7 +30,12 @@
     "@multiformats/multiaddr": "^13.0.1",
     "@noble/hashes": "^2.0.1",
     "@novasamatech/product-sdk": "^0.7.9-1",
-    "@polkadot-api/descriptors": "file:.papi/descriptors",
+    "@parity/product-sdk": "^0.5.0",
+    "@parity/product-sdk-chain-client": "^0.4.1",
+    "@parity/product-sdk-descriptors": "^0.4.0",
+    "@parity/product-sdk-host": "^0.3.0",
+    "@parity/product-sdk-signer": "^0.2.4",
+    "@parity/product-sdk-storage": "^0.1.4",
     "@polkadot-api/json-rpc-provider": "^0.2.0",
     "@polkadot-api/metadata-builders": "^0.14.2",
     "@polkadot-api/substrate-bindings": "^0.20.2",

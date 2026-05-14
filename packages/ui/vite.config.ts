@@ -12,16 +12,11 @@ export default defineConfig({
       buffer: "buffer/",
     },
 
-    dedupe: [
-      "@polkadot-api/descriptors",
-      "@polkadot/util",
-      "@polkadot/util-crypto",
-    ],
+    dedupe: ["@polkadot/util", "@polkadot/util-crypto"],
   },
 
   optimizeDeps: {
     include: ["buffer", "@ipld/dag-pb", "ipfs-unixfs"],
-    exclude: ["@polkadot-api/descriptors"],
   },
 
   build: {

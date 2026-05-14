@@ -15,7 +15,7 @@ export {
 
 export { useAddressResolver } from "./useAddressResolver";
 export { useDomainValidation } from "./useDomainValidation";
-export { useTypeClientAPI } from "./useTypedAPI";
+export { getChainClient } from "./useTypedAPI";
 export { useTooltip } from "./useTooltip";
 export { useTooltipManager } from "./useTooltipManager";
 export { useMulticallOwnership } from "./useMulticallOwnership";

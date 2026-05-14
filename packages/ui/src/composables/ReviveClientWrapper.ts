@@ -1,4 +1,4 @@
-import type { Paseo } from "@polkadot-api/descriptors";
+import { paseo_asset_hub } from "@parity/product-sdk-descriptors/paseo-asset-hub";
 import type { PolkadotSigner, TypedApi } from "polkadot-api";
 import { fromHex } from "polkadot-api/utils";
 import { bytesToHex, isAddress, isHex, toHex, type Address, type Hash, type Hex } from "viem";
@@ -18,7 +18,7 @@ import type { SpWeightsWeightV2Weight } from "@dedot/chaintypes/substrate";
 
 export type TransactionStatus = "signing" | "broadcasting" | "included" | "finalized" | "failed";
 
-export type PolkadotApiClient = TypedApi<Paseo>;
+export type PolkadotApiClient = TypedApi<typeof paseo_asset_hub>;
 
 export interface ReviveCallResult {
   gasConsumed: SpWeightsWeightV2Weight;

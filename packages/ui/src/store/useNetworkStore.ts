@@ -4,7 +4,7 @@ import { DEFAULT_NETWORK_ID, getFirstDeployedNetwork, SUPPORTED_NETWORKS } from 
 import type { NetworkConfig, Deployment } from "@/type";
 import { zeroAddress } from "viem";
 import { ReviveClientWrapper, type IReviveClientWrapper } from "@/composables";
-import { useTypeClientAPI } from "@/composables/useTypedAPI";
+import { getChainClient } from "@/composables/useTypedAPI";
 
 export const useNetworkStore = defineStore("useNetworkStore", () => {
   const chainId = ref<number | null>(null);
@@ -25,8 +25,8 @@ export const useNetworkStore = defineStore("useNetworkStore", () => {
         selectedNetwork.chainName,
       );
 
-      const typedApi = await useTypeClientAPI();
-      client.value = new ReviveClientWrapper(typedApi);
+      const chain = await getChainClient();
+      client.value = new ReviveClientWrapper(chain.assetHub);
 
       if (!currentNetwork.value) {
         currentNetwork.value = selectedNetwork;
@@ -61,8 +61,8 @@ export const useNetworkStore = defineStore("useNetworkStore", () => {
       console.time("[NetworkStore:initClient]");
 
       // Create new Polkadot API client
-      const typedApi = await useTypeClientAPI();
-      client.value = new ReviveClientWrapper(typedApi);
+      const chain = await getChainClient();
+      client.value = new ReviveClientWrapper(chain.assetHub);
 
       console.timeEnd("[NetworkStore:initClient]");
 

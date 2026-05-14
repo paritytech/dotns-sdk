@@ -1,9 +1,10 @@
-import { hostLocalStorage } from "@novasamatech/product-sdk";
+import { createKvStore, type KvStore } from "@parity/product-sdk-storage";
 import type { StorageLike } from "pinia-plugin-persistedstate";
 
 const cache = new Map<string, string>();
 const pending = new Map<string, ReturnType<typeof setTimeout>>();
 let hydrated = false;
+let kv: KvStore | null = null;
 
 // Coalesce rapid setItem bursts (the typical pinia-plugin-persistedstate pattern
 // fires one write per ref change — 4-5 in a row during connectWallet — which
@@ -16,10 +17,11 @@ const PERSISTED_KEYS = ["useWalletStore"];
 
 export async function hydratePersistedStorage(): Promise<void> {
   if (hydrated) return;
+  kv = await createKvStore({ prefix: "dotns-ui" });
   await Promise.all(
     PERSISTED_KEYS.map(async (key) => {
       try {
-        const value = await hostLocalStorage.readString(key);
+        const value = await kv!.get(key);
         if (value) cache.set(key, value);
       } catch (error) {
         console.warn("[persistedStorage] hydrate failed for", key, error);
@@ -37,8 +39,8 @@ function scheduleFlush(key: string): void {
     setTimeout(() => {
       pending.delete(key);
       const value = cache.get(key);
-      if (value !== undefined) {
-        void hostLocalStorage.writeString(key, value);
+      if (value !== undefined && kv) {
+        void kv.set(key, value);
       }
     }, FLUSH_DELAY_MS),
   );

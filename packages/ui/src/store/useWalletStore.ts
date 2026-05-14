@@ -1,15 +1,37 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import { isAddress, zeroAddress, type Address } from "viem";
-import { encodeAddress } from "@polkadot/util-crypto";
 import type { PolkadotSigner } from "polkadot-api";
-import { createAccountsProvider, type LegacyAccount } from "@novasamatech/product-sdk";
+import { SignerManager, HostProvider, type SignerAccount } from "@parity/product-sdk-signer";
 import { useNetworkStore } from "./useNetworkStore";
 import { useUserStoreManager } from "./useUserStoreManager";
 import { PopStatus, type TransactionStatus } from "@/type";
 import { hostBackedSyncStorage } from "@/lib/host/persistedStorage";
 
-const accountsProvider = createAccountsProvider();
+const manager = new SignerManager({
+  ss58Prefix: 0,
+  dappName: "dotns-ui",
+  createProvider: (type) => {
+    if (type !== "host") {
+      throw new Error(`Unsupported provider type: ${type}`);
+    }
+    return new HostProvider({
+      ss58Prefix: 0,
+      loadSdk: async () => {
+        console.log("[probe] loadSdk: importing @novasamatech/product-sdk");
+        const sdk = await import("@novasamatech/product-sdk");
+        console.log("[probe] loadSdk: import resolved", Object.keys(sdk));
+        return sdk as never;
+      },
+      loadHostApiEnum: async () => {
+        console.log("[probe] loadHostApiEnum: importing @novasamatech/host-api");
+        const api = await import("@novasamatech/host-api");
+        console.log("[probe] loadHostApiEnum: import resolved");
+        return api as never;
+      },
+    });
+  },
+});
 
 export const useWalletStore = defineStore(
   "useWalletStore",
@@ -20,7 +42,7 @@ export const useWalletStore = defineStore(
     const hasWalletExtension = ref(false);
     const isLoading = ref(false);
     const injected = ref<PolkadotSigner | null>(null);
-    const currentAccount = ref<LegacyAccount | null>(null);
+    const currentAccount = ref<SignerAccount | null>(null);
 
     const transactionStatus = ref<TransactionStatus>("idle");
 
@@ -50,36 +72,59 @@ export const useWalletStore = defineStore(
 
     async function connectWallet(): Promise<boolean> {
       try {
-        const clientInstance = await networkStore.getClient();
+        console.log("[WalletStore:connectWallet] step 1: calling manager.connect()");
 
-        const result = await accountsProvider.getLegacyAccounts();
-        if (result.isErr()) {
-          // Common case: user not logged into the host — kept at debug to avoid console noise.
-          console.debug("[WalletStore:connectWallet] no host accounts", result.error);
+        const connectRes = await manager.connect();
+        console.log("[WalletStore:connectWallet] step 3: manager.connect returned", {
+          ok: connectRes.ok,
+          accounts: connectRes.ok ? connectRes.value.length : null,
+        });
+        if (!connectRes.ok) {
+          console.warn("[WalletStore:connectWallet] host connect failed", connectRes.error);
           hasWalletExtension.value = false;
           return false;
         }
 
-        const accounts = result.value;
-        if (accounts.length === 0) {
+        const pappId = window.location.host;
+        console.log("[WalletStore:connectWallet] step 4: getProductAccount", pappId);
+        const productRes = await manager.getProductAccount(pappId, 0);
+        console.log("[WalletStore:connectWallet] step 5: getProductAccount returned", {
+          ok: productRes.ok,
+        });
+        if (!productRes.ok) {
+          console.warn("[WalletStore:connectWallet] no product account", productRes.error);
+          hasWalletExtension.value = false;
+          return false;
+        }
+
+        const account = productRes.value;
+        console.log("[WalletStore:connectWallet] step 6: selectAccount", account.address);
+        const selectRes = manager.selectAccount(account.address);
+        if (!selectRes.ok) {
+          console.warn("[WalletStore:connectWallet] selectAccount failed", selectRes.error);
           hasWalletExtension.value = false;
           return false;
         }
 
         hasWalletExtension.value = true;
-
-        const account = accounts[0]!;
         currentAccount.value = account;
-        injected.value = accountsProvider.getLegacyAccountSigner(account);
+        injected.value = manager.getSigner();
 
-        substrateAddress.value = encodeAddress(account.publicKey);
-        evmAddress.value = await clientInstance.getEvmAddress(substrateAddress.value);
+        substrateAddress.value = account.address;
+        // SignerAccount.h160Address is keccak256(publicKey)[12..32], the same mapping
+        // pallet-revive uses. Saves an RPC roundtrip vs ReviveApi.address(ss58).
+        evmAddress.value = account.h160Address as Address;
+        console.log("[WalletStore:connectWallet] step 7: addresses set", {
+          substrate: account.address,
+          evm: account.h160Address,
+        });
 
         await userStoreManager.getUserStore(evmAddress.value);
         isConnected.value = true;
+        console.log("[WalletStore:connectWallet] step 8: connected");
         return true;
       } catch (error) {
-        console.warn("[WalletStore:connectWallet]", error);
+        console.warn("[WalletStore:connectWallet] threw", error);
         return false;
       }
     }
@@ -92,6 +137,21 @@ export const useWalletStore = defineStore(
       injected.value = null;
       userPopState.value = PopStatus.NoStatus;
       console.log("[WalletStore:handleDisconnect] Wallet disconnected");
+    }
+
+    // React to host disconnect events. SignerManager auto-reconnects on transient
+    // drops; only a definitive "disconnected" status while we believe we're connected
+    // should trigger our local teardown.
+    let unsub: (() => void) | null = manager.subscribe((state) => {
+      if (state.status === "disconnected" && isConnected.value) {
+        handleDisconnect();
+      }
+    });
+    if (import.meta.hot) {
+      import.meta.hot.dispose(() => {
+        unsub?.();
+        unsub = null;
+      });
     }
 
     function ensureConnected(): void {
