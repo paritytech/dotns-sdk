@@ -1,8 +1,16 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { createClient, type PolkadotClient, type PolkadotSigner, type TypedApi } from "polkadot-api";
+import {
+  createClient,
+  type PolkadotClient,
+  type PolkadotSigner,
+  type TypedApi,
+} from "polkadot-api";
 import { getWsProvider } from "polkadot-api/ws";
-import { bulletin, type Bulletin } from "@polkadot-api/descriptors";
+import {
+  paseo_bulletin as bulletin,
+  type Paseo_bulletin as Bulletin,
+} from "@parity/product-sdk-descriptors/paseo-bulletin";
 import { useWalletStore } from "./useWalletStore";
 import { useUserStoreManager } from "./useUserStoreManager";
 import type { BulletinUploadResult } from "@/type";
@@ -179,17 +187,6 @@ function getBulletinClient(): PolkadotClient {
     sharedBulletinClient = createClient(getWsProvider(BULLETIN_RPC));
   }
   return sharedBulletinClient;
-}
-
-function destroyBulletinClient(): void {
-  if (sharedBulletinClient) {
-    try {
-      sharedBulletinClient.destroy();
-    } catch (error) {
-      console.warn("[BulletinStore] Client destroy failed:", error);
-    }
-    sharedBulletinClient = null;
-  }
 }
 
 export const useBulletinStore = defineStore("useBulletinStore", () => {
@@ -620,7 +617,6 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
   }
 
   function cleanup(): void {
-    destroyBulletinClient();
     isUploading.value = false;
     window.onbeforeunload = null;
   }

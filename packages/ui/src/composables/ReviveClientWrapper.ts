@@ -62,8 +62,6 @@ export interface IReviveClientWrapper {
     signer: PolkadotSigner,
     statusCallback?: (status: TransactionStatus) => void,
   ): Promise<Hash>;
-
-  ensureAccountMapped(substrateAddress: string, signer: PolkadotSigner): Promise<void>;
 }
 
 function convertToBigInt(value: unknown, fallback: bigint = 0n): bigint {
@@ -173,7 +171,6 @@ function unwrapExecutionResult(rawResult: any): {
 
 class ClientWrapper {
   private client: PolkadotApiClient;
-  private mappedAccounts: Set<string> = new Set();
 
   /// We set these values to high, for some reason if we set them to low dry runs fail
   /// But this behavior is inconsistent and a work around was setting high values
@@ -271,45 +268,6 @@ class ClientWrapper {
     };
   }
 
-  private async checkIfMapped(accountSs58: string): Promise<boolean> {
-    try {
-      const evm = await this.evmAddress(accountSs58);
-      const key = toAddressHex(evm);
-      const mapped = await this.client.query.Revive.OriginalAccount.getValue(key);
-      return mapped !== null && mapped !== undefined;
-    } catch {
-      return false;
-    }
-  }
-
-  async ensureAccountMapped(accountSs58: string, signer: PolkadotSigner): Promise<void> {
-    if (isAddress(accountSs58)) {
-      throw new Error("ensureAccountMapped expects SS58 (AccountId32), not an EVM address");
-    }
-
-    if (this.mappedAccounts.has(accountSs58)) return;
-
-    const mapped = await this.checkIfMapped(accountSs58);
-    if (mapped) {
-      this.mappedAccounts.add(accountSs58);
-      return;
-    }
-
-    const extrinsic = this.client.tx.Revive.map_account();
-
-    try {
-      await this.signExtrinsic(extrinsic, signer, () => {});
-      this.mappedAccounts.add(accountSs58);
-    } catch (error: any) {
-      const msg = error?.message || String(error);
-      if (msg.includes("AccountAlreadyMapped")) {
-        this.mappedAccounts.add(accountSs58);
-        return;
-      }
-      throw error;
-    }
-  }
-
   private signExtrinsic(
     extrinsic: any,
     signer: PolkadotSigner,
@@ -367,8 +325,6 @@ class ClientWrapper {
     signer: PolkadotSigner,
     setTransactionStatus: (status: TransactionStatus) => void,
   ): Promise<Hash> {
-    await this.ensureAccountMapped(originSs58, signer);
-
     const gasEstimate = await this.estimateGas(originSs58, dest, value, data);
 
     if (!gasEstimate.success) {
@@ -408,8 +364,6 @@ class ClientWrapper {
     signer: PolkadotSigner,
     setTransactionStatus: (status: TransactionStatus) => void,
   ): Promise<Hash> {
-    await this.ensureAccountMapped(originSs58, signer);
-
     const extrinsics = await Promise.all(
       calls.map(async (call) => {
         const gasEstimate = await this.estimateGas(originSs58, call.dest, call.value, call.data);
@@ -511,9 +465,5 @@ export class ReviveClientWrapper implements IReviveClientWrapper {
       signer,
       statusCallback ?? (() => {}),
     );
-  }
-
-  async ensureAccountMapped(substrateAddress: string, signer: PolkadotSigner): Promise<void> {
-    await this.wrapper.ensureAccountMapped(substrateAddress, signer);
   }
 }

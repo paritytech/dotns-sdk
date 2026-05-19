@@ -143,7 +143,7 @@ export const useDomainStore = defineStore("useDomainStore", () => {
 
       const resultData = await transactionStore.ethCall(
         client,
-        walletStore.substrateAddress!,
+        ZERO_SUBSTRATE_ADDRESS,
         network.dotnsRegistrarController,
         data,
       );
@@ -297,7 +297,6 @@ export const useDomainStore = defineStore("useDomainStore", () => {
 
       networkStore.ensureClient();
       await abiStore.ensureAbis();
-      walletStore.ensureWalletConnected();
 
       const network = networkStore.currentNetwork;
       if (!network?.dotnsRegistrar) throw new Error("Registrar not configured");
@@ -315,7 +314,7 @@ export const useDomainStore = defineStore("useDomainStore", () => {
 
       const result = await transactionStore.ethCall(
         client,
-        walletStore.substrateAddress!,
+        ZERO_SUBSTRATE_ADDRESS,
         network.dotnsRegistrar,
         data,
       );
@@ -337,7 +336,6 @@ export const useDomainStore = defineStore("useDomainStore", () => {
     try {
       networkStore.ensureClient();
       await abiStore.ensureAbis();
-      walletStore.ensureWalletConnected();
 
       const network = networkStore.currentNetwork;
       if (!network?.dotnsRegistrarController)
@@ -353,7 +351,7 @@ export const useDomainStore = defineStore("useDomainStore", () => {
 
       const result = await transactionStore.ethCall(
         client,
-        walletStore.substrateAddress!,
+        ZERO_SUBSTRATE_ADDRESS,
         network.dotnsRegistrarController,
         data,
       );
@@ -374,7 +372,6 @@ export const useDomainStore = defineStore("useDomainStore", () => {
   async function userPopStatus(user: Address): Promise<PopStatus> {
     try {
       networkStore.ensureClient();
-      walletStore.ensureWalletConnected();
 
       const data = encodeFunctionData({
         abi: PERSONHOOD_ABI,
@@ -385,7 +382,7 @@ export const useDomainStore = defineStore("useDomainStore", () => {
 
       const result = await transactionStore.ethCall(
         client,
-        walletStore.substrateAddress!,
+        ZERO_SUBSTRATE_ADDRESS,
         PERSONHOOD_PRECOMPILE_ADDRESS,
         data,
       );
@@ -423,7 +420,7 @@ export const useDomainStore = defineStore("useDomainStore", () => {
 
       const result = await transactionStore.ethCall(
         client,
-        walletStore.substrateAddress ?? ZERO_SUBSTRATE_ADDRESS,
+        ZERO_SUBSTRATE_ADDRESS,
         network.popOracle,
         data,
       );
@@ -464,7 +461,7 @@ export const useDomainStore = defineStore("useDomainStore", () => {
 
       const result = await transactionStore.ethCall(
         client,
-        walletStore.substrateAddress!,
+        ZERO_SUBSTRATE_ADDRESS,
         network.popOracle,
         data,
       );
@@ -576,7 +573,6 @@ export const useDomainStore = defineStore("useDomainStore", () => {
     try {
       networkStore.ensureClient();
       await abiStore.ensureAbis();
-      walletStore.ensureWalletConnected();
 
       const network = networkStore.currentNetwork;
       if (!network?.dotnsRegistry) throw new Error("DotnsRegistry not configured");
@@ -597,7 +593,7 @@ export const useDomainStore = defineStore("useDomainStore", () => {
 
       const data = await transactionStore.ethCall(
         client,
-        walletStore.substrateAddress!,
+        ZERO_SUBSTRATE_ADDRESS,
         network.dotnsRegistry,
         callData,
       );

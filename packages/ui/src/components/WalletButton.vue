@@ -6,10 +6,7 @@
     <span class="w-2 h-2 rounded-full animate-pulse bg-success" />
     {{ truncatedAddress }}
   </div>
-  <div
-    v-else
-    class="inline-flex items-center gap-2 h-9 px-3.5 text-xs text-dot-text-secondary"
-  >
+  <div v-else class="inline-flex items-center gap-2 h-9 px-3.5 text-xs text-dot-text-secondary">
     <span class="w-2 h-2 rounded-full bg-dot-border" />
     Not signed in
   </div>

@@ -169,12 +169,9 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
       const network = networkStore.currentNetwork;
       if (!network?.storeFactory) throw new Error("StoreFactory not configured");
 
-      const storeRaw = await ethRead(
-        network.storeFactory,
-        "getDeployedStore",
-        "StoreFactory",
-        [targetEvm],
-      );
+      const storeRaw = await ethRead(network.storeFactory, "getDeployedStore", "StoreFactory", [
+        targetEvm,
+      ]);
 
       if (!storeRaw || storeRaw === "0x") return [];
 

@@ -12,7 +12,7 @@ export default defineConfig({
       buffer: "buffer/",
     },
 
-    dedupe: ["@polkadot/util", "@polkadot/util-crypto"],
+    dedupe: ["@polkadot/util", "@polkadot/util-crypto", "polkadot-api"],
   },
 
   optimizeDeps: {

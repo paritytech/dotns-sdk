@@ -4,7 +4,7 @@ import { DEFAULT_NETWORK_ID, getFirstDeployedNetwork, SUPPORTED_NETWORKS } from 
 import type { NetworkConfig, Deployment } from "@/type";
 import { zeroAddress } from "viem";
 import { ReviveClientWrapper, type IReviveClientWrapper } from "@/composables";
-import { getChainClient } from "@/composables/useTypedAPI";
+import { destroyChainClient, getChainClient } from "@/composables/useTypedAPI";
 
 export const useNetworkStore = defineStore("useNetworkStore", () => {
   const chainId = ref<number | null>(null);
@@ -113,6 +113,20 @@ export const useNetworkStore = defineStore("useNetworkStore", () => {
     return client.value;
   }
 
+  // Tear down the chain client singleton + wrapper and rebuild from scratch.
+  // Used as a last-ditch recovery when the chainHead_follow subscription is
+  // observed dead (RpcError "No active follow"). PAPI v2's typed API doesn't
+  // auto-recover from this — a fresh follow has to be initiated.
+  async function resetClient(): Promise<IReviveClientWrapper> {
+    destroyChainClient();
+    client.value = null;
+    await createIfMissing();
+    if (!client.value) {
+      throw new Error("Failed to reset client");
+    }
+    return client.value;
+  }
+
   function ensureClient(): void {
     if (!client.value) {
       throw new Error("Client not initialized - call initClient() or getClient() first");
@@ -129,6 +143,7 @@ export const useNetworkStore = defineStore("useNetworkStore", () => {
     initClient,
     switchNetwork,
     getClient,
+    resetClient,
     ensureClient,
   };
 });

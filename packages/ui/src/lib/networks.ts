@@ -16,7 +16,6 @@ export const SUPPORTED_NETWORKS: Record<number, NetworkConfig & Partial<Deployme
       symbol: "PAS",
       decimals: 18,
     },
-    rpcUrls: ["wss://paseo-asset-hub-next-rpc.polkadot.io"],
     blockExplorerUrls: ["https://assethub-paseo.subscan.io/"],
     dotnsRegistry: "0x8877344A885682523B4613779C95688ed7037BfD",
     dotnsRegistrarController: "0x320b72c6e70D5a631d835FfD95915B288b26E6Be",

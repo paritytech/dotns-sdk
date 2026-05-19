@@ -1,7 +1,7 @@
 import { concat, keccak256, toBytes } from "viem";
 import type { SS58String } from "polkadot-api";
 import { AccountId, type TypedApi } from "polkadot-api";
-import type { Paseo } from "@polkadot-api/descriptors";
+import type { Paseo_asset_hub as Paseo } from "@parity/product-sdk-descriptors/paseo-asset-hub";
 import { isHex } from "@polkadot/util";
 import { decodeAddress, encodeAddress } from "@polkadot/util-crypto";
 

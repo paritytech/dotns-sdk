@@ -2,12 +2,17 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { type Address, type Hash } from "viem";
 import { useWalletStore } from "./useWalletStore";
+import { useNetworkStore } from "./useNetworkStore";
 import type { GenericTransaction } from "@/type";
 import type { IReviveClientWrapper, TransactionStatus } from "@/composables";
 import type { PolkadotSigner } from "polkadot-api";
 
+const isNoActiveFollow = (err: unknown): boolean =>
+  (err instanceof Error ? err.message : String(err)).includes("No active follow");
+
 export const useTransactionStore = defineStore("useTransactionStore", () => {
   const walletStore = useWalletStore();
+  const networkStore = useNetworkStore();
 
   const pendingTxs = ref<Map<Hash, { status: TransactionStatus; timestamp: number }>>(new Map());
 
@@ -25,13 +30,32 @@ export const useTransactionStore = defineStore("useTransactionStore", () => {
 
       if (!client) throw new Error("Client not initialised");
 
-      const callResult = await client.performDryRunCall(originSs58, to, value, data);
+      // Recovery ladder for transient/dead chainHead_follow subscriptions.
+      // PAPI v2's typed API doesn't auto-recover from "No active follow", which
+      // commonly fires after host modals pause the WebView. We give it three
+      // chances: original client → original after 250 ms → fresh client after
+      // tearing down + rebuilding the chain singleton.
+      let callResult;
+      let activeClient = client;
+      try {
+        callResult = await activeClient.performDryRunCall(originSs58, to, value, data);
+      } catch (err1) {
+        if (!isNoActiveFollow(err1)) throw err1;
+        await new Promise((r) => setTimeout(r, 250));
+        try {
+          callResult = await activeClient.performDryRunCall(originSs58, to, value, data);
+        } catch (err2) {
+          if (!isNoActiveFollow(err2)) throw err2;
+          console.warn("[TransactionStore:ethCall] chainHead disjoint, resetting client");
+          activeClient = await networkStore.resetClient();
+          callResult = await activeClient.performDryRunCall(originSs58, to, value, data);
+        }
+      }
 
       if (callResult.result.isErr) {
-        console.warn("[TransactionStore:ethCall] Contract call reverted:", {
-          flags: callResult.result.value.flags,
-          data: callResult.result.value.data,
-        });
+        console.warn(
+          `[TransactionStore:ethCall] reverted to=${to} flags=${callResult.result.value.flags} data=${callResult.result.value.data}`,
+        );
         return fallback;
       }
 
@@ -104,23 +128,6 @@ export const useTransactionStore = defineStore("useTransactionStore", () => {
     }
   }
 
-  async function mapAccount(
-    client: IReviveClientWrapper,
-    injected: PolkadotSigner,
-    originSs58: string,
-  ): Promise<void> {
-    try {
-      if (!client) throw new Error("Client not initialised");
-
-      await client.ensureAccountMapped(originSs58, injected);
-    } catch (error) {
-      console.warn("[TransactionStore:mapAccount] Exception:", error);
-      throw error;
-    } finally {
-      walletStore.setTransactionStatus("idle");
-    }
-  }
-
   function clearPendingTx(txHash: Hash): void {
     pendingTxs.value.delete(txHash);
   }
@@ -134,7 +141,6 @@ export const useTransactionStore = defineStore("useTransactionStore", () => {
     ethCall,
     ethTransact,
     batchEthTransact,
-    mapAccount,
     clearPendingTx,
     getPendingTxStatus,
   };
