@@ -276,11 +276,8 @@
 
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { encodeFunctionData, decodeFunctionResult, zeroAddress } from "viem";
-import { useNetworkStore } from "@/store/useNetworkStore";
-import { useTransactionStore } from "@/store/useTransactionStore";
-import { useWalletStore } from "@/store/useWalletStore";
-import { useAbiStore } from "@/store/useAbiStore";
+import { zeroAddress } from "viem";
+import { getContract, withContractRecovery } from "@/composables/useContracts";
 import { ZERO_SUBSTRATE_ADDRESS } from "@/utils";
 import { normalizeNameInput } from "@/lib/docInteractiveHelpers";
 import { PopStatus, type PriceWithMeta } from "@/type";
@@ -288,11 +285,6 @@ import { formatWeiAsEther } from "@/lib/currency";
 import Loader from "@/components/ui/Loader.vue";
 import DocTabs from "../DocTabs.vue";
 import DocCodeBlock from "../DocCodeBlock.vue";
-
-const networkStore = useNetworkStore();
-const transactionStore = useTransactionStore();
-const walletStore = useWalletStore();
-const abiStore = useAbiStore();
 
 const name = ref("");
 const onChainResult = ref<PriceWithMeta | null>(null);
@@ -436,29 +428,14 @@ function lookup() {
     errorMsg.value = "";
 
     try {
-      await abiStore.ensureAbis();
-      const network = networkStore.currentNetwork;
-      if (!network?.popOracle) throw new Error("PopOracle not configured");
-
-      const data = encodeFunctionData({
-        abi: abiStore.getABI("PopRules"),
-        functionName: "priceWithoutCheck",
-        args: [input, zeroAddress],
+      const decoded = await withContractRecovery(async () => {
+        const popRules = await getContract("@dotns/pop-rules");
+        const result = await popRules.priceWithoutCheck!.query(input, zeroAddress, {
+          origin: ZERO_SUBSTRATE_ADDRESS,
+        });
+        if (!result.success) throw new Error("Contract returned empty result");
+        return result.value as PriceWithMeta;
       });
-
-      const client = await networkStore.getClient();
-      const origin = walletStore.substrateAddress || ZERO_SUBSTRATE_ADDRESS;
-      const resultData = await transactionStore.ethCall(client, origin, network.popOracle, data);
-
-      if (!resultData || resultData === "0x") {
-        throw new Error("Contract returned empty result");
-      }
-
-      const decoded = decodeFunctionResult({
-        abi: abiStore.getABI("PopRules"),
-        functionName: "priceWithoutCheck",
-        data: resultData,
-      }) as PriceWithMeta;
 
       onChainResult.value = decoded;
       fetchStatus.value = "result";

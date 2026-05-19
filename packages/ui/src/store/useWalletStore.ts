@@ -13,8 +13,8 @@ import {
   ok,
 } from "@parity/product-sdk-signer";
 import { requestResourceAllocation } from "@parity/product-sdk-host";
-import { useNetworkStore } from "./useNetworkStore";
 import { useUserStoreManager } from "./useUserStoreManager";
+import { getChainClient } from "@/composables/useTypedAPI";
 import { PopStatus, type TransactionStatus } from "@/type";
 
 // Nova @novasamatech/product-sdk@0.7.9-4 ships a `signerType` arg on
@@ -62,7 +62,7 @@ class ProductAccountHostProvider extends HostProvider {
   }
 }
 
-const manager = new SignerManager({
+export const signerManager = new SignerManager({
   ss58Prefix: 0,
   dappName: "dotns-ui",
   createProvider: (type) => {
@@ -80,8 +80,17 @@ const manager = new SignerManager({
 // (future host capability — returns NotAvailable today, accepted as success so
 // it ships with the migration). ChainSubmit is auto-requested by
 // SignerManager.connect() and isn't part of this bundle.
+//
+// Key version: bump when the host-side allowance state may have drifted out
+// of sync with our cache (e.g., users clearing Polkadot Desktop caches that
+// don't include the papp's localStorage). Bumping invalidates every client's
+// cached grant and forces a fresh host-prompt that re-aligns both sides. Also
+// bump when the acceptance policy in requestProductPermissions changes (e.g.
+// AutoSigning tightens from `NotAvailable=ok` to `Allocated-only`).
+//   v3 (2026-05-19): force re-grant to resolve out-of-sync allowance state
+//     observed after desktop cache clears.
 // ----------------------------------------------------------------------------
-const PERMISSION_STORAGE_PREFIX = "dotns-ui:permissions:v2:";
+const PERMISSION_STORAGE_PREFIX = "dotns-ui:permissions:v3:";
 let permissionsRequested = false;
 
 function permissionStorageKey(h160: string): string {
@@ -148,7 +157,6 @@ export const useWalletStore = defineStore("useWalletStore", () => {
 
   const userPopState = ref<PopStatus>(PopStatus.NoStatus);
 
-  const networkStore = useNetworkStore();
   const userStoreManager = useUserStoreManager();
 
   function setIsLoading(status: boolean): void {
@@ -172,7 +180,7 @@ export const useWalletStore = defineStore("useWalletStore", () => {
 
   async function connectWallet(): Promise<boolean> {
     try {
-      const connectRes = await manager.connect();
+      const connectRes = await signerManager.connect();
       if (!connectRes.ok) {
         console.warn("[WalletStore:connectWallet] host connect failed", connectRes.error);
         hasWalletExtension.value = false;
@@ -185,7 +193,7 @@ export const useWalletStore = defineStore("useWalletStore", () => {
         hasWalletExtension.value = false;
         return false;
       }
-      const selectRes = manager.selectAccount(account.address);
+      const selectRes = signerManager.selectAccount(account.address);
       if (!selectRes.ok) {
         console.warn("[WalletStore:connectWallet] selectAccount failed", selectRes.error);
         hasWalletExtension.value = false;
@@ -202,7 +210,7 @@ export const useWalletStore = defineStore("useWalletStore", () => {
         `[WalletStore:connectWallet] account state ss58=${account.address} h160=${evmAddress.value}`,
       );
 
-      // Resource allocations are requested from the manager.subscribe handler
+      // Resource allocations are requested from the signerManager.subscribe handler
       // (disconnected → connected transition), fire-and-forget, cached per
       // account in hostLocalStorage. Out of this inline await chain so the
       // connect handshake isn't blocked on (or coupled to) the allocation
@@ -233,12 +241,12 @@ export const useWalletStore = defineStore("useWalletStore", () => {
   //      the cached permission request. requestProductPermissions dedupes
   //      itself via permissionsRequested so multiple "connected" ticks (e.g.
   //      a transient one with selectedAccount=null followed by one with it
-  //      set after manager.selectAccount) collapse into a single attempt.
+  //      set after signerManager.selectAccount) collapse into a single attempt.
   //   2. On a definitive disconnected while we believe we're connected:
   //      tear down local state and reset the permission gate so the next
   //      connect tries again. SignerManager auto-reconnects on transient
   //      drops so we don't react to those.
-  let unsub: (() => void) | null = manager.subscribe((state) => {
+  let unsub: (() => void) | null = signerManager.subscribe((state) => {
     if (state.status === "connected" && state.selectedAccount) {
       void requestProductPermissions(state.selectedAccount);
     }
@@ -288,8 +296,9 @@ export const useWalletStore = defineStore("useWalletStore", () => {
     let defaultAddress = zeroAddress as Address;
     try {
       setIsLoading(true);
-      const client = await networkStore.getClient();
-      defaultAddress = await client.getEvmAddress(substrateAddr);
+      if (isAddress(substrateAddr)) return substrateAddr as Address;
+      const chain = await getChainClient();
+      defaultAddress = (await chain.assetHub.apis.ReviveApi.address(substrateAddr)) as Address;
     } catch (error) {
       console.warn("[WalletStore:convertToEVM]", error);
     } finally {

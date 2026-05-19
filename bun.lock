@@ -2917,7 +2917,7 @@
 
     "@parity/bulletin-sdk/@polkadot-labs/hdkd-helpers": ["@polkadot-labs/hdkd-helpers@0.0.29", "", { "dependencies": { "@noble/curves": "^2.2.0", "@noble/hashes": "^2.2.0", "@scure/base": "^2.0.0", "@scure/sr25519": "^1.0.0", "scale-ts": "^1.6.1" } }, "sha512-yiLm1Gj3j5NrQV+VFMlFzkBgcRBNfq2Sd/U3S8iau2bzhDwgsn4gy6FDt94TRPD5xLxOzi1I3wSLOrgOs2eLVw=="],
 
-    "@parity/dotns-cli/@polkadot-api/descriptors": ["@polkadot-api/descriptors@file:packages/cli/.papi/descriptors", { "peerDependencies": { "polkadot-api": ">=2.0.0" } }],
+    "@parity/dotns-cli/@polkadot-api/descriptors": ["@polkadot-api/descriptors@file:packages/cli/.papi/descriptors", { "peerDependencies": { "polkadot-api": ">=1.21.0" } }],
 
     "@parity/product-sdk-address/@noble/hashes": ["@noble/hashes@1.8.0", "", {}, "sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A=="],
 

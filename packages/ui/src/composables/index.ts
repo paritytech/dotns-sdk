@@ -4,15 +4,6 @@
  * Re-exports all composables for easy importing
  */
 
-export {
-  ReviveClientWrapper,
-  convertToHexString,
-  type TransactionStatus,
-  type PolkadotApiClient,
-  type ReviveCallResult,
-  type IReviveClientWrapper,
-} from "./ReviveClientWrapper";
-
 export { useAddressResolver } from "./useAddressResolver";
 export { useDomainValidation } from "./useDomainValidation";
 export { getChainClient } from "./useTypedAPI";

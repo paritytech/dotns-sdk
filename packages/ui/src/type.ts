@@ -1,4 +1,3 @@
-import type { SpWeightsWeightV2Weight } from "@dedot/chaintypes/substrate";
 import type { Address, Hash } from "viem";
 
 export type NetworkConfig = {
@@ -11,32 +10,6 @@ export type NetworkConfig = {
   };
   blockExplorerUrls?: string[];
 };
-
-export type Deployment = {
-  multiCall: Address;
-  defaultReverseRegistrar: Address;
-  ethRPCURL: string;
-  storeFactory: Address;
-  dotnsRegistrar: Address;
-  dotnsReverseResolver: Address;
-  dotnsRegistry: Address;
-  dotnsContentResolver: Address;
-  dotnsResolver: Address;
-  popOracle: Address;
-  dotnsRegistrarController: Address;
-};
-
-export type AbiName =
-  | "DotnsRegistrarController"
-  | "DotnsRegistrar"
-  | "DotnsResolver"
-  | "DotnsReverseResolver"
-  | "DotnsContentResolver"
-  | "StoreFactory"
-  | "Store"
-  | "PopRules"
-  | "DotnsRegistry"
-  | "MultiCall";
 
 export type Registration = {
   label: string;
@@ -97,26 +70,6 @@ export type MyDomain = {
   popRequirement?: NameRequirement;
 };
 
-export type EthCallResult = {
-  gasConsumed: SpWeightsWeightV2Weight;
-  gasRequired: SpWeightsWeightV2Weight;
-  storageDeposit: {
-    type: "Charge" | "Refund";
-    value: bigint;
-  };
-  result: Result;
-};
-
-export type Result = {
-  success: boolean;
-  isErr: boolean;
-  isOk: boolean;
-  value?: {
-    data: `0x${string}` | any;
-    flags?: any;
-  };
-};
-
 export type GenericTransaction = {
   accessList?: AccessList | null;
   authorizationList?: AuthorizationListEntry[];
@@ -149,22 +102,6 @@ export type AuthorizationListEntry = {
   r: `0x${string}`;
   s: `0x${string}`;
   yParity: number;
-};
-
-export type MulticallCall = {
-  target: Address;
-  callData: `0x${string}`;
-};
-
-export type Aggregate3Call = {
-  target: Address;
-  allowFailure: boolean;
-  callData: `0x${string}`;
-};
-
-export type Aggregate3Result = {
-  success: boolean;
-  returnData: `0x${string}`;
 };
 
 export type DotnsAvailability = {

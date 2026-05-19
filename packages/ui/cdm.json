@@ -1,0 +1,5385 @@
+{
+  "targets": {
+    "paseo-asset-hub-next-v2": {
+      "asset-hub": "wss://paseo-asset-hub-next-rpc.polkadot.io",
+      "bulletin": "wss://paseo-bulletin-rpc.polkadot.io"
+    }
+  },
+  "dependencies": {
+    "paseo-asset-hub-next-v2": {
+      "@dotns/registrar-controller": "latest",
+      "@dotns/registrar": "latest",
+      "@dotns/registry": "latest",
+      "@dotns/resolver": "latest",
+      "@dotns/reverse-resolver": "latest",
+      "@dotns/content-resolver": "latest",
+      "@dotns/store-factory": "latest",
+      "@dotns/pop-rules": "latest",
+      "@dotns/label-store": "latest",
+      "@dotns/user-store": "latest"
+    }
+  },
+  "contracts": {
+    "paseo-asset-hub-next-v2": {
+      "@dotns/registrar-controller": {
+        "version": 1,
+        "address": "0x320b72c6e70D5a631d835FfD95915B288b26E6Be",
+        "abi": [
+          {
+            "type": "constructor",
+            "inputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "MAX_ALLOWED_COMMITMENT_AGE",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "UPGRADE_INTERFACE_VERSION",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "available",
+            "inputs": [
+              {
+                "name": "label",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "commit",
+            "inputs": [
+              {
+                "name": "commitment",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "commitments",
+            "inputs": [
+              {
+                "name": "hash",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "timestamp",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "dotnsRegistrar",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "contract IDotnsRegistrar"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "dotnsRegistry",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "contract IDotnsRegistry"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "initialize",
+            "inputs": [
+              {
+                "name": "registrar",
+                "type": "address",
+                "internalType": "contract IDotnsRegistrar"
+              },
+              {
+                "name": "registry",
+                "type": "address",
+                "internalType": "contract IDotnsRegistry"
+              },
+              {
+                "name": "reverse",
+                "type": "address",
+                "internalType": "contract IDotnsReverseResolver"
+              },
+              {
+                "name": "rules",
+                "type": "address",
+                "internalType": "contract IPopRules"
+              },
+              {
+                "name": "factory",
+                "type": "address",
+                "internalType": "contract IStoreFactory"
+              },
+              {
+                "name": "minAge",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "maxAge",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "isWhiteListed",
+            "inputs": [
+              {
+                "name": "who",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "makeCommitment",
+            "inputs": [
+              {
+                "name": "registration",
+                "type": "tuple",
+                "internalType": "struct IDotnsRegistrarController.Registration",
+                "components": [
+                  {
+                    "name": "label",
+                    "type": "string",
+                    "internalType": "string"
+                  },
+                  {
+                    "name": "owner",
+                    "type": "address",
+                    "internalType": "address"
+                  },
+                  {
+                    "name": "secret",
+                    "type": "bytes32",
+                    "internalType": "bytes32"
+                  },
+                  {
+                    "name": "reserved",
+                    "type": "bool",
+                    "internalType": "bool"
+                  }
+                ]
+              }
+            ],
+            "outputs": [
+              {
+                "name": "commitment",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ],
+            "stateMutability": "pure"
+          },
+          {
+            "type": "function",
+            "name": "maxCommitmentAge",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "minCommitmentAge",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "owner",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "popRules",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "contract IPopRules"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "proxiableUUID",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "register",
+            "inputs": [
+              {
+                "name": "registration",
+                "type": "tuple",
+                "internalType": "struct IDotnsRegistrarController.Registration",
+                "components": [
+                  {
+                    "name": "label",
+                    "type": "string",
+                    "internalType": "string"
+                  },
+                  {
+                    "name": "owner",
+                    "type": "address",
+                    "internalType": "address"
+                  },
+                  {
+                    "name": "secret",
+                    "type": "bytes32",
+                    "internalType": "bytes32"
+                  },
+                  {
+                    "name": "reserved",
+                    "type": "bool",
+                    "internalType": "bool"
+                  }
+                ]
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "payable"
+          },
+          {
+            "type": "function",
+            "name": "registerReserved",
+            "inputs": [
+              {
+                "name": "registration",
+                "type": "tuple",
+                "internalType": "struct IDotnsRegistrarController.Registration",
+                "components": [
+                  {
+                    "name": "label",
+                    "type": "string",
+                    "internalType": "string"
+                  },
+                  {
+                    "name": "owner",
+                    "type": "address",
+                    "internalType": "address"
+                  },
+                  {
+                    "name": "secret",
+                    "type": "bytes32",
+                    "internalType": "bytes32"
+                  },
+                  {
+                    "name": "reserved",
+                    "type": "bool",
+                    "internalType": "bool"
+                  }
+                ]
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "renounceOwnership",
+            "inputs": [],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "reverseResolver",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "contract IDotnsReverseResolver"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "storeFactory",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "contract IStoreFactory"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "supportsInterface",
+            "inputs": [
+              {
+                "name": "interfaceId",
+                "type": "bytes4",
+                "internalType": "bytes4"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "transferOwnership",
+            "inputs": [
+              {
+                "name": "newOwner",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "upgradeToAndCall",
+            "inputs": [
+              {
+                "name": "newImplementation",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "data",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "payable"
+          },
+          {
+            "type": "function",
+            "name": "version",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "versionString",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "stateMutability": "pure"
+          },
+          {
+            "type": "function",
+            "name": "whiteList",
+            "inputs": [
+              {
+                "name": "user",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "isWhiteListed",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "whiteListAddress",
+            "inputs": [
+              {
+                "name": "who",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "whiteListStatus",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "event",
+            "name": "Initialized",
+            "inputs": [
+              {
+                "name": "version",
+                "type": "uint64",
+                "indexed": false,
+                "internalType": "uint64"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "NameCommitted",
+            "inputs": [
+              {
+                "name": "commitment",
+                "type": "bytes32",
+                "indexed": true,
+                "internalType": "bytes32"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "NameRegistered",
+            "inputs": [
+              {
+                "name": "label",
+                "type": "string",
+                "indexed": true,
+                "internalType": "string"
+              },
+              {
+                "name": "labelhash",
+                "type": "bytes32",
+                "indexed": true,
+                "internalType": "bytes32"
+              },
+              {
+                "name": "owner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              },
+              {
+                "name": "baseCost",
+                "type": "uint256",
+                "indexed": false,
+                "internalType": "uint256"
+              },
+              {
+                "name": "store",
+                "type": "address",
+                "indexed": false,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "OwnershipTransferred",
+            "inputs": [
+              {
+                "name": "previousOwner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              },
+              {
+                "name": "newOwner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "Upgraded",
+            "inputs": [
+              {
+                "name": "implementation",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "WhiteListed",
+            "inputs": [
+              {
+                "name": "who",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              },
+              {
+                "name": "whiteListStatus",
+                "type": "bool",
+                "indexed": true,
+                "internalType": "bool"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "error",
+            "name": "AddressEmptyCode",
+            "inputs": [
+              {
+                "name": "target",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "CommitmentNotFound",
+            "inputs": [
+              {
+                "name": "commitment",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "CommitmentTooNew",
+            "inputs": [
+              {
+                "name": "commitment",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              },
+              {
+                "name": "minTime",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "currentTime",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "CommitmentTooOld",
+            "inputs": [
+              {
+                "name": "commitment",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              },
+              {
+                "name": "maxTime",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "currentTime",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "ERC1967InvalidImplementation",
+            "inputs": [
+              {
+                "name": "implementation",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "ERC1967NonPayable",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "FailedCall",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "InsufficientValue",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "InvalidInitialization",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "InvalidStore",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "MaxCommitmentAgeTooHigh",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "MaxCommitmentAgeTooLow",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "NameNotAvailable",
+            "inputs": [
+              {
+                "name": "label",
+                "type": "string",
+                "internalType": "string"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "NotInitializing",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "NotRegistry",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "NotWhiteListedOrOwner",
+            "inputs": [
+              {
+                "name": "caller",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "OwnableInvalidOwner",
+            "inputs": [
+              {
+                "name": "owner",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "OwnableUnauthorizedAccount",
+            "inputs": [
+              {
+                "name": "account",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "RefundFailed",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "UUPSUnauthorizedCallContext",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "UUPSUnsupportedProxiableUUID",
+            "inputs": [
+              {
+                "name": "slot",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "UnexpiredCommitmentExists",
+            "inputs": [
+              {
+                "name": "commitment",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ]
+          }
+        ]
+      },
+      "@dotns/registrar": {
+        "version": 1,
+        "address": "0x885b8085bA92A31c4ef52076f77379E647ECC399",
+        "abi": [
+          {
+            "type": "constructor",
+            "inputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "UPGRADE_INTERFACE_VERSION",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "addController",
+            "inputs": [
+              {
+                "name": "controller",
+                "type": "address",
+                "internalType": "contract IDotnsRegistrarController"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "approve",
+            "inputs": [
+              {
+                "name": "to",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "tokenId",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "available",
+            "inputs": [
+              {
+                "name": "id",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "isAvailable",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "balanceOf",
+            "inputs": [
+              {
+                "name": "owner",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "controllers",
+            "inputs": [
+              {
+                "name": "controller",
+                "type": "address",
+                "internalType": "contract IDotnsRegistrarController"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "exists",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "getApproved",
+            "inputs": [
+              {
+                "name": "tokenId",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "initialize",
+            "inputs": [
+              {
+                "name": "name",
+                "type": "string",
+                "internalType": "string"
+              },
+              {
+                "name": "symbol",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "isApprovedForAll",
+            "inputs": [
+              {
+                "name": "owner",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "operator",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "name",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "owner",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "ownerOf",
+            "inputs": [
+              {
+                "name": "tokenId",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "protocolRegistry",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "contract IDotnsProtocolRegistry"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "proxiableUUID",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "register",
+            "inputs": [
+              {
+                "name": "id",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "owner",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "label",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "removeController",
+            "inputs": [
+              {
+                "name": "controller",
+                "type": "address",
+                "internalType": "contract IDotnsRegistrarController"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "renounceOwnership",
+            "inputs": [],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "safeTransferFrom",
+            "inputs": [
+              {
+                "name": "from",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "to",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "tokenId",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "safeTransferFrom",
+            "inputs": [
+              {
+                "name": "from",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "to",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "tokenId",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "data",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "setApprovalForAll",
+            "inputs": [
+              {
+                "name": "operator",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "approved",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "supportsInterface",
+            "inputs": [
+              {
+                "name": "interfaceId",
+                "type": "bytes4",
+                "internalType": "bytes4"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "symbol",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "syncLabel",
+            "inputs": [
+              {
+                "name": "tokenId",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "label",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "tokenURI",
+            "inputs": [
+              {
+                "name": "tokenId",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "transferFrom",
+            "inputs": [
+              {
+                "name": "from",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "to",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "tokenId",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "transferOwnership",
+            "inputs": [
+              {
+                "name": "newOwner",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "updateProtocolRegistry",
+            "inputs": [
+              {
+                "name": "registry",
+                "type": "address",
+                "internalType": "contract IDotnsProtocolRegistry"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "upgradeToAndCall",
+            "inputs": [
+              {
+                "name": "newImplementation",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "data",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "payable"
+          },
+          {
+            "type": "function",
+            "name": "version",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "versionString",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "stateMutability": "pure"
+          },
+          {
+            "type": "event",
+            "name": "Approval",
+            "inputs": [
+              {
+                "name": "owner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              },
+              {
+                "name": "approved",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              },
+              {
+                "name": "tokenId",
+                "type": "uint256",
+                "indexed": true,
+                "internalType": "uint256"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "ApprovalForAll",
+            "inputs": [
+              {
+                "name": "owner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              },
+              {
+                "name": "operator",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              },
+              {
+                "name": "approved",
+                "type": "bool",
+                "indexed": false,
+                "internalType": "bool"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "ControllerAdded",
+            "inputs": [
+              {
+                "name": "controller",
+                "type": "address",
+                "indexed": true,
+                "internalType": "contract IDotnsRegistrarController"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "ControllerRemoved",
+            "inputs": [
+              {
+                "name": "controller",
+                "type": "address",
+                "indexed": true,
+                "internalType": "contract IDotnsRegistrarController"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "Initialized",
+            "inputs": [
+              {
+                "name": "version",
+                "type": "uint64",
+                "indexed": false,
+                "internalType": "uint64"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "LabelSynced",
+            "inputs": [
+              {
+                "name": "tokenId",
+                "type": "uint256",
+                "indexed": true,
+                "internalType": "uint256"
+              },
+              {
+                "name": "label",
+                "type": "string",
+                "indexed": false,
+                "internalType": "string"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "NameRegistered",
+            "inputs": [
+              {
+                "name": "id",
+                "type": "uint256",
+                "indexed": true,
+                "internalType": "uint256"
+              },
+              {
+                "name": "owner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "OwnershipTransferred",
+            "inputs": [
+              {
+                "name": "previousOwner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              },
+              {
+                "name": "newOwner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "ProtocolRegistryUpdated",
+            "inputs": [
+              {
+                "name": "newRegistry",
+                "type": "address",
+                "indexed": true,
+                "internalType": "contract IDotnsProtocolRegistry"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "Transfer",
+            "inputs": [
+              {
+                "name": "from",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              },
+              {
+                "name": "to",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              },
+              {
+                "name": "tokenId",
+                "type": "uint256",
+                "indexed": true,
+                "internalType": "uint256"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "Upgraded",
+            "inputs": [
+              {
+                "name": "implementation",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "error",
+            "name": "AddressEmptyCode",
+            "inputs": [
+              {
+                "name": "target",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "ERC1967InvalidImplementation",
+            "inputs": [
+              {
+                "name": "implementation",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "ERC1967NonPayable",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "ERC721IncorrectOwner",
+            "inputs": [
+              {
+                "name": "sender",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "tokenId",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "owner",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "ERC721InsufficientApproval",
+            "inputs": [
+              {
+                "name": "operator",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "tokenId",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "ERC721InvalidApprover",
+            "inputs": [
+              {
+                "name": "approver",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "ERC721InvalidOperator",
+            "inputs": [
+              {
+                "name": "operator",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "ERC721InvalidOwner",
+            "inputs": [
+              {
+                "name": "owner",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "ERC721InvalidReceiver",
+            "inputs": [
+              {
+                "name": "receiver",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "ERC721InvalidSender",
+            "inputs": [
+              {
+                "name": "sender",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "ERC721NonexistentToken",
+            "inputs": [
+              {
+                "name": "tokenId",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "FailedCall",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "InvalidInitialization",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "LabelAlreadySet",
+            "inputs": [
+              {
+                "name": "tokenId",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "LabelMismatch",
+            "inputs": [
+              {
+                "name": "tokenId",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "NameNotAvailable",
+            "inputs": [
+              {
+                "name": "tokenId",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "NotController",
+            "inputs": [
+              {
+                "name": "caller",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "NotInitializing",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "NotTokenOwner",
+            "inputs": [
+              {
+                "name": "caller",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "tokenId",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "OwnableInvalidOwner",
+            "inputs": [
+              {
+                "name": "owner",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "OwnableUnauthorizedAccount",
+            "inputs": [
+              {
+                "name": "account",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "UUPSUnauthorizedCallContext",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "UUPSUnsupportedProxiableUUID",
+            "inputs": [
+              {
+                "name": "slot",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ]
+          }
+        ]
+      },
+      "@dotns/registry": {
+        "version": 1,
+        "address": "0x8877344A885682523B4613779C95688ed7037BfD",
+        "abi": [
+          {
+            "type": "constructor",
+            "inputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "UPGRADE_INTERFACE_VERSION",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "dotnsRegistrar",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "contract IDotnsRegistrar"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "initialize",
+            "inputs": [
+              {
+                "name": "_registrar",
+                "type": "address",
+                "internalType": "contract IDotnsRegistrar"
+              },
+              {
+                "name": "_reverseResolver",
+                "type": "address",
+                "internalType": "contract IDotnsReverseResolver"
+              },
+              {
+                "name": "_factory",
+                "type": "address",
+                "internalType": "contract IStoreFactory"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "owner",
+            "inputs": [
+              {
+                "name": "node",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "owner",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "proxiableUUID",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "recordExists",
+            "inputs": [
+              {
+                "name": "node",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "registrarController",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "contract IDotnsRegistrarController"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "renounceOwnership",
+            "inputs": [],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "resolver",
+            "inputs": [
+              {
+                "name": "node",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "reverseResolver",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "contract IDotnsReverseResolver"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "setOwner",
+            "inputs": [
+              {
+                "name": "node",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              },
+              {
+                "name": "newOwner",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "resolverAddr",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "setResolver",
+            "inputs": [
+              {
+                "name": "node",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              },
+              {
+                "name": "newResolver",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "setSubnodeOwner",
+            "inputs": [
+              {
+                "name": "record",
+                "type": "tuple",
+                "internalType": "struct IDotnsRegistry.SubnodeRecord",
+                "components": [
+                  {
+                    "name": "parentNode",
+                    "type": "bytes32",
+                    "internalType": "bytes32"
+                  },
+                  {
+                    "name": "subLabel",
+                    "type": "string",
+                    "internalType": "string"
+                  },
+                  {
+                    "name": "parentLabel",
+                    "type": "string",
+                    "internalType": "string"
+                  },
+                  {
+                    "name": "owner",
+                    "type": "address",
+                    "internalType": "address"
+                  }
+                ]
+              }
+            ],
+            "outputs": [
+              {
+                "name": "subnode",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "storeFactory",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "contract IStoreFactory"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "transferOwnership",
+            "inputs": [
+              {
+                "name": "newOwner",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "updateRegistrarController",
+            "inputs": [
+              {
+                "name": "newRegistrarController",
+                "type": "address",
+                "internalType": "contract IDotnsRegistrarController"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "upgradeToAndCall",
+            "inputs": [
+              {
+                "name": "newImplementation",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "data",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "payable"
+          },
+          {
+            "type": "function",
+            "name": "version",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "versionString",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "stateMutability": "pure"
+          },
+          {
+            "type": "event",
+            "name": "Initialized",
+            "inputs": [
+              {
+                "name": "version",
+                "type": "uint64",
+                "indexed": false,
+                "internalType": "uint64"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "NewOwner",
+            "inputs": [
+              {
+                "name": "node",
+                "type": "bytes32",
+                "indexed": true,
+                "internalType": "bytes32"
+              },
+              {
+                "name": "label",
+                "type": "bytes32",
+                "indexed": true,
+                "internalType": "bytes32"
+              },
+              {
+                "name": "owner",
+                "type": "address",
+                "indexed": false,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "NewResolver",
+            "inputs": [
+              {
+                "name": "node",
+                "type": "bytes32",
+                "indexed": true,
+                "internalType": "bytes32"
+              },
+              {
+                "name": "resolver",
+                "type": "address",
+                "indexed": false,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "NodeTransferred",
+            "inputs": [
+              {
+                "name": "node",
+                "type": "bytes32",
+                "indexed": true,
+                "internalType": "bytes32"
+              },
+              {
+                "name": "owner",
+                "type": "address",
+                "indexed": false,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "OwnershipTransferred",
+            "inputs": [
+              {
+                "name": "previousOwner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              },
+              {
+                "name": "newOwner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "RegistrarControllerUpdated",
+            "inputs": [
+              {
+                "name": "oldRegistrarController",
+                "type": "address",
+                "indexed": true,
+                "internalType": "contract IDotnsRegistrarController"
+              },
+              {
+                "name": "newRegistrarController",
+                "type": "address",
+                "indexed": true,
+                "internalType": "contract IDotnsRegistrarController"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "Upgraded",
+            "inputs": [
+              {
+                "name": "implementation",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "error",
+            "name": "AddressEmptyCode",
+            "inputs": [
+              {
+                "name": "target",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "ERC1967InvalidImplementation",
+            "inputs": [
+              {
+                "name": "implementation",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "ERC1967NonPayable",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "FailedCall",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "InvalidInitialization",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "NodeAlreadyExists",
+            "inputs": [
+              {
+                "name": "subnode",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "NodeAlreadyOwned",
+            "inputs": [
+              {
+                "name": "node",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "NotAllowed",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "NotAuthorised",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "NotInitializing",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "NotRegistryController",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "OwnableInvalidOwner",
+            "inputs": [
+              {
+                "name": "owner",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "OwnableUnauthorizedAccount",
+            "inputs": [
+              {
+                "name": "account",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "UUPSUnauthorizedCallContext",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "UUPSUnsupportedProxiableUUID",
+            "inputs": [
+              {
+                "name": "slot",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ]
+          }
+        ]
+      },
+      "@dotns/resolver": {
+        "version": 1,
+        "address": "0x0cCdfea1a5E62DE116BF6cA79D397798d49e351E",
+        "abi": [
+          {
+            "type": "constructor",
+            "inputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "UPGRADE_INTERFACE_VERSION",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "addressOf",
+            "inputs": [
+              {
+                "name": "node",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "value",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "initialize",
+            "inputs": [
+              {
+                "name": "_registry",
+                "type": "address",
+                "internalType": "contract IDotnsRegistry"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "owner",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "proxiableUUID",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "registry",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "contract IDotnsRegistry"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "renounceOwnership",
+            "inputs": [],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "setAddress",
+            "inputs": [
+              {
+                "name": "node",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              },
+              {
+                "name": "value",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "supportsInterface",
+            "inputs": [
+              {
+                "name": "interfaceId",
+                "type": "bytes4",
+                "internalType": "bytes4"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "transferOwnership",
+            "inputs": [
+              {
+                "name": "newOwner",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "upgradeToAndCall",
+            "inputs": [
+              {
+                "name": "newImplementation",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "data",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "payable"
+          },
+          {
+            "type": "function",
+            "name": "version",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "versionString",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "stateMutability": "pure"
+          },
+          {
+            "type": "event",
+            "name": "AddressSet",
+            "inputs": [
+              {
+                "name": "node",
+                "type": "bytes32",
+                "indexed": true,
+                "internalType": "bytes32"
+              },
+              {
+                "name": "value",
+                "type": "address",
+                "indexed": false,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "Initialized",
+            "inputs": [
+              {
+                "name": "version",
+                "type": "uint64",
+                "indexed": false,
+                "internalType": "uint64"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "OwnershipTransferred",
+            "inputs": [
+              {
+                "name": "previousOwner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              },
+              {
+                "name": "newOwner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "Upgraded",
+            "inputs": [
+              {
+                "name": "implementation",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "error",
+            "name": "AddressEmptyCode",
+            "inputs": [
+              {
+                "name": "target",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "ERC1967InvalidImplementation",
+            "inputs": [
+              {
+                "name": "implementation",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "ERC1967NonPayable",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "FailedCall",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "InvalidInitialization",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "NotAuthorised",
+            "inputs": [
+              {
+                "name": "node",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              },
+              {
+                "name": "caller",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "NotInitializing",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "OwnableInvalidOwner",
+            "inputs": [
+              {
+                "name": "owner",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "OwnableUnauthorizedAccount",
+            "inputs": [
+              {
+                "name": "account",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "UUPSUnauthorizedCallContext",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "UUPSUnsupportedProxiableUUID",
+            "inputs": [
+              {
+                "name": "slot",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ]
+          }
+        ]
+      },
+      "@dotns/reverse-resolver": {
+        "version": 1,
+        "address": "0x025D5c4b10bD9723DeA2F4518aeD5B761DE08CDc",
+        "abi": [
+          {
+            "type": "constructor",
+            "inputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "UPGRADE_INTERFACE_VERSION",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "initialize",
+            "inputs": [],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "nameOf",
+            "inputs": [
+              {
+                "name": "addr",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "name",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "owner",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "proxiableUUID",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "registrarController",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "contract IDotnsRegistrarController"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "renounceOwnership",
+            "inputs": [],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "setReverseName",
+            "inputs": [
+              {
+                "name": "addr",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "name",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "supportsInterface",
+            "inputs": [
+              {
+                "name": "interfaceId",
+                "type": "bytes4",
+                "internalType": "bytes4"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "supported",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "transferOwnership",
+            "inputs": [
+              {
+                "name": "newOwner",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "updateRegistrar",
+            "inputs": [
+              {
+                "name": "newRegistrar",
+                "type": "address",
+                "internalType": "contract IDotnsRegistrarController"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "upgradeToAndCall",
+            "inputs": [
+              {
+                "name": "newImplementation",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "data",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "payable"
+          },
+          {
+            "type": "function",
+            "name": "version",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "versionString",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "stateMutability": "pure"
+          },
+          {
+            "type": "event",
+            "name": "Initialized",
+            "inputs": [
+              {
+                "name": "version",
+                "type": "uint64",
+                "indexed": false,
+                "internalType": "uint64"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "OwnershipTransferred",
+            "inputs": [
+              {
+                "name": "previousOwner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              },
+              {
+                "name": "newOwner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "RegistrarUpdated",
+            "inputs": [
+              {
+                "name": "oldRegistrar",
+                "type": "address",
+                "indexed": true,
+                "internalType": "contract IDotnsRegistrarController"
+              },
+              {
+                "name": "newRegistrar",
+                "type": "address",
+                "indexed": true,
+                "internalType": "contract IDotnsRegistrarController"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "ReverseNameSet",
+            "inputs": [
+              {
+                "name": "addr",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              },
+              {
+                "name": "name",
+                "type": "string",
+                "indexed": true,
+                "internalType": "string"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "Upgraded",
+            "inputs": [
+              {
+                "name": "implementation",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "error",
+            "name": "AddressEmptyCode",
+            "inputs": [
+              {
+                "name": "target",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "ERC1967InvalidImplementation",
+            "inputs": [
+              {
+                "name": "implementation",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "ERC1967NonPayable",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "FailedCall",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "InvalidInitialization",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "InvalidRegistrarController",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "NotInitializing",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "NotRegistrarController",
+            "inputs": [
+              {
+                "name": "caller",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "OwnableInvalidOwner",
+            "inputs": [
+              {
+                "name": "owner",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "OwnableUnauthorizedAccount",
+            "inputs": [
+              {
+                "name": "account",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "UUPSUnauthorizedCallContext",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "UUPSUnsupportedProxiableUUID",
+            "inputs": [
+              {
+                "name": "slot",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ]
+          }
+        ]
+      },
+      "@dotns/content-resolver": {
+        "version": 1,
+        "address": "0x2c9FF5D9136DBE5814C7B4FDbeDC15273a776663",
+        "abi": [
+          {
+            "type": "constructor",
+            "inputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "UPGRADE_INTERFACE_VERSION",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "contenthash",
+            "inputs": [
+              {
+                "name": "node",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "hash",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "initialize",
+            "inputs": [
+              {
+                "name": "_registry",
+                "type": "address",
+                "internalType": "contract IDotnsRegistry"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "isApprovedForAll",
+            "inputs": [
+              {
+                "name": "owner",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "operator",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "owner",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "proxiableUUID",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "registry",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "contract IDotnsRegistry"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "renounceOwnership",
+            "inputs": [],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "setApprovalForAll",
+            "inputs": [
+              {
+                "name": "operator",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "approved",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "setContenthash",
+            "inputs": [
+              {
+                "name": "node",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              },
+              {
+                "name": "hash",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "setText",
+            "inputs": [
+              {
+                "name": "node",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              },
+              {
+                "name": "key",
+                "type": "string",
+                "internalType": "string"
+              },
+              {
+                "name": "value",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "supportsInterface",
+            "inputs": [
+              {
+                "name": "interfaceId",
+                "type": "bytes4",
+                "internalType": "bytes4"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "text",
+            "inputs": [
+              {
+                "name": "node",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              },
+              {
+                "name": "key",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "value",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "transferOwnership",
+            "inputs": [
+              {
+                "name": "newOwner",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "upgradeToAndCall",
+            "inputs": [
+              {
+                "name": "newImplementation",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "data",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "payable"
+          },
+          {
+            "type": "function",
+            "name": "version",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "versionString",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "stateMutability": "pure"
+          },
+          {
+            "type": "event",
+            "name": "ApprovalForAll",
+            "inputs": [
+              {
+                "name": "owner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              },
+              {
+                "name": "operator",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              },
+              {
+                "name": "approved",
+                "type": "bool",
+                "indexed": false,
+                "internalType": "bool"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "ContentHashUpdated",
+            "inputs": [
+              {
+                "name": "node",
+                "type": "bytes32",
+                "indexed": true,
+                "internalType": "bytes32"
+              },
+              {
+                "name": "hash",
+                "type": "bytes",
+                "indexed": false,
+                "internalType": "bytes"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "Initialized",
+            "inputs": [
+              {
+                "name": "version",
+                "type": "uint64",
+                "indexed": false,
+                "internalType": "uint64"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "OwnershipTransferred",
+            "inputs": [
+              {
+                "name": "previousOwner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              },
+              {
+                "name": "newOwner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "TextUpdated",
+            "inputs": [
+              {
+                "name": "node",
+                "type": "bytes32",
+                "indexed": true,
+                "internalType": "bytes32"
+              },
+              {
+                "name": "key",
+                "type": "string",
+                "indexed": true,
+                "internalType": "string"
+              },
+              {
+                "name": "value",
+                "type": "string",
+                "indexed": false,
+                "internalType": "string"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "Upgraded",
+            "inputs": [
+              {
+                "name": "implementation",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "error",
+            "name": "AddressEmptyCode",
+            "inputs": [
+              {
+                "name": "target",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "ERC1967InvalidImplementation",
+            "inputs": [
+              {
+                "name": "implementation",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "ERC1967NonPayable",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "FailedCall",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "InvalidInitialization",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "NotAuthorised",
+            "inputs": [
+              {
+                "name": "node",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              },
+              {
+                "name": "caller",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "NotInitializing",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "OwnableInvalidOwner",
+            "inputs": [
+              {
+                "name": "owner",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "OwnableUnauthorizedAccount",
+            "inputs": [
+              {
+                "name": "account",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "UUPSUnauthorizedCallContext",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "UUPSUnsupportedProxiableUUID",
+            "inputs": [
+              {
+                "name": "slot",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ]
+          }
+        ]
+      },
+      "@dotns/store-factory": {
+        "version": 1,
+        "address": "0x0DE5De70d61cc6b44B45d6595afDe8dB9b55bc31",
+        "abi": [
+          {
+            "type": "constructor",
+            "inputs": [
+              {
+                "name": "protocolRegistry_",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "claimUserStore",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "store",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "deployLabelStoreFor",
+            "inputs": [
+              {
+                "name": "user",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "store",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "getLabelStore",
+            "inputs": [
+              {
+                "name": "user",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "store",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "getLabelStoreCount",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "count",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "getLabelStores",
+            "inputs": [
+              {
+                "name": "offset",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "limit",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "stores",
+                "type": "address[]",
+                "internalType": "address[]"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "getUserStore",
+            "inputs": [
+              {
+                "name": "user",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "store",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "getUserStoreCount",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "count",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "getUserStores",
+            "inputs": [
+              {
+                "name": "offset",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "limit",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "stores",
+                "type": "address[]",
+                "internalType": "address[]"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "labelStoreBeacon",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "owner",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "protocolRegistry",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "renounceOwnership",
+            "inputs": [],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "transferOwnership",
+            "inputs": [
+              {
+                "name": "newOwner",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "upgradeLabelStoreImplementation",
+            "inputs": [
+              {
+                "name": "newImplementation",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "upgradeUserStoreImplementation",
+            "inputs": [
+              {
+                "name": "newImplementation",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "userStoreBeacon",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "version",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "versionString",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "stateMutability": "pure"
+          },
+          {
+            "type": "event",
+            "name": "LabelStoreDeployed",
+            "inputs": [
+              {
+                "name": "user",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              },
+              {
+                "name": "store",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "LabelStoreImplementationUpgraded",
+            "inputs": [
+              {
+                "name": "newImplementation",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "OwnershipTransferred",
+            "inputs": [
+              {
+                "name": "previousOwner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              },
+              {
+                "name": "newOwner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "UserStoreClaimed",
+            "inputs": [
+              {
+                "name": "user",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              },
+              {
+                "name": "store",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "UserStoreImplementationUpgraded",
+            "inputs": [
+              {
+                "name": "newImplementation",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "error",
+            "name": "AlreadyDeployed",
+            "inputs": [
+              {
+                "name": "user",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "existingStore",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "ImplementationBindingMismatch",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "InvalidImplementation",
+            "inputs": [
+              {
+                "name": "implementation",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "InvalidProtocolRegistry",
+            "inputs": [
+              {
+                "name": "protocolRegistry",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "InvalidUser",
+            "inputs": [
+              {
+                "name": "user",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "NotAuthorised",
+            "inputs": [
+              {
+                "name": "caller",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "OwnableInvalidOwner",
+            "inputs": [
+              {
+                "name": "owner",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "OwnableUnauthorizedAccount",
+            "inputs": [
+              {
+                "name": "account",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          }
+        ]
+      },
+      "@dotns/pop-rules": {
+        "version": 1,
+        "address": "0x2002C1c15b88632Ad01c7770f6EbE1Ca05c8472E",
+        "abi": [
+          {
+            "type": "constructor",
+            "inputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "MAX_RESERVATION_TIME",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "UPGRADE_INTERFACE_VERSION",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "classifyName",
+            "inputs": [
+              {
+                "name": "name",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "requirement",
+                "type": "uint8",
+                "internalType": "enum IPopRules.PopStatus"
+              },
+              {
+                "name": "message",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "stateMutability": "pure"
+          },
+          {
+            "type": "function",
+            "name": "getBaseNameReservation",
+            "inputs": [
+              {
+                "name": "baseName",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "reservationOwner",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "expiryTimestamp",
+                "type": "uint64",
+                "internalType": "uint64"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "initialize",
+            "inputs": [
+              {
+                "name": "_startingPrice",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "registry",
+                "type": "address",
+                "internalType": "contract IDotnsProtocolRegistry"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "isBaseName",
+            "inputs": [
+              {
+                "name": "baseName",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "isBase",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ],
+            "stateMutability": "pure"
+          },
+          {
+            "type": "function",
+            "name": "isBaseNameReserved",
+            "inputs": [
+              {
+                "name": "baseName",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "isReserved",
+                "type": "bool",
+                "internalType": "bool"
+              },
+              {
+                "name": "reservationOwner",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "expiryTimestamp",
+                "type": "uint64",
+                "internalType": "uint64"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "owner",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "price",
+            "inputs": [
+              {
+                "name": "name",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "priceWithCheck",
+            "inputs": [
+              {
+                "name": "name",
+                "type": "string",
+                "internalType": "string"
+              },
+              {
+                "name": "userAddress",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "metadata",
+                "type": "tuple",
+                "internalType": "struct IPopRules.PriceWithMeta",
+                "components": [
+                  {
+                    "name": "price",
+                    "type": "uint256",
+                    "internalType": "uint256"
+                  },
+                  {
+                    "name": "status",
+                    "type": "uint8",
+                    "internalType": "enum IPopRules.PopStatus"
+                  },
+                  {
+                    "name": "userStatus",
+                    "type": "uint8",
+                    "internalType": "enum IPopRules.PopStatus"
+                  },
+                  {
+                    "name": "message",
+                    "type": "string",
+                    "internalType": "string"
+                  }
+                ]
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "priceWithoutCheck",
+            "inputs": [
+              {
+                "name": "name",
+                "type": "string",
+                "internalType": "string"
+              },
+              {
+                "name": "userAddress",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "metadata",
+                "type": "tuple",
+                "internalType": "struct IPopRules.PriceWithMeta",
+                "components": [
+                  {
+                    "name": "price",
+                    "type": "uint256",
+                    "internalType": "uint256"
+                  },
+                  {
+                    "name": "status",
+                    "type": "uint8",
+                    "internalType": "enum IPopRules.PopStatus"
+                  },
+                  {
+                    "name": "userStatus",
+                    "type": "uint8",
+                    "internalType": "enum IPopRules.PopStatus"
+                  },
+                  {
+                    "name": "message",
+                    "type": "string",
+                    "internalType": "string"
+                  }
+                ]
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "protocolRegistry",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "address",
+                "internalType": "contract IDotnsProtocolRegistry"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "proxiableUUID",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "reachFee",
+            "inputs": [
+              {
+                "name": "name",
+                "type": "string",
+                "internalType": "string"
+              },
+              {
+                "name": "account",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "fee",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "releaseBaseName",
+            "inputs": [
+              {
+                "name": "baseName",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "renounceOwnership",
+            "inputs": [],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "reservations",
+            "inputs": [
+              {
+                "name": "baseName",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "owner",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "expires",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "controller",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "reserveBaseName",
+            "inputs": [
+              {
+                "name": "name",
+                "type": "string",
+                "internalType": "string"
+              },
+              {
+                "name": "userAddress",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "reserveBaseNameForPop",
+            "inputs": [
+              {
+                "name": "baseName",
+                "type": "string",
+                "internalType": "string"
+              },
+              {
+                "name": "userAddress",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "startingPrice",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "supportsInterface",
+            "inputs": [
+              {
+                "name": "interfaceId",
+                "type": "bytes4",
+                "internalType": "bytes4"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "supported",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "transferOwnership",
+            "inputs": [
+              {
+                "name": "newOwner",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "updateStartingPrice",
+            "inputs": [
+              {
+                "name": "newStartingPrice",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "upgradeToAndCall",
+            "inputs": [
+              {
+                "name": "newImplementation",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "data",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "payable"
+          },
+          {
+            "type": "function",
+            "name": "version",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "versionString",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "stateMutability": "pure"
+          },
+          {
+            "type": "event",
+            "name": "BaseNameReleased",
+            "inputs": [
+              {
+                "name": "baseName",
+                "type": "string",
+                "indexed": true,
+                "internalType": "string"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "BaseNameReserved",
+            "inputs": [
+              {
+                "name": "baseName",
+                "type": "string",
+                "indexed": true,
+                "internalType": "string"
+              },
+              {
+                "name": "owner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              },
+              {
+                "name": "expires",
+                "type": "uint64",
+                "indexed": false,
+                "internalType": "uint64"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "Initialized",
+            "inputs": [
+              {
+                "name": "version",
+                "type": "uint64",
+                "indexed": false,
+                "internalType": "uint64"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "OwnershipTransferred",
+            "inputs": [
+              {
+                "name": "previousOwner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              },
+              {
+                "name": "newOwner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "StartingPriceUpdated",
+            "inputs": [
+              {
+                "name": "oldPrice",
+                "type": "uint256",
+                "indexed": false,
+                "internalType": "uint256"
+              },
+              {
+                "name": "newPrice",
+                "type": "uint256",
+                "indexed": false,
+                "internalType": "uint256"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "Upgraded",
+            "inputs": [
+              {
+                "name": "implementation",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "error",
+            "name": "AddressEmptyCode",
+            "inputs": [
+              {
+                "name": "target",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "ERC1967InvalidImplementation",
+            "inputs": [
+              {
+                "name": "implementation",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "ERC1967NonPayable",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "FailedCall",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "InvalidInitialization",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "NotInitializing",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "NotRegistry",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "OwnableInvalidOwner",
+            "inputs": [
+              {
+                "name": "owner",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "OwnableUnauthorizedAccount",
+            "inputs": [
+              {
+                "name": "account",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "PopError",
+            "inputs": [
+              {
+                "name": "reason",
+                "type": "string",
+                "internalType": "string"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "UUPSUnauthorizedCallContext",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "UUPSUnsupportedProxiableUUID",
+            "inputs": [
+              {
+                "name": "slot",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ]
+          }
+        ]
+      },
+      "@dotns/label-store": {
+        "version": 1,
+        "address": "0x0000000000000000000000000000000000000000",
+        "abi": [
+          {
+            "type": "constructor",
+            "inputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "getLabel",
+            "inputs": [
+              {
+                "name": "labelhash",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "label",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "getLabelAt",
+            "inputs": [
+              {
+                "name": "index",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "label",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "getLabelCount",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "count",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "getLabelhashAt",
+            "inputs": [
+              {
+                "name": "index",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "labelhash",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "getLabelhashes",
+            "inputs": [
+              {
+                "name": "offset",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "limit",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "labelhashes",
+                "type": "bytes32[]",
+                "internalType": "bytes32[]"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "getLabels",
+            "inputs": [
+              {
+                "name": "offset",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "limit",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "labels",
+                "type": "string[]",
+                "internalType": "string[]"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "hasLabel",
+            "inputs": [
+              {
+                "name": "labelhash",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "exists",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "initialize",
+            "inputs": [
+              {
+                "name": "user_",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "protocolRegistry_",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "isLocked",
+            "inputs": [
+              {
+                "name": "labelhash",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "locked",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "owner",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "owner_",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "protocolRegistry",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "protocolRegistry_",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "storeLabel",
+            "inputs": [
+              {
+                "name": "labelhash",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              },
+              {
+                "name": "label",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "version",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "versionString",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "stateMutability": "pure"
+          },
+          {
+            "type": "event",
+            "name": "Initialized",
+            "inputs": [
+              {
+                "name": "version",
+                "type": "uint64",
+                "indexed": false,
+                "internalType": "uint64"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "LabelLockedPermanently",
+            "inputs": [
+              {
+                "name": "owner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              },
+              {
+                "name": "labelhash",
+                "type": "bytes32",
+                "indexed": true,
+                "internalType": "bytes32"
+              },
+              {
+                "name": "locker",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "LabelStored",
+            "inputs": [
+              {
+                "name": "owner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              },
+              {
+                "name": "labelhash",
+                "type": "bytes32",
+                "indexed": true,
+                "internalType": "bytes32"
+              },
+              {
+                "name": "label",
+                "type": "string",
+                "indexed": false,
+                "internalType": "string"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "error",
+            "name": "InvalidInitialization",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "InvalidLabel",
+            "inputs": [
+              {
+                "name": "labelhash",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "InvalidProtocolRegistry",
+            "inputs": [
+              {
+                "name": "protocolRegistry",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "InvalidUser",
+            "inputs": [
+              {
+                "name": "user",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "LabelAlreadyExists",
+            "inputs": [
+              {
+                "name": "labelhash",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "LabelLocked",
+            "inputs": [
+              {
+                "name": "labelhash",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "NotAuthorised",
+            "inputs": [
+              {
+                "name": "caller",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "NotInitializing",
+            "inputs": []
+          }
+        ]
+      },
+      "@dotns/user-store": {
+        "version": 1,
+        "address": "0x0000000000000000000000000000000000000000",
+        "abi": [
+          {
+            "type": "constructor",
+            "inputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "getHistory",
+            "inputs": [
+              {
+                "name": "key",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              },
+              {
+                "name": "offset",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "limit",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "entries",
+                "type": "tuple[]",
+                "internalType": "struct IUserStore.Entry[]",
+                "components": [
+                  {
+                    "name": "value",
+                    "type": "bytes",
+                    "internalType": "bytes"
+                  },
+                  {
+                    "name": "timestamp",
+                    "type": "uint256",
+                    "internalType": "uint256"
+                  }
+                ]
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "getHistoryAt",
+            "inputs": [
+              {
+                "name": "key",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              },
+              {
+                "name": "index",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "entry",
+                "type": "tuple",
+                "internalType": "struct IUserStore.Entry",
+                "components": [
+                  {
+                    "name": "value",
+                    "type": "bytes",
+                    "internalType": "bytes"
+                  },
+                  {
+                    "name": "timestamp",
+                    "type": "uint256",
+                    "internalType": "uint256"
+                  }
+                ]
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "getHistoryCount",
+            "inputs": [
+              {
+                "name": "key",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "count",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "getKeyAt",
+            "inputs": [
+              {
+                "name": "index",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "key",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "getKeyCount",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "count",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "getKeys",
+            "inputs": [
+              {
+                "name": "offset",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "limit",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "keys",
+                "type": "bytes32[]",
+                "internalType": "bytes32[]"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "getValue",
+            "inputs": [
+              {
+                "name": "key",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "value",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "hasValue",
+            "inputs": [
+              {
+                "name": "key",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "present",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "initialize",
+            "inputs": [
+              {
+                "name": "user_",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "owner",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "owner_",
+                "type": "address",
+                "internalType": "address"
+              }
+            ],
+            "stateMutability": "view"
+          },
+          {
+            "type": "function",
+            "name": "setValue",
+            "inputs": [
+              {
+                "name": "key",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              },
+              {
+                "name": "value",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+          },
+          {
+            "type": "function",
+            "name": "version",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "versionString",
+                "type": "string",
+                "internalType": "string"
+              }
+            ],
+            "stateMutability": "pure"
+          },
+          {
+            "type": "event",
+            "name": "Initialized",
+            "inputs": [
+              {
+                "name": "version",
+                "type": "uint64",
+                "indexed": false,
+                "internalType": "uint64"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "event",
+            "name": "ValueSet",
+            "inputs": [
+              {
+                "name": "owner",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+              },
+              {
+                "name": "key",
+                "type": "bytes32",
+                "indexed": true,
+                "internalType": "bytes32"
+              },
+              {
+                "name": "value",
+                "type": "bytes",
+                "indexed": false,
+                "internalType": "bytes"
+              }
+            ],
+            "anonymous": false
+          },
+          {
+            "type": "error",
+            "name": "InvalidInitialization",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "InvalidKey",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "InvalidUser",
+            "inputs": [
+              {
+                "name": "user",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "type": "error",
+            "name": "NotInitializing",
+            "inputs": []
+          },
+          {
+            "type": "error",
+            "name": "NotOwner",
+            "inputs": [
+              {
+                "name": "caller",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

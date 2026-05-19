@@ -1,5 +1,4 @@
-import { useNetworkStore } from "@/store/useNetworkStore";
-import { useAbiStore } from "@/store/useAbiStore";
+import { getContractManager } from "@/composables/useContracts";
 
 export function normalizeNameInput(value: string): string {
   return value
@@ -8,11 +7,12 @@ export function normalizeNameInput(value: string): string {
     .toLowerCase();
 }
 
+// Ensures the ContractManager singleton (and the underlying chain client) is
+// warmed before a docs interactive issues its first contract call. Doc demos
+// can run before the user has navigated through a flow that warms the client
+// on its own.
 export async function ensureNetworkReady(): Promise<void> {
-  const networkStore = useNetworkStore();
-  const abiStore = useAbiStore();
-  await networkStore.getClient();
-  await abiStore.ensureAbis();
+  await getContractManager();
 }
 
 export function formatNetworkError(error: unknown): string {

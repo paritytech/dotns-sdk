@@ -1,13 +1,11 @@
-import { getAddress, zeroAddress } from "viem";
-import type { Deployment, NetworkConfig } from "@/type";
+import type { NetworkConfig } from "@/type";
 
-/**
- * Network Configuration
- *
- * Supported blockchain networks and their deployment addresses
- */
+// After the v2 ContractManager migration, contract addresses live in cdm.json.
+// This file only carries chain-level metadata used by the UI for display
+// (chainName, native currency, block explorer URL) and runtime configuration
+// (RPC URL for non-contract chain reads).
 
-export const SUPPORTED_NETWORKS: Record<number, NetworkConfig & Partial<Deployment>> = {
+export const SUPPORTED_NETWORKS: Record<number, NetworkConfig> = {
   420420417: {
     chainId: 420420417,
     chainName: "Paseo Assethub Testnet",
@@ -17,16 +15,6 @@ export const SUPPORTED_NETWORKS: Record<number, NetworkConfig & Partial<Deployme
       decimals: 18,
     },
     blockExplorerUrls: ["https://assethub-paseo.subscan.io/"],
-    dotnsRegistry: "0x8877344A885682523B4613779C95688ed7037BfD",
-    dotnsRegistrarController: "0x320b72c6e70D5a631d835FfD95915B288b26E6Be",
-    dotnsResolver: "0x0cCdfea1a5E62DE116BF6cA79D397798d49e351E",
-    dotnsReverseResolver: "0x025D5c4b10bD9723DeA2F4518aeD5B761DE08CDc",
-    storeFactory: "0x0DE5De70d61cc6b44B45d6595afDe8dB9b55bc31",
-    dotnsRegistrar: "0x885b8085bA92A31c4ef52076f77379E647ECC399",
-    multiCall: getAddress("0x807A65D3F3020011Fe0A61723d51362556C14ffd"),
-    popOracle: "0x2002C1c15b88632Ad01c7770f6EbE1Ca05c8472E",
-    dotnsContentResolver: "0x2c9FF5D9136DBE5814C7B4FDbeDC15273a776663",
-    ethRPCURL: "https://paseo-asset-hub-next-rpc.polkadot.io",
   },
 };
 
@@ -44,10 +32,11 @@ export const MAX_WEIGHT = {
 };
 
 /**
- * Get the first deployed network from SUPPORTED_NETWORKS
- *
- * @returns The first network with a deployed dotnsRegistry, or undefined
+ * Get the first network in SUPPORTED_NETWORKS. Kept as a helper for callers
+ * that need a default — historically named "deployed" when contract addresses
+ * lived here. Returns the only configured network today.
  */
-export function getFirstDeployedNetwork(): (NetworkConfig & Partial<Deployment>) | undefined {
-  return Object.values(SUPPORTED_NETWORKS).find((network) => network.dotnsRegistry !== zeroAddress);
+export function getFirstDeployedNetwork(): NetworkConfig | undefined {
+  const networks = Object.values(SUPPORTED_NETWORKS);
+  return networks[0];
 }
