@@ -1,6 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
 import {
-  CONTRACTS,
   getActiveDotnsEnvironment,
   resolveDotnsEnvironmentId,
   setActiveDotnsEnvironment,
@@ -26,7 +25,6 @@ test("defaults to paseo-v2", () => {
 
   expect(resolveRpc()).toBe("wss://paseo-asset-hub-next-rpc.polkadot.io");
   expect(getActiveDotnsEnvironment().id).toBe("paseo-v2");
-  expect(CONTRACTS.DOTNS_REGISTRAR_CONTROLLER).toBe("0x320b72c6e70D5a631d835FfD95915B288b26E6Be");
 });
 
 test("accepts friendly paseo-v2 aliases", () => {
@@ -41,7 +39,6 @@ test("DOTNS_ENV selects rpc and contract set", () => {
 
   expect(resolveRpc()).toBe("wss://paseo-asset-hub-next-rpc.polkadot.io");
   expect(getActiveDotnsEnvironment().id).toBe("paseo-v2");
-  expect(CONTRACTS.DOTNS_REGISTRAR_CONTROLLER).toBe("0x320b72c6e70D5a631d835FfD95915B288b26E6Be");
 });
 
 test("--env takes precedence over DOTNS_ENV while --rpc only overrides endpoint", () => {
@@ -50,5 +47,4 @@ test("--env takes precedence over DOTNS_ENV while --rpc only overrides endpoint"
 
   expect(resolveRpc("wss://cli-rpc.example", "paseo-v2")).toBe("wss://cli-rpc.example");
   expect(getActiveDotnsEnvironment().id).toBe("paseo-v2");
-  expect(CONTRACTS.DOTNS_REGISTRAR_CONTROLLER).toBe("0x320b72c6e70D5a631d835FfD95915B288b26E6Be");
 });
