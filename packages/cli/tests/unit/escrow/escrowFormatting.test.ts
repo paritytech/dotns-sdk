@@ -7,13 +7,15 @@ function stripAnsi(input: string): string {
   return input.replace(/\x1b\[[0-9;]*m/g, "");
 }
 
-function makeEntry(overrides: Partial<{
-  entryId: bigint;
-  amount: bigint;
-  availableAt: bigint;
-  tokenId: bigint;
-  recipient: Address;
-}> = {}) {
+function makeEntry(
+  overrides: Partial<{
+    entryId: bigint;
+    amount: bigint;
+    availableAt: bigint;
+    tokenId: bigint;
+    recipient: Address;
+  }> = {},
+) {
   return {
     entryId: overrides.entryId ?? 7n,
     recipient: overrides.recipient ?? ("0x1111111111111111111111111111111111111111" as Address),

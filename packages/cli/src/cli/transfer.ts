@@ -135,9 +135,7 @@ export async function transferDomain(
   // Quote the friction fee the registrar will charge: zero for same-tier or upward
   // transfers, D for a downward step or a label-class reach-floor mismatch. Sending
   // less than the quoted amount reverts with TransferFeeRequired.
-  const feeSpinner = ora(
-    `Quoting transfer fee for ${chalk.cyan(normLabel + ".dot")}`,
-  ).start();
+  const feeSpinner = ora(`Quoting transfer fee for ${chalk.cyan(normLabel + ".dot")}`).start();
   const feeWei = await performContractCall<bigint>(
     clientWrapper,
     originSubstrateAddress,

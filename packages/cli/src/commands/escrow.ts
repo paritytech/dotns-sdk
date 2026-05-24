@@ -3,11 +3,7 @@ import type { Ora } from "ora";
 import { type Address } from "viem";
 import type { PolkadotSigner } from "polkadot-api";
 import type { ReviveClientWrapper } from "../client/polkadotClient";
-import {
-  CONTRACTS,
-  DOTNS_NAME_ESCROW_ABI,
-  DOTNS_REGISTRAR_ABI,
-} from "../utils/constants";
+import { CONTRACTS, DOTNS_NAME_ESCROW_ABI, DOTNS_REGISTRAR_ABI } from "../utils/constants";
 import {
   computeDomainTokenId,
   performContractCall,
@@ -236,7 +232,9 @@ export async function listRefunds(
     [recipient, BigInt(offset), BigInt(limit)],
   );
 
-  spinner.succeed(`Found ${chalk.yellow(total.toString())} entries; page returned ${entries.length}.`);
+  spinner.succeed(
+    `Found ${chalk.yellow(total.toString())} entries; page returned ${entries.length}.`,
+  );
 
   return {
     recipient,

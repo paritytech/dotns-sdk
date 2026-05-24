@@ -64,10 +64,7 @@ function registerDomain(keystoreDirectoryPath: string, args: string[]): Promise<
   });
 }
 
-function escrowCli(
-  keystoreDirectoryPath: string,
-  args: string[],
-): Promise<CliRunResult> {
+function escrowCli(keystoreDirectoryPath: string, args: string[]): Promise<CliRunResult> {
   return runDotnsCli(["escrow", ...args, "--account", TEST_ACCOUNT], {
     DOTNS_KEYSTORE_PATH: keystoreDirectoryPath,
     DOTNS_KEYSTORE_PASSWORD: TEST_PASSWORD,

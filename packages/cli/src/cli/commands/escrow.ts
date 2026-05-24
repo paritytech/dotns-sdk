@@ -77,8 +77,7 @@ export function attachEscrowCommands(root: Command) {
           } else {
             console.log(chalk.gray("  recipient: ") + chalk.white(position.recipient));
             console.log(
-              chalk.gray("  amount:    ") +
-                chalk.green(formatWeiAsEther(position.amount) + " PAS"),
+              chalk.gray("  amount:    ") + chalk.green(formatWeiAsEther(position.amount) + " PAS"),
             );
             console.log(chalk.gray("  released:  ") + chalk.white(String(position.released)));
             console.log(chalk.gray("  claimed:   ") + chalk.white(String(position.claimed)));
@@ -220,7 +219,11 @@ export function attachEscrowCommands(root: Command) {
     .description("List pending refund entries for the caller (or a specified recipient)")
     .option("--recipient <address>", "Recipient EVM address (defaults to caller)")
     .option("--offset <n>", "Page offset", "0")
-    .option("--limit <n>", `Page size (max ${MAX_REFUND_PAGE_SIZE})`, String(DEFAULT_REFUND_PAGE_SIZE))
+    .option(
+      "--limit <n>",
+      `Page size (max ${MAX_REFUND_PAGE_SIZE})`,
+      String(DEFAULT_REFUND_PAGE_SIZE),
+    )
     .option("--json", "Output result as JSON (suppresses all other output)", false);
   addAuthOptions(refundsListCommand).action(
     async (options: RefundListOptions, command: Command) => {
@@ -233,7 +236,8 @@ export function attachEscrowCommands(root: Command) {
 
         const offset = Number(options.offset ?? "0");
         const limit = Number(options.limit ?? String(DEFAULT_REFUND_PAGE_SIZE));
-        if (!Number.isInteger(offset) || offset < 0) throw new Error("offset must be a non-negative integer");
+        if (!Number.isInteger(offset) || offset < 0)
+          throw new Error("offset must be a non-negative integer");
         if (!Number.isInteger(limit) || limit < 1 || limit > MAX_REFUND_PAGE_SIZE) {
           throw new Error(`limit must be between 1 and ${MAX_REFUND_PAGE_SIZE}`);
         }
@@ -322,7 +326,9 @@ export function attachEscrowCommands(root: Command) {
       try {
         if (idsRaw.length === 0) throw new Error("Provide at least one entry id");
         if (idsRaw.length > MAX_REFUND_PAGE_SIZE) {
-          throw new Error(`Cannot claim more than ${MAX_REFUND_PAGE_SIZE} entries in a single batch`);
+          throw new Error(
+            `Cannot claim more than ${MAX_REFUND_PAGE_SIZE} entries in a single batch`,
+          );
         }
         const entryIds = idsRaw.map((value) => parsePositiveBigInt(value, "entryId"));
 
