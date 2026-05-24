@@ -71,10 +71,21 @@ async function main() {
     throw new Error(`Not owner. ownerOf(${label})=${currentOwner}, me=${evmAddress}`);
   }
 
+  // Friction fee, charged when the recipient is below the sender's tier or the
+  // label class. quoteTransferFee returns zero for same-tier and upward moves.
+  const feeWei = await performContractCall<bigint>(
+    clientWrapper,
+    substrateAddress,
+    CONTRACTS.DOTNS_REGISTRAR,
+    DOTNS_REGISTRAR_ABI,
+    "quoteTransferFee",
+    [tokenId, toAddress],
+  );
+
   const txHash = await submitContractTransaction(
     clientWrapper,
     CONTRACTS.DOTNS_REGISTRAR,
-    0n,
+    feeWei,
     DOTNS_REGISTRAR_ABI,
     "transferFrom",
     [evmAddress, toAddress, tokenId],

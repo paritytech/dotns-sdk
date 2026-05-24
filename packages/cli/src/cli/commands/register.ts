@@ -133,6 +133,7 @@ export async function executeRegistration(
       label,
       transferDestination,
       options.commitmentBuffer,
+      context.nativeTokenDecimals,
     );
   } else {
     await executeRegularRegistration(
@@ -216,6 +217,7 @@ async function executeGovernanceRegistration(
   label: string,
   transferDestination: string | undefined,
   commitmentBuffer?: number,
+  nativeTokenDecimals?: number,
 ): Promise<void> {
   console.log(chalk.bold("\n🏛 Governance registration (commit-reveal)\n"));
 
@@ -265,7 +267,15 @@ async function executeGovernanceRegistration(
     );
 
     await step("Transferring domain", async () =>
-      transferDomain(clientWrapper, substrateAddress, signer, evmAddress, recipient, label),
+      transferDomain(
+        clientWrapper,
+        substrateAddress,
+        signer,
+        evmAddress,
+        recipient,
+        label,
+        nativeTokenDecimals,
+      ),
     );
 
     await step("Verifying ownership", async () =>
@@ -338,7 +348,15 @@ async function executeRegularRegistration(
     );
 
     await step("Transferring domain", async () =>
-      transferDomain(clientWrapper, substrateAddress, signer, evmAddress, recipient, label),
+      transferDomain(
+        clientWrapper,
+        substrateAddress,
+        signer,
+        evmAddress,
+        recipient,
+        label,
+        nativeTokenDecimals,
+      ),
     );
 
     await step("Verifying ownership", async () =>

@@ -30,7 +30,7 @@ import {
   COMMITMENT_POLL_TIMEOUT_MS,
   COMMITMENT_POLL_INTERVAL_MS,
 } from "../utils/constants";
-import { validateDomainLabel, stripTrailingDigits, countTrailingDigits } from "../utils/validation";
+import { validateDomainLabel, stripTrailingDigits } from "../utils/validation";
 import {
   performContractCall,
   submitContractTransaction,
@@ -414,18 +414,10 @@ export async function getPriceAndValidateEligibility(
         spinner.fail("Eligibility failed");
         throw new Error("Requires Personhood Lite verification");
       }
-    } else {
-      const trailingDigitCount = countTrailingDigits(label);
-      if (
-        trailingDigitCount === 0 ||
-        userStatus === ProofOfPersonhoodStatus.ProofOfPersonhoodLite
-      ) {
-        spinner.fail("Eligibility failed");
-        throw new Error(
-          "Personhood Lite cannot register base names\nThis means another user already owns the name without digits",
-        );
-      }
     }
+    // NoStatus-tier labels (stem of nine characters or more) are open to every tier,
+    // so no caller-side check fires here. Reservation collisions and any other
+    // protocol-side guards are enforced by PopRules at submission time.
 
     spinner.succeed("Eligibility and price");
     console.log(chalk.gray("  required:  ") + chalk.white(ProofOfPersonhoodStatus[requiredStatus]));

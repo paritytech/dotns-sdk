@@ -5,6 +5,7 @@ import DotnsRegistrar from "../../abis/DotnsRegistrar.json" assert { type: "json
 import DotnsReverseResolver from "../../abis/DotnsReverseResolver.json" assert { type: "json" };
 import DotnsContentResolver from "../../abis/DotnsContentResolver.json" assert { type: "json" };
 import DotnsResolver from "../../abis/DotnsResolver.json" assert { type: "json" };
+import DotnsNameEscrow from "../../abis/DotnsNameEscrow.json" assert { type: "json" };
 import PopRules from "../../abis/PopRules.json" assert { type: "json" };
 import StoreFactory from "../../abis/StoreFactory.json" assert { type: "json" };
 import Store from "../../abis/Store.json" assert { type: "json" };
@@ -55,6 +56,7 @@ export const DOTNS_REGISTRAR_ABI = DotnsRegistrar.abi as Abi;
 export const DOTNS_REVERSE_RESOLVER_ABI = DotnsReverseResolver.abi as Abi;
 export const DOTNS_CONTENT_RESOLVER_ABI = DotnsContentResolver.abi as Abi;
 export const DOTNS_RESOLVER_ABI = DotnsResolver.abi as Abi;
+export const DOTNS_NAME_ESCROW_ABI = DotnsNameEscrow.abi as Abi;
 export const POP_RULES_ABI = PopRules.abi as Abi;
 export const STORE_FACTORY_ABI = StoreFactory.abi as Abi;
 export const STORE_ABI = Store.abi as Abi;
@@ -128,6 +130,9 @@ export type DotnsContractAddresses = {
   /** Proof of Personhood RULES - verifies eligibility and pricing */
   DOTNS_RULES: Address;
 
+  /** Name escrow - holds NoStatus deposits and the refund-on-leave ledger */
+  DOTNS_NAME_ESCROW: Address;
+
   /** Multicall3 - batch read contract calls */
   MULTICALL3: Address;
 };
@@ -151,13 +156,14 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
     rpc: RPC_ENDPOINTS[0],
     blockExplorerUrl: "https://blockscout-testnet.polkadot.io",
     contracts: {
-      DOTNS_REGISTRAR: "0x885b8085bA92A31c4ef52076f77379E647ECC399" as Address,
-      DOTNS_REGISTRAR_CONTROLLER: "0x320b72c6e70D5a631d835FfD95915B288b26E6Be" as Address,
-      DOTNS_REGISTRY: "0x8877344A885682523B4613779C95688ed7037BfD" as Address,
-      DOTNS_RESOLVER: "0x0cCdfea1a5E62DE116BF6cA79D397798d49e351E" as Address,
-      DOTNS_CONTENT_RESOLVER: "0x2c9FF5D9136DBE5814C7B4FDbeDC15273a776663" as Address,
-      STORE_FACTORY: "0x0DE5De70d61cc6b44B45d6595afDe8dB9b55bc31" as Address,
-      DOTNS_RULES: "0x2002C1c15b88632Ad01c7770f6EbE1Ca05c8472E" as Address,
+      DOTNS_REGISTRAR: "0x0000000000000000000000000000000000000000" as Address,
+      DOTNS_REGISTRAR_CONTROLLER: "0x0000000000000000000000000000000000000000" as Address,
+      DOTNS_REGISTRY: "0x0000000000000000000000000000000000000000" as Address,
+      DOTNS_RESOLVER: "0x0000000000000000000000000000000000000000" as Address,
+      DOTNS_CONTENT_RESOLVER: "0x0000000000000000000000000000000000000000" as Address,
+      STORE_FACTORY: "0x0000000000000000000000000000000000000000" as Address,
+      DOTNS_RULES: "0x0000000000000000000000000000000000000000" as Address,
+      DOTNS_NAME_ESCROW: "0x0000000000000000000000000000000000000000" as Address,
       MULTICALL3: SHARED_MULTICALL3,
     },
   },
