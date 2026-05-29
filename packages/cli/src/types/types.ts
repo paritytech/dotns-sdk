@@ -253,7 +253,13 @@ export type BulletinUploadOptions = {
   cache?: boolean;
 };
 
-export type BulletinProgressPhase = "validate" | "authorize" | "upload" | "verify" | "cache";
+export type BulletinProgressPhase =
+  | "validate"
+  | "authorize"
+  | "refresh"
+  | "upload"
+  | "verify"
+  | "cache";
 
 export type BulletinProgressState = "start" | "update" | "success" | "warning" | "failure";
 
@@ -408,6 +414,17 @@ export type AuthorizeAccountResult = {
   txHash: string;
   /** Hash of the block containing the finalized transaction */
   blockHash: string;
+};
+
+export type RefreshAccountAuthorizationOptions = {
+  /** Bulletin WebSocket RPC endpoint URL */
+  rpc: string;
+  /** Signer with Authorizer privileges */
+  signer: PolkadotSigner;
+  /** SS58 address of the account whose authorization should be refreshed */
+  targetAddress: string;
+  /** Optional human-readable progress callback */
+  onPhase?: BulletinPhaseHandler;
 };
 
 export type ValidatePathResult = {

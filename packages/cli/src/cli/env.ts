@@ -7,6 +7,7 @@ import { normalizeAccountName } from "./keystore/payload";
 export const ENV = {
   DOTNS_ENV: "DOTNS_ENV",
   RPC: "DOTNS_RPC",
+  BULLETIN_RPC: "DOTNS_BULLETIN_RPC",
   MNEMONIC: "DOTNS_MNEMONIC",
   KEY_URI: "DOTNS_KEY_URI",
   // Keystore directory (per-account files live here)
@@ -27,7 +28,30 @@ export function resolveDotnsEnvironment(maybeEnvironment?: string): DotnsEnviron
 
 export function resolveRpc(maybeRpc?: string, maybeEnvironment?: string): string {
   const environment = resolveDotnsEnvironment(maybeEnvironment);
-  return maybeRpc || process.env[ENV.RPC] || environment.rpc;
+  const resolved = maybeRpc || process.env[ENV.RPC] || environment.rpc;
+  if (!resolved) {
+    throw new Error(
+      `Environment '${environment.id}' has no Asset Hub RPC configured. Set --rpc, ${ENV.RPC}, or use --env paseo-v2.`,
+    );
+  }
+  return resolved;
+}
+
+/**
+ * Resolve the bulletin WebSocket RPC endpoint.
+ *
+ * Precedence: explicit argument => `DOTNS_BULLETIN_RPC` env var => active
+ * environment's `bulletinRpc`.
+ */
+export function resolveBulletinRpc(maybeRpc?: string, maybeEnvironment?: string): string {
+  const environment = resolveDotnsEnvironment(maybeEnvironment);
+  const resolved = maybeRpc || process.env[ENV.BULLETIN_RPC] || environment.bulletinRpc;
+  if (!resolved) {
+    throw new Error(
+      `Environment '${environment.id}' has no bulletin RPC configured. Set --bulletin-rpc, ${ENV.BULLETIN_RPC}, or use --env paseo-v2.`,
+    );
+  }
+  return resolved;
 }
 
 export function resolveMinBalancePas(maybeMin?: string): string {
@@ -42,7 +66,6 @@ export function resolveKeystoreDir(maybeDir?: string): string {
   return maybeDir || process.env[ENV.KEYSTORE_PATH] || getDefaultKeystoreDir();
 }
 
-// Keep the old name if other modules already import it.
 export function resolveKeystorePath(maybeDir?: string): string {
   return resolveKeystoreDir(maybeDir);
 }

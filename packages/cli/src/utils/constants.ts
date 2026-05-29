@@ -105,7 +105,24 @@ export const PERSONHOOD_ABI = [
 
 export const RPC_ENDPOINTS = [PASEO_ASSET_HUB_URL] as const;
 
-export const DOTNS_ENVIRONMENT_IDS = ["paseo-v2"] as const;
+/**
+ * Default libp2p peer addresses used to bootstrap a Helia client against the
+ * Paseo V2 bulletin (next) network. Other environments declare their own peer
+ * lists in `DOTNS_ENVIRONMENTS`.
+ */
+export const PASEO_BULLETIN_PEERS: readonly string[] = [
+  "/dns4/paseo-bulletin-collator-node-0.parity-testnet.parity.io/tcp/443/wss/p2p/12D3KooWRuKisocQ2Z5hBZagV5YGxJMYuW13xT42sUiUCWf5bRtu",
+  "/dns4/paseo-bulletin-collator-node-1.parity-testnet.parity.io/tcp/443/wss/p2p/12D3KooWSgdX2egCUiXtDUNV6hGh6JrtTb9vQ6iRfFMdnTemQDDp",
+  "/dns4/paseo-bulletin-rpc-node-0.polkadot.io/tcp/443/wss/p2p/12D3KooWG7dt8yAMBaNrWh5juvHMGvJtPKTCaS87kkadWZKpV7ox",
+  "/dns4/paseo-bulletin-rpc-node-1.polkadot.io/tcp/443/wss/p2p/12D3KooWSS9QNRiLGBoZrDrtXvPyBV7QrV7F3A1V8f6xAXECSnj5",
+];
+
+export const DOTNS_ENVIRONMENT_IDS = [
+  "paseo-v2",
+  "paseo",
+  "previewnet",
+  "rococo-pop-stable",
+] as const;
 export type DotnsEnvironmentId = (typeof DOTNS_ENVIRONMENT_IDS)[number];
 
 export type DotnsContractAddresses = {
@@ -141,9 +158,34 @@ export type DotnsEnvironmentConfig = {
   id: DotnsEnvironmentId;
   label: string;
   aliases: readonly string[];
-  rpc: string;
+  /**
+   * Asset Hub WebSocket RPC endpoint. `null` for environments without an Asset
+   * Hub (bulletin-only). Asset Hub-dependent commands throw a clear error when
+   * accessed on such an environment.
+   */
+  rpc: string | null;
   blockExplorerUrl: string;
-  contracts: DotnsContractAddresses;
+  /**
+   * Contract address book. `null` when contracts have not been deployed to (or
+   * recorded for) this environment. `CONTRACTS` accesses throw in that case.
+   */
+  contracts: DotnsContractAddresses | null;
+  /**
+   * Bulletin chain WebSocket RPC endpoint. `null` for environments without a
+   * bulletin deployment. `resolveBulletinRpc` throws if nothing resolves.
+   */
+  bulletinRpc: string | null;
+  /**
+   * IPFS HTTP gateway base URL (with or without trailing `/ipfs`). `null` for
+   * environments where no gateway is operated; verification calls throw rather
+   * than silently swapping to the Paseo gateway.
+   */
+  ipfsGatewayUrl: string | null;
+  /**
+   * libp2p multiaddresses for the bulletin P2P swarm. Empty list means P2P
+   * verification is not available for this environment.
+   */
+  bulletinP2pPeers: readonly string[];
 };
 
 const SHARED_MULTICALL3 = "0xFc430CcCdb9335C1907fc72e93eb1f48e847319C" as Address;
@@ -152,7 +194,7 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
   "paseo-v2": {
     id: "paseo-v2",
     label: "Paseo V2",
-    aliases: ["paseo-v2", "paseo_v2", "v2", "paseo", "next", "next-v2"],
+    aliases: ["paseo-v2", "paseo_v2", "v2", "next", "next-v2"],
     rpc: RPC_ENDPOINTS[0],
     blockExplorerUrl: "https://blockscout-testnet.polkadot.io",
     contracts: {
@@ -166,6 +208,47 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
       DOTNS_NAME_ESCROW: "0x2Cb9899d91Ee575E8917958723F5E941b1BcC6A1" as Address,
       MULTICALL3: SHARED_MULTICALL3,
     },
+    bulletinRpc: DEFAULT_BULLETIN_RPC,
+    ipfsGatewayUrl: PASEO_IPFS_GATEWAY_URL,
+    bulletinP2pPeers: PASEO_BULLETIN_PEERS,
+  },
+  paseo: {
+    id: "paseo",
+    label: "Paseo",
+    aliases: ["paseo"],
+    rpc: "wss://asset-hub-paseo-rpc.n.dwellir.com",
+    blockExplorerUrl: "https://blockscout-testnet.polkadot.io",
+    contracts: null,
+    bulletinRpc: "wss://paseo-bulletin-rpc.polkadot.io",
+    ipfsGatewayUrl: "https://paseo-ipfs.polkadot.io/ipfs",
+    bulletinP2pPeers: [
+      "/dns4/paseo-bulletin-collator-node-0.parity-testnet.parity.io/tcp/443/wss/p2p/12D3KooWRuKisocQ2Z5hBZagV5YGxJMYuW13xT42sUiUCWf5bRtu",
+      "/dns4/paseo-bulletin-collator-node-1.parity-testnet.parity.io/tcp/443/wss/p2p/12D3KooWSgdX2egCUiXtDUNV6hGh6JrtTb9vQ6iRfFMdnTemQDDp",
+      "/dns4/paseo-bulletin-rpc-node-0.polkadot.io/tcp/443/wss/p2p/12D3KooWG7dt8yAMBaNrWh5juvHMGvJtPKTCaS87kkadWZKpV7ox",
+      "/dns4/paseo-bulletin-rpc-node-1.polkadot.io/tcp/443/wss/p2p/12D3KooWSS9QNRiLGBoZrDrtXvPyBV7QrV7F3A1V8f6xAXECSnj5",
+    ],
+  },
+  previewnet: {
+    id: "previewnet",
+    label: "Preview Net",
+    aliases: ["previewnet", "preview"],
+    rpc: "wss://previewnet.substrate.dev/asset-hub",
+    blockExplorerUrl: "https://blockscout-testnet.polkadot.io",
+    contracts: null,
+    bulletinRpc: "wss://previewnet.substrate.dev/bulletin",
+    ipfsGatewayUrl: "https://previewnet.substrate.dev/ipfs",
+    bulletinP2pPeers: [],
+  },
+  "rococo-pop-stable": {
+    id: "rococo-pop-stable",
+    label: "Rococo POP Stable",
+    aliases: ["rococo-pop-stable", "rococo-pop", "pop-stable", "pop3"],
+    rpc: "wss://pop3-testnet.parity-lab.parity.io/asset-hub",
+    blockExplorerUrl: "https://blockscout-testnet.polkadot.io",
+    contracts: null,
+    bulletinRpc: "wss://pop3-testnet.parity-lab.parity.io/bulletin",
+    ipfsGatewayUrl: "https://pop3-testnet.parity-lab.parity.io/ipfs",
+    bulletinP2pPeers: [],
   },
 };
 
@@ -207,20 +290,30 @@ export function getDotnsEnvironment(value?: string): DotnsEnvironmentConfig {
   return DOTNS_ENVIRONMENTS[resolveDotnsEnvironmentId(value)];
 }
 
+function requireContracts(): DotnsContractAddresses {
+  const environment = getActiveDotnsEnvironment();
+  if (!environment.contracts) {
+    throw new Error(
+      `Contract addresses for environment '${environment.id}' are not configured. Use --env paseo-v2 or set DOTNS_ENV=paseo-v2.`,
+    );
+  }
+  return environment.contracts;
+}
+
 export const CONTRACTS = new Proxy({} as DotnsContractAddresses, {
   get(_target, property: string | symbol) {
     if (typeof property === "symbol") return undefined;
-    return getActiveDotnsEnvironment().contracts[property as keyof DotnsContractAddresses];
+    return requireContracts()[property as keyof DotnsContractAddresses];
   },
   ownKeys() {
-    return Reflect.ownKeys(getActiveDotnsEnvironment().contracts);
+    return Reflect.ownKeys(requireContracts());
   },
   getOwnPropertyDescriptor(_target, property: string | symbol) {
     if (typeof property === "symbol") return undefined;
     return {
       enumerable: true,
       configurable: true,
-      value: getActiveDotnsEnvironment().contracts[property as keyof DotnsContractAddresses],
+      value: requireContracts()[property as keyof DotnsContractAddresses],
     };
   },
 }) as DotnsContractAddresses;

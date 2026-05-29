@@ -29,7 +29,7 @@ test("defaults to paseo-v2", () => {
 
 test("accepts friendly paseo-v2 aliases", () => {
   expect(resolveDotnsEnvironmentId("Paseo V2")).toBe("paseo-v2");
-  expect(resolveDotnsEnvironmentId("paseo")).toBe("paseo-v2");
+  expect(resolveDotnsEnvironmentId("v2")).toBe("paseo-v2");
   expect(resolveDotnsEnvironmentId("next")).toBe("paseo-v2");
 });
 
