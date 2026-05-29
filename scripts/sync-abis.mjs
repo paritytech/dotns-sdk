@@ -93,11 +93,29 @@ async function downloadAsset(asset) {
 	return await first.text();
 }
 
+// Upstream may publish either a bare ABI array or a full forge artifact
+// ({ abi, bytecode, ... }). The SDK consumes the bare array, so normalise to
+// that shape here rather than letting the published format leak into the code.
+function normaliseAbi(name, body) {
+	let parsed;
+	try {
+		parsed = JSON.parse(body);
+	} catch {
+		throw new Error(`${name}: asset is not valid JSON`);
+	}
+	const abi = Array.isArray(parsed) ? parsed : parsed?.abi;
+	if (!Array.isArray(abi)) {
+		throw new Error(`${name}: asset has no ABI array`);
+	}
+	return `${JSON.stringify(abi, null, 2)}\n`;
+}
+
 async function writeAbi(name, body) {
+	const abi = normaliseAbi(name, body);
 	await Promise.all(
 		TARGETS.map(async (dir) => {
 			await mkdir(dir, { recursive: true });
-			await writeFile(join(dir, `${name}.json`), body);
+			await writeFile(join(dir, `${name}.json`), abi);
 		}),
 	);
 }

@@ -50,16 +50,16 @@ export function getCommitmentBufferSeconds(): number {
   return parsed;
 }
 
-export const DOTNS_REGISTRAR_CONTROLLER_ABI = DotnsRegistrarController.abi as Abi;
-export const DOTNS_REGISTRY_ABI = DotnsRegistry.abi as Abi;
-export const DOTNS_REGISTRAR_ABI = DotnsRegistrar.abi as Abi;
-export const DOTNS_REVERSE_RESOLVER_ABI = DotnsReverseResolver.abi as Abi;
-export const DOTNS_CONTENT_RESOLVER_ABI = DotnsContentResolver.abi as Abi;
-export const DOTNS_RESOLVER_ABI = DotnsResolver.abi as Abi;
-export const DOTNS_NAME_ESCROW_ABI = DotnsNameEscrow.abi as Abi;
-export const POP_RULES_ABI = PopRules.abi as Abi;
-export const STORE_FACTORY_ABI = StoreFactory.abi as Abi;
-export const STORE_ABI = Store.abi as Abi;
+export const DOTNS_REGISTRAR_CONTROLLER_ABI = DotnsRegistrarController as Abi;
+export const DOTNS_REGISTRY_ABI = DotnsRegistry as Abi;
+export const DOTNS_REGISTRAR_ABI = DotnsRegistrar as Abi;
+export const DOTNS_REVERSE_RESOLVER_ABI = DotnsReverseResolver as Abi;
+export const DOTNS_CONTENT_RESOLVER_ABI = DotnsContentResolver as Abi;
+export const DOTNS_RESOLVER_ABI = DotnsResolver as Abi;
+export const DOTNS_NAME_ESCROW_ABI = DotnsNameEscrow as Abi;
+export const POP_RULES_ABI = PopRules as Abi;
+export const STORE_FACTORY_ABI = StoreFactory as Abi;
+export const STORE_ABI = Store as Abi;
 export const PERSONHOOD_ABI = [
   {
     type: "function",

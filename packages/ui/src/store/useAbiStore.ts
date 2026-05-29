@@ -40,16 +40,16 @@ export const useAbiStore = defineStore("useAbiStore", () => {
       import("../../abis/DotnsRegistry.json"),
     ]);
 
-    DotnsRegistrarControllerABI = DotnsRegistrarController.abi as Abi;
-    DotnsRegistrarABI = DotnsRegistrar.abi as Abi;
-    DotnsResolverABI = DotnsResolver.abi as Abi;
-    DotnsReverseResolverABI = DotnsReverseResolver.abi as Abi;
-    DotnsContentResolverABI = DotnsContentResolver.abi as Abi;
-    StoreFactoryABI = StoreFactory.abi as Abi;
-    StoreABI = Store.abi as Abi;
-    PopOracleABI = PopOracle.abi as Abi;
-    MultiCallABI = MultiCall.abi as Abi;
-    DotnsRegistryABI = DotnsRegistry.abi as Abi;
+    DotnsRegistrarControllerABI = DotnsRegistrarController.default as Abi;
+    DotnsRegistrarABI = DotnsRegistrar.default as Abi;
+    DotnsResolverABI = DotnsResolver.default as Abi;
+    DotnsReverseResolverABI = DotnsReverseResolver.default as Abi;
+    DotnsContentResolverABI = DotnsContentResolver.default as Abi;
+    StoreFactoryABI = StoreFactory.default as Abi;
+    StoreABI = Store.default as Abi;
+    PopOracleABI = PopOracle.default as Abi;
+    MultiCallABI = MultiCall.default as Abi;
+    DotnsRegistryABI = DotnsRegistry.default as Abi;
   }
 
   function getABI(name: AbiName): Abi {
