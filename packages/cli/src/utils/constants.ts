@@ -5,6 +5,7 @@ import DotnsRegistrar from "../../abis/DotnsRegistrar.json" assert { type: "json
 import DotnsReverseResolver from "../../abis/DotnsReverseResolver.json" assert { type: "json" };
 import DotnsContentResolver from "../../abis/DotnsContentResolver.json" assert { type: "json" };
 import DotnsResolver from "../../abis/DotnsResolver.json" assert { type: "json" };
+import DotnsNameEscrow from "../../abis/DotnsNameEscrow.json" assert { type: "json" };
 import PopRules from "../../abis/PopRules.json" assert { type: "json" };
 import StoreFactory from "../../abis/StoreFactory.json" assert { type: "json" };
 import Store from "../../abis/Store.json" assert { type: "json" };
@@ -49,15 +50,16 @@ export function getCommitmentBufferSeconds(): number {
   return parsed;
 }
 
-export const DOTNS_REGISTRAR_CONTROLLER_ABI = DotnsRegistrarController.abi as Abi;
-export const DOTNS_REGISTRY_ABI = DotnsRegistry.abi as Abi;
-export const DOTNS_REGISTRAR_ABI = DotnsRegistrar.abi as Abi;
-export const DOTNS_REVERSE_RESOLVER_ABI = DotnsReverseResolver.abi as Abi;
-export const DOTNS_CONTENT_RESOLVER_ABI = DotnsContentResolver.abi as Abi;
-export const DOTNS_RESOLVER_ABI = DotnsResolver.abi as Abi;
-export const POP_RULES_ABI = PopRules.abi as Abi;
-export const STORE_FACTORY_ABI = StoreFactory.abi as Abi;
-export const STORE_ABI = Store.abi as Abi;
+export const DOTNS_REGISTRAR_CONTROLLER_ABI = DotnsRegistrarController as Abi;
+export const DOTNS_REGISTRY_ABI = DotnsRegistry as Abi;
+export const DOTNS_REGISTRAR_ABI = DotnsRegistrar as Abi;
+export const DOTNS_REVERSE_RESOLVER_ABI = DotnsReverseResolver as Abi;
+export const DOTNS_CONTENT_RESOLVER_ABI = DotnsContentResolver as Abi;
+export const DOTNS_RESOLVER_ABI = DotnsResolver as Abi;
+export const DOTNS_NAME_ESCROW_ABI = DotnsNameEscrow as Abi;
+export const POP_RULES_ABI = PopRules as Abi;
+export const STORE_FACTORY_ABI = StoreFactory as Abi;
+export const STORE_ABI = Store as Abi;
 export const PERSONHOOD_ABI = [
   {
     type: "function",
@@ -103,7 +105,24 @@ export const PERSONHOOD_ABI = [
 
 export const RPC_ENDPOINTS = [PASEO_ASSET_HUB_URL] as const;
 
-export const DOTNS_ENVIRONMENT_IDS = ["paseo-v2"] as const;
+/**
+ * Default libp2p peer addresses used to bootstrap a Helia client against the
+ * Paseo V2 bulletin (next) network. Other environments declare their own peer
+ * lists in `DOTNS_ENVIRONMENTS`.
+ */
+export const PASEO_BULLETIN_PEERS: readonly string[] = [
+  "/dns4/paseo-bulletin-collator-node-0.parity-testnet.parity.io/tcp/443/wss/p2p/12D3KooWRuKisocQ2Z5hBZagV5YGxJMYuW13xT42sUiUCWf5bRtu",
+  "/dns4/paseo-bulletin-collator-node-1.parity-testnet.parity.io/tcp/443/wss/p2p/12D3KooWSgdX2egCUiXtDUNV6hGh6JrtTb9vQ6iRfFMdnTemQDDp",
+  "/dns4/paseo-bulletin-rpc-node-0.polkadot.io/tcp/443/wss/p2p/12D3KooWG7dt8yAMBaNrWh5juvHMGvJtPKTCaS87kkadWZKpV7ox",
+  "/dns4/paseo-bulletin-rpc-node-1.polkadot.io/tcp/443/wss/p2p/12D3KooWSS9QNRiLGBoZrDrtXvPyBV7QrV7F3A1V8f6xAXECSnj5",
+];
+
+export const DOTNS_ENVIRONMENT_IDS = [
+  "paseo-v2",
+  "paseo",
+  "previewnet",
+  "rococo-pop-stable",
+] as const;
 export type DotnsEnvironmentId = (typeof DOTNS_ENVIRONMENT_IDS)[number];
 
 export type DotnsContractAddresses = {
@@ -128,6 +147,9 @@ export type DotnsContractAddresses = {
   /** Proof of Personhood RULES - verifies eligibility and pricing */
   DOTNS_RULES: Address;
 
+  /** Name escrow - holds NoStatus deposits and the refund-on-leave ledger */
+  DOTNS_NAME_ESCROW: Address;
+
   /** Multicall3 - batch read contract calls */
   MULTICALL3: Address;
 };
@@ -136,30 +158,97 @@ export type DotnsEnvironmentConfig = {
   id: DotnsEnvironmentId;
   label: string;
   aliases: readonly string[];
-  rpc: string;
+  /**
+   * Asset Hub WebSocket RPC endpoint. `null` for environments without an Asset
+   * Hub (bulletin-only). Asset Hub-dependent commands throw a clear error when
+   * accessed on such an environment.
+   */
+  rpc: string | null;
   blockExplorerUrl: string;
-  contracts: DotnsContractAddresses;
+  /**
+   * Contract address book. `null` when contracts have not been deployed to (or
+   * recorded for) this environment. `CONTRACTS` accesses throw in that case.
+   */
+  contracts: DotnsContractAddresses | null;
+  /**
+   * Bulletin chain WebSocket RPC endpoint. `null` for environments without a
+   * bulletin deployment. `resolveBulletinRpc` throws if nothing resolves.
+   */
+  bulletinRpc: string | null;
+  /**
+   * IPFS HTTP gateway base URL (with or without trailing `/ipfs`). `null` for
+   * environments where no gateway is operated; verification calls throw rather
+   * than silently swapping to the Paseo gateway.
+   */
+  ipfsGatewayUrl: string | null;
+  /**
+   * libp2p multiaddresses for the bulletin P2P swarm. Empty list means P2P
+   * verification is not available for this environment.
+   */
+  bulletinP2pPeers: readonly string[];
 };
 
-const SHARED_MULTICALL3 = "0x807A65D3F3020011Fe0A61723d51362556C14ffd" as Address;
+const SHARED_MULTICALL3 = "0xFc430CcCdb9335C1907fc72e93eb1f48e847319C" as Address;
 
 export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConfig> = {
   "paseo-v2": {
     id: "paseo-v2",
     label: "Paseo V2",
-    aliases: ["paseo-v2", "paseo_v2", "v2", "paseo", "next", "next-v2"],
+    aliases: ["paseo-v2", "paseo_v2", "v2", "next", "next-v2"],
     rpc: RPC_ENDPOINTS[0],
     blockExplorerUrl: "https://blockscout-testnet.polkadot.io",
     contracts: {
-      DOTNS_REGISTRAR: "0x885b8085bA92A31c4ef52076f77379E647ECC399" as Address,
-      DOTNS_REGISTRAR_CONTROLLER: "0x320b72c6e70D5a631d835FfD95915B288b26E6Be" as Address,
-      DOTNS_REGISTRY: "0x8877344A885682523B4613779C95688ed7037BfD" as Address,
-      DOTNS_RESOLVER: "0x0cCdfea1a5E62DE116BF6cA79D397798d49e351E" as Address,
-      DOTNS_CONTENT_RESOLVER: "0x2c9FF5D9136DBE5814C7B4FDbeDC15273a776663" as Address,
-      STORE_FACTORY: "0x0DE5De70d61cc6b44B45d6595afDe8dB9b55bc31" as Address,
-      DOTNS_RULES: "0x2002C1c15b88632Ad01c7770f6EbE1Ca05c8472E" as Address,
+      DOTNS_REGISTRAR: "0xf7Ad3F44F316C73E4a2b46b1ed48d376bCc9E639" as Address,
+      DOTNS_REGISTRAR_CONTROLLER: "0x674b705268DAE369F0a7BE9cbaCDb928b8BA38C2" as Address,
+      DOTNS_REGISTRY: "0xa1b2b939E82b2ecE55Bd8a0E283818BfC1CA6CDc" as Address,
+      DOTNS_RESOLVER: "0xA8988eA083174ea94Ed1D686f0F073a10f65598D" as Address,
+      DOTNS_CONTENT_RESOLVER: "0x8A26480b0B5Df3d4D9b95adc24a5Ecb33A5b8F64" as Address,
+      STORE_FACTORY: "0x692047C1477a017F287488E1c85F96Ca28C23fD8" as Address,
+      DOTNS_RULES: "0x4909bFb3f4Fd86244abD6430fDfA0Ce5C91aD0c4" as Address,
+      DOTNS_NAME_ESCROW: "0x2Cb9899d91Ee575E8917958723F5E941b1BcC6A1" as Address,
       MULTICALL3: SHARED_MULTICALL3,
     },
+    bulletinRpc: DEFAULT_BULLETIN_RPC,
+    ipfsGatewayUrl: PASEO_IPFS_GATEWAY_URL,
+    bulletinP2pPeers: PASEO_BULLETIN_PEERS,
+  },
+  paseo: {
+    id: "paseo",
+    label: "Paseo",
+    aliases: ["paseo"],
+    rpc: "wss://asset-hub-paseo-rpc.n.dwellir.com",
+    blockExplorerUrl: "https://blockscout-testnet.polkadot.io",
+    contracts: null,
+    bulletinRpc: "wss://paseo-bulletin-rpc.polkadot.io",
+    ipfsGatewayUrl: "https://paseo-ipfs.polkadot.io/ipfs",
+    bulletinP2pPeers: [
+      "/dns4/paseo-bulletin-collator-node-0.parity-testnet.parity.io/tcp/443/wss/p2p/12D3KooWRuKisocQ2Z5hBZagV5YGxJMYuW13xT42sUiUCWf5bRtu",
+      "/dns4/paseo-bulletin-collator-node-1.parity-testnet.parity.io/tcp/443/wss/p2p/12D3KooWSgdX2egCUiXtDUNV6hGh6JrtTb9vQ6iRfFMdnTemQDDp",
+      "/dns4/paseo-bulletin-rpc-node-0.polkadot.io/tcp/443/wss/p2p/12D3KooWG7dt8yAMBaNrWh5juvHMGvJtPKTCaS87kkadWZKpV7ox",
+      "/dns4/paseo-bulletin-rpc-node-1.polkadot.io/tcp/443/wss/p2p/12D3KooWSS9QNRiLGBoZrDrtXvPyBV7QrV7F3A1V8f6xAXECSnj5",
+    ],
+  },
+  previewnet: {
+    id: "previewnet",
+    label: "Preview Net",
+    aliases: ["previewnet", "preview"],
+    rpc: "wss://previewnet.substrate.dev/asset-hub",
+    blockExplorerUrl: "https://blockscout-testnet.polkadot.io",
+    contracts: null,
+    bulletinRpc: "wss://previewnet.substrate.dev/bulletin",
+    ipfsGatewayUrl: "https://previewnet.substrate.dev/ipfs",
+    bulletinP2pPeers: [],
+  },
+  "rococo-pop-stable": {
+    id: "rococo-pop-stable",
+    label: "Rococo POP Stable",
+    aliases: ["rococo-pop-stable", "rococo-pop", "pop-stable", "pop3"],
+    rpc: "wss://pop3-testnet.parity-lab.parity.io/asset-hub",
+    blockExplorerUrl: "https://blockscout-testnet.polkadot.io",
+    contracts: null,
+    bulletinRpc: "wss://pop3-testnet.parity-lab.parity.io/bulletin",
+    ipfsGatewayUrl: "https://pop3-testnet.parity-lab.parity.io/ipfs",
+    bulletinP2pPeers: [],
   },
 };
 
@@ -201,20 +290,30 @@ export function getDotnsEnvironment(value?: string): DotnsEnvironmentConfig {
   return DOTNS_ENVIRONMENTS[resolveDotnsEnvironmentId(value)];
 }
 
+function requireContracts(): DotnsContractAddresses {
+  const environment = getActiveDotnsEnvironment();
+  if (!environment.contracts) {
+    throw new Error(
+      `Contract addresses for environment '${environment.id}' are not configured. Use --env paseo-v2 or set DOTNS_ENV=paseo-v2.`,
+    );
+  }
+  return environment.contracts;
+}
+
 export const CONTRACTS = new Proxy({} as DotnsContractAddresses, {
   get(_target, property: string | symbol) {
     if (typeof property === "symbol") return undefined;
-    return getActiveDotnsEnvironment().contracts[property as keyof DotnsContractAddresses];
+    return requireContracts()[property as keyof DotnsContractAddresses];
   },
   ownKeys() {
-    return Reflect.ownKeys(getActiveDotnsEnvironment().contracts);
+    return Reflect.ownKeys(requireContracts());
   },
   getOwnPropertyDescriptor(_target, property: string | symbol) {
     if (typeof property === "symbol") return undefined;
     return {
       enumerable: true,
       configurable: true,
-      value: getActiveDotnsEnvironment().contracts[property as keyof DotnsContractAddresses],
+      value: requireContracts()[property as keyof DotnsContractAddresses],
     };
   },
 }) as DotnsContractAddresses;

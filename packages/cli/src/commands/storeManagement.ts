@@ -37,7 +37,7 @@ import type {
   Multicall3Result,
 } from "../types/types";
 
-const MULTICALL3_ABI = Multicall3Json.abi as Abi;
+const MULTICALL3_ABI = Multicall3Json as Abi;
 const MULTICALL_CHUNK_SIZE = 20;
 
 function normalizeKeyToBytes32(raw: string): `0x${string}` {

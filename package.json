@@ -6,6 +6,8 @@
   "scripts": {
     "hooks:install": "git config core.hooksPath .githooks",
     "prepare": "git config core.hooksPath .githooks || true",
+    "postinstall": "node scripts/sync-abis.mjs",
+    "sync:abis": "node scripts/sync-abis.mjs",
     "format": "bun run --cwd packages/cli format && bun run --cwd packages/ui format",
     "format:fix": "bun run --cwd packages/cli format:fix && bun run --cwd packages/ui format:fix",
     "lint": "bun run --cwd packages/cli lint && bun run --cwd packages/ui lint",

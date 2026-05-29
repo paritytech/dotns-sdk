@@ -7,6 +7,7 @@ import { attachTextCommands } from "./text";
 import { attachPopCommands } from "./pop";
 import { attachBulletinCommands } from "./bulletin";
 import { attachAccountCommands } from "./info";
+import { attachEscrowCommands } from "./escrow";
 
 export function attachAllCommands(root: Command) {
   attachAuthCommands(root);
@@ -17,4 +18,5 @@ export function attachAllCommands(root: Command) {
   attachPopCommands(root);
   attachBulletinCommands(root);
   attachAccountCommands(root);
+  attachEscrowCommands(root);
 }

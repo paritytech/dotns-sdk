@@ -5,6 +5,7 @@ import { blake2b256 } from "@multiformats/blake2/blake2b";
 import { sha256 } from "multiformats/hashes/sha2";
 import { from as hasherFrom } from "multiformats/hashes/hasher";
 import { keccak_256 } from "@noble/hashes/sha3.js";
+import { getActiveDotnsEnvironment } from "../utils/constants";
 
 const keccak256Hasher = hasherFrom({
   name: "keccak-256",
@@ -12,18 +13,21 @@ const keccak256Hasher = hasherFrom({
   encode: (input: Uint8Array) => keccak_256(input),
 });
 
-export const PASEO_BULLETIN_PEERS = [
-  "/dns4/paseo-bulletin-collator-node-0.parity-testnet.parity.io/tcp/443/wss/p2p/12D3KooWRuKisocQ2Z5hBZagV5YGxJMYuW13xT42sUiUCWf5bRtu",
-  "/dns4/paseo-bulletin-collator-node-1.parity-testnet.parity.io/tcp/443/wss/p2p/12D3KooWSgdX2egCUiXtDUNV6hGh6JrtTb9vQ6iRfFMdnTemQDDp",
-  "/dns4/paseo-bulletin-rpc-node-0.polkadot.io/tcp/443/wss/p2p/12D3KooWG7dt8yAMBaNrWh5juvHMGvJtPKTCaS87kkadWZKpV7ox",
-  "/dns4/paseo-bulletin-rpc-node-1.polkadot.io/tcp/443/wss/p2p/12D3KooWSS9QNRiLGBoZrDrtXvPyBV7QrV7F3A1V8f6xAXECSnj5",
-];
-
 const FETCH_TIMEOUT_MS = 30_000;
 
 export interface HeliaFetchResult {
   data: Uint8Array;
   size: number;
+}
+
+function resolveDefaultPeers(): readonly string[] {
+  const environment = getActiveDotnsEnvironment();
+  if (environment.bulletinP2pPeers.length === 0) {
+    throw new Error(
+      `P2P verification has no peers configured for environment '${environment.id}'; falling back to gateway or skip with --no-verify.`,
+    );
+  }
+  return environment.bulletinP2pPeers;
 }
 
 function extractAllowedPeerIds(peerAddresses: string[]): Set<string> {
@@ -81,8 +85,8 @@ export class BulletinHeliaClient {
   private helia: Helia | null = null;
   private peerAddresses: string[];
 
-  constructor(peerAddresses: string[] = PASEO_BULLETIN_PEERS) {
-    this.peerAddresses = peerAddresses;
+  constructor(peerAddresses?: readonly string[]) {
+    this.peerAddresses = peerAddresses ? [...peerAddresses] : [...resolveDefaultPeers()];
   }
 
   async initialize(): Promise<void> {

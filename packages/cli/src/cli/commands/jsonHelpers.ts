@@ -53,13 +53,21 @@ export function getJsonFlag(command: any): boolean {
 }
 
 /**
+ * JSON.stringify replacer that serialises bigint values as decimal strings.
+ * Consumers parse them back with `BigInt(value)` when they need the numeric form.
+ */
+function bigintReplacer(_key: string, value: unknown): unknown {
+  return typeof value === "bigint" ? value.toString() : value;
+}
+
+/**
  * Emit a JSON result to stdout if --json is active.
  * Returns true if JSON was emitted, false otherwise (so the caller
  * can provide human-readable output in the else branch).
  */
 export function emitJsonResult(jsonOutput: boolean, result: unknown): boolean {
   if (jsonOutput) {
-    console.log(JSON.stringify(result));
+    console.log(JSON.stringify(result, bigintReplacer));
     return true;
   }
   return false;
