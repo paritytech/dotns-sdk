@@ -1,440 +1,438 @@
-{
-  "abi": [
-    {
-      "type": "constructor",
-      "inputs": [
-        {
-          "name": "protocolRegistry_",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "claimUserStore",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "store",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "deployLabelStoreFor",
-      "inputs": [
-        {
-          "name": "user",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "store",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "getLabelStore",
-      "inputs": [
-        {
-          "name": "user",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "store",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "getLabelStoreCount",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "count",
-          "type": "uint256",
-          "internalType": "uint256"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "getLabelStores",
-      "inputs": [
-        {
-          "name": "offset",
-          "type": "uint256",
-          "internalType": "uint256"
-        },
-        {
-          "name": "limit",
-          "type": "uint256",
-          "internalType": "uint256"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "stores",
-          "type": "address[]",
-          "internalType": "address[]"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "getUserStore",
-      "inputs": [
-        {
-          "name": "user",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "store",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "getUserStoreCount",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "count",
-          "type": "uint256",
-          "internalType": "uint256"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "getUserStores",
-      "inputs": [
-        {
-          "name": "offset",
-          "type": "uint256",
-          "internalType": "uint256"
-        },
-        {
-          "name": "limit",
-          "type": "uint256",
-          "internalType": "uint256"
-        }
-      ],
-      "outputs": [
-        {
-          "name": "stores",
-          "type": "address[]",
-          "internalType": "address[]"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "labelStoreBeacon",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "owner",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "protocolRegistry",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "renounceOwnership",
-      "inputs": [],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "transferOwnership",
-      "inputs": [
-        {
-          "name": "newOwner",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "upgradeLabelStoreImplementation",
-      "inputs": [
-        {
-          "name": "newImplementation",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "upgradeUserStoreImplementation",
-      "inputs": [
-        {
-          "name": "newImplementation",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "userStoreBeacon",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "",
-          "type": "address",
-          "internalType": "address"
-        }
-      ],
-      "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "version",
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "versionString",
-          "type": "string",
-          "internalType": "string"
-        }
-      ],
-      "stateMutability": "pure"
-    },
-    {
-      "type": "event",
-      "name": "LabelStoreDeployed",
-      "inputs": [
-        {
-          "name": "user",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "store",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "LabelStoreImplementationUpgraded",
-      "inputs": [
-        {
-          "name": "newImplementation",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "OwnershipTransferred",
-      "inputs": [
-        {
-          "name": "previousOwner",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "newOwner",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "UserStoreClaimed",
-      "inputs": [
-        {
-          "name": "user",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "store",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
-      "name": "UserStoreImplementationUpgraded",
-      "inputs": [
-        {
-          "name": "newImplementation",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "error",
-      "name": "AlreadyDeployed",
-      "inputs": [
-        {
-          "name": "user",
-          "type": "address",
-          "internalType": "address"
-        },
-        {
-          "name": "existingStore",
-          "type": "address",
-          "internalType": "address"
-        }
-      ]
-    },
-    {
-      "type": "error",
-      "name": "ImplementationBindingMismatch",
-      "inputs": []
-    },
-    {
-      "type": "error",
-      "name": "InvalidImplementation",
-      "inputs": [
-        {
-          "name": "implementation",
-          "type": "address",
-          "internalType": "address"
-        }
-      ]
-    },
-    {
-      "type": "error",
-      "name": "InvalidProtocolRegistry",
-      "inputs": [
-        {
-          "name": "protocolRegistry",
-          "type": "address",
-          "internalType": "address"
-        }
-      ]
-    },
-    {
-      "type": "error",
-      "name": "InvalidUser",
-      "inputs": [
-        {
-          "name": "user",
-          "type": "address",
-          "internalType": "address"
-        }
-      ]
-    },
-    {
-      "type": "error",
-      "name": "NotAuthorised",
-      "inputs": [
-        {
-          "name": "caller",
-          "type": "address",
-          "internalType": "address"
-        }
-      ]
-    },
-    {
-      "type": "error",
-      "name": "OwnableInvalidOwner",
-      "inputs": [
-        {
-          "name": "owner",
-          "type": "address",
-          "internalType": "address"
-        }
-      ]
-    },
-    {
-      "type": "error",
-      "name": "OwnableUnauthorizedAccount",
-      "inputs": [
-        {
-          "name": "account",
-          "type": "address",
-          "internalType": "address"
-        }
-      ]
-    }
-  ]
-}
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "protocolRegistry_",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "claimUserStore",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "store",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "deployLabelStoreFor",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "store",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getLabelStore",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "store",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getLabelStoreCount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "count",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getLabelStores",
+    "inputs": [
+      {
+        "name": "offset",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "limit",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "stores",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getUserStore",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "store",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getUserStoreCount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "count",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getUserStores",
+    "inputs": [
+      {
+        "name": "offset",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "limit",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "stores",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "labelStoreBeacon",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "protocolRegistry",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "renounceOwnership",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "transferOwnership",
+    "inputs": [
+      {
+        "name": "newOwner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "upgradeLabelStoreImplementation",
+    "inputs": [
+      {
+        "name": "newImplementation",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "upgradeUserStoreImplementation",
+    "inputs": [
+      {
+        "name": "newImplementation",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "userStoreBeacon",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "version",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "versionString",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "event",
+    "name": "LabelStoreDeployed",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "store",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "LabelStoreImplementationUpgraded",
+    "inputs": [
+      {
+        "name": "newImplementation",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "inputs": [
+      {
+        "name": "previousOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "UserStoreClaimed",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "store",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "UserStoreImplementationUpgraded",
+    "inputs": [
+      {
+        "name": "newImplementation",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "AlreadyDeployed",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "existingStore",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ImplementationBindingMismatch",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidImplementation",
+    "inputs": [
+      {
+        "name": "implementation",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidProtocolRegistry",
+    "inputs": [
+      {
+        "name": "protocolRegistry",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidUser",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "NotAuthorised",
+    "inputs": [
+      {
+        "name": "caller",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "OwnableInvalidOwner",
+    "inputs": [
+      {
+        "name": "owner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "OwnableUnauthorizedAccount",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  }
+]
