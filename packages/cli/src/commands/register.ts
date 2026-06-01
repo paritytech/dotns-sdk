@@ -92,7 +92,7 @@ export async function classifyDomainName(
     const message = classificationResult[1];
 
     spinner.succeed("Name classification");
-    console.log(chalk.gray("  required:  ") + chalk.white(ProofOfPersonhoodStatus[requiredStatus]));
+    console.log(chalk.gray("  name tier: ") + chalk.white(ProofOfPersonhoodStatus[requiredStatus]));
     console.log(chalk.gray("  message:   ") + chalk.white(message));
 
     return { requiredStatus, message };
@@ -421,11 +421,29 @@ export async function getPriceAndValidateEligibility(
 
     spinner.succeed("Eligibility and price");
     const resolvedPriceWei = classificationResult.price ?? classificationResult.priceWei;
-    console.log(chalk.gray("  required:  ") + chalk.white(ProofOfPersonhoodStatus[requiredStatus]));
-    console.log(chalk.gray("  user:      ") + chalk.white(ProofOfPersonhoodStatus[userStatus]));
+    const flatPriceWei = await withTimeout(
+      performContractCall<bigint>(
+        clientWrapper,
+        originSubstrateAddress,
+        CONTRACTS.DOTNS_RULES,
+        POP_RULES_ABI,
+        "price",
+        [label],
+      ),
+      30000,
+      "price",
+    );
+    const noStatusLabel = ProofOfPersonhoodStatus[ProofOfPersonhoodStatus.NoStatus];
+    console.log(chalk.gray("  name tier: ") + chalk.white(ProofOfPersonhoodStatus[requiredStatus]));
+    console.log(chalk.gray("  your tier: ") + chalk.white(ProofOfPersonhoodStatus[userStatus]));
     console.log(chalk.gray("  message:   ") + chalk.white(message));
     console.log(
-      chalk.gray("  price:     ") + chalk.green(`${formatWeiAsEther(resolvedPriceWei)} PAS`),
+      chalk.gray("  price (you):       ") +
+        chalk.green(`${formatWeiAsEther(resolvedPriceWei)} PAS`),
+    );
+    console.log(
+      chalk.gray(`  price (${noStatusLabel}):  `) +
+        chalk.white(`${formatWeiAsEther(flatPriceWei)} PAS`),
     );
 
     return {
