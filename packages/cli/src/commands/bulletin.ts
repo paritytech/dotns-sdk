@@ -53,6 +53,54 @@ import {
 } from "../utils/constants";
 import { formatErrorMessage, formatBytes, formatDuration } from "../utils/formatting";
 
+const U32_MAX = 0xffff_ffffn;
+
+export function clampU32(value: bigint | number, fieldName: string): number {
+  const asBigInt = typeof value === "bigint" ? value : BigInt(value);
+  if (asBigInt < 0n) {
+    throw new Error(`${fieldName} must be non-negative (received ${asBigInt})`);
+  }
+  if (asBigInt > U32_MAX) {
+    throw new Error(
+      `${fieldName} (${asBigInt}) exceeds u32 max (${U32_MAX}); choose a smaller value`,
+    );
+  }
+  return Number(asBigInt);
+}
+
+export function isAuthorizationSufficient(status: AuthorizationStatus): boolean {
+  if (!status.authorized) return false;
+  if (status.expired) return false;
+  return true;
+}
+
+export function isTestnetSpecName(specName: string | undefined | null): boolean {
+  if (!specName) return false;
+  const s = specName.toLowerCase();
+  if (s.includes("paseo")) return true;
+  if (/\b(westend|rococo)\b/.test(s)) return true;
+  if (/\b(testnet|devnet)\b/.test(s)) return true;
+  if (/-test$|-testnet$|-dev$/.test(s)) return true;
+  return false;
+}
+
+// Gates the implicit `//Alice` Authorizer fallback: mainnet without an
+// explicit signer must fail loudly instead of submitting a doomed extrinsic.
+export async function detectBulletinTestnet(rpc: string): Promise<boolean> {
+  const client = createClient(withPolkadotSdkCompat(getWsProvider(rpc)));
+  try {
+    const typedApi = client.getTypedApi(bulletin);
+    const version = await typedApi.constants.System.Version();
+    const raw = (version as { spec_name?: unknown }).spec_name;
+    const specName = typeof raw === "string" ? raw : String(raw ?? "");
+    return isTestnetSpecName(specName);
+  } catch {
+    return false;
+  } finally {
+    client.destroy();
+  }
+}
+
 function emitPhase(
   onPhase: BulletinPhaseHandler | undefined,
   phase: "validate" | "authorize" | "upload" | "verify",
@@ -451,12 +499,14 @@ export async function authorizeAccount(
       emitPhase(onPhase, "authorize", "update", "Authorizing account");
     }
 
+    const transactionsU32 = clampU32(transactions, "transactions");
+
     client = createClient(withPolkadotSdkCompat(getWsProvider(rpc)));
     const typedApi = client.getTypedApi(bulletin);
 
     const authTransaction = typedApi.tx.TransactionStorage.authorize_account({
       who: targetAddress,
-      transactions,
+      transactions: transactionsU32,
       bytes,
     });
 
@@ -572,8 +622,8 @@ export async function checkAuthorization(
 
       return {
         authorized: true,
-        transactions_allowance: authorizationState.extent.transactions,
-        bytes_allowance: authorizationState.extent.bytes,
+        transactions_allowance: authorizationState.extent.transactions_allowance,
+        bytes_allowance: authorizationState.extent.bytes_allowance,
         expiration,
         currentBlock,
         expired,
@@ -594,7 +644,7 @@ export async function ensureAccountAuthorized(
 ): Promise<AuthorizationState> {
   const authStatus = await checkAuthorization(bulletinRpc, accountAddress);
 
-  if (authStatus.authorized && !authStatus.expired) {
+  if (isAuthorizationSufficient(authStatus)) {
     return { expiration: authStatus.expiration, currentBlock: authStatus.currentBlock };
   }
 

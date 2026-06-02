@@ -19,6 +19,7 @@ import {
   STORE_ABI,
   DOTNS_REGISTRAR_ABI,
   DOTNS_REGISTRY_ABI,
+  DOTNS_POP_CONTROLLER_ABI,
 } from "../utils/constants";
 import {
   performContractCall,
@@ -47,7 +48,7 @@ function normalizeKeyToBytes32(raw: string): `0x${string}` {
   return keccak256(toHex(raw));
 }
 
-async function resolveStoreAddress(
+async function resolveUserStoreAddress(
   clientWrapper: ReviveClientWrapper,
   originSubstrateAddress: string,
   evmAddress: Address,
@@ -58,13 +59,15 @@ async function resolveStoreAddress(
       originSubstrateAddress,
       CONTRACTS.STORE_FACTORY,
       STORE_FACTORY_ABI,
-      "getDeployedStore",
+      "getUserStore",
       [evmAddress],
     ),
   );
 
   if (storeAddress === zeroAddress) {
-    throw new Error("No Store deployed for this account. Register a domain first to create one.");
+    throw new Error(
+      "No User Store claimed for this account. Run `dotns store claim` to create one before writing values.",
+    );
   }
 
   return storeAddress;
@@ -83,15 +86,15 @@ export async function getStoreInfo(
       originSubstrateAddress,
       CONTRACTS.STORE_FACTORY,
       STORE_FACTORY_ABI,
-      "getDeployedStore",
+      "getLabelStore",
       [evmAddress],
     ),
   );
 
   const exists = storeAddress !== zeroAddress;
-  spinner.succeed("Store lookup complete");
+  spinner.succeed("Label Store lookup complete");
 
-  console.log("\n▶ Store Info");
+  console.log("\n▶ Label Store Info");
   console.log(chalk.gray("  factory: ") + chalk.white(CONTRACTS.STORE_FACTORY));
   console.log(chalk.gray("  owner:   ") + chalk.white(evmAddress));
   console.log(chalk.gray("  store:   ") + chalk.white(exists ? storeAddress : "(not deployed)"));
@@ -105,7 +108,11 @@ export async function listStoreValues(
   originSubstrateAddress: string,
   evmAddress: Address,
 ): Promise<string[]> {
-  const storeAddress = await resolveStoreAddress(clientWrapper, originSubstrateAddress, evmAddress);
+  const storeAddress = await resolveUserStoreAddress(
+    clientWrapper,
+    originSubstrateAddress,
+    evmAddress,
+  );
   const spinner = ora("Reading Store values").start();
 
   const values = await performContractCall<readonly string[]>(
@@ -138,7 +145,11 @@ export async function listStoreNames(
   originSubstrateAddress: string,
   evmAddress: Address,
 ): Promise<string[]> {
-  const storeAddress = await resolveStoreAddress(clientWrapper, originSubstrateAddress, evmAddress);
+  const storeAddress = await resolveUserStoreAddress(
+    clientWrapper,
+    originSubstrateAddress,
+    evmAddress,
+  );
   const spinner = ora("Reading Store names").start();
 
   const values = await performContractCall<readonly string[]>(
@@ -236,7 +247,11 @@ export async function listStoreCids(
   originSubstrateAddress: string,
   evmAddress: Address,
 ): Promise<string[]> {
-  const storeAddress = await resolveStoreAddress(clientWrapper, originSubstrateAddress, evmAddress);
+  const storeAddress = await resolveUserStoreAddress(
+    clientWrapper,
+    originSubstrateAddress,
+    evmAddress,
+  );
   const spinner = ora("Reading Store CIDs").start();
 
   const values = await performContractCall<readonly string[]>(
@@ -263,7 +278,11 @@ export async function getStoreValue(
   evmAddress: Address,
   rawKey: string,
 ): Promise<StoreValueResult> {
-  const storeAddress = await resolveStoreAddress(clientWrapper, originSubstrateAddress, evmAddress);
+  const storeAddress = await resolveUserStoreAddress(
+    clientWrapper,
+    originSubstrateAddress,
+    evmAddress,
+  );
   const key = normalizeKeyToBytes32(rawKey);
   const spinner = ora("Reading Store value").start();
 
@@ -295,7 +314,7 @@ export async function setStoreValue(
   rawKey: string,
   value: string,
 ): Promise<StoreValueResult> {
-  const storeAddress = await resolveStoreAddress(clientWrapper, substrateAddress, evmAddress);
+  const storeAddress = await resolveUserStoreAddress(clientWrapper, substrateAddress, evmAddress);
   const key = normalizeKeyToBytes32(rawKey);
   const spinner = ora("Writing to Store").start();
 
@@ -327,7 +346,7 @@ export async function deleteStoreValue(
   evmAddress: Address,
   rawKey: string,
 ): Promise<StoreDeleteResult> {
-  const storeAddress = await resolveStoreAddress(clientWrapper, substrateAddress, evmAddress);
+  const storeAddress = await resolveUserStoreAddress(clientWrapper, substrateAddress, evmAddress);
   const key = normalizeKeyToBytes32(rawKey);
   const spinner = ora("Deleting Store value").start();
 
@@ -357,7 +376,11 @@ export async function checkStoreAuth(
   evmAddress: Address,
   targetAddress: Address,
 ): Promise<StoreAuthStatus> {
-  const storeAddress = await resolveStoreAddress(clientWrapper, originSubstrateAddress, evmAddress);
+  const storeAddress = await resolveUserStoreAddress(
+    clientWrapper,
+    originSubstrateAddress,
+    evmAddress,
+  );
   const spinner = ora("Checking authorization status").start();
 
   const isAuthorized = Boolean(
@@ -400,7 +423,7 @@ export async function authorizeStoreWriter(
   evmAddress: Address,
   targetAddress: Address,
 ): Promise<void> {
-  const storeAddress = await resolveStoreAddress(clientWrapper, substrateAddress, evmAddress);
+  const storeAddress = await resolveUserStoreAddress(clientWrapper, substrateAddress, evmAddress);
   const spinner = ora(`Authorizing ${targetAddress}`).start();
 
   const tx = await submitContractTransaction(
@@ -428,7 +451,7 @@ export async function unauthorizeStoreWriter(
   evmAddress: Address,
   targetAddress: Address,
 ): Promise<void> {
-  const storeAddress = await resolveStoreAddress(clientWrapper, substrateAddress, evmAddress);
+  const storeAddress = await resolveUserStoreAddress(clientWrapper, substrateAddress, evmAddress);
   const spinner = ora(`Revoking ${targetAddress}`).start();
 
   const tx = await submitContractTransaction(
@@ -456,7 +479,7 @@ export async function authorizeDotnsController(
   evmAddress: Address,
   targetAddress: Address,
 ): Promise<void> {
-  const storeAddress = await resolveStoreAddress(clientWrapper, substrateAddress, evmAddress);
+  const storeAddress = await resolveUserStoreAddress(clientWrapper, substrateAddress, evmAddress);
   const spinner = ora(`Authorizing controller ${targetAddress}`).start();
 
   const tx = await submitContractTransaction(
@@ -484,7 +507,7 @@ export async function unauthorizeDotnsController(
   evmAddress: Address,
   targetAddress: Address,
 ): Promise<void> {
-  const storeAddress = await resolveStoreAddress(clientWrapper, substrateAddress, evmAddress);
+  const storeAddress = await resolveUserStoreAddress(clientWrapper, substrateAddress, evmAddress);
   const spinner = ora(`Revoking controller ${targetAddress}`).start();
 
   const tx = await submitContractTransaction(
@@ -511,7 +534,7 @@ export async function ensureStoreAuthorizations(
   signer: PolkadotSigner,
   evmAddress: Address,
 ): Promise<StoreEnsureAuthResult> {
-  const storeAddress = await resolveStoreAddress(clientWrapper, substrateAddress, evmAddress);
+  const storeAddress = await resolveUserStoreAddress(clientWrapper, substrateAddress, evmAddress);
   const spinner = ora("Checking Store authorizations").start();
 
   const [controllerAuthorized, registryAuthorized] = await Promise.all([
@@ -622,4 +645,59 @@ export async function cacheCidToStore(options: CacheCidToStoreOptions): Promise<
     storeKey,
     options.cid,
   );
+}
+
+export async function claimLabels(
+  clientWrapper: ReviveClientWrapper,
+  substrateAddress: string,
+  signer: PolkadotSigner,
+  evmAddress: Address,
+): Promise<{ storeAddress: Address; tx: string }> {
+  const before = getAddress(
+    await performContractCall<Address>(
+      clientWrapper,
+      substrateAddress,
+      CONTRACTS.STORE_FACTORY,
+      STORE_FACTORY_ABI,
+      "getLabelStore",
+      [evmAddress],
+    ),
+  );
+
+  const spinner = ora(
+    before === zeroAddress
+      ? "Deploying Label Store and settling deferred names"
+      : "Settling deferred names into existing Label Store",
+  ).start();
+
+  const tx = await submitContractTransaction(
+    clientWrapper,
+    CONTRACTS.DOTNS_POP_CONTROLLER,
+    0n,
+    DOTNS_POP_CONTROLLER_ABI,
+    "claimLabelStore",
+    [],
+    substrateAddress,
+    signer,
+    spinner,
+    "Claim labels",
+  );
+
+  const storeAddress = getAddress(
+    await performContractCall<Address>(
+      clientWrapper,
+      substrateAddress,
+      CONTRACTS.STORE_FACTORY,
+      STORE_FACTORY_ABI,
+      "getLabelStore",
+      [evmAddress],
+    ),
+  );
+
+  console.log("\n▶ Label Store Claim");
+  console.log(chalk.gray("  tx:    ") + chalk.blue(tx));
+  console.log(chalk.gray("  owner: ") + chalk.white(evmAddress));
+  console.log(chalk.gray("  store: ") + chalk.white(storeAddress));
+
+  return { storeAddress, tx };
 }

@@ -8,9 +8,13 @@ import DotnsResolver from "../../abis/DotnsResolver.json" assert { type: "json" 
 import PopRules from "../../abis/PopRules.json" assert { type: "json" };
 import StoreFactory from "../../abis/StoreFactory.json" assert { type: "json" };
 import Store from "../../abis/Store.json" assert { type: "json" };
+import LabelStore from "../../abis/LabelStore.json" assert { type: "json" };
+import UserStore from "../../abis/UserStore.json" assert { type: "json" };
+import DotnsPopController from "../../abis/DotnsPopController.json" assert { type: "json" };
 
 export const PREVIEW_BASE_URL = "http://dotns.paseo.li/#/preview";
 export const PASEO_ASSET_HUB_URL = "wss://paseo-asset-hub-next-rpc.polkadot.io";
+export const PREVIEWNET_ASSET_HUB_URL = "wss://previewnet.substrate.dev/asset-hub";
 export const PASEO_IPFS_GATEWAY_URL = "https://paseo-bulletin-next-ipfs.polkadot.io/ipfs";
 export const PERSONHOOD_PRECOMPILE_ADDRESS =
   "0x000000000000000000000000000000000a010000" as Address;
@@ -58,6 +62,9 @@ export const DOTNS_RESOLVER_ABI = DotnsResolver.abi as Abi;
 export const POP_RULES_ABI = PopRules.abi as Abi;
 export const STORE_FACTORY_ABI = StoreFactory.abi as Abi;
 export const STORE_ABI = Store.abi as Abi;
+export const LABEL_STORE_ABI = LabelStore.abi as Abi;
+export const USER_STORE_ABI = UserStore.abi as Abi;
+export const DOTNS_POP_CONTROLLER_ABI = DotnsPopController.abi as Abi;
 export const PERSONHOOD_ABI = [
   {
     type: "function",
@@ -101,9 +108,9 @@ export const PERSONHOOD_ABI = [
   },
 ] as const satisfies Abi;
 
-export const RPC_ENDPOINTS = [PASEO_ASSET_HUB_URL] as const;
+export const RPC_ENDPOINTS = [PASEO_ASSET_HUB_URL, PREVIEWNET_ASSET_HUB_URL] as const;
 
-export const DOTNS_ENVIRONMENT_IDS = ["paseo-v2"] as const;
+export const DOTNS_ENVIRONMENT_IDS = ["paseo-v2", "previewnet"] as const;
 export type DotnsEnvironmentId = (typeof DOTNS_ENVIRONMENT_IDS)[number];
 
 export type DotnsContractAddresses = {
@@ -127,6 +134,9 @@ export type DotnsContractAddresses = {
 
   /** Proof of Personhood RULES - verifies eligibility and pricing */
   DOTNS_RULES: Address;
+
+  /** Proof of Personhood controller - claims LabelStore and settles deferred labels */
+  DOTNS_POP_CONTROLLER: Address;
 
   /** Multicall3 - batch read contract calls */
   MULTICALL3: Address;
@@ -158,7 +168,26 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
       DOTNS_CONTENT_RESOLVER: "0x2c9FF5D9136DBE5814C7B4FDbeDC15273a776663" as Address,
       STORE_FACTORY: "0x0DE5De70d61cc6b44B45d6595afDe8dB9b55bc31" as Address,
       DOTNS_RULES: "0x2002C1c15b88632Ad01c7770f6EbE1Ca05c8472E" as Address,
+      DOTNS_POP_CONTROLLER: "0x1c858C31497a7715C0D56A11208feB6b74FaB2aB" as Address,
       MULTICALL3: SHARED_MULTICALL3,
+    },
+  },
+  previewnet: {
+    id: "previewnet",
+    label: "Paseo Asset Hub Previewnet",
+    aliases: ["previewnet", "preview-net", "preview", "ppn"],
+    rpc: PREVIEWNET_ASSET_HUB_URL,
+    blockExplorerUrl: "https://blockscout-testnet.polkadot.io",
+    contracts: {
+      DOTNS_REGISTRAR: "0x061273AeF34e8ab9Ca08E199d7440E2639Fc2088" as Address,
+      DOTNS_REGISTRAR_CONTROLLER: "0xC0c21ca6302884572E61d69D5bf3E271Acf39B23" as Address,
+      DOTNS_REGISTRY: "0x5622CA75C75726Da13ae46C69127C07c87538633" as Address,
+      DOTNS_RESOLVER: "0x823f39E7a4126669be53211FFbCF27e55b3274C6" as Address,
+      DOTNS_CONTENT_RESOLVER: "0xBD003d5Dd04E68aC60d529a46AEfBdEf8941868C" as Address,
+      STORE_FACTORY: "0x4BEFaB5de968183524b1eBd2FAec9C68Cdc696Fd" as Address,
+      DOTNS_RULES: "0xF209a15e8a10D208bb4d3e3c56D9EB73a5934C26" as Address,
+      DOTNS_POP_CONTROLLER: "0xae2c63b921Bc9DC30C149A8FA462fd3efA53D1F4" as Address,
+      MULTICALL3: "0x758F88C7761FCD4742f9471448c2209a7e859280" as Address,
     },
   },
 };

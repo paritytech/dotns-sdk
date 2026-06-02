@@ -39,7 +39,7 @@ export type ReviveCallResult = {
   gasRequired: SubstrateWeight;
   /** Storage deposit charged or refunded */
   storageDeposit: {
-    /** Deposit amount in native substrate units (12 decimals for PAS) */
+    /** Deposit amount in planck (smallest native unit) */
     value: bigint;
   };
   /** Execution outcome */

@@ -20,6 +20,7 @@ import {
   ensureStoreAuthorizations,
   listStoreNames,
   listStoreCids,
+  claimLabels,
 } from "../../commands/storeManagement";
 import type { LookupActionOptions } from "../../types/types";
 
@@ -468,6 +469,37 @@ export function attachStoreCommands(root: Command): void {
         console.log(JSON.stringify(result));
       } else {
         console.log(chalk.green("\n✓ Store authorizations ensured\n"));
+      }
+
+      process.exit(0);
+    } catch (error) {
+      handleCommandError(error, cmd);
+    }
+  });
+
+  const syncCommand = storeCommand
+    .command("sync")
+    .description(
+      "Sync your Label Store with the protocol. Settles any pending names from the PoP controller (deploys the store on first call).",
+    )
+    .option("--json", "Output result as JSON", false);
+
+  addAuthOptions(syncCommand).action(async (options: any, cmd: any) => {
+    try {
+      const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
+      const jsonOutput = getJsonFlag(cmd);
+
+      const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(merged));
+      const { clientWrapper, substrateAddress, signer, evmAddress } = context;
+
+      const result = await maybeQuiet(jsonOutput, () =>
+        claimLabels(clientWrapper, substrateAddress, signer, evmAddress as Address),
+      );
+
+      if (jsonOutput) {
+        console.log(JSON.stringify(result));
+      } else {
+        console.log(chalk.green("\n✓ Label Store synced\n"));
       }
 
       process.exit(0);

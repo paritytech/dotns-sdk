@@ -28,6 +28,8 @@ import {
   ensureAccountAuthorized,
   authorizeAccount,
   checkAuthorization,
+  clampU32,
+  detectBulletinTestnet,
   formatExpirationDisplay,
   expirationToISOString,
 } from "../../commands/bulletin";
@@ -407,12 +409,29 @@ export function attachBulletinCommands(root: Command): void {
         const onPhase = createPhaseHandler(reporter);
 
         const bulletinRpc = String(mergedOptions.bulletinRpc || DEFAULT_BULLETIN_RPC);
-        const transactions = Number(
-          mergedOptions.transactions || DEFAULT_AUTHORIZATION_TRANSACTIONS,
+        const transactions = clampU32(
+          BigInt(mergedOptions.transactions || DEFAULT_AUTHORIZATION_TRANSACTIONS),
+          "--transactions",
         );
         const bytes = BigInt(mergedOptions.bytes || DEFAULT_AUTHORIZATION_BYTES);
         const force = Boolean(options.force);
-        const signerKeyUri = String(mergedOptions.keyUri || DEFAULT_SUDO_KEY_URI);
+        const explicitKeyUri =
+          mergedOptions.keyUri === undefined || mergedOptions.keyUri === null
+            ? undefined
+            : String(mergedOptions.keyUri);
+        let signerKeyUri: string;
+        if (explicitKeyUri !== undefined) {
+          signerKeyUri = explicitKeyUri;
+        } else {
+          const isTestnet = await detectBulletinTestnet(bulletinRpc);
+          if (!isTestnet) {
+            throw new Error(
+              `Refusing to default the Authorizer signer to ${DEFAULT_SUDO_KEY_URI} on this chain (${bulletinRpc}).\n` +
+                `Pass an explicit signer with -k / --key-uri (the account must hold Authorizer privileges on Bulletin).`,
+            );
+          }
+          signerKeyUri = DEFAULT_SUDO_KEY_URI;
+        }
 
         const targetAddress = await resolveTargetAddress(
           positionalAddress,
@@ -751,7 +770,7 @@ export function attachBulletinCommands(root: Command): void {
             verified = true;
           }
         } catch {
-          /* P2P verification failed, try gateways */
+          // P2P verification failed; gateway fallback runs below.
         }
 
         if (!verified) {

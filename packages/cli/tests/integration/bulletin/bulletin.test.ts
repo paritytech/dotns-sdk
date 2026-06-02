@@ -106,7 +106,7 @@ async function ensureDefaultKeystore() {
 function expectSuccessfulUpload(result: CliRunResult) {
   expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
   expect(result.combinedOutput).not.toContain("✗ Error:");
-  expect(result.combinedOutput).toContain("▶ Bulletin Upload");
+  expect(result.combinedOutput).toMatch(/▶ Uploading (directory|file):/);
   expect(result.combinedOutput).toContain("cid:");
   expect(result.combinedOutput).toContain("✓ Upload Complete");
 }
@@ -389,7 +389,7 @@ test("bulletin history remove nonexistent cid", async () => {
   expect(result.combinedOutput).toContain("not found");
 });
 
-function isAuthorizationSufficient(
+function meetsAuthorizationQuota(
   existingTransactions: number,
   existingBytes: bigint,
   requestedTransactions: number = DEFAULT_AUTHORIZATION_TRANSACTIONS,
@@ -398,14 +398,14 @@ function isAuthorizationSufficient(
   return existingTransactions >= requestedTransactions && existingBytes >= requestedBytes;
 }
 
-describe("authorization sufficiency check", () => {
+describe("authorization quota defaults", () => {
   test("DEFAULT_AUTHORIZATION_BYTES is 1 GB", () => {
     expect(DEFAULT_AUTHORIZATION_BYTES).toBe(BigInt(1024 * 1024 * 1024));
   });
 
-  test("Paseo account with 196 GB passes sufficiency check against 1 GB default", () => {
+  test("Paseo account with 196 GB meets the 1 GB default quota", () => {
     const paseoExistingBytes = BigInt(196) * BigInt(1024 * 1024 * 1024);
-    expect(isAuthorizationSufficient(1_000_000, paseoExistingBytes)).toBe(true);
+    expect(meetsAuthorizationQuota(1_000_000, paseoExistingBytes)).toBe(true);
   });
 
   test("Paseo account would have failed with the old 1 TB default", () => {
@@ -414,7 +414,7 @@ describe("authorization sufficiency check", () => {
 
     expect(paseoExistingBytes < oldDefaultBytes).toBe(true);
     expect(
-      isAuthorizationSufficient(
+      meetsAuthorizationQuota(
         1_000_000,
         paseoExistingBytes,
         DEFAULT_AUTHORIZATION_TRANSACTIONS,
@@ -423,8 +423,8 @@ describe("authorization sufficiency check", () => {
     ).toBe(false);
   });
 
-  test("zero authorization fails sufficiency check", () => {
-    expect(isAuthorizationSufficient(0, 0n)).toBe(false);
+  test("zero authorization fails the quota check", () => {
+    expect(meetsAuthorizationQuota(0, 0n)).toBe(false);
   });
 });
 

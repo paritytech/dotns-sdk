@@ -105,7 +105,7 @@ export async function performDomainLookup(
     return result;
   }
 
-  console.log("▶ User Store (StoreFactory)");
+  console.log("▶ Label Store (StoreFactory)");
   console.log(chalk.gray("  factory: ") + chalk.white(CONTRACTS.STORE_FACTORY));
 
   const storeAddress = getAddress(
@@ -114,7 +114,7 @@ export async function performDomainLookup(
       originSubstrateAddress,
       CONTRACTS.STORE_FACTORY,
       STORE_FACTORY_ABI,
-      "getDeployedStore",
+      "getLabelStore",
       [result.owner],
     ),
   );
@@ -254,28 +254,28 @@ export async function listMyRegisteredNames(
 ): Promise<void> {
   const evmAddress = await clientWrapper.getEvmAddress(originSubstrateAddress);
 
-  const spinner = ora("Checking for deployed Store").start();
+  const spinner = ora("Checking for deployed Label Store").start();
 
   const storeAddress = await performContractCall<Address>(
     clientWrapper,
     originSubstrateAddress,
     CONTRACTS.STORE_FACTORY,
     STORE_FACTORY_ABI,
-    "getDeployedStore",
+    "getLabelStore",
     [evmAddress],
   );
 
   if (storeAddress === zeroAddress) {
-    spinner.fail("No Store deployed");
+    spinner.fail("No Label Store deployed");
     console.log(
       chalk.yellow(
-        "\nYou haven't registered any names yet. Your Store will be created automatically when you register your first name.",
+        "\nYou haven't registered any names yet. Your Label Store will be created automatically when you register your first name.",
       ),
     );
     return;
   }
 
-  spinner.succeed("Store found");
+  spinner.succeed("Label Store found");
 
   console.log("\n▶ My Registered Names");
   console.log(chalk.gray("  owner: ") + chalk.white(evmAddress));
