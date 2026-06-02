@@ -167,6 +167,7 @@ jobs:
             packages/cli
             packages/ui/package.json
             packages/ui/.papi
+            scripts
             package.json
             bun.lock
 
