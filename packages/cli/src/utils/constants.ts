@@ -254,8 +254,7 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
       STORE_FACTORY: "0x4BEFaB5de968183524b1eBd2FAec9C68Cdc696Fd" as Address,
       DOTNS_RULES: "0xF209a15e8a10D208bb4d3e3c56D9EB73a5934C26" as Address,
       DOTNS_POP_CONTROLLER: "0xae2c63b921Bc9DC30C149A8FA462fd3efA53D1F4" as Address,
-      // TODO: Deploy NameEscrow on previewnet. Using zero address as placeholder; escrow commands will revert here.
-      DOTNS_NAME_ESCROW: "0x0000000000000000000000000000000000000000" as Address,
+      DOTNS_NAME_ESCROW: "0xb7E39199f13aCf7e90cCf67b980aC3ef0E2C4Fbe" as Address,
       MULTICALL3: "0x758F88C7761FCD4742f9471448c2209a7e859280" as Address,
     },
     bulletinRpc: "wss://previewnet.substrate.dev/bulletin",
