@@ -4,7 +4,7 @@ import { checksumAddress, isAddress, zeroAddress, type Address } from "viem";
 import { ReviveClientWrapper } from "../client/polkadotClient";
 import { CONTRACTS, DOTNS_REGISTRAR_ABI } from "../utils/constants";
 import { validateDomainLabel } from "../utils/validation";
-import { formatErrorMessage } from "../utils/formatting";
+import { formatErrorMessage, formatWeiAsEther, convertWeiToNative } from "../utils/formatting";
 import {
   computeDomainTokenId,
   performContractCall,
@@ -78,6 +78,7 @@ export async function transferDomain(
   fromAddress: Address,
   toAddress: Address,
   label: string,
+  nativeTokenDecimals?: number,
 ): Promise<void> {
   const spinner = ora().start();
 
@@ -131,12 +132,31 @@ export async function transferDomain(
     }
   }
 
+  // Quote the friction fee the registrar will charge: zero for same-tier or upward
+  // transfers, D for a downward step or a label-class reach-floor mismatch. Sending
+  // less than the quoted amount reverts with TransferFeeRequired.
+  const feeSpinner = ora(`Quoting transfer fee for ${chalk.cyan(normLabel + ".dot")}`).start();
+  const feeWei = await performContractCall<bigint>(
+    clientWrapper,
+    originSubstrateAddress,
+    CONTRACTS.DOTNS_REGISTRAR,
+    DOTNS_REGISTRAR_ABI,
+    "quoteTransferFee",
+    [tokenId, toC],
+  );
+  const feeNative = convertWeiToNative(feeWei, nativeTokenDecimals);
+  feeSpinner.succeed(
+    feeWei === 0n
+      ? `Fee: free (same-tier or upward transfer)`
+      : `Fee: ${chalk.green(formatWeiAsEther(feeWei) + " PAS")}`,
+  );
+
   spinner.start(`Submitting transfer ${chalk.cyan(normLabel + ".dot")} → ${chalk.green(toC)}`);
 
   const transactionHash = await submitContractTransaction(
     clientWrapper,
     CONTRACTS.DOTNS_REGISTRAR,
-    0n,
+    feeNative,
     DOTNS_REGISTRAR_ABI,
     "transferFrom",
     [fromC, toC, tokenId],
@@ -151,4 +171,7 @@ export async function transferDomain(
   console.log(chalk.gray("  from: ") + chalk.yellow(fromC));
   console.log(chalk.gray("  to:   ") + chalk.green(toC));
   console.log(chalk.gray("  name: ") + chalk.cyan(normLabel + ".dot"));
+  if (feeWei > 0n) {
+    console.log(chalk.gray("  fee:  ") + chalk.green(formatWeiAsEther(feeWei) + " PAS"));
+  }
 }

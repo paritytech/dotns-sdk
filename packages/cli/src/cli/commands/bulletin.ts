@@ -27,6 +27,7 @@ import {
   generateContenthash,
   ensureAccountAuthorized,
   authorizeAccount,
+  refreshAccountAuthorization,
   checkAuthorization,
   clampU32,
   detectBulletinTestnet,
@@ -61,8 +62,8 @@ function cleanupHeliaAndExit(code: number): never {
 import { normalizeUploadMaxRetries } from "../../bulletin/uploadRetry";
 import { addAuthOptions } from "./authOptions";
 import { prepareContext } from "../context";
+import { resolveBulletinRpc, resolveDotnsEnvironment } from "../env";
 import {
-  DEFAULT_BULLETIN_RPC,
   DEFAULT_CHUNK_SIZE_BYTES,
   DEFAULT_UPLOAD_MAX_RETRIES,
   DEFAULT_SUDO_KEY_URI,
@@ -247,6 +248,23 @@ function writeBulletinJsonError(error: unknown): never {
   process.exit(1);
 }
 
+/**
+ * Warn when the dev-default `//Alice` signer is used against an environment
+ * where the bulletin Authorizer is almost certainly *not* `//Alice` (paseo,
+ * previewnet). Silent on `paseo-v2` (local dev) and on explicit overrides.
+ */
+function warnIfDevKeyOnTestnet(signerKeyUri: string, environmentId: string): void {
+  if (signerKeyUri !== DEFAULT_SUDO_KEY_URI) return;
+  if (environmentId !== "paseo" && environmentId !== "previewnet") return;
+  console.warn(
+    chalk.yellow(
+      `\n⚠ Using default signer ${DEFAULT_SUDO_KEY_URI} against ${environmentId}.\n` +
+        `  The bulletin Authorizer on this network is unlikely to be //Alice.\n` +
+        `  Override with --key-uri if the transaction fails with BadOrigin.\n`,
+    ),
+  );
+}
+
 function createPhaseHandler(reporter: CliReporter): BulletinPhaseHandler {
   const tasks = new Map<string, ReporterTask>();
 
@@ -384,7 +402,7 @@ export function attachBulletinCommands(root: Command): void {
     bulletinCommand
       .command("authorize [address]")
       .description("Authorize an account for Bulletin TransactionStorage")
-      .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint", DEFAULT_BULLETIN_RPC)
+      .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint (defaults to active env)")
       .option(
         "--transactions <count>",
         "Number of transactions to authorize",
@@ -408,7 +426,10 @@ export function attachBulletinCommands(root: Command): void {
         const reporter = createCliReporter(mergedOptions.reporter as BulletinReporterMode);
         const onPhase = createPhaseHandler(reporter);
 
-        const bulletinRpc = String(mergedOptions.bulletinRpc || DEFAULT_BULLETIN_RPC);
+        const bulletinRpc = resolveBulletinRpc(
+          mergedOptions.bulletinRpc,
+          mergedOptions.env ?? mergedOptions.network,
+        );
         const transactions = clampU32(
           BigInt(mergedOptions.transactions || DEFAULT_AUTHORIZATION_TRANSACTIONS),
           "--transactions",
@@ -432,6 +453,9 @@ export function attachBulletinCommands(root: Command): void {
           }
           signerKeyUri = DEFAULT_SUDO_KEY_URI;
         }
+
+        const environment = resolveDotnsEnvironment(mergedOptions.env ?? mergedOptions.network);
+        if (!jsonOutput) warnIfDevKeyOnTestnet(signerKeyUri, environment.id);
 
         const targetAddress = await resolveTargetAddress(
           positionalAddress,
@@ -515,11 +539,104 @@ export function attachBulletinCommands(root: Command): void {
     },
   );
 
+  const refreshCommand = bulletinCommand
+    .command("refresh [address]")
+    .description("Refresh (extend the expiration of) a Bulletin account authorization")
+    .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint (defaults to active env)")
+    .option("--json", "Write machine-readable JSON to stdout", false);
+
+  addAuthOptions(refreshCommand).action(
+    async (addressArgument: string | undefined, options: any, command: any) => {
+      const parent = command.parent;
+      const mergedOptions = parent ? { ...parent.opts(), ...options } : options;
+      const jsonOutput = Boolean(mergedOptions.json);
+
+      try {
+        const bulletinRpc = resolveBulletinRpc(
+          mergedOptions.bulletinRpc,
+          mergedOptions.env ?? mergedOptions.network,
+        );
+        const signerKeyUri = String(mergedOptions.keyUri || DEFAULT_SUDO_KEY_URI);
+        const reporterMode = resolveReporterMode(mergedOptions.reporter as BulletinReporterMode);
+
+        const environment = resolveDotnsEnvironment(mergedOptions.env ?? mergedOptions.network);
+        if (!jsonOutput) warnIfDevKeyOnTestnet(signerKeyUri, environment.id);
+
+        const targetAddress = await resolveTargetAddress(
+          addressArgument,
+          mergedOptions,
+          reporterMode,
+        );
+
+        if (!jsonOutput) {
+          console.log(chalk.cyan(`\n▶ Bulletin Refresh`));
+          console.log(chalk.gray(`  Target: ${targetAddress}`));
+          console.log(chalk.gray(`  RPC: ${bulletinRpc}\n`));
+        }
+
+        const context = await prepareContext({
+          keyUri: signerKeyUri,
+          useBulletin: true,
+          bulletinRpc,
+        });
+
+        const result = await refreshAccountAuthorization({
+          rpc: bulletinRpc,
+          signer: context.signer,
+          targetAddress,
+        });
+
+        const status = await checkAuthorization(bulletinRpc, targetAddress);
+
+        if (jsonOutput) {
+          writeBulletinJson({
+            ok: true,
+            target: targetAddress,
+            rpc: bulletinRpc,
+            txHash: result.txHash,
+            blockHash: result.blockHash,
+            expiresAt: expirationToISOString(status.expiration, status.currentBlock),
+          });
+        } else {
+          console.log(chalk.green("\n✓ Authorization refreshed"));
+          if (status.expiration !== undefined && status.currentBlock !== undefined) {
+            console.log(
+              chalk.gray(
+                `  New expiration: ${formatExpirationDisplay(status.expiration, status.currentBlock)}`,
+              ),
+            );
+          }
+          console.log("");
+        }
+
+        process.exit(0);
+      } catch (error) {
+        const errorMessage = formatErrorMessage(error);
+
+        if (jsonOutput) {
+          writeBulletinJsonError(errorMessage);
+        }
+
+        if (errorMessage.includes("BadOrigin")) {
+          console.error(chalk.red("\n✗ Refresh failed — insufficient privileges"));
+          console.error(
+            chalk.yellow("  The signer does not have Authorizer privileges on this chain."),
+          );
+          console.error(chalk.gray("  Override with --key-uri if needed.\n"));
+          process.exit(1);
+        }
+
+        console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
+        process.exit(1);
+      }
+    },
+  );
+
   const uploadCommand = addReporterOption(
     bulletinCommand
       .command("upload <path>")
       .description("Upload a file or directory to Bulletin and print the resulting CID")
-      .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint", DEFAULT_BULLETIN_RPC)
+      .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint (defaults to active env)")
       .option(
         "--chunk-size <bytes>",
         "Chunk size for large uploads (clamped to 256 KB–2 MB)",
@@ -566,7 +683,10 @@ export function attachBulletinCommands(root: Command): void {
         );
         const { bytes, isDirectory, resolvedPath, fileSize, fileMtimeMs } = validatedPath;
 
-        const bulletinRpc = String(mergedOptions.bulletinRpc || DEFAULT_BULLETIN_RPC);
+        const bulletinRpc = resolveBulletinRpc(
+          mergedOptions.bulletinRpc,
+          mergedOptions.env ?? mergedOptions.network,
+        );
         const chunkSizeBytes = clampChunkSizeBytes(
           Number(mergedOptions.chunkSize || DEFAULT_CHUNK_SIZE_BYTES),
         );
@@ -779,19 +899,27 @@ export function attachBulletinCommands(root: Command): void {
             state: "update",
             message: "P2P unavailable, checking IPFS gateways...",
           });
-          const gatewayResults = await verifyCidWithMultipleGateways(cid);
-          const resolvable = Array.from(gatewayResults.values()).some((r) => r.resolvable);
-          if (resolvable) {
-            onPhase({
-              phase: "verify",
-              state: "success",
-              message: "Content verified via IPFS gateway",
-            });
-          } else {
+          try {
+            const gatewayResults = await verifyCidWithMultipleGateways(cid);
+            const resolvable = Array.from(gatewayResults.values()).some((r) => r.resolvable);
+            if (resolvable) {
+              onPhase({
+                phase: "verify",
+                state: "success",
+                message: "Content verified via IPFS gateway",
+              });
+            } else {
+              onPhase({
+                phase: "verify",
+                state: "warning",
+                message: "Content not yet resolvable — it may still be propagating",
+              });
+            }
+          } catch (gatewayError) {
             onPhase({
               phase: "verify",
               state: "warning",
-              message: "Content not yet resolvable — it may still be propagating",
+              message: `Gateway verification skipped: ${formatErrorMessage(gatewayError)}`,
             });
           }
         }
@@ -923,7 +1051,7 @@ export function attachBulletinCommands(root: Command): void {
     bulletinCommand
       .command("status [address]")
       .description("Check authorization status for an account on Bulletin")
-      .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint", DEFAULT_BULLETIN_RPC)
+      .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint (defaults to active env)")
       .option("--json", "Write machine-readable JSON to stdout", false),
   );
 
@@ -934,7 +1062,10 @@ export function attachBulletinCommands(root: Command): void {
         const jsonOutput = getJsonFlag(command);
         const reporterMode = resolveReporterMode(mergedOptions.reporter as BulletinReporterMode);
         const reporter = createCliReporter(mergedOptions.reporter as BulletinReporterMode);
-        const bulletinRpc = String(mergedOptions.bulletinRpc || DEFAULT_BULLETIN_RPC);
+        const bulletinRpc = resolveBulletinRpc(
+          mergedOptions.bulletinRpc,
+          mergedOptions.env ?? mergedOptions.network,
+        );
 
         const targetAddress = await resolveTargetAddress(
           positionalAddress,

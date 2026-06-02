@@ -53,7 +53,7 @@ test("bulletin upload help shows default values", async () => {
   const result = await runDotnsCli(["bulletin", "upload", "--help"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 
-  expect(result.combinedOutput).toContain("wss://paseo-bulletin-rpc.polkadot.io");
+  expect(result.combinedOutput).toContain("defaults to active");
   expect(result.combinedOutput).toContain("5");
 });
 
@@ -83,7 +83,7 @@ test("bulletin authorize help shows default values", async () => {
   const result = await runDotnsCli(["bulletin", "authorize", "--help"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 
-  expect(result.combinedOutput).toContain("wss://paseo-bulletin-rpc.polkadot.io");
+  expect(result.combinedOutput).toContain("defaults to active");
   expect(result.combinedOutput).toContain("1000000");
 });
 

@@ -14,6 +14,7 @@ import { attachContentCommands } from "../../src/cli/commands/content";
 import { attachTextCommands } from "../../src/cli/commands/text";
 import { attachStoreCommands } from "../../src/cli/commands/store";
 import { attachAccountCommands } from "../../src/cli/commands/info";
+import { attachEscrowCommands } from "../../src/cli/commands/escrow";
 
 export const HARNESS_SUCCESS_EXIT_CODE = 1;
 export const HARNESS_HELP_SUCCESS_EXIT_CODE = 0;
@@ -65,6 +66,7 @@ export function createDotnsTestProgram(): Command {
   attachTextCommands(rootCommand);
   attachStoreCommands(rootCommand);
   attachAccountCommands(rootCommand);
+  attachEscrowCommands(rootCommand);
   return rootCommand;
 }
 

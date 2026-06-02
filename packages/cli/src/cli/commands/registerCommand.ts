@@ -31,7 +31,10 @@ export function attachRegisterCommand(root: Command) {
     .option("-n, --name <label>", "Domain label to register (without .dot)")
     .option("-r, --reverse", "Enable reverse record registration", false)
     .option("-g, --governance", "Use governance registration path", false)
-    .option("-o, --owner <address>", "Owner address (EVM or Substrate, or label)")
+    .option(
+      "-o, --owner <address>",
+      "Register on behalf of another address (EVM, SS58, or .dot label). Caller pays price + transferFloor friction; owner receives the NFT. Mutually exclusive with --transfer, --reverse, --governance.",
+    )
     .option("--transfer", "Transfer domain after registration", false)
     .option("--to <destination>", "Transfer destination (EVM address, SS58, or domain label)")
     .option(

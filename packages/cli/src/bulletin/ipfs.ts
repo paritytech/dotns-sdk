@@ -1,13 +1,33 @@
 import type { VerificationResult, BlockVerificationResult } from "../types/types";
-import { PASEO_IPFS_GATEWAY_URL } from "../utils/constants";
+import { getActiveDotnsEnvironment } from "../utils/constants";
 import { formatErrorMessage } from "../utils/formatting";
 async function loadHeliaClient() {
   const { getSharedHeliaClient } = await import("./heliaClient");
   return getSharedHeliaClient();
 }
 
-const DEFAULT_VERIFICATION_GATEWAY = PASEO_IPFS_GATEWAY_URL;
 const VERIFICATION_TIMEOUT_MILLISECONDS = 30000;
+
+const PUBLIC_FALLBACK_GATEWAYS = [
+  "https://dweb.link",
+  "https://cloudflare-ipfs.com",
+  "https://w3s.link",
+] as const;
+
+/**
+ * Resolve the IPFS HTTP gateway base URL for the active environment. Throws
+ * with a clear message when the active environment does not operate a gateway —
+ * callers can catch and either pass `--gateway` or skip the verification step.
+ */
+function requireActiveGateway(): string {
+  const environment = getActiveDotnsEnvironment();
+  if (!environment.ipfsGatewayUrl) {
+    throw new Error(
+      `IPFS gateway not configured for environment '${environment.id}'; verification skipped, pass --gateway to override.`,
+    );
+  }
+  return environment.ipfsGatewayUrl;
+}
 
 function createIpfsGatewayUrl(gatewayBaseUrl: string, cid: string): string {
   const gateway = gatewayBaseUrl.replace(/\/+$/, "");
@@ -16,7 +36,7 @@ function createIpfsGatewayUrl(gatewayBaseUrl: string, cid: string): string {
 
 export async function verifyCidResolution(
   contentCid: string,
-  gatewayBaseUrl: string = DEFAULT_VERIFICATION_GATEWAY,
+  gatewayBaseUrl: string = requireActiveGateway(),
 ): Promise<VerificationResult> {
   const verificationUrl = createIpfsGatewayUrl(gatewayBaseUrl, contentCid);
 
@@ -46,7 +66,7 @@ export async function verifyCidResolution(
 
 export async function verifyMultipleCids(
   contentCids: string[],
-  gatewayBaseUrl: string = DEFAULT_VERIFICATION_GATEWAY,
+  gatewayBaseUrl: string = requireActiveGateway(),
 ): Promise<BlockVerificationResult> {
   const resolvableBlocks: string[] = [];
   const missingBlocks: string[] = [];
@@ -71,12 +91,7 @@ export async function verifyMultipleCids(
 
 export async function verifyCidWithMultipleGateways(
   contentCid: string,
-  gatewayUrls: string[] = [
-    PASEO_IPFS_GATEWAY_URL,
-    "https://dweb.link",
-    "https://cloudflare-ipfs.com",
-    "https://w3s.link",
-  ],
+  gatewayUrls: string[] = [requireActiveGateway(), ...PUBLIC_FALLBACK_GATEWAYS],
 ): Promise<Map<string, VerificationResult>> {
   const verificationResults = new Map<string, VerificationResult>();
 
@@ -110,7 +125,7 @@ export async function verifyCidViaP2P(cidString: string): Promise<VerificationRe
 
 export async function verifySingleFileCid(
   contentCid: string,
-  gatewayBaseUrl: string = DEFAULT_VERIFICATION_GATEWAY,
+  gatewayBaseUrl: string = requireActiveGateway(),
 ): Promise<VerificationResult> {
   const p2pResult = await verifyCidViaP2P(contentCid);
   if (p2pResult.resolvable) {

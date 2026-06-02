@@ -42,3 +42,4 @@ benchmark-baseline.json
 benchmark-report.html
 .benchmark-temp
 arb-generated
+.abis-version

@@ -31,7 +31,7 @@ import {
   COMMITMENT_POLL_TIMEOUT_MS,
   COMMITMENT_POLL_INTERVAL_MS,
 } from "../utils/constants";
-import { validateDomainLabel, stripTrailingDigits, countTrailingDigits } from "../utils/validation";
+import { validateDomainLabel, stripTrailingDigits } from "../utils/validation";
 import {
   performContractCall,
   submitContractTransaction,
@@ -415,18 +415,10 @@ export async function getPriceAndValidateEligibility(
         spinner.fail("Eligibility failed");
         throw new Error("Requires Personhood Lite verification");
       }
-    } else {
-      const trailingDigitCount = countTrailingDigits(label);
-      if (
-        trailingDigitCount === 0 ||
-        userStatus === ProofOfPersonhoodStatus.ProofOfPersonhoodLite
-      ) {
-        spinner.fail("Eligibility failed");
-        throw new Error(
-          "Personhood Lite cannot register base names\nThis means another user already owns the name without digits",
-        );
-      }
     }
+    // NoStatus-tier labels (stem of nine characters or more) are open to every tier,
+    // so no caller-side check fires here. Reservation collisions and any other
+    // protocol-side guards are enforced by PopRules at submission time.
 
     spinner.succeed("Eligibility and price");
     const resolvedPriceWei = classificationResult.price ?? classificationResult.priceWei;
@@ -456,18 +448,44 @@ export async function getPriceAndValidateEligibility(
     );
 
     return {
-      priceWei: classificationResult.price ?? classificationResult.priceWei,
+      priceWei: resolvedPriceWei,
       requiredStatus,
       userStatus,
       message,
       status: requiredStatus,
-      price: classificationResult.price ?? classificationResult.priceWei,
+      price: resolvedPriceWei,
     };
   } catch (error) {
     if (!spinner.isSpinning) throw error;
     spinner.fail("Pricing failed");
     throw error;
   }
+}
+
+// Quote the cross-payer friction charged by the registrar when msg.sender != owner.
+// The contract calls IPopRules.transferFloor(label, msg.sender, owner) and requires
+// msg.value >= max(price, friction); sending less reverts with InsufficientValue.
+// (The task brief called this "reachFee", but the on-chain register() path uses
+// transferFloor, which folds reach + sender-tier-downgrade into one floor.)
+export async function quoteCrossPayerFriction(
+  clientWrapper: ReviveClientWrapper,
+  originSubstrateAddress: string,
+  label: string,
+  callerEvmAddress: Address,
+  ownerEvmAddress: Address,
+): Promise<bigint> {
+  return await withTimeout(
+    performContractCall<bigint>(
+      clientWrapper,
+      originSubstrateAddress,
+      CONTRACTS.DOTNS_RULES,
+      POP_RULES_ABI,
+      "transferFloor",
+      [label, callerEvmAddress, ownerEvmAddress],
+    ),
+    30000,
+    "transferFloor",
+  );
 }
 
 export async function finalizeRegularRegistration(
@@ -477,14 +495,21 @@ export async function finalizeRegularRegistration(
   registration: DomainRegistration,
   priceWei: bigint,
   nativeTokenDecimals?: number,
+  frictionWei: bigint = 0n,
 ): Promise<void> {
   const spinner = ora(`Registering ${chalk.cyan(registration.label + ".dot")}`).start();
 
   try {
-    const bufferedPaymentWei = (priceWei * 110n) / 100n;
+    const totalChargedWei = priceWei > frictionWei ? priceWei : frictionWei;
+    const bufferedPaymentWei = (totalChargedWei * 110n) / 100n;
     const bufferedPaymentNative = convertWeiToNative(bufferedPaymentWei, nativeTokenDecimals);
 
-    console.log(chalk.gray("  oracle:    ") + chalk.green(formatWeiAsEther(priceWei) + " PAS"));
+    console.log(chalk.gray("  cost:      ") + chalk.green(formatWeiAsEther(priceWei) + " PAS"));
+    if (frictionWei > 0n) {
+      console.log(
+        chalk.gray("  friction:  ") + chalk.yellow(formatWeiAsEther(frictionWei) + " PAS"),
+      );
+    }
     console.log(
       chalk.gray("  paying:    ") + chalk.green(formatWeiAsEther(bufferedPaymentWei) + " PAS"),
     );

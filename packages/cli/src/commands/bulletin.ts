@@ -30,6 +30,7 @@ import type {
   AuthorizeAccountOptions,
   AuthorizeAccountResult,
   AuthorizationStatus,
+  RefreshAccountAuthorizationOptions,
   StoreDirectoryOptions,
   StoreDirectoryResult,
   UploadChunkedBlocksOptions,
@@ -103,7 +104,7 @@ export async function detectBulletinTestnet(rpc: string): Promise<boolean> {
 
 function emitPhase(
   onPhase: BulletinPhaseHandler | undefined,
-  phase: "validate" | "authorize" | "upload" | "verify",
+  phase: "validate" | "authorize" | "refresh" | "upload" | "verify",
   state: "start" | "update" | "success" | "warning" | "failure",
   message: string,
 ): void {
@@ -594,6 +595,84 @@ export async function authorizeAccount(
 
     if (errorMessage.includes("BadOrigin")) {
       throw new Error("Authorization failed: The signer does not have Authorizer privileges.");
+    }
+
+    throw error;
+  }
+}
+
+export async function refreshAccountAuthorization(
+  options: RefreshAccountAuthorizationOptions,
+): Promise<AuthorizeAccountResult> {
+  const { rpc, signer, targetAddress, onPhase } = options;
+  let client: PolkadotClient | undefined;
+  let txHash = "";
+  emitPhase(onPhase, "refresh", "start", "Checking authorization status");
+
+  try {
+    const existing = await checkAuthorization(rpc, targetAddress);
+    if (!existing.authorized) {
+      emitPhase(onPhase, "refresh", "failure", "Account is not authorized");
+      throw new Error(
+        `Account ${targetAddress} has no Bulletin authorization to refresh.\n` +
+          `Authorize it first:\n\n  dotns bulletin authorize ${targetAddress}\n`,
+      );
+    }
+
+    emitPhase(onPhase, "refresh", "update", "Refreshing authorization");
+
+    client = createClient(withPolkadotSdkCompat(getWsProvider(rpc)));
+    const typedApi = client.getTypedApi(bulletin);
+
+    const refreshTransaction = typedApi.tx.TransactionStorage.refresh_account_authorization({
+      who: targetAddress,
+    });
+
+    return await new Promise<AuthorizeAccountResult>((resolve, reject) => {
+      const subscription = refreshTransaction.signSubmitAndWatch(signer).subscribe({
+        next: (event) => {
+          switch (event.type) {
+            case "signed":
+              emitPhase(onPhase, "refresh", "update", "Refresh: signing");
+              break;
+            case "broadcasted":
+              emitPhase(onPhase, "refresh", "update", "Refresh: broadcasting");
+              txHash = event.txHash;
+              break;
+            case "txBestBlocksState":
+              if (event.found) {
+                emitPhase(onPhase, "refresh", "update", "Refresh: included, awaiting finalization");
+              }
+              break;
+            case "finalized":
+              subscription.unsubscribe();
+              client?.destroy();
+
+              if (!event.ok) {
+                emitPhase(onPhase, "refresh", "failure", "Refresh transaction failed");
+                reject(new Error("Refresh transaction was rejected by the chain"));
+                return;
+              }
+
+              emitPhase(onPhase, "refresh", "success", "Authorization refreshed");
+              resolve({ txHash, blockHash: event.block.hash });
+              break;
+          }
+        },
+        error: (error) => {
+          subscription.unsubscribe();
+          client?.destroy();
+          emitPhase(onPhase, "refresh", "failure", "Refresh failed");
+          reject(error);
+        },
+      });
+    });
+  } catch (error) {
+    client?.destroy();
+    const errorMessage = formatErrorMessage(error);
+
+    if (errorMessage.includes("BadOrigin")) {
+      throw new Error("Refresh failed: The signer does not have Authorizer privileges.");
     }
 
     throw error;

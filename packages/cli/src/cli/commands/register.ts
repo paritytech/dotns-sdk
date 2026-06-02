@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { isAddress, type Address } from "viem";
+import { checksumAddress, isAddress, type Address } from "viem";
 import {
   classifyDomainName,
   ensureDomainNotRegistered,
@@ -9,6 +9,7 @@ import {
   getPriceAndValidateEligibility,
   finalizeRegularRegistration,
   finalizeGovernanceRegistration,
+  quoteCrossPayerFriction,
   registerSubnode,
   verifyDomainOwnership,
   ensureLabelStoreReady,
@@ -74,6 +75,7 @@ export type DomainRegistrationResult = {
   ok: true;
   label: string;
   domain: string;
+  caller: string;
   owner: string;
 };
 
@@ -104,10 +106,39 @@ export async function executeRegistration(
     );
   }
 
+  // Cross-payer registration: caller pays, --owner receives the NFT.
+  // Conflicts with --owner (rejected up-front before credentials are required):
+  //  - --transfer/--to is redundant when --owner already names the final holder.
+  //  - --reverse cannot be honoured: register() sets reverse only when
+  //    `registration.reserved && isDirect`, so cross-payer regular registration
+  //    would silently no-op.
+  //  - --governance routes through registerReserved (whitelist-gated, price=0);
+  //    the CLI does not model the operator-pays-for-third-party case there.
+  if (options.owner != null) {
+    if (transferDestination) {
+      throw new Error("Cannot combine --owner with --transfer/--to; pick one");
+    }
+    if (options.reverse === true) {
+      throw new Error("Cannot combine --owner with --reverse; reverse record requires self-mint");
+    }
+    if (options.governance === true) {
+      throw new Error("Cannot combine --owner with --governance");
+    }
+  }
+
   const context = await prepareAssetHubContext(options);
   const { clientWrapper, substrateAddress, signer, evmAddress } = context;
 
   const label = options.name ?? generateRandomLabel(ProofOfPersonhoodStatus.NoStatus);
+
+  let ownerEvmAddress: Address = evmAddress;
+  if (options.owner != null) {
+    ownerEvmAddress = await step("Resolving owner", async () =>
+      resolveTransferRecipient(clientWrapper, substrateAddress, options.owner as string),
+    );
+  }
+
+  const crossPayer = checksumAddress(ownerEvmAddress) !== checksumAddress(evmAddress);
 
   console.log(
     chalk.gray("  Mode:      ") +
@@ -115,6 +146,14 @@ export async function executeRegistration(
   );
   console.log(chalk.gray("  Label:     ") + chalk.cyan(label));
   console.log(chalk.gray("  Domain:    ") + chalk.cyan(label + ".dot"));
+  console.log(chalk.gray("  Caller:    ") + chalk.white(evmAddress));
+  console.log(chalk.gray("  Owner:     ") + chalk.white(ownerEvmAddress));
+  if (crossPayer) {
+    console.log(
+      chalk.gray("  Note:      ") +
+        chalk.yellow("caller pays price + transferFloor friction; owner receives the name"),
+    );
+  }
   console.log(
     chalk.gray("  Transfer:  ") +
       (transferDestination ? chalk.green("post-mint") : chalk.gray("none")),
@@ -133,6 +172,7 @@ export async function executeRegistration(
       label,
       transferDestination,
       options.commitmentBuffer,
+      context.nativeTokenDecimals,
     );
   } else {
     await executeRegularRegistration(
@@ -140,6 +180,7 @@ export async function executeRegistration(
       substrateAddress,
       signer,
       evmAddress,
+      ownerEvmAddress,
       label,
       context.nativeTokenDecimals,
       options.reverse ?? false,
@@ -153,7 +194,13 @@ export async function executeRegistration(
   console.log(`${chalk.bold.green("═══════════════════════════════════════")}\n`);
   console.log(chalk.gray("  Domain: ") + chalk.cyan(label + ".dot"));
 
-  return { ok: true as const, label, domain: `${label}.dot`, owner: evmAddress };
+  return {
+    ok: true as const,
+    label,
+    domain: `${label}.dot`,
+    caller: evmAddress,
+    owner: ownerEvmAddress,
+  };
 }
 
 export async function executeSubnameRegistration(
@@ -216,6 +263,7 @@ async function executeGovernanceRegistration(
   label: string,
   transferDestination: string | undefined,
   commitmentBuffer?: number,
+  nativeTokenDecimals?: number,
 ): Promise<void> {
   console.log(chalk.bold("\n🏛 Governance registration (commit-reveal)\n"));
 
@@ -265,7 +313,15 @@ async function executeGovernanceRegistration(
     );
 
     await step("Transferring domain", async () =>
-      transferDomain(clientWrapper, substrateAddress, signer, evmAddress, recipient, label),
+      transferDomain(
+        clientWrapper,
+        substrateAddress,
+        signer,
+        evmAddress,
+        recipient,
+        label,
+        nativeTokenDecimals,
+      ),
     );
 
     await step("Verifying ownership", async () =>
@@ -279,6 +335,7 @@ async function executeRegularRegistration(
   substrateAddress: string,
   signer: any,
   evmAddress: Address,
+  ownerEvmAddress: Address,
   label: string,
   nativeTokenDecimals: number,
   enableReverseRecord: boolean,
@@ -289,6 +346,8 @@ async function executeRegularRegistration(
 
   validateDomainLabel(label);
 
+  const isCrossPayer = checksumAddress(ownerEvmAddress) !== checksumAddress(evmAddress);
+
   const classification: NameClassification = await step("Classifying name", async () =>
     classifyDomainName(clientWrapper, substrateAddress, label),
   );
@@ -298,7 +357,13 @@ async function executeRegularRegistration(
   );
 
   const { commitment, registration } = await step("Generating commitment", async () =>
-    generateCommitment(clientWrapper, substrateAddress, label, evmAddress, enableReverseRecord),
+    generateCommitment(
+      clientWrapper,
+      substrateAddress,
+      label,
+      ownerEvmAddress,
+      enableReverseRecord,
+    ),
   );
 
   await step("Submitting commitment", async () =>
@@ -310,8 +375,20 @@ async function executeRegularRegistration(
   );
 
   const pricing: PricingAndEligibility = await step("Pricing and eligibility", async () =>
-    getPriceAndValidateEligibility(clientWrapper, substrateAddress, label, evmAddress),
+    getPriceAndValidateEligibility(clientWrapper, substrateAddress, label, ownerEvmAddress),
   );
+
+  const frictionWei: bigint = isCrossPayer
+    ? await step("Quoting cross-payer friction", async () =>
+        quoteCrossPayerFriction(
+          clientWrapper,
+          substrateAddress,
+          label,
+          evmAddress,
+          ownerEvmAddress,
+        ),
+      )
+    : 0n;
 
   await step("Finalizing registration", async () =>
     finalizeRegularRegistration(
@@ -321,16 +398,19 @@ async function executeRegularRegistration(
       registration,
       pricing.priceWei,
       nativeTokenDecimals,
+      frictionWei,
     ),
   );
 
   await step("Verifying ownership", async () =>
-    verifyDomainOwnership(clientWrapper, substrateAddress, label, evmAddress),
+    verifyDomainOwnership(clientWrapper, substrateAddress, label, ownerEvmAddress),
   );
 
-  await step("Ensuring label store", async () =>
-    ensureLabelStoreReady(clientWrapper, substrateAddress, signer, evmAddress),
-  );
+  if (!isCrossPayer) {
+    await step("Ensuring label store", async () =>
+      ensureLabelStoreReady(clientWrapper, substrateAddress, signer, evmAddress),
+    );
+  }
 
   if (transferDestination) {
     const recipient = await step("Resolving recipient", async () =>
@@ -338,7 +418,15 @@ async function executeRegularRegistration(
     );
 
     await step("Transferring domain", async () =>
-      transferDomain(clientWrapper, substrateAddress, signer, evmAddress, recipient, label),
+      transferDomain(
+        clientWrapper,
+        substrateAddress,
+        signer,
+        evmAddress,
+        recipient,
+        label,
+        nativeTokenDecimals,
+      ),
     );
 
     await step("Verifying ownership", async () =>
