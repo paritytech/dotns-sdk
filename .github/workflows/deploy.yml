@@ -148,6 +148,13 @@ on:
       duration-seconds:
         value: ${{ jobs.deploy.outputs.duration-seconds }}
 
+# Serialise deploys per environment so the registrar-operator key (e.g. //Alice)
+# whitelist extrinsic and the deployer key registration extrinsics do not race
+# and produce duplicate-nonce / priority-too-low failures.
+concurrency:
+  group: dotns-deploy-${{ inputs.env }}
+  cancel-in-progress: false
+
 jobs:
   deploy:
     name: Deploy
