@@ -157,8 +157,8 @@ export type DotnsContractAddresses = {
   /** Proof of Personhood controller - claims LabelStore and settles deferred labels */
   DOTNS_POP_CONTROLLER: Address;
 
-  /** Name escrow - holds NoStatus deposits and the refund-on-leave ledger */
-  DOTNS_NAME_ESCROW: Address;
+  /** Name escrow - holds NoStatus deposits and the refund-on-leave ledger. Optional: not deployed on every environment. */
+  DOTNS_NAME_ESCROW?: Address;
 
   /** Multicall3 - batch read contract calls */
   MULTICALL3: Address;
@@ -241,28 +241,6 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
   },
   previewnet: {
     id: "previewnet",
-    label: "Preview Net",
-    aliases: ["previewnet", "preview"],
-    rpc: "wss://previewnet.substrate.dev/asset-hub",
-    blockExplorerUrl: "https://blockscout-testnet.polkadot.io",
-    contracts: null,
-    bulletinRpc: "wss://previewnet.substrate.dev/bulletin",
-    ipfsGatewayUrl: "https://previewnet.substrate.dev/ipfs",
-    bulletinP2pPeers: [],
-  },
-  "rococo-pop-stable": {
-    id: "rococo-pop-stable",
-    label: "Rococo POP Stable",
-    aliases: ["rococo-pop-stable", "rococo-pop", "pop-stable", "pop3"],
-    rpc: "wss://pop3-testnet.parity-lab.parity.io/asset-hub",
-    blockExplorerUrl: "https://blockscout-testnet.polkadot.io",
-    contracts: null,
-    bulletinRpc: "wss://pop3-testnet.parity-lab.parity.io/bulletin",
-    ipfsGatewayUrl: "https://pop3-testnet.parity-lab.parity.io/ipfs",
-    bulletinP2pPeers: [],
-  },
-  previewnet: {
-    id: "previewnet",
     label: "Paseo Asset Hub Previewnet",
     aliases: ["previewnet", "preview-net", "preview", "ppn"],
     rpc: PREVIEWNET_ASSET_HUB_URL,
@@ -278,6 +256,20 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
       DOTNS_POP_CONTROLLER: "0xae2c63b921Bc9DC30C149A8FA462fd3efA53D1F4" as Address,
       MULTICALL3: "0x758F88C7761FCD4742f9471448c2209a7e859280" as Address,
     },
+    bulletinRpc: "wss://previewnet.substrate.dev/bulletin",
+    ipfsGatewayUrl: "https://previewnet.substrate.dev/ipfs",
+    bulletinP2pPeers: [],
+  },
+  "rococo-pop-stable": {
+    id: "rococo-pop-stable",
+    label: "Rococo POP Stable",
+    aliases: ["rococo-pop-stable", "rococo-pop", "pop-stable", "pop3"],
+    rpc: "wss://pop3-testnet.parity-lab.parity.io/asset-hub",
+    blockExplorerUrl: "https://blockscout-testnet.polkadot.io",
+    contracts: null,
+    bulletinRpc: "wss://pop3-testnet.parity-lab.parity.io/bulletin",
+    ipfsGatewayUrl: "https://pop3-testnet.parity-lab.parity.io/ipfs",
+    bulletinP2pPeers: [],
   },
 };
 
