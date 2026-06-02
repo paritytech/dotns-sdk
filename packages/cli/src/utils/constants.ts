@@ -124,12 +124,7 @@ export const PASEO_BULLETIN_PEERS: readonly string[] = [
   "/dns4/paseo-bulletin-rpc-node-1.polkadot.io/tcp/443/wss/p2p/12D3KooWSS9QNRiLGBoZrDrtXvPyBV7QrV7F3A1V8f6xAXECSnj5",
 ];
 
-export const DOTNS_ENVIRONMENT_IDS = [
-  "paseo-v2",
-  "paseo",
-  "previewnet",
-  "rococo-pop-stable",
-] as const;
+export const DOTNS_ENVIRONMENT_IDS = ["paseo-v2", "previewnet"] as const;
 export type DotnsEnvironmentId = (typeof DOTNS_ENVIRONMENT_IDS)[number];
 
 export type DotnsContractAddresses = {
@@ -223,22 +218,6 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
     ipfsGatewayUrl: PASEO_IPFS_GATEWAY_URL,
     bulletinP2pPeers: PASEO_BULLETIN_PEERS,
   },
-  paseo: {
-    id: "paseo",
-    label: "Paseo",
-    aliases: ["paseo"],
-    rpc: "wss://asset-hub-paseo-rpc.n.dwellir.com",
-    blockExplorerUrl: "https://blockscout-testnet.polkadot.io",
-    contracts: null,
-    bulletinRpc: "wss://paseo-bulletin-rpc.polkadot.io",
-    ipfsGatewayUrl: "https://paseo-ipfs.polkadot.io/ipfs",
-    bulletinP2pPeers: [
-      "/dns4/paseo-bulletin-collator-node-0.parity-testnet.parity.io/tcp/443/wss/p2p/12D3KooWRuKisocQ2Z5hBZagV5YGxJMYuW13xT42sUiUCWf5bRtu",
-      "/dns4/paseo-bulletin-collator-node-1.parity-testnet.parity.io/tcp/443/wss/p2p/12D3KooWSgdX2egCUiXtDUNV6hGh6JrtTb9vQ6iRfFMdnTemQDDp",
-      "/dns4/paseo-bulletin-rpc-node-0.polkadot.io/tcp/443/wss/p2p/12D3KooWG7dt8yAMBaNrWh5juvHMGvJtPKTCaS87kkadWZKpV7ox",
-      "/dns4/paseo-bulletin-rpc-node-1.polkadot.io/tcp/443/wss/p2p/12D3KooWSS9QNRiLGBoZrDrtXvPyBV7QrV7F3A1V8f6xAXECSnj5",
-    ],
-  },
   previewnet: {
     id: "previewnet",
     label: "Paseo Asset Hub Previewnet",
@@ -259,17 +238,6 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
     },
     bulletinRpc: "wss://previewnet.substrate.dev/bulletin",
     ipfsGatewayUrl: "https://previewnet.substrate.dev/ipfs",
-    bulletinP2pPeers: [],
-  },
-  "rococo-pop-stable": {
-    id: "rococo-pop-stable",
-    label: "Rococo POP Stable",
-    aliases: ["rococo-pop-stable", "rococo-pop", "pop-stable", "pop3"],
-    rpc: "wss://pop3-testnet.parity-lab.parity.io/asset-hub",
-    blockExplorerUrl: "https://blockscout-testnet.polkadot.io",
-    contracts: null,
-    bulletinRpc: "wss://pop3-testnet.parity-lab.parity.io/bulletin",
-    ipfsGatewayUrl: "https://pop3-testnet.parity-lab.parity.io/ipfs",
     bulletinP2pPeers: [],
   },
 };

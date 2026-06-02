@@ -43,7 +43,7 @@ test("falls back to active env's bulletin RPC", () => {
   expect(resolveBulletinRpc(undefined, "previewnet")).toBe(
     "wss://previewnet.substrate.dev/bulletin",
   );
-  expect(resolveBulletinRpc(undefined, "paseo")).toBe("wss://paseo-bulletin-rpc.polkadot.io");
+  expect(resolveBulletinRpc(undefined, "paseo-v2")).toBe("wss://paseo-bulletin-rpc.polkadot.io");
 });
 
 test("throws when nothing is configured (synthetic case)", () => {

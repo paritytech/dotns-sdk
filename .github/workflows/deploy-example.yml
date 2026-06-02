@@ -105,11 +105,13 @@ jobs:
       cli-source: source
       use-car: false
       register-base: true
+      env: paseo-v2
       sdk-repository: ${{ github.event.pull_request.head.repo.full_name }}
       sdk-ref: ${{ github.event.pull_request.head.sha }}
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
       bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC_DEPLOY_EXAMPLE }}
+      registrar-operator-mnemonic: ${{ secrets.DOTNS_REGISTRAR_OPERATOR_MNEMONIC }}
 
   comment:
     name: Update PR Comment

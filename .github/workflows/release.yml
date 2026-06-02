@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
   pull_request:
     branches: [main]
     paths:
@@ -434,6 +434,8 @@ jobs:
       mode: production
       artifact-name: ui-site
       cli-source: release
+      env: paseo-v2
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
       bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC_DEPLOY_UI }}
+      registrar-operator-mnemonic: ${{ secrets.DOTNS_REGISTRAR_OPERATOR_MNEMONIC }}

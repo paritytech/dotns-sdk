@@ -106,10 +106,12 @@ jobs:
       use-car: false
       upload-concurrency: 10
       cli-source: source
+      env: paseo-v2
       sdk-ref: ${{ github.head_ref || github.ref }}
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
       bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC_DEPLOY_UI }}
+      registrar-operator-mnemonic: ${{ secrets.DOTNS_REGISTRAR_OPERATOR_MNEMONIC }}
 
   deploy-production:
     name: Deploy Production
@@ -124,10 +126,12 @@ jobs:
       use-car: false
       upload-concurrency: 10
       cli-source: source
+      env: paseo-v2
       sdk-ref: ${{ github.head_ref || github.ref }}
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
       bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC_DEPLOY_UI }}
+      registrar-operator-mnemonic: ${{ secrets.DOTNS_REGISTRAR_OPERATOR_MNEMONIC }}
 
   comment:
     name: Update PR Comment

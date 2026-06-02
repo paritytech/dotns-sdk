@@ -55,6 +55,6 @@ body:
       value: |
         OS: 
         Bun: 
-        Node: 
+        Node:
     validations:
       required: true

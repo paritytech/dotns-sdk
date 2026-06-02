@@ -250,12 +250,12 @@ function writeBulletinJsonError(error: unknown): never {
 
 /**
  * Warn when the dev-default `//Alice` signer is used against an environment
- * where the bulletin Authorizer is almost certainly *not* `//Alice` (paseo,
- * previewnet). Silent on `paseo-v2` (local dev) and on explicit overrides.
+ * where the bulletin Authorizer is almost certainly *not* `//Alice`
+ * (previewnet). Silent on `paseo-v2` (local dev) and on explicit overrides.
  */
 function warnIfDevKeyOnTestnet(signerKeyUri: string, environmentId: string): void {
   if (signerKeyUri !== DEFAULT_SUDO_KEY_URI) return;
-  if (environmentId !== "paseo" && environmentId !== "previewnet") return;
+  if (environmentId !== "previewnet") return;
   console.warn(
     chalk.yellow(
       `\n⚠ Using default signer ${DEFAULT_SUDO_KEY_URI} against ${environmentId}.\n` +

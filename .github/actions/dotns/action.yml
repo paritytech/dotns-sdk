@@ -3,42 +3,42 @@ description: Look up, register, and set contenthash for a DotNS domain or subnam
 
 inputs:
   mnemonic:
-    description: 'BIP39 mnemonic for DotNS on-chain operations'
+    description: "BIP39 mnemonic for DotNS on-chain operations"
     required: true
   rpc:
-    description: 'WebSocket RPC endpoint (default: CLI built-in)'
+    description: "WebSocket RPC endpoint (default: CLI built-in)"
     required: false
   env:
-    description: 'DotNS environment'
+    description: "DotNS environment"
     required: false
-    default: 'paseo-v2'
+    default: "paseo-v2"
   basename:
-    description: 'Base domain without .dot'
+    description: "Base domain without .dot"
     required: true
   mode:
-    description: 'preview (subname deploy) | production (basename deploy)'
+    description: "preview (subname deploy) | production (basename deploy)"
     required: true
   subname:
-    description: 'Subname to register (required when mode=preview)'
+    description: "Subname to register (required when mode=preview)"
     required: false
   domain:
-    description: 'Resolved domain (e.g. pr42.mysite or mysite)'
+    description: "Resolved domain (e.g. pr42.mysite or mysite)"
     required: true
   register-base:
-    description: 'Attempt base domain registration if not already owned'
+    description: "Attempt base domain registration if not already owned"
     required: false
-    default: 'false'
+    default: "false"
   cid:
-    description: 'Content Identifier to set as contenthash'
+    description: "Content Identifier to set as contenthash"
     required: true
   max-retries:
-    description: 'Max retry attempts for transient RPC failures'
+    description: "Max retry attempts for transient RPC failures"
     required: false
-    default: '3'
+    default: "3"
   retry-delay:
-    description: 'Seconds to wait between retries'
+    description: "Seconds to wait between retries"
     required: false
-    default: '15'
+    default: "15"
 
 runs:
   using: composite
