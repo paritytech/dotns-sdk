@@ -1,6 +1,5 @@
 import type { Address, Hex } from "viem";
 import type { StoredAuth } from "../cli/keystore/types";
-import type { Ora } from "ora";
 import type { PolkadotClient, PolkadotSigner, TypedApi } from "polkadot-api";
 import type { ReviveClientWrapper, PolkadotApiClient } from "../client/polkadotClient";
 import type { Bulletin } from "@polkadot-api/descriptors";
@@ -83,31 +82,6 @@ export type RegistrationCommandOptions = {
   commitmentBuffer?: number;
 };
 
-export type LookupCommandOptions = {
-  /** Domain label to query (without .dot) */
-  name: string;
-  /** BIP39 mnemonic phrase for account derivation */
-  mnemonic?: string;
-  /** Substrate key URI (e.g., //Alice for dev accounts) */
-  keyUri?: string;
-};
-
-export type ContentHashCommandOptions = {
-  /** Domain label (without .dot) */
-  name: string;
-  /** IPFS CID to set (for set operation) */
-  contentId?: string;
-  /** BIP39 mnemonic phrase for account derivation */
-  mnemonic?: string;
-  /** Substrate key URI (e.g., //Alice for dev accounts) */
-  keyUri?: string;
-};
-
-export type OwnershipLookupOptions = Partial<RegistrationCommandOptions> & {
-  /** The label we are attempting to lookup */
-  name: string;
-};
-
 export type DomainOwnership = {
   /** The label without the .dot */
   label?: string;
@@ -177,17 +151,6 @@ export type CommandOptions = {
 };
 
 export type BulletinReporterMode = "auto" | "interactive" | "stream" | "quiet";
-
-export type AccountInfo = {
-  /** Account name (original, not sanitized) */
-  name: string;
-  /** Full path to the account's encrypted file */
-  filePath: string;
-  /** Whether this account is set as the default */
-  isDefault: boolean;
-  /** Type of authentication stored (if decrypted) */
-  authType?: AuthType;
-};
 
 export type KeystoreDirectoryInfo = {
   /** Full path to the keystore directory */
@@ -288,36 +251,6 @@ export type BulletinRetryEvent = {
 export type BulletinPhaseHandler = (event: BulletinProgressEvent) => void;
 
 export type BulletinRetryHandler = (event: BulletinRetryEvent) => void;
-
-export type BulletinStoreParams = {
-  /** Bulletin RPC endpoint URL */
-  rpc: string;
-  /** Signer mnemonic phrase */
-  signerMnemonic?: string;
-  /** Signer derivation path */
-  signerDerivePath?: string;
-  /** Bytes to store */
-  bytes: Uint8Array;
-  /** CID codec identifier */
-  codec: number;
-  /** Hash algorithm code */
-  hashCode: number;
-  /** Spinner instance for progress updates */
-  spinner?: Ora;
-  /** Operation name for status messages */
-  operationName?: string;
-  /** Whether to emit transaction status updates */
-  emitStatus?: boolean;
-  /** Whether to print operation summary */
-  printSummary?: boolean;
-};
-
-export type SudoStoreResults = {
-  /** Content identifier for stored data */
-  cid: string;
-  /** Bulletin storage index if available */
-  storedIndex?: string;
-};
 
 export type BulletinStoreResult = {
   /** Content identifier (CID) for the stored data */
@@ -494,24 +427,6 @@ export type UploadRecord = {
   timestamp: string;
 };
 
-export type SingleStorageParams = {
-  /** Bulletin RPC endpoint URL */
-  rpc: string;
-  /** Signer for authorizing the storage transaction */
-  signer: PolkadotSigner;
-  /** Data bytes to be stored */
-  data: Uint8Array;
-};
-
-export type StoreChunkedParams = {
-  /** Bulletin RPC endpoint URL */
-  rpc: string;
-  /** Signer for authorizing the storage transaction */
-  signer: PolkadotSigner;
-  /** Array of data chunks to be stored */
-  chunks: Uint8Array[];
-};
-
 export type VerificationResult = {
   /** Content identifier that was verified */
   cid: string;
@@ -642,50 +557,6 @@ export type TransactionWatchFailureEvent = {
   error?: unknown;
   /** Optional reason string reported by the node */
   reason?: string;
-};
-
-export type StoreParameters = {
-  /** Bulletin RPC endpoint URL */
-  rpcEndpoint: string;
-  /** Signer for authorizing the storage transaction */
-  signer: PolkadotSigner;
-  /** Raw bytes of content to store */
-  contentBytes: Uint8Array;
-  /** Pre-computed CID for the content */
-  contentCid: string;
-  /** Codec identifier for CID computation */
-  codecValue: number;
-  /** Hash algorithm code for CID computation */
-  hashCodeValue: number;
-  /** Optional nonce for transaction ordering */
-  transactionNonce?: number;
-  /** Callback for progress updates */
-  onProgress?: (status: string) => void;
-};
-
-export type TraversedDirectoryFile = {
-  /** Slash-delimited relative path within the uploaded directory */
-  path: string;
-  /** Absolute filesystem path to the file on disk */
-  fullPath: string;
-};
-
-export type StreamedFileChunk = {
-  /** Zero-based chunk index */
-  index: number;
-  /** Raw bytes for this chunk */
-  bytes: Uint8Array;
-  /** Byte length of the chunk */
-  length: number;
-};
-
-export type StoredChunkReference = {
-  /** Zero-based chunk index */
-  index: number;
-  /** Content identifier for this chunk */
-  cid: string;
-  /** Byte length of the chunk */
-  length: number;
 };
 
 export type AuthSource = {
@@ -864,15 +735,6 @@ export type StoreInfo = {
   exists: boolean;
 };
 
-export type StoreAuthStatus = {
-  /** Target address being checked */
-  address: Address;
-  /** Whether the address can call setValueFor on this Store */
-  isAuthorized: boolean;
-  /** Whether the address is a DotNS controller (locks keys on write) */
-  isDotnsController: boolean;
-};
-
 export type StoreValueResult = {
   /** Bytes32 storage key (hex-encoded) */
   key: `0x${string}`;
@@ -880,6 +742,24 @@ export type StoreValueResult = {
   value: string;
   /** Whether a non-empty value exists at this key */
   exists: boolean;
+};
+
+/** A single key/value entry enumerated from a UserStore. */
+export type StoreEntry = {
+  /** Bytes32 storage key (hex-encoded) */
+  key: `0x${string}`;
+  /** Stored string value, empty string if cleared */
+  value: string;
+};
+
+/** Result of claiming a UserStore from the StoreFactory. */
+export type ClaimUserStoreResult = {
+  /** Deployed UserStore contract address bound to the caller */
+  storeAddress: Address;
+  /** Transaction hash of the claim, null if the store was already claimed */
+  tx: string | null;
+  /** Whether the store already existed before this call */
+  alreadyClaimed: boolean;
 };
 
 export type IsMappedResult = {
@@ -1085,21 +965,6 @@ export type UploadProfileReport = {
   summary: UploadProfileSummary;
 };
 
-export type StoreEnsureAuthResult = {
-  /** EVM address of the DotNS registrar controller contract */
-  controllerAddress: Address;
-  /** Whether the controller is authorized as a Store writer */
-  controllerAuthorized: boolean;
-  /** Transaction hash of the controller authorization, if newly authorized */
-  controllerTx?: string;
-  /** EVM address of the DotNS registry contract */
-  registryAddress: Address;
-  /** Whether the registry is authorized as a Store writer */
-  registryAuthorized: boolean;
-  /** Transaction hash of the registry authorization, if newly authorized */
-  registryTx?: string;
-};
-
 /** EVM address resolved from a Substrate or EVM input */
 export type ResolvedAddress = {
   /** Checksummed EVM address */
@@ -1124,29 +989,6 @@ export type AuthorizationState = {
   expiration?: number;
   /** Current block number on the Bulletin chain */
   currentBlock?: number;
-};
-
-/** Result of verifying a CID against an IPFS gateway */
-export type CidVerificationResult = {
-  /** Whether the gateway returned a successful response */
-  resolvable: boolean;
-  /** Base URL of the gateway that was queried */
-  gateway: string;
-  /** HTTP status code from the gateway, if available */
-  statusCode?: number;
-};
-
-/** A single call descriptor for Multicall3.aggregate3 */
-export type Multicall3Call = {
-  target: Address;
-  allowFailure: boolean;
-  callData: Hex;
-};
-
-/** A single result from Multicall3.aggregate3 */
-export type Multicall3Result = {
-  success: boolean;
-  returnData: Hex;
 };
 
 /** Result of deleting a key from a user's Store contract */

@@ -117,6 +117,8 @@ export async function submitContractTransaction(
     args: functionArguments,
   }) as Hex;
 
+  const abortController = new AbortController();
+
   try {
     return await withTimeout(
       clientWrapper.submitTransaction(
@@ -126,9 +128,11 @@ export async function submitContractTransaction(
         signerSubstrateAddress,
         signer,
         createTransactionStatusHandler(spinner, operationName),
+        abortController.signal,
       ),
       OPERATION_TIMEOUT_MILLISECONDS,
       operationName || "Transaction",
+      () => abortController.abort(),
     );
   } catch (error) {
     if (error instanceof Error && error.message.includes("would revert: 0x")) {

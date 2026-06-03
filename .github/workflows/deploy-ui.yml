@@ -102,7 +102,7 @@ jobs:
       mode: preview
       subname-format: pr-number
       artifact-name: ui-site
-      register-base: false
+      register-base: true
       use-car: false
       upload-concurrency: 10
       cli-source: source
@@ -122,7 +122,7 @@ jobs:
       basename: dotns
       mode: production
       artifact-name: ui-site
-      register-base: false
+      register-base: true
       use-car: false
       upload-concurrency: 10
       cli-source: source

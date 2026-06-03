@@ -52,10 +52,6 @@ export function printHumanSuccess(message: string): void {
   writeHumanLine(message, "success");
 }
 
-export function printHumanWarning(message: string): void {
-  writeHumanLine(message, "warning");
-}
-
 export function printHumanFailure(message: string): void {
   writeHumanLine(message, "error");
 }

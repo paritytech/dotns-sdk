@@ -1,4 +1,4 @@
-import type { VerificationResult, BlockVerificationResult } from "../types/types";
+import type { VerificationResult } from "../types/types";
 import { getActiveDotnsEnvironment } from "../utils/constants";
 import { formatErrorMessage } from "../utils/formatting";
 async function loadHeliaClient() {
@@ -62,31 +62,6 @@ export async function verifyCidResolution(
       errorMessage,
     };
   }
-}
-
-export async function verifyMultipleCids(
-  contentCids: string[],
-  gatewayBaseUrl: string = requireActiveGateway(),
-): Promise<BlockVerificationResult> {
-  const resolvableBlocks: string[] = [];
-  const missingBlocks: string[] = [];
-
-  for (const contentCid of contentCids) {
-    const verificationResult = await verifyCidResolution(contentCid, gatewayBaseUrl);
-
-    if (verificationResult.resolvable) {
-      resolvableBlocks.push(contentCid);
-    } else {
-      missingBlocks.push(contentCid);
-    }
-  }
-
-  return {
-    totalBlocks: contentCids.length,
-    resolvableBlocks,
-    missingBlocks,
-    gateway: gatewayBaseUrl,
-  };
 }
 
 export async function verifyCidWithMultipleGateways(

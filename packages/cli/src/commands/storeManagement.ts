@@ -5,47 +5,47 @@ import {
   zeroAddress,
   keccak256,
   toHex,
-  encodeFunctionData,
-  decodeFunctionResult,
-  namehash,
+  stringToHex,
+  hexToString,
   type Address,
-  type Abi,
+  type Hex,
 } from "viem";
 import type { PolkadotSigner } from "polkadot-api";
 import type { ReviveClientWrapper } from "../client/polkadotClient";
 import {
   CONTRACTS,
   STORE_FACTORY_ABI,
-  STORE_ABI,
-  DOTNS_REGISTRAR_ABI,
-  DOTNS_REGISTRY_ABI,
+  USER_STORE_ABI,
+  LABEL_STORE_ABI,
   DOTNS_POP_CONTROLLER_ABI,
 } from "../utils/constants";
-import {
-  performContractCall,
-  submitContractTransaction,
-  computeDomainTokenId,
-} from "../utils/contractInteractions";
-import Multicall3Json from "../../abis/Multicall3.json" assert { type: "json" };
+import { performContractCall, submitContractTransaction } from "../utils/contractInteractions";
 import type {
   StoreInfo,
   StoreValueResult,
-  StoreAuthStatus,
-  StoreEnsureAuthResult,
   StoreDeleteResult,
+  StoreEntry,
+  ClaimUserStoreResult,
   CacheCidToStoreOptions,
-  Multicall3Call,
-  Multicall3Result,
 } from "../types/types";
 
-const MULTICALL3_ABI = Multicall3Json as Abi;
-const MULTICALL_CHUNK_SIZE = 20;
+// UserStore / LabelStore expose paginated enumeration; read in fixed-size pages.
+const STORE_PAGE_SIZE = 100n;
 
 function normalizeKeyToBytes32(raw: string): `0x${string}` {
   if (raw.startsWith("0x") && raw.length === 66) {
     return raw as `0x${string}`;
   }
   return keccak256(toHex(raw));
+}
+
+/** UserStore values are raw bytes; the CLI stores and reads them as UTF-8 strings. */
+function encodeValue(value: string): Hex {
+  return stringToHex(value);
+}
+
+function decodeValue(raw: Hex): string {
+  return raw && raw !== "0x" ? hexToString(raw) : "";
 }
 
 async function resolveUserStoreAddress(
@@ -73,6 +73,84 @@ async function resolveUserStoreAddress(
   return storeAddress;
 }
 
+async function resolveLabelStoreAddress(
+  clientWrapper: ReviveClientWrapper,
+  originSubstrateAddress: string,
+  evmAddress: Address,
+): Promise<Address | null> {
+  const storeAddress = getAddress(
+    await performContractCall<Address>(
+      clientWrapper,
+      originSubstrateAddress,
+      CONTRACTS.STORE_FACTORY,
+      STORE_FACTORY_ABI,
+      "getLabelStore",
+      [evmAddress],
+    ),
+  );
+
+  return storeAddress === zeroAddress ? null : storeAddress;
+}
+
+export async function claimUserStore(
+  clientWrapper: ReviveClientWrapper,
+  substrateAddress: string,
+  signer: PolkadotSigner,
+  evmAddress: Address,
+): Promise<ClaimUserStoreResult> {
+  const existing = getAddress(
+    await performContractCall<Address>(
+      clientWrapper,
+      substrateAddress,
+      CONTRACTS.STORE_FACTORY,
+      STORE_FACTORY_ABI,
+      "getUserStore",
+      [evmAddress],
+    ),
+  );
+
+  if (existing !== zeroAddress) {
+    console.log("\n▶ User Store Claim");
+    console.log(chalk.gray("  owner:  ") + chalk.white(evmAddress));
+    console.log(chalk.gray("  store:  ") + chalk.white(existing));
+    console.log(chalk.gray("  status: ") + chalk.white("already claimed"));
+    return { storeAddress: existing, tx: null, alreadyClaimed: true };
+  }
+
+  const spinner = ora("Claiming User Store").start();
+
+  const tx = await submitContractTransaction(
+    clientWrapper,
+    CONTRACTS.STORE_FACTORY,
+    0n,
+    STORE_FACTORY_ABI,
+    "claimUserStore",
+    [],
+    substrateAddress,
+    signer,
+    spinner,
+    "Claim user store",
+  );
+
+  const storeAddress = getAddress(
+    await performContractCall<Address>(
+      clientWrapper,
+      substrateAddress,
+      CONTRACTS.STORE_FACTORY,
+      STORE_FACTORY_ABI,
+      "getUserStore",
+      [evmAddress],
+    ),
+  );
+
+  console.log("\n▶ User Store Claim");
+  console.log(chalk.gray("  tx:    ") + chalk.blue(tx));
+  console.log(chalk.gray("  owner: ") + chalk.white(evmAddress));
+  console.log(chalk.gray("  store: ") + chalk.white(storeAddress));
+
+  return { storeAddress, tx, alreadyClaimed: false };
+}
+
 export async function getStoreInfo(
   clientWrapper: ReviveClientWrapper,
   originSubstrateAddress: string,
@@ -86,28 +164,76 @@ export async function getStoreInfo(
       originSubstrateAddress,
       CONTRACTS.STORE_FACTORY,
       STORE_FACTORY_ABI,
-      "getLabelStore",
+      "getUserStore",
       [evmAddress],
     ),
   );
 
   const exists = storeAddress !== zeroAddress;
-  spinner.succeed("Label Store lookup complete");
+  spinner.succeed("Store lookup complete");
 
-  console.log("\n▶ Label Store Info");
+  console.log("\n▶ Store Info");
   console.log(chalk.gray("  factory: ") + chalk.white(CONTRACTS.STORE_FACTORY));
   console.log(chalk.gray("  owner:   ") + chalk.white(evmAddress));
-  console.log(chalk.gray("  store:   ") + chalk.white(exists ? storeAddress : "(not deployed)"));
+  console.log(chalk.gray("  store:   ") + chalk.white(exists ? storeAddress : "(not claimed)"));
   console.log(chalk.gray("  exists:  ") + chalk.white(String(exists)));
 
   return { owner: evmAddress, storeAddress: exists ? storeAddress : null, exists };
+}
+
+async function readAllUserStoreKeys(
+  clientWrapper: ReviveClientWrapper,
+  originSubstrateAddress: string,
+  storeAddress: Address,
+): Promise<Hex[]> {
+  const count = await performContractCall<bigint>(
+    clientWrapper,
+    originSubstrateAddress,
+    storeAddress,
+    USER_STORE_ABI,
+    "getKeyCount",
+    [],
+  );
+
+  const keys: Hex[] = [];
+  for (let offset = 0n; offset < count; offset += STORE_PAGE_SIZE) {
+    const page = await performContractCall<readonly Hex[]>(
+      clientWrapper,
+      originSubstrateAddress,
+      storeAddress,
+      USER_STORE_ABI,
+      "getKeys",
+      [offset, STORE_PAGE_SIZE],
+    );
+    keys.push(...page);
+  }
+
+  return keys;
+}
+
+async function readUserStoreValue(
+  clientWrapper: ReviveClientWrapper,
+  originSubstrateAddress: string,
+  storeAddress: Address,
+  key: Hex,
+): Promise<string> {
+  const raw = await performContractCall<Hex>(
+    clientWrapper,
+    originSubstrateAddress,
+    storeAddress,
+    USER_STORE_ABI,
+    "getValue",
+    [key],
+  );
+
+  return decodeValue(raw);
 }
 
 export async function listStoreValues(
   clientWrapper: ReviveClientWrapper,
   originSubstrateAddress: string,
   evmAddress: Address,
-): Promise<string[]> {
+): Promise<StoreEntry[]> {
   const storeAddress = await resolveUserStoreAddress(
     clientWrapper,
     originSubstrateAddress,
@@ -115,29 +241,33 @@ export async function listStoreValues(
   );
   const spinner = ora("Reading Store values").start();
 
-  const values = await performContractCall<readonly string[]>(
-    clientWrapper,
-    originSubstrateAddress,
-    storeAddress,
-    STORE_ABI,
-    "getValues",
-    [],
-  );
+  const keys = await readAllUserStoreKeys(clientWrapper, originSubstrateAddress, storeAddress);
 
-  spinner.succeed(`Found ${values.length} value(s)`);
+  const entries: StoreEntry[] = [];
+  for (const key of keys) {
+    const value = await readUserStoreValue(
+      clientWrapper,
+      originSubstrateAddress,
+      storeAddress,
+      key,
+    );
+    entries.push({ key, value });
+  }
+
+  spinner.succeed(`Found ${entries.length} value(s)`);
 
   console.log("\n▶ Store Values");
   console.log(chalk.gray("  store: ") + chalk.white(storeAddress));
 
-  if (values.length === 0) {
+  if (entries.length === 0) {
     console.log(chalk.gray("  (empty)"));
   } else {
-    values.forEach((value, index) => {
-      console.log(chalk.gray(`  ${index + 1}. `) + chalk.cyan(value));
+    entries.forEach((entry, index) => {
+      console.log(chalk.gray(`  ${index + 1}. `) + chalk.cyan(`${entry.key} = ${entry.value}`));
     });
   }
 
-  return [...values];
+  return entries;
 }
 
 export async function listStoreNames(
@@ -145,100 +275,42 @@ export async function listStoreNames(
   originSubstrateAddress: string,
   evmAddress: Address,
 ): Promise<string[]> {
-  const storeAddress = await resolveUserStoreAddress(
+  const labelStoreAddress = await resolveLabelStoreAddress(
     clientWrapper,
     originSubstrateAddress,
     evmAddress,
   );
-  const spinner = ora("Reading Store names").start();
 
-  const values = await performContractCall<readonly string[]>(
-    clientWrapper,
-    originSubstrateAddress,
-    storeAddress,
-    STORE_ABI,
-    "getValues",
-    [],
-  );
+  const spinner = ora("Reading Label Store names").start();
 
-  if (values.length === 0) {
-    spinner.succeed("Found 0 verified name(s)");
+  if (labelStoreAddress === null) {
+    spinner.succeed("Found 0 name(s)");
     return [];
   }
 
-  spinner.text = `Verifying ${values.length} value(s) on-chain via Multicall3`;
+  const count = await performContractCall<bigint>(
+    clientWrapper,
+    originSubstrateAddress,
+    labelStoreAddress,
+    LABEL_STORE_ABI,
+    "getLabelCount",
+    [],
+  );
 
-  function isSubname(value: string): boolean {
-    const name = value.endsWith(".dot") ? value.slice(0, -4) : value;
-    return name.includes(".");
-  }
-
-  const callMeta = values.map((value) => {
-    if (isSubname(value)) {
-      const fullName = value.endsWith(".dot") ? value : `${value}.dot`;
-      return {
-        target: CONTRACTS.DOTNS_REGISTRY as Address,
-        allowFailure: true as const,
-        callData: encodeFunctionData({
-          abi: DOTNS_REGISTRY_ABI,
-          functionName: "owner",
-          args: [namehash(fullName)],
-        }),
-        isSubnameCall: true,
-      };
-    }
-    return {
-      target: CONTRACTS.DOTNS_REGISTRAR as Address,
-      allowFailure: true as const,
-      callData: encodeFunctionData({
-        abi: DOTNS_REGISTRAR_ABI,
-        functionName: "ownerOf",
-        args: [computeDomainTokenId(value)],
-      }),
-      isSubnameCall: false,
-    };
-  });
-
-  const calls: Multicall3Call[] = callMeta.map(({ target, allowFailure, callData }) => ({
-    target,
-    allowFailure,
-    callData,
-  }));
-
-  const results: Multicall3Result[] = [];
-  for (let i = 0; i < calls.length; i += MULTICALL_CHUNK_SIZE) {
-    const chunk = calls.slice(i, i + MULTICALL_CHUNK_SIZE);
-    const chunkResults = await performContractCall<readonly Multicall3Result[]>(
+  const names: string[] = [];
+  for (let offset = 0n; offset < count; offset += STORE_PAGE_SIZE) {
+    const page = await performContractCall<readonly string[]>(
       clientWrapper,
       originSubstrateAddress,
-      CONTRACTS.MULTICALL3,
-      MULTICALL3_ABI,
-      "aggregate3",
-      [chunk],
+      labelStoreAddress,
+      LABEL_STORE_ABI,
+      "getLabels",
+      [offset, STORE_PAGE_SIZE],
     );
-    results.push(...chunkResults);
+    names.push(...page);
   }
 
-  const normalizedOwner = getAddress(evmAddress);
-  const names = values.filter((_, i) => {
-    const result = results[i];
-    if (!result?.success) return false;
-    try {
-      const meta = callMeta[i];
-      const abi = meta?.isSubnameCall ? DOTNS_REGISTRY_ABI : DOTNS_REGISTRAR_ABI;
-      const functionName = meta?.isSubnameCall ? "owner" : "ownerOf";
-      const decoded = decodeFunctionResult({
-        abi,
-        functionName,
-        data: result.returnData,
-      }) as Address;
-      return decoded && getAddress(decoded) === normalizedOwner;
-    } catch {
-      return false;
-    }
-  });
-
-  spinner.succeed(`Found ${names.length} verified name(s)`);
+  spinner.succeed(`Found ${names.length} name(s)`);
   return names;
 }
 
@@ -254,21 +326,20 @@ export async function listStoreCids(
   );
   const spinner = ora("Reading Store CIDs").start();
 
-  const values = await performContractCall<readonly string[]>(
-    clientWrapper,
-    originSubstrateAddress,
-    storeAddress,
-    STORE_ABI,
-    "getValues",
-    [],
-  );
+  const keys = await readAllUserStoreKeys(clientWrapper, originSubstrateAddress, storeAddress);
 
-  const verifiedNames = new Set(
-    await listStoreNames(clientWrapper, originSubstrateAddress, evmAddress),
-  );
-  const cids = values.filter((value) => !verifiedNames.has(value));
+  const cids: string[] = [];
+  for (const key of keys) {
+    const value = await readUserStoreValue(
+      clientWrapper,
+      originSubstrateAddress,
+      storeAddress,
+      key,
+    );
+    if (value) cids.push(value);
+  }
+
   spinner.succeed(`Found ${cids.length} CID(s)`);
-
   return cids;
 }
 
@@ -286,14 +357,7 @@ export async function getStoreValue(
   const key = normalizeKeyToBytes32(rawKey);
   const spinner = ora("Reading Store value").start();
 
-  const value = await performContractCall<string>(
-    clientWrapper,
-    originSubstrateAddress,
-    storeAddress,
-    STORE_ABI,
-    "getValue",
-    [key],
-  );
+  const value = await readUserStoreValue(clientWrapper, originSubstrateAddress, storeAddress, key);
 
   const exists = value.length > 0;
   spinner.succeed("Value read");
@@ -322,9 +386,9 @@ export async function setStoreValue(
     clientWrapper,
     storeAddress,
     0n,
-    STORE_ABI,
+    USER_STORE_ABI,
     "setValue",
-    [key, value],
+    [key, encodeValue(value)],
     substrateAddress,
     signer,
     spinner,
@@ -350,13 +414,14 @@ export async function deleteStoreValue(
   const key = normalizeKeyToBytes32(rawKey);
   const spinner = ora("Deleting Store value").start();
 
+  // UserStore has no deleteValue; clearing a key means writing empty bytes.
   const tx = await submitContractTransaction(
     clientWrapper,
     storeAddress,
     0n,
-    STORE_ABI,
-    "deleteValue",
-    [key],
+    USER_STORE_ABI,
+    "setValue",
+    [key, "0x"],
     substrateAddress,
     signer,
     spinner,
@@ -368,271 +433,6 @@ export async function deleteStoreValue(
   console.log(chalk.gray("  key: ") + chalk.white(key));
 
   return { key, deleted: true };
-}
-
-export async function checkStoreAuth(
-  clientWrapper: ReviveClientWrapper,
-  originSubstrateAddress: string,
-  evmAddress: Address,
-  targetAddress: Address,
-): Promise<StoreAuthStatus> {
-  const storeAddress = await resolveUserStoreAddress(
-    clientWrapper,
-    originSubstrateAddress,
-    evmAddress,
-  );
-  const spinner = ora("Checking authorization status").start();
-
-  const isAuthorized = Boolean(
-    await performContractCall<boolean>(
-      clientWrapper,
-      originSubstrateAddress,
-      storeAddress,
-      STORE_ABI,
-      "isAuthorized",
-      [targetAddress],
-    ),
-  );
-
-  const isDotnsController = Boolean(
-    await performContractCall<boolean>(
-      clientWrapper,
-      originSubstrateAddress,
-      storeAddress,
-      STORE_ABI,
-      "isDotnsController",
-      [targetAddress],
-    ),
-  );
-
-  spinner.succeed("Authorization check complete");
-
-  console.log("\n▶ Authorization Status");
-  console.log(chalk.gray("  store:      ") + chalk.white(storeAddress));
-  console.log(chalk.gray("  target:     ") + chalk.white(targetAddress));
-  console.log(chalk.gray("  authorized: ") + chalk.white(String(isAuthorized)));
-  console.log(chalk.gray("  controller: ") + chalk.white(String(isDotnsController)));
-
-  return { address: targetAddress, isAuthorized, isDotnsController };
-}
-
-export async function authorizeStoreWriter(
-  clientWrapper: ReviveClientWrapper,
-  substrateAddress: string,
-  signer: PolkadotSigner,
-  evmAddress: Address,
-  targetAddress: Address,
-): Promise<void> {
-  const storeAddress = await resolveUserStoreAddress(clientWrapper, substrateAddress, evmAddress);
-  const spinner = ora(`Authorizing ${targetAddress}`).start();
-
-  const tx = await submitContractTransaction(
-    clientWrapper,
-    storeAddress,
-    0n,
-    STORE_ABI,
-    "authorizeStore",
-    [targetAddress],
-    substrateAddress,
-    signer,
-    spinner,
-    "Authorize writer",
-  );
-
-  console.log("\n▶ Authorize Writer");
-  console.log(chalk.gray("  tx:     ") + chalk.blue(tx));
-  console.log(chalk.gray("  target: ") + chalk.white(targetAddress));
-}
-
-export async function unauthorizeStoreWriter(
-  clientWrapper: ReviveClientWrapper,
-  substrateAddress: string,
-  signer: PolkadotSigner,
-  evmAddress: Address,
-  targetAddress: Address,
-): Promise<void> {
-  const storeAddress = await resolveUserStoreAddress(clientWrapper, substrateAddress, evmAddress);
-  const spinner = ora(`Revoking ${targetAddress}`).start();
-
-  const tx = await submitContractTransaction(
-    clientWrapper,
-    storeAddress,
-    0n,
-    STORE_ABI,
-    "unauthorizeStore",
-    [targetAddress],
-    substrateAddress,
-    signer,
-    spinner,
-    "Revoke writer",
-  );
-
-  console.log("\n▶ Revoke Writer");
-  console.log(chalk.gray("  tx:     ") + chalk.blue(tx));
-  console.log(chalk.gray("  target: ") + chalk.white(targetAddress));
-}
-
-export async function authorizeDotnsController(
-  clientWrapper: ReviveClientWrapper,
-  substrateAddress: string,
-  signer: PolkadotSigner,
-  evmAddress: Address,
-  targetAddress: Address,
-): Promise<void> {
-  const storeAddress = await resolveUserStoreAddress(clientWrapper, substrateAddress, evmAddress);
-  const spinner = ora(`Authorizing controller ${targetAddress}`).start();
-
-  const tx = await submitContractTransaction(
-    clientWrapper,
-    storeAddress,
-    0n,
-    STORE_ABI,
-    "authorizeDotnsController",
-    [targetAddress],
-    substrateAddress,
-    signer,
-    spinner,
-    "Authorize controller",
-  );
-
-  console.log("\n▶ Authorize Controller");
-  console.log(chalk.gray("  tx:     ") + chalk.blue(tx));
-  console.log(chalk.gray("  target: ") + chalk.white(targetAddress));
-}
-
-export async function unauthorizeDotnsController(
-  clientWrapper: ReviveClientWrapper,
-  substrateAddress: string,
-  signer: PolkadotSigner,
-  evmAddress: Address,
-  targetAddress: Address,
-): Promise<void> {
-  const storeAddress = await resolveUserStoreAddress(clientWrapper, substrateAddress, evmAddress);
-  const spinner = ora(`Revoking controller ${targetAddress}`).start();
-
-  const tx = await submitContractTransaction(
-    clientWrapper,
-    storeAddress,
-    0n,
-    STORE_ABI,
-    "unauthorizeDotnsController",
-    [targetAddress],
-    substrateAddress,
-    signer,
-    spinner,
-    "Revoke controller",
-  );
-
-  console.log("\n▶ Revoke Controller");
-  console.log(chalk.gray("  tx:     ") + chalk.blue(tx));
-  console.log(chalk.gray("  target: ") + chalk.white(targetAddress));
-}
-
-export async function ensureStoreAuthorizations(
-  clientWrapper: ReviveClientWrapper,
-  substrateAddress: string,
-  signer: PolkadotSigner,
-  evmAddress: Address,
-): Promise<StoreEnsureAuthResult> {
-  const storeAddress = await resolveUserStoreAddress(clientWrapper, substrateAddress, evmAddress);
-  const spinner = ora("Checking Store authorizations").start();
-
-  const [controllerAuthorized, registryAuthorized] = await Promise.all([
-    Boolean(
-      await performContractCall<boolean>(
-        clientWrapper,
-        substrateAddress,
-        storeAddress,
-        STORE_ABI,
-        "isAuthorized",
-        [CONTRACTS.DOTNS_REGISTRAR_CONTROLLER],
-      ),
-    ),
-    Boolean(
-      await performContractCall<boolean>(
-        clientWrapper,
-        substrateAddress,
-        storeAddress,
-        STORE_ABI,
-        "isAuthorized",
-        [CONTRACTS.DOTNS_REGISTRY],
-      ),
-    ),
-  ]);
-
-  const result: StoreEnsureAuthResult = {
-    controllerAddress: CONTRACTS.DOTNS_REGISTRAR_CONTROLLER,
-    controllerAuthorized,
-    registryAddress: CONTRACTS.DOTNS_REGISTRY,
-    registryAuthorized,
-  };
-
-  if (controllerAuthorized && registryAuthorized) {
-    spinner.succeed("Store authorizations verified");
-
-    console.log("\n▶ Store Authorizations");
-    console.log(chalk.gray("  store:      ") + chalk.white(storeAddress));
-    console.log(
-      chalk.gray("  controller: ") +
-        chalk.green("authorized") +
-        chalk.gray(` (${CONTRACTS.DOTNS_REGISTRAR_CONTROLLER})`),
-    );
-    console.log(
-      chalk.gray("  registry:   ") +
-        chalk.green("authorized") +
-        chalk.gray(` (${CONTRACTS.DOTNS_REGISTRY})`),
-    );
-
-    return result;
-  }
-
-  spinner.warn("Store authorizations need update");
-
-  if (!controllerAuthorized) {
-    const controllerSpinner = ora("Authorizing registrar controller as Store writer").start();
-
-    const tx = await submitContractTransaction(
-      clientWrapper,
-      storeAddress,
-      0n,
-      STORE_ABI,
-      "authorizeStore",
-      [CONTRACTS.DOTNS_REGISTRAR_CONTROLLER],
-      substrateAddress,
-      signer,
-      controllerSpinner,
-      "Authorize controller",
-    );
-
-    result.controllerTx = tx;
-    result.controllerAuthorized = true;
-    console.log(chalk.gray("  tx:         ") + chalk.blue(tx));
-    console.log(chalk.gray("  controller: ") + chalk.white(CONTRACTS.DOTNS_REGISTRAR_CONTROLLER));
-  }
-
-  if (!registryAuthorized) {
-    const registrySpinner = ora("Authorizing registry as Store writer").start();
-
-    const tx = await submitContractTransaction(
-      clientWrapper,
-      storeAddress,
-      0n,
-      STORE_ABI,
-      "authorizeStore",
-      [CONTRACTS.DOTNS_REGISTRY],
-      substrateAddress,
-      signer,
-      registrySpinner,
-      "Authorize registry",
-    );
-
-    result.registryTx = tx;
-    result.registryAuthorized = true;
-    console.log(chalk.gray("  tx:         ") + chalk.blue(tx));
-    console.log(chalk.gray("  registry:   ") + chalk.white(CONTRACTS.DOTNS_REGISTRY));
-  }
-
-  return result;
 }
 
 export async function cacheCidToStore(options: CacheCidToStoreOptions): Promise<void> {

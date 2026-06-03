@@ -2,13 +2,11 @@ import type { Abi, Address, Hex } from "viem";
 import DotnsRegistrarController from "../../abis/DotnsRegistrarController.json" assert { type: "json" };
 import DotnsRegistry from "../../abis/DotnsRegistry.json" assert { type: "json" };
 import DotnsRegistrar from "../../abis/DotnsRegistrar.json" assert { type: "json" };
-import DotnsReverseResolver from "../../abis/DotnsReverseResolver.json" assert { type: "json" };
 import DotnsContentResolver from "../../abis/DotnsContentResolver.json" assert { type: "json" };
 import DotnsResolver from "../../abis/DotnsResolver.json" assert { type: "json" };
 import DotnsNameEscrow from "../../abis/DotnsNameEscrow.json" assert { type: "json" };
 import PopRules from "../../abis/PopRules.json" assert { type: "json" };
 import StoreFactory from "../../abis/StoreFactory.json" assert { type: "json" };
-import Store from "../../abis/Store.json" assert { type: "json" };
 import LabelStore from "../../abis/LabelStore.json" assert { type: "json" };
 import UserStore from "../../abis/UserStore.json" assert { type: "json" };
 import DotnsPopController from "../../abis/DotnsPopController.json" assert { type: "json" };
@@ -57,13 +55,11 @@ export function getCommitmentBufferSeconds(): number {
 export const DOTNS_REGISTRAR_CONTROLLER_ABI = DotnsRegistrarController as Abi;
 export const DOTNS_REGISTRY_ABI = DotnsRegistry as Abi;
 export const DOTNS_REGISTRAR_ABI = DotnsRegistrar as Abi;
-export const DOTNS_REVERSE_RESOLVER_ABI = DotnsReverseResolver as Abi;
 export const DOTNS_CONTENT_RESOLVER_ABI = DotnsContentResolver as Abi;
 export const DOTNS_RESOLVER_ABI = DotnsResolver as Abi;
 export const DOTNS_NAME_ESCROW_ABI = DotnsNameEscrow as Abi;
 export const POP_RULES_ABI = PopRules as Abi;
 export const STORE_FACTORY_ABI = StoreFactory as Abi;
-export const STORE_ABI = Store as Abi;
 export const LABEL_STORE_ABI = LabelStore.abi as Abi;
 export const USER_STORE_ABI = UserStore.abi as Abi;
 export const DOTNS_POP_CONTROLLER_ABI = DotnsPopController.abi as Abi;
@@ -274,10 +270,6 @@ export function setActiveDotnsEnvironment(value?: string): DotnsEnvironmentConfi
 
 export function getActiveDotnsEnvironment(): DotnsEnvironmentConfig {
   return DOTNS_ENVIRONMENTS[activeDotnsEnvironment];
-}
-
-export function getDotnsEnvironment(value?: string): DotnsEnvironmentConfig {
-  return DOTNS_ENVIRONMENTS[resolveDotnsEnvironmentId(value)];
 }
 
 function requireContracts(): DotnsContractAddresses {

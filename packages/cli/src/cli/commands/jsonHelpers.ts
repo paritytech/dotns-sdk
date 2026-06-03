@@ -90,25 +90,14 @@ export function handleCommandError(jsonOutput: boolean, error: unknown): never {
 }
 
 /**
- * Capture all console and stream output during a callback, suppressing it.
- * On error, the captured output is dumped to stderr before re-throwing.
+ * Suppress all console and stream output during a callback, restoring the
+ * originals afterwards. Used in --json/quiet mode so human-readable spinner
+ * and log noise never reaches the streams. Errors propagate to the caller,
+ * which reports them via handleCommandError (clean { error } JSON on stderr).
  */
 export async function withCapturedConsole<T>(callback: () => Promise<T>): Promise<T> {
-  const MAX_CAPTURED_ENTRIES = 400;
-  const captured: string[] = [];
-  const pushCaptured = (value: string) => {
-    captured.push(value);
-    if (captured.length > MAX_CAPTURED_ENTRIES) {
-      captured.splice(0, captured.length - MAX_CAPTURED_ENTRIES);
-    }
-  };
-  const capture = (...args: any[]) => {
-    pushCaptured(args.map(String).join(" "));
-  };
-  const captureWrite = (chunk: any) => {
-    pushCaptured(String(chunk));
-    return true;
-  };
+  const discard = () => {};
+  const discardWrite = () => true;
 
   const saved = {
     log: console.log,
@@ -119,18 +108,15 @@ export async function withCapturedConsole<T>(callback: () => Promise<T>): Promis
     stderrWrite: process.stderr.write.bind(process.stderr),
   };
 
-  console.log = capture;
-  console.error = capture;
-  console.warn = capture;
-  console.info = capture;
-  process.stdout.write = captureWrite as any;
-  process.stderr.write = captureWrite as any;
+  console.log = discard;
+  console.error = discard;
+  console.warn = discard;
+  console.info = discard;
+  process.stdout.write = discardWrite as any;
+  process.stderr.write = discardWrite as any;
 
   try {
     return await callback();
-  } catch (error) {
-    saved.error("[captured output before failure]\n" + captured.join("\n"));
-    throw error;
   } finally {
     console.log = saved.log;
     console.error = saved.error;

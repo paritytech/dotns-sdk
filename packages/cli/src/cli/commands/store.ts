@@ -1,35 +1,23 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { isAddress, getAddress, type Address } from "viem";
+import type { Address } from "viem";
 import { addAuthOptions, getAuthOptions } from "./authOptions";
 import { prepareAssetHubContext } from "../context";
 import { prepareReadOnlyContext } from "./lookup";
 import { getJsonFlag, maybeQuiet } from "./jsonHelpers";
 import { formatErrorMessage } from "../../utils/formatting";
 import {
+  claimUserStore,
   getStoreInfo,
   listStoreValues,
   getStoreValue,
   setStoreValue,
   deleteStoreValue,
-  checkStoreAuth,
-  authorizeStoreWriter,
-  unauthorizeStoreWriter,
-  authorizeDotnsController,
-  unauthorizeDotnsController,
-  ensureStoreAuthorizations,
   listStoreNames,
   listStoreCids,
   claimLabels,
 } from "../../commands/storeManagement";
 import type { LookupActionOptions } from "../../types/types";
-
-function validateEvmAddress(raw: string): Address {
-  if (!isAddress(raw)) {
-    throw new Error(`Invalid EVM address: ${raw}`);
-  }
-  return getAddress(raw);
-}
 
 function handleCommandError(error: unknown, cmd: any): never {
   const jsonOutput = getJsonFlag(cmd);
@@ -47,7 +35,36 @@ function handleCommandError(error: unknown, cmd: any): never {
 export function attachStoreCommands(root: Command): void {
   const storeCommand = root
     .command("store")
-    .description("Manage your on-chain Store (values, authorization, controllers)");
+    .description("Manage your on-chain User Store (claim, key/value data) and Label Store names");
+
+  const claimCommand = storeCommand
+    .command("claim")
+    .description("Claim your User Store (required once before setting values)")
+    .option("--json", "Output result as JSON", false);
+
+  addAuthOptions(claimCommand).action(async (options: any, cmd: any) => {
+    try {
+      const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
+      const jsonOutput = getJsonFlag(cmd);
+
+      const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(merged));
+      const { clientWrapper, substrateAddress, signer, evmAddress } = context;
+
+      const result = await maybeQuiet(jsonOutput, () =>
+        claimUserStore(clientWrapper, substrateAddress, signer, evmAddress as Address),
+      );
+
+      if (jsonOutput) {
+        console.log(JSON.stringify(result));
+      } else {
+        console.log(chalk.green("\n✓ User Store claimed\n"));
+      }
+
+      process.exit(0);
+    } catch (error) {
+      handleCommandError(error, cmd);
+    }
+  });
 
   const infoCommand = storeCommand
     .command("info")
@@ -261,214 +278,6 @@ export function attachStoreCommands(root: Command): void {
         console.log(JSON.stringify(result));
       } else {
         console.log(chalk.green("\n✓ Value deleted\n"));
-      }
-
-      process.exit(0);
-    } catch (error) {
-      handleCommandError(error, cmd);
-    }
-  });
-
-  const checkCommand = storeCommand
-    .command("check <address>")
-    .description("Check whether an address is authorized or a DotNS controller on your Store")
-    .option("--json", "Output result as JSON", false);
-
-  addAuthOptions(checkCommand).action(async (address: string, options: any, cmd: any) => {
-    try {
-      const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
-      const jsonOutput = getJsonFlag(cmd);
-      const targetAddress = validateEvmAddress(address);
-
-      const { clientWrapper, account, evmAddress } = await maybeQuiet(jsonOutput, () =>
-        prepareReadOnlyContext(merged),
-      );
-
-      const result = await maybeQuiet(jsonOutput, () =>
-        checkStoreAuth(clientWrapper, account.address, evmAddress as Address, targetAddress),
-      );
-
-      if (jsonOutput) {
-        console.log(JSON.stringify(result));
-      } else {
-        console.log(chalk.green("\n✓ Authorization check complete\n"));
-      }
-
-      process.exit(0);
-    } catch (error) {
-      handleCommandError(error, cmd);
-    }
-  });
-
-  const authorizeCommand = storeCommand
-    .command("authorize <address>")
-    .description("Authorize an address to write to your Store (setValueFor)")
-    .option("--json", "Output result as JSON", false);
-
-  addAuthOptions(authorizeCommand).action(async (address: string, options: any, cmd: any) => {
-    try {
-      const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
-      const jsonOutput = getJsonFlag(cmd);
-      const targetAddress = validateEvmAddress(address);
-
-      const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(merged));
-      const { clientWrapper, substrateAddress, signer, evmAddress } = context;
-
-      await maybeQuiet(jsonOutput, () =>
-        authorizeStoreWriter(
-          clientWrapper,
-          substrateAddress,
-          signer,
-          evmAddress as Address,
-          targetAddress,
-        ),
-      );
-
-      if (jsonOutput) {
-        console.log(JSON.stringify({ authorized: targetAddress, role: "writer" }));
-      } else {
-        console.log(chalk.green("\n✓ Writer authorized\n"));
-      }
-
-      process.exit(0);
-    } catch (error) {
-      handleCommandError(error, cmd);
-    }
-  });
-
-  const unauthorizeCommand = storeCommand
-    .command("unauthorize <address>")
-    .description("Revoke write access from an address on your Store")
-    .option("--json", "Output result as JSON", false);
-
-  addAuthOptions(unauthorizeCommand).action(async (address: string, options: any, cmd: any) => {
-    try {
-      const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
-      const jsonOutput = getJsonFlag(cmd);
-      const targetAddress = validateEvmAddress(address);
-
-      const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(merged));
-      const { clientWrapper, substrateAddress, signer, evmAddress } = context;
-
-      await maybeQuiet(jsonOutput, () =>
-        unauthorizeStoreWriter(
-          clientWrapper,
-          substrateAddress,
-          signer,
-          evmAddress as Address,
-          targetAddress,
-        ),
-      );
-
-      if (jsonOutput) {
-        console.log(JSON.stringify({ unauthorized: targetAddress, role: "writer" }));
-      } else {
-        console.log(chalk.green("\n✓ Writer revoked\n"));
-      }
-
-      process.exit(0);
-    } catch (error) {
-      handleCommandError(error, cmd);
-    }
-  });
-
-  const authorizeControllerCommand = storeCommand
-    .command("authorize-controller <address>")
-    .description("Authorize an address as a DotNS controller (locks keys permanently on write)")
-    .option("--json", "Output result as JSON", false);
-
-  addAuthOptions(authorizeControllerCommand).action(
-    async (address: string, options: any, cmd: any) => {
-      try {
-        const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
-        const jsonOutput = getJsonFlag(cmd);
-        const targetAddress = validateEvmAddress(address);
-
-        const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(merged));
-        const { clientWrapper, substrateAddress, signer, evmAddress } = context;
-
-        await maybeQuiet(jsonOutput, () =>
-          authorizeDotnsController(
-            clientWrapper,
-            substrateAddress,
-            signer,
-            evmAddress as Address,
-            targetAddress,
-          ),
-        );
-
-        if (jsonOutput) {
-          console.log(JSON.stringify({ authorized: targetAddress, role: "controller" }));
-        } else {
-          console.log(chalk.green("\n✓ Controller authorized\n"));
-        }
-
-        process.exit(0);
-      } catch (error) {
-        handleCommandError(error, cmd);
-      }
-    },
-  );
-
-  const unauthorizeControllerCommand = storeCommand
-    .command("unauthorize-controller <address>")
-    .description("Revoke DotNS controller authorization from an address on your Store")
-    .option("--json", "Output result as JSON", false);
-
-  addAuthOptions(unauthorizeControllerCommand).action(
-    async (address: string, options: any, cmd: any) => {
-      try {
-        const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
-        const jsonOutput = getJsonFlag(cmd);
-        const targetAddress = validateEvmAddress(address);
-
-        const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(merged));
-        const { clientWrapper, substrateAddress, signer, evmAddress } = context;
-
-        await maybeQuiet(jsonOutput, () =>
-          unauthorizeDotnsController(
-            clientWrapper,
-            substrateAddress,
-            signer,
-            evmAddress as Address,
-            targetAddress,
-          ),
-        );
-
-        if (jsonOutput) {
-          console.log(JSON.stringify({ unauthorized: targetAddress, role: "controller" }));
-        } else {
-          console.log(chalk.green("\n✓ Controller revoked\n"));
-        }
-
-        process.exit(0);
-      } catch (error) {
-        handleCommandError(error, cmd);
-      }
-    },
-  );
-
-  const ensureAuthCommand = storeCommand
-    .command("ensure-auth")
-    .description("Ensure DotNS system contracts are authorized on your Store")
-    .option("--json", "Output result as JSON", false);
-
-  addAuthOptions(ensureAuthCommand).action(async (options: any, cmd: any) => {
-    try {
-      const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
-      const jsonOutput = getJsonFlag(cmd);
-
-      const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(merged));
-      const { clientWrapper, substrateAddress, signer, evmAddress } = context;
-
-      const result = await maybeQuiet(jsonOutput, () =>
-        ensureStoreAuthorizations(clientWrapper, substrateAddress, signer, evmAddress as Address),
-      );
-
-      if (jsonOutput) {
-        console.log(JSON.stringify(result));
-      } else {
-        console.log(chalk.green("\n✓ Store authorizations ensured\n"));
       }
 
       process.exit(0);

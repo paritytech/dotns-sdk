@@ -233,7 +233,7 @@ test(
 
     const parsed = parseJsonUploadResult(result);
     expect(parsed.cid).toMatch(/^bafy|^bafk/);
-    expect(parsed.contenthash).toMatch(/^[0-9a-f]+$/i);
+    expect(parsed.contenthash).toMatch(/^0x[0-9a-f]+$/i);
     expect(parsed.preview).toContain("preview");
     expect(parsed.type).toBe("file");
 
@@ -271,7 +271,7 @@ test(
     const result = await runBulletinUpload([dirPath, "--concurrency", "3", "--no-history"]);
 
     expectSuccessfulUpload(result);
-    expect(result.combinedOutput).toContain("directory (parallel");
+    expect(result.combinedOutput).toContain("parallel waves");
   },
   { timeout: BULLETIN_TEST_TIMEOUT_MS },
 );
@@ -339,7 +339,7 @@ test(
     ]);
 
     expectSuccessfulAuthorize(result);
-    expect(result.combinedOutput).toContain("1000.00 B");
+    expect(result.combinedOutput).toContain("1000 B");
   },
   { timeout: BULLETIN_TEST_TIMEOUT_MS },
 );
@@ -488,7 +488,7 @@ test(
   "bulletin authorize shows expiration date",
   async () => {
     createPathsForTest("bulletin_authorize_expiration");
-    const targetAddress = "5GNJqTPyNqANBkUVMN1LPPrxXnFouWA2MRQg3gKrUYgw6J9y";
+    const targetAddress = "5GzaAaXZXKtq5etqqMSYDxofP4DWreUZV8PHpYDNeQhJfNkP";
 
     const result = await runBulletinAuthorize([targetAddress]);
 

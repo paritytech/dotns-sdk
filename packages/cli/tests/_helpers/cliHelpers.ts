@@ -15,6 +15,8 @@ import { attachTextCommands } from "../../src/cli/commands/text";
 import { attachStoreCommands } from "../../src/cli/commands/store";
 import { attachAccountCommands } from "../../src/cli/commands/info";
 import { attachEscrowCommands } from "../../src/cli/commands/escrow";
+import { generateRandomLabel } from "../../src/cli/labels";
+import { ProofOfPersonhoodStatus } from "../../src/types/types";
 
 export const HARNESS_SUCCESS_EXIT_CODE = 1;
 export const HARNESS_HELP_SUCCESS_EXIT_CODE = 0;
@@ -190,6 +192,23 @@ export async function runDotnsCli(
   const combinedOutput = standardOutput + standardError;
 
   return { exitCode, standardOutput, standardError, combinedOutput };
+}
+
+/**
+ * Register a fresh, randomly-named NoStatus domain owned by the given key
+ * (defaults to Alice) and return its label. Lets suites provision their own
+ * on-chain fixture instead of depending on a pre-existing registered domain.
+ */
+export async function registerFreshDomain(keyUri: string = ALICE_KEY_URI): Promise<string> {
+  const label = generateRandomLabel(ProofOfPersonhoodStatus.NoStatus);
+
+  const result = await runDotnsCli(["register", "domain", "--name", label, "--key-uri", keyUri]);
+
+  expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+  expect(result.combinedOutput).not.toContain("✗ Error:");
+  expect(result.combinedOutput).toContain("✓ Operation Complete");
+
+  return label;
 }
 
 export async function readKeystoreDirectory(
