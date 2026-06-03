@@ -19,7 +19,7 @@ test("paseo-v2 default resolves to the existing bulletin RPC", () => {
   delete process.env[ENV.DOTNS_ENV];
   delete process.env[ENV.BULLETIN_RPC];
 
-  expect(resolveBulletinRpc()).toBe("wss://paseo-bulletin-rpc.polkadot.io");
+  expect(resolveBulletinRpc()).toBe("wss://paseo-bulletin-next-rpc.polkadot.io");
 });
 
 test("explicit argument wins over env var and active env", () => {
@@ -43,7 +43,9 @@ test("falls back to active env's bulletin RPC", () => {
   expect(resolveBulletinRpc(undefined, "previewnet")).toBe(
     "wss://previewnet.substrate.dev/bulletin",
   );
-  expect(resolveBulletinRpc(undefined, "paseo-v2")).toBe("wss://paseo-bulletin-rpc.polkadot.io");
+  expect(resolveBulletinRpc(undefined, "paseo-v2")).toBe(
+    "wss://paseo-bulletin-next-rpc.polkadot.io",
+  );
 });
 
 test("throws when nothing is configured (synthetic case)", () => {

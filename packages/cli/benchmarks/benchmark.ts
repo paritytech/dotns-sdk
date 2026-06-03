@@ -6,7 +6,7 @@ import { join, resolve } from "path";
 import { spawnSync } from "child_process";
 
 const DEFAULT_SIZES = ["500KB", "1MB", "5MB", "10MB", "50MB", "100MB", "500MB", "1GB"];
-const DEFAULT_RPC = "wss://paseo-bulletin-rpc.polkadot.io";
+const DEFAULT_RPC = "wss://paseo-bulletin-next-rpc.polkadot.io";
 const DEFAULT_TIMEOUT_MINUTES = 120;
 
 const { values } = parseArgs({

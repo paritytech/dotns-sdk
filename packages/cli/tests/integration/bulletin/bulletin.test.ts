@@ -353,7 +353,7 @@ test(
     const result = await runBulletinAuthorize([targetAddress]);
 
     expectSuccessfulAuthorize(result);
-    expect(result.combinedOutput).toContain("wss://paseo-bulletin-rpc.polkadot.io");
+    expect(result.combinedOutput).toContain("wss://paseo-bulletin-next-rpc.polkadot.io");
   },
   { timeout: BULLETIN_TEST_TIMEOUT_MS },
 );

@@ -457,7 +457,8 @@ const commandReference: CmdGroup[] = [
         options: [
           {
             flag: "--bulletin-rpc <wsUrl>",
-            description: 'Bulletin RPC endpoint (default: "wss://paseo-bulletin-rpc.polkadot.io")',
+            description:
+              'Bulletin RPC endpoint (default: "wss://paseo-bulletin-next-rpc.polkadot.io")',
           },
           {
             flag: "--transactions <count>",

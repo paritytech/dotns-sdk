@@ -3,7 +3,7 @@ import { create as createMultihashDigest } from "multiformats/hashes/digest";
 import { sha256 } from "@noble/hashes/sha2.js";
 import type { PreparedBlock } from "./bulletinUploadWorkerProtocol";
 
-export const BULLETIN_RPC = "wss://paseo-bulletin-rpc.polkadot.io";
+export const BULLETIN_RPC = "wss://paseo-bulletin-next-rpc.polkadot.io";
 export const MAX_TX_SIZE = 8 * 1024 * 1024;
 export const CHUNK_SIZE = 2 * 1024 * 1024;
 export const MAX_BROWSER_UPLOAD_SIZE = 5 * 1024 * 1024;

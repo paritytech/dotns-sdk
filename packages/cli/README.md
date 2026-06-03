@@ -252,7 +252,7 @@ dotns --password test-password bulletin upload ./dist --profile-upload --account
 dotns --password test-password bulletin upload ./dist --profile-upload --profile-output ./report.json --account default
 
 # Custom RPC
-dotns --password test-password bulletin upload ./image.png --bulletin-rpc wss://paseo-bulletin-rpc.polkadot.io --account default
+dotns --password test-password bulletin upload ./image.png --bulletin-rpc wss://paseo-bulletin-next-rpc.polkadot.io --account default
 
 # Skip history
 dotns --password test-password bulletin upload ./image.png --no-history --account default
@@ -292,7 +292,7 @@ dotns --key-uri //Alice bulletin authorize 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC9
 dotns --key-uri //Alice bulletin authorize 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty --json
 
 # Custom RPC
-dotns --key-uri //Alice bulletin authorize 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty --bulletin-rpc wss://paseo-bulletin-rpc.polkadot.io
+dotns --key-uri //Alice bulletin authorize 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty --bulletin-rpc wss://paseo-bulletin-next-rpc.polkadot.io
 ```
 
 ### Bulletin Status
