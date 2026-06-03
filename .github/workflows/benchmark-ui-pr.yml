@@ -57,7 +57,7 @@ jobs:
       subname: pr${{ github.event.pull_request.number }}-ui
       register-base: true
       env: paseo-v2
-      cli-source: release
+      cli-source: source
       sdk-ref: ${{ github.head_ref || github.ref }}
       skip-cache: true
       max-retries: 5
@@ -65,6 +65,7 @@ jobs:
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
       bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC_BENCHMARK }}
+      registrar-operator-mnemonic: ${{ secrets.DOTNS_REGISTRAR_OPERATOR_MNEMONIC }}
 
   report:
     needs: [benchmark, deploy]

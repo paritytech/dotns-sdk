@@ -249,10 +249,6 @@ export function completedBlocksFromManifest(
   return new Map(entries);
 }
 
-export function completedCidsFromManifest(manifest: UploadManifest): Set<string> {
-  return new Set(manifest.completedBlocks.map((block) => block.cid));
-}
-
 export async function cleanupStaleManifests(
   maxAgeMs: number = 7 * 24 * 60 * 60 * 1000,
 ): Promise<number> {

@@ -157,13 +157,13 @@ jobs:
           script: |
             const { owner, repo } = context.repo;
             const issue_number = context.payload.pull_request.number;
-            
+
             const { data: pr } = await github.rest.pulls.get({
               owner, repo, pull_number: issue_number
             });
-            
+
             const labels = pr.labels.map(l => l.name).join(', ');
-            
+
             if ('${{ steps.labels.outcome }}' === 'success') {
               core.setOutput('status', 'Passed');
               core.setOutput('details', labels || 'No labels matched');

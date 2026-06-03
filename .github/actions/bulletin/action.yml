@@ -1,77 +1,95 @@
 name: Upload to Bulletin
-description: Authorize an account and upload a build directory to Bulletin
+description: Authorize the deployer on Bulletin and upload a build directory
 
 inputs:
   mnemonic:
-    description: 'BIP39 mnemonic for Bulletin uploads'
+    description: "BIP39 mnemonic of the deployer account (uploads to Bulletin)"
     required: true
+  authorizer-mnemonic:
+    description: |
+      BIP39 mnemonic (or SURI like //Eve) of the Bulletin Authorizer that
+      grants on-chain upload quota to the deployer before upload.
+      Defaults to //Eve, the account seeded into AllowedAuthorizers on the
+      bulletin testnet and dev runtimes (the same key the Bulletin console
+      faucet uses). //Alice is sudo and a storage account, not an authoriser,
+      so a plain signed authorize from Alice is rejected as BadOrigin.
+    required: false
+    default: "//Eve"
   bulletin-rpc:
-    description: 'Bulletin chain WebSocket RPC endpoint (default: CLI built-in)'
+    description: "Bulletin chain WebSocket RPC endpoint (default: CLI built-in)"
     required: false
   env:
-    description: 'DotNS environment used by cache/store operations'
+    description: "DotNS environment used by cache/store operations"
     required: false
-    default: 'paseo-v2'
+    default: "paseo-v2"
   build-path:
-    description: 'Path to the build directory to upload'
+    description: "Path to the build directory to upload"
     required: false
-    default: './build'
+    default: "./build"
   upload-concurrency:
-    description: 'Adaptive scheduler max window (max: 4)'
+    description: "Adaptive scheduler max window (max: 4)"
     required: false
-    default: '4'
+    default: "4"
   max-retries:
-    description: 'Max retry attempts for transient RPC failures'
+    description: "Max retry attempts for transient RPC failures"
     required: false
-    default: '3'
+    default: "3"
   retry-delay:
-    description: 'Seconds to wait between retries'
+    description: "Seconds to wait between retries"
     required: false
-    default: '15'
+    default: "15"
   cache:
-    description: 'Write uploaded CID to on-chain Store after upload'
+    description: "Write uploaded CID to on-chain Store after upload"
     required: false
-    default: 'false'
+    default: "false"
 outputs:
   cid:
-    description: 'Content Identifier of the uploaded build'
+    description: "Content Identifier of the uploaded build"
     value: ${{ steps.upload.outputs.cid }}
   contenthash:
-    description: 'Contenthash of the uploaded build'
+    description: "Contenthash of the uploaded build"
     value: ${{ steps.upload.outputs.contenthash }}
 
 runs:
   using: composite
   steps:
-    - name: Authorize account for Bulletin
+    - name: Authorize deployer on Bulletin
       shell: bash
       run: |
         set -euo pipefail
         source "$GITHUB_ACTION_PATH/../lib/run-dotns.sh"
         echo "::add-mask::$DOTNS_MNEMONIC"
+        echo "::add-mask::$AUTHORIZER_MNEMONIC"
 
         ADDRESS=$(dotns account address)
         RESULT_FILE=$(mktemp)
-        ARGS=(bulletin authorize "$ADDRESS" --json --reporter stream)
+        # SURI like //Alice goes via --key-uri; everything else is a BIP39 mnemonic.
+        if [[ "$AUTHORIZER_MNEMONIC" == //* ]]; then
+          AUTH_ARGS=(--key-uri "$AUTHORIZER_MNEMONIC")
+        else
+          AUTH_ARGS=(-m "$AUTHORIZER_MNEMONIC")
+        fi
+        ARGS=(bulletin authorize "$ADDRESS" "${AUTH_ARGS[@]}" --json --reporter stream)
         [[ -n "$BULLETIN_RPC" ]] && ARGS+=(--bulletin-rpc "$BULLETIN_RPC")
 
         if run_dotns_with_retry \
-          "Authorize account for Bulletin" \
+          "Authorize deployer on Bulletin" \
           "$RESULT_FILE" \
           "1" \
           "$RETRY_DELAY" \
           dotns \
           "${ARGS[@]}"; then
-          echo "::notice::Account ${ADDRESS} authorized"
+          echo "::notice::Deployer ${ADDRESS} authorized on Bulletin"
         else
           ERROR_MESSAGE=$(jq -r '.error // empty' "$RESULT_FILE" 2>/dev/null || true)
-          echo "::error::${ERROR_MESSAGE:-Authorization failed}"
+          echo "::error::${ERROR_MESSAGE:-Bulletin authorize failed}"
           rm -f "$RESULT_FILE"
           exit 1
         fi
         rm -f "$RESULT_FILE"
       env:
         DOTNS_MNEMONIC: ${{ inputs.mnemonic }}
+        AUTHORIZER_MNEMONIC: ${{ inputs.authorizer-mnemonic }}
         DOTNS_ENV: ${{ inputs.env }}
         BULLETIN_RPC: ${{ inputs.bulletin-rpc }}
         CI: "true"

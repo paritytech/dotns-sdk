@@ -10,7 +10,7 @@ import {
   getPriceAndValidateEligibility,
   finalizeRegularRegistration,
   verifyDomainOwnership,
-  claimUserStoreIfNeeded,
+  ensureLabelStoreReady,
 } from "../commands/register";
 
 async function main() {
@@ -53,7 +53,7 @@ async function main() {
   );
 
   await verifyDomainOwnership(clientWrapper, substrateAddress, label, evmAddress);
-  await claimUserStoreIfNeeded(clientWrapper, substrateAddress, signer, evmAddress);
+  await ensureLabelStoreReady(clientWrapper, substrateAddress, signer, evmAddress);
 
   console.log("Registered:", `${label}.dot`);
   console.log("Owner:     ", evmAddress);

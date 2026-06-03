@@ -252,7 +252,7 @@ dotns --password test-password bulletin upload ./dist --profile-upload --account
 dotns --password test-password bulletin upload ./dist --profile-upload --profile-output ./report.json --account default
 
 # Custom RPC
-dotns --password test-password bulletin upload ./image.png --bulletin-rpc wss://paseo-bulletin-rpc.polkadot.io --account default
+dotns --password test-password bulletin upload ./image.png --bulletin-rpc wss://paseo-bulletin-next-rpc.polkadot.io --account default
 
 # Skip history
 dotns --password test-password bulletin upload ./image.png --no-history --account default
@@ -292,7 +292,7 @@ dotns --key-uri //Alice bulletin authorize 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC9
 dotns --key-uri //Alice bulletin authorize 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty --json
 
 # Custom RPC
-dotns --key-uri //Alice bulletin authorize 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty --bulletin-rpc wss://paseo-bulletin-rpc.polkadot.io
+dotns --key-uri //Alice bulletin authorize 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty --bulletin-rpc wss://paseo-bulletin-next-rpc.polkadot.io
 ```
 
 ### Bulletin Status
@@ -359,7 +359,14 @@ dotns --key-uri //Alice account whitelist 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCP
 
 ### Store
 
+Your User Store is a per-account, owner-bound key/value store. Claim it once,
+then read and write values. Names you register are tracked separately in your
+Label Store (see `store names`).
+
 ```bash
+# Claim your User Store (required once before setting values)
+dotns --password test-password store claim --account default
+
 # Show Store address and deployment status
 dotns --password test-password store info --account default
 
@@ -371,17 +378,12 @@ dotns --password test-password store get mykey --account default
 dotns --password test-password store set mykey "my value" --account default
 dotns --password test-password store delete mykey --account default
 
-# Authorization management
-dotns --password test-password store check 0x000000000000000000000000000000000000dEaD --account default
-dotns --password test-password store authorize 0x000000000000000000000000000000000000dEaD --account default
-dotns --password test-password store unauthorize 0x000000000000000000000000000000000000dEaD --account default
+# List the .dot names in your Label Store, and cached CIDs
+dotns --password test-password store names --account default
+dotns --password test-password store cids --account default
 
-# DotNS controller authorisation
-dotns --password test-password store authorize-controller 0x000000000000000000000000000000000000dEaD --account default
-dotns --password test-password store unauthorize-controller 0x000000000000000000000000000000000000dEaD --account default
-
-# Ensure all required authorizations
-dotns --password test-password store ensure-auth --account default
+# Settle any pending names from the PoP controller into your Label Store
+dotns --password test-password store sync --account default
 
 # JSON output (all subcommands)
 dotns --password test-password store info --json --account default

@@ -8,7 +8,6 @@ import { formatErrorMessage } from "../utils/formatting";
 import {
   ProofOfPersonhoodStatus,
   type CommitmentResults,
-  type DomainOwnership,
   type DomainRegistration,
   type NameClassification,
   type NameClassificationLike,
@@ -26,6 +25,7 @@ import {
   PERSONHOOD_CONTEXT,
   PERSONHOOD_PRECOMPILE_ADDRESS,
   STORE_FACTORY_ABI,
+  DOTNS_POP_CONTROLLER_ABI,
   DEFAULT_COMMITMENT_BUFFER_SECONDS,
   COMMITMENT_POLL_TIMEOUT_MS,
   COMMITMENT_POLL_INTERVAL_MS,
@@ -421,11 +421,29 @@ export async function getPriceAndValidateEligibility(
 
     spinner.succeed("Eligibility and price");
     const resolvedPriceWei = classificationResult.price ?? classificationResult.priceWei;
-    console.log(chalk.gray("  required:  ") + chalk.white(ProofOfPersonhoodStatus[requiredStatus]));
-    console.log(chalk.gray("  user:      ") + chalk.white(ProofOfPersonhoodStatus[userStatus]));
+    const flatPriceWei = await withTimeout(
+      performContractCall<bigint>(
+        clientWrapper,
+        originSubstrateAddress,
+        CONTRACTS.DOTNS_RULES,
+        POP_RULES_ABI,
+        "price",
+        [label],
+      ),
+      30000,
+      "price",
+    );
+    const noStatusLabel = ProofOfPersonhoodStatus[ProofOfPersonhoodStatus.NoStatus];
+    console.log(chalk.gray("  name tier: ") + chalk.white(ProofOfPersonhoodStatus[requiredStatus]));
+    console.log(chalk.gray("  your tier: ") + chalk.white(ProofOfPersonhoodStatus[userStatus]));
     console.log(chalk.gray("  message:   ") + chalk.white(message));
     console.log(
-      chalk.gray("  price:     ") + chalk.green(`${formatWeiAsEther(resolvedPriceWei)} PAS`),
+      chalk.gray("  price (you):       ") +
+        chalk.green(`${formatWeiAsEther(resolvedPriceWei)} PAS`),
+    );
+    console.log(
+      chalk.gray(`  price (${noStatusLabel}):  `) +
+        chalk.white(`${formatWeiAsEther(flatPriceWei)} PAS`),
     );
 
     return {
@@ -631,7 +649,7 @@ export async function verifyDomainOwnership(
   }
 }
 
-async function readUserStore(
+async function readLabelStore(
   clientWrapper: ReviveClientWrapper,
   originSubstrateAddress: string,
   ownerAddress: Address,
@@ -643,112 +661,132 @@ async function readUserStore(
         originSubstrateAddress,
         CONTRACTS.STORE_FACTORY,
         STORE_FACTORY_ABI,
-        "getUserStore",
+        "getLabelStore",
         [ownerAddress],
       ),
       30000,
-      "getUserStore",
+      "getLabelStore",
     ),
   );
 }
 
-export async function claimUserStoreIfNeeded(
+type PendingClaim = { label: string; mintedAt: bigint };
+
+async function readPendingClaims(
+  clientWrapper: ReviveClientWrapper,
+  originSubstrateAddress: string,
+  ownerAddress: Address,
+): Promise<readonly PendingClaim[]> {
+  return (
+    (await withTimeout(
+      performContractCall<readonly PendingClaim[]>(
+        clientWrapper,
+        originSubstrateAddress,
+        CONTRACTS.DOTNS_POP_CONTROLLER,
+        DOTNS_POP_CONTROLLER_ABI,
+        "pendingClaims",
+        [ownerAddress],
+      ),
+      30000,
+      "pendingClaims",
+    )) ?? []
+  );
+}
+
+// Reconciles on-chain state for the caller: a fresh registration parks the name
+// in the PoP controller's pending queue; this step settles the queue into the
+// user's LabelStore (deploying it on first use). Always runs after a register.
+export async function ensureLabelStoreReady(
   clientWrapper: ReviveClientWrapper,
   substrateAddress: string,
   signer: PolkadotSigner,
   ownerAddress: Address,
 ): Promise<void> {
-  const readSpinner = ora("Reading user store").start();
+  const inspectSpinner = ora("Checking your Label Store and pending names").start();
 
-  let userStore: Address;
+  let labelStore: Address;
+  let pending: readonly PendingClaim[];
   try {
-    userStore = await readUserStore(clientWrapper, substrateAddress, ownerAddress);
-    readSpinner.succeed("User store");
+    [labelStore, pending] = await Promise.all([
+      readLabelStore(clientWrapper, substrateAddress, ownerAddress),
+      readPendingClaims(clientWrapper, substrateAddress, ownerAddress),
+    ]);
+    inspectSpinner.succeed(
+      pending.length === 0
+        ? "Label Store up to date. Nothing to sync."
+        : `Found ${pending.length} pending name(s) to sync into your Label Store`,
+    );
   } catch (error) {
-    readSpinner.fail("Failed to read user store");
+    inspectSpinner.fail("Could not read your Label Store status");
     throw error;
   }
 
-  if (userStore === zeroAddress) {
-    const claimSpinner = ora("Claiming user store").start();
-    const tx = await submitContractTransaction(
-      clientWrapper,
-      CONTRACTS.STORE_FACTORY,
-      0n,
-      STORE_FACTORY_ABI,
-      "claimUserStore",
-      [],
-      substrateAddress,
-      signer,
-      claimSpinner,
-      "Claim user store",
-    );
-    userStore = await readUserStore(clientWrapper, substrateAddress, ownerAddress);
-    console.log(chalk.gray("  tx:         ") + chalk.blue(tx));
-  }
-
-  console.log(chalk.gray("  user store: ") + chalk.cyan(userStore));
-}
-
-// TODO: remove this before any new environment deployment
-// This ensures all names are synced with the registrar
-export async function syncLabelWithRegistrar(
-  clientWrapper: ReviveClientWrapper,
-  substrateAddress: string,
-  signer: PolkadotSigner,
-  label: string,
-): Promise<void> {
-  const spinner = ora(`Syncing label ${chalk.cyan(label)} with registrar`).start();
-
-  try {
-    const tokenId = computeDomainTokenId(label);
-
-    const transactionHash = await submitContractTransaction(
-      clientWrapper,
-      CONTRACTS.DOTNS_REGISTRAR,
-      0n,
-      DOTNS_REGISTRAR_ABI,
-      "syncLabel",
-      [tokenId, label],
-      substrateAddress,
-      signer,
-      spinner,
-      "Label sync",
-    );
-
-    console.log(chalk.gray("  tx:        ") + chalk.blue(transactionHash));
-    console.log(chalk.gray("  tokenId:   ") + chalk.white(tokenId.toString()));
-  } catch (error) {
-    const errorMessage = formatErrorMessage(error);
-
-    if (errorMessage.includes("LabelAlreadySet")) {
-      spinner.succeed("Label already synced");
-      return;
+  if (pending.length === 0) {
+    if (labelStore === zeroAddress) {
+      console.log(
+        chalk.gray("  label store: ") +
+          chalk.yellow("(not deployed yet; will be created on your next registration)"),
+      );
+    } else {
+      console.log(chalk.gray("  label store: ") + chalk.cyan(labelStore));
     }
-
-    spinner.fail("Label sync failed");
-    throw error;
+    return;
   }
-}
 
-export async function getDomainOwnershipInfo(
-  clientWrapper: ReviveClientWrapper,
-  substrateAddress: string,
-  label: string,
-): Promise<DomainOwnership> {
-  const evmAddress = await clientWrapper.getEvmAddress(substrateAddress);
-  const ownerEvmAddress = await verifyDomainOwnership(
-    clientWrapper,
-    substrateAddress,
-    label,
-    evmAddress,
+  console.log(
+    chalk.gray("  pending names: ") + chalk.white(pending.map((claim) => claim.label).join(", ")),
   );
 
-  const ownerSubstrateAddress = await clientWrapper.getSubstrateAddress(ownerEvmAddress);
+  const maxAttempts = 3;
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const syncSpinner = ora(
+      labelStore === zeroAddress
+        ? `Deploying your Label Store and syncing ${pending.length} name(s) on-chain (attempt ${attempt}/${maxAttempts})`
+        : `Syncing ${pending.length} name(s) into your Label Store (attempt ${attempt}/${maxAttempts})`,
+    ).start();
 
-  return {
-    registered: ownerEvmAddress !== zeroAddress,
-    ownerEvm: ownerEvmAddress !== zeroAddress ? ownerEvmAddress : zeroAddress,
-    ownerSubstrate: ownerSubstrateAddress,
-  };
+    try {
+      await submitContractTransaction(
+        clientWrapper,
+        CONTRACTS.DOTNS_POP_CONTROLLER,
+        0n,
+        DOTNS_POP_CONTROLLER_ABI,
+        "claimLabelStore",
+        [],
+        substrateAddress,
+        signer,
+        syncSpinner,
+        "Label Store sync",
+      );
+      lastError = undefined;
+      break;
+    } catch (error) {
+      lastError = error;
+      syncSpinner.fail(
+        attempt < maxAttempts
+          ? `Sync attempt ${attempt} failed. Retrying.`
+          : `Sync attempt ${attempt} failed`,
+      );
+    }
+  }
+
+  if (lastError !== undefined) {
+    console.log();
+    console.log(chalk.yellow("  ⚠ Could not sync your Label Store right now."));
+    console.log(
+      chalk.gray(
+        "    Your name is safely registered on-chain. The pending claim stays queued, and we will automatically retry on your next `dotns register`.",
+      ),
+    );
+    console.log(chalk.gray("    To retry sooner, run: " + chalk.cyan("dotns store sync")));
+    return;
+  }
+
+  const deployed = await readLabelStore(clientWrapper, substrateAddress, ownerAddress);
+  console.log(chalk.gray("  label store: ") + chalk.cyan(deployed));
+  console.log(
+    chalk.gray("  synced:      ") +
+      chalk.green(`${pending.length} name(s) now resolvable from your Label Store`),
+  );
 }

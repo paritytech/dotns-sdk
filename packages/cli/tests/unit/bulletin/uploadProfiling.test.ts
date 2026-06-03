@@ -18,7 +18,7 @@ describe("upload profiler", () => {
       sourcePath: "/tmp/example.bin",
       sourceSizeBytes: 10 * 1024,
       chunkSizeBytes: 512 * 1024,
-      rpc: "wss://paseo-bulletin-rpc.polkadot.io",
+      rpc: "wss://paseo-bulletin-next-rpc.polkadot.io",
       initialConcurrency: 1,
       maxConcurrency: 4,
       outputPath,

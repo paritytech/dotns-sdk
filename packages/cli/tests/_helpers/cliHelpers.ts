@@ -15,6 +15,8 @@ import { attachTextCommands } from "../../src/cli/commands/text";
 import { attachStoreCommands } from "../../src/cli/commands/store";
 import { attachAccountCommands } from "../../src/cli/commands/info";
 import { attachEscrowCommands } from "../../src/cli/commands/escrow";
+import { generateRandomLabel } from "../../src/cli/labels";
+import { ProofOfPersonhoodStatus } from "../../src/types/types";
 
 export const HARNESS_SUCCESS_EXIT_CODE = 1;
 export const HARNESS_HELP_SUCCESS_EXIT_CODE = 0;
@@ -79,9 +81,14 @@ export async function runDotnsCli(
   const originalConsoleLog = console.log;
   const originalConsoleError = console.error;
   const originalProcessArgv = process.argv;
+  const originalStdoutWrite = process.stdout.write.bind(process.stdout);
+  const originalStderrWrite = process.stderr.write.bind(process.stderr);
 
   const standardOutputChunks: string[] = [];
   const standardErrorChunks: string[] = [];
+
+  const isProcessExitNoise = (text: string): boolean =>
+    /^\{"error":"process\.exit\(\d+\)"\}\n?$/.test(text);
 
   const outputConfiguration = {
     writeOut: (text: string) => standardOutputChunks.push(text),
@@ -119,6 +126,32 @@ export async function runDotnsCli(
     standardErrorChunks.push(values.map(String).join(" ") + "\n");
   };
 
+  (process.stdout as any).write = (chunk: any, ...rest: any[]): boolean => {
+    const text = typeof chunk === "string" ? chunk : String(chunk);
+    if (isProcessExitNoise(text)) {
+      const callback = rest.find((argument) => typeof argument === "function");
+      if (callback) callback();
+      return true;
+    }
+    standardOutputChunks.push(text);
+    const callback = rest.find((argument) => typeof argument === "function");
+    if (callback) callback();
+    return true;
+  };
+
+  (process.stderr as any).write = (chunk: any, ...rest: any[]): boolean => {
+    const text = typeof chunk === "string" ? chunk : String(chunk);
+    if (isProcessExitNoise(text)) {
+      const callback = rest.find((argument) => typeof argument === "function");
+      if (callback) callback();
+      return true;
+    }
+    standardErrorChunks.push(text);
+    const callback = rest.find((argument) => typeof argument === "function");
+    if (callback) callback();
+    return true;
+  };
+
   let exitCode = 0;
 
   // Critical: make argv look like a real invocation for any code reading process.argv
@@ -143,6 +176,8 @@ export async function runDotnsCli(
     (process as any).exit = originalProcessExit;
     console.log = originalConsoleLog;
     console.error = originalConsoleError;
+    (process.stdout as any).write = originalStdoutWrite;
+    (process.stderr as any).write = originalStderrWrite;
 
     if (environment) {
       for (const [key, value] of Object.entries(previousEnvironmentValues)) {
@@ -157,6 +192,23 @@ export async function runDotnsCli(
   const combinedOutput = standardOutput + standardError;
 
   return { exitCode, standardOutput, standardError, combinedOutput };
+}
+
+/**
+ * Register a fresh, randomly-named NoStatus domain owned by the given key
+ * (defaults to Alice) and return its label. Lets suites provision their own
+ * on-chain fixture instead of depending on a pre-existing registered domain.
+ */
+export async function registerFreshDomain(keyUri: string = ALICE_KEY_URI): Promise<string> {
+  const label = generateRandomLabel(ProofOfPersonhoodStatus.NoStatus);
+
+  const result = await runDotnsCli(["register", "domain", "--name", label, "--key-uri", keyUri]);
+
+  expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+  expect(result.combinedOutput).not.toContain("✗ Error:");
+  expect(result.combinedOutput).toContain("✓ Operation Complete");
+
+  return label;
 }
 
 export async function readKeystoreDirectory(

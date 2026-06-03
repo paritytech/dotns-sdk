@@ -69,11 +69,30 @@ export async function performContractCall<T>(
     throw buildRevertError(data, abi);
   }
 
-  const decoded = decodeFunctionResult({
-    abi,
-    functionName: functionName as any,
-    data,
-  });
+  if (data === "0x") {
+    throw new Error(
+      `Contract call ${functionName} at ${contractAddress} returned empty data ` +
+        `(non-revert). The address likely has no contract deployed for the current ` +
+        `environment, or the deployment was replaced. Verify the configured address ` +
+        `for this environment matches the latest deployment.`,
+    );
+  }
+
+  let decoded: unknown;
+  try {
+    decoded = decodeFunctionResult({
+      abi,
+      functionName: functionName as any,
+      data,
+    });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Failed to decode ${functionName} response from ${contractAddress}: ${reason}. ` +
+        `Raw data: ${data.slice(0, 66)}${data.length > 66 ? "…" : ""}. ` +
+        `The ABI likely does not match the deployed contract at this address.`,
+    );
+  }
 
   return (Array.isArray(decoded) && decoded.length === 1 ? decoded[0] : decoded) as unknown as T;
 }
@@ -98,6 +117,8 @@ export async function submitContractTransaction(
     args: functionArguments,
   }) as Hex;
 
+  const abortController = new AbortController();
+
   try {
     return await withTimeout(
       clientWrapper.submitTransaction(
@@ -107,9 +128,11 @@ export async function submitContractTransaction(
         signerSubstrateAddress,
         signer,
         createTransactionStatusHandler(spinner, operationName),
+        abortController.signal,
       ),
       OPERATION_TIMEOUT_MILLISECONDS,
       operationName || "Transaction",
+      () => abortController.abort(),
     );
   } catch (error) {
     if (error instanceof Error && error.message.includes("would revert: 0x")) {

@@ -39,10 +39,6 @@ export function createDagPbCid(data: Uint8Array, hashCode: number = HASH.SHA2_25
   return CID.createV1(CODEC.DAG_PB, multihash);
 }
 
-export function parseCid(cidString: string): CID {
-  return CID.parse(cidString);
-}
-
 export function encodeIpfsContenthash(cidString: string): string {
   return encode("ipfs", cidString);
 }

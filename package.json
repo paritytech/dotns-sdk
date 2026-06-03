@@ -8,10 +8,13 @@
     "prepare": "git config core.hooksPath .githooks || true",
     "postinstall": "node scripts/sync-abis.mjs",
     "sync:abis": "node scripts/sync-abis.mjs",
-    "format": "bun run --cwd packages/cli format && bun run --cwd packages/ui format",
-    "format:fix": "bun run --cwd packages/cli format:fix && bun run --cwd packages/ui format:fix",
-    "lint": "bun run --cwd packages/cli lint && bun run --cwd packages/ui lint",
-    "lint:fix": "bun run --cwd packages/cli lint:fix && bun run --cwd packages/ui lint:fix",
+    "format": "bun run --cwd packages/cli format && bun run --cwd packages/ui format && bun run format:workflows",
+    "format:fix": "bun run --cwd packages/cli format:fix && bun run --cwd packages/ui format:fix && bun run format:workflows:fix",
+    "format:workflows": "bunx prettier --check \".github/**/*.{yml,yaml}\"",
+    "format:workflows:fix": "bunx prettier --write \".github/**/*.{yml,yaml}\"",
+    "lint": "bun run --cwd packages/cli lint && bun run --cwd packages/ui lint && bun run lint:workflows",
+    "lint:fix": "bun run --cwd packages/cli lint:fix && bun run --cwd packages/ui lint:fix && bun run lint:workflows",
+    "lint:workflows": "docker run --rm -e SHELLCHECK_OPTS=\"-e SC2129 -e SC2086 -e SC2193\" -v \"$PWD\":/repo --workdir /repo rhysd/actionlint:latest -color",
     "precommit": "bun run format:fix && bun run lint:fix && bun run format && bun run lint"
   },
   "devDependencies": {

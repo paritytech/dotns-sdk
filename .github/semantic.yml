@@ -1,29 +1,31 @@
 {
   "titleOnly": true,
-  "types": [
-    "feat",
-    "fix",
-    "bug",
-    "docs",
-    "style",
-    "refactor",
-    "test",
-    "chore",
-    "ci",
-    "perf",
-    "revert"
-  ],
-  "scopes": [
-    "cli",
-    "ui",
-    "bulletin",
-    "auth",
-    "register",
-    "content",
-    "pop",
-    "lookup",
-    "deps",
-    "ci",
-    "release"
-  ]
+  "types":
+    [
+      "feat",
+      "fix",
+      "bug",
+      "docs",
+      "style",
+      "refactor",
+      "test",
+      "chore",
+      "ci",
+      "perf",
+      "revert",
+    ],
+  "scopes":
+    [
+      "cli",
+      "ui",
+      "bulletin",
+      "auth",
+      "register",
+      "content",
+      "pop",
+      "lookup",
+      "deps",
+      "ci",
+      "release",
+    ],
 }

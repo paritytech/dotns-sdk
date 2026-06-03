@@ -29,6 +29,8 @@ import {
   authorizeAccount,
   refreshAccountAuthorization,
   checkAuthorization,
+  clampU32,
+  detectBulletinTestnet,
   formatExpirationDisplay,
   expirationToISOString,
 } from "../../commands/bulletin";
@@ -64,7 +66,7 @@ import { resolveBulletinRpc, resolveDotnsEnvironment } from "../env";
 import {
   DEFAULT_CHUNK_SIZE_BYTES,
   DEFAULT_UPLOAD_MAX_RETRIES,
-  DEFAULT_SUDO_KEY_URI,
+  DEFAULT_BULLETIN_AUTHORIZER_KEY_URI,
   DEFAULT_AUTHORIZATION_TRANSACTIONS,
   DEFAULT_AUTHORIZATION_BYTES,
 } from "../../utils/constants";
@@ -247,17 +249,17 @@ function writeBulletinJsonError(error: unknown): never {
 }
 
 /**
- * Warn when the dev-default `//Alice` signer is used against an environment
- * where the bulletin Authorizer is almost certainly *not* `//Alice` (paseo,
- * previewnet). Silent on `paseo-v2` (local dev) and on explicit overrides.
+ * Warn when the dev-default authorizer signer is used against an environment
+ * where the bulletin Authorizer is almost certainly *not* the default
+ * (previewnet). Silent on `paseo-v2` (local dev) and on explicit overrides.
  */
-function warnIfDevKeyOnTestnet(signerKeyUri: string, environmentId: string): void {
-  if (signerKeyUri !== DEFAULT_SUDO_KEY_URI) return;
-  if (environmentId !== "paseo" && environmentId !== "previewnet") return;
+export function warnIfDevKeyOnTestnet(signerKeyUri: string, environmentId: string): void {
+  if (signerKeyUri !== DEFAULT_BULLETIN_AUTHORIZER_KEY_URI) return;
+  if (environmentId !== "previewnet") return;
   console.warn(
     chalk.yellow(
-      `\n⚠ Using default signer ${DEFAULT_SUDO_KEY_URI} against ${environmentId}.\n` +
-        `  The bulletin Authorizer on this network is unlikely to be //Alice.\n` +
+      `\n⚠ Using default signer ${DEFAULT_BULLETIN_AUTHORIZER_KEY_URI} against ${environmentId}.\n` +
+        `  The bulletin Authorizer on this network is unlikely to be ${DEFAULT_BULLETIN_AUTHORIZER_KEY_URI}.\n` +
         `  Override with --key-uri if the transaction fails with BadOrigin.\n`,
     ),
   );
@@ -428,12 +430,29 @@ export function attachBulletinCommands(root: Command): void {
           mergedOptions.bulletinRpc,
           mergedOptions.env ?? mergedOptions.network,
         );
-        const transactions = Number(
-          mergedOptions.transactions || DEFAULT_AUTHORIZATION_TRANSACTIONS,
+        const transactions = clampU32(
+          BigInt(mergedOptions.transactions || DEFAULT_AUTHORIZATION_TRANSACTIONS),
+          "--transactions",
         );
         const bytes = BigInt(mergedOptions.bytes || DEFAULT_AUTHORIZATION_BYTES);
         const force = Boolean(options.force);
-        const signerKeyUri = String(mergedOptions.keyUri || DEFAULT_SUDO_KEY_URI);
+        const explicitKeyUri =
+          mergedOptions.keyUri === undefined || mergedOptions.keyUri === null
+            ? undefined
+            : String(mergedOptions.keyUri);
+        let signerKeyUri: string;
+        if (explicitKeyUri !== undefined) {
+          signerKeyUri = explicitKeyUri;
+        } else {
+          const isTestnet = await detectBulletinTestnet(bulletinRpc);
+          if (!isTestnet) {
+            throw new Error(
+              `Refusing to default the Authorizer signer to ${DEFAULT_BULLETIN_AUTHORIZER_KEY_URI} on this chain (${bulletinRpc}).\n` +
+                `Pass an explicit signer with -k / --key-uri (the account must hold Authorizer privileges on Bulletin).`,
+            );
+          }
+          signerKeyUri = DEFAULT_BULLETIN_AUTHORIZER_KEY_URI;
+        }
 
         const environment = resolveDotnsEnvironment(mergedOptions.env ?? mergedOptions.network);
         if (!jsonOutput) warnIfDevKeyOnTestnet(signerKeyUri, environment.id);
@@ -537,7 +556,7 @@ export function attachBulletinCommands(root: Command): void {
           mergedOptions.bulletinRpc,
           mergedOptions.env ?? mergedOptions.network,
         );
-        const signerKeyUri = String(mergedOptions.keyUri || DEFAULT_SUDO_KEY_URI);
+        const signerKeyUri = String(mergedOptions.keyUri || DEFAULT_BULLETIN_AUTHORIZER_KEY_URI);
         const reporterMode = resolveReporterMode(mergedOptions.reporter as BulletinReporterMode);
 
         const environment = resolveDotnsEnvironment(mergedOptions.env ?? mergedOptions.network);
@@ -871,7 +890,7 @@ export function attachBulletinCommands(root: Command): void {
             verified = true;
           }
         } catch {
-          /* P2P verification failed, try gateways */
+          // P2P verification failed; gateway fallback runs below.
         }
 
         if (!verified) {

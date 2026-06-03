@@ -3,7 +3,6 @@ import { ProofOfPersonhoodStatus } from "../../../src/types/types";
 import { generateRandomLabel } from "../../../src/cli/labels";
 import {
   createDefaultAccountKeystore,
-  generateGovernanceLabel,
   HARNESS_SUCCESS_EXIT_CODE,
   TEST_PASSWORD,
   TEST_ACCOUNT,
@@ -136,69 +135,6 @@ test(
 
     expectNoPopStatusMutationAttempt(registerResult);
     expectSuccessfulRegistration(registerResult, label);
-  },
-  { timeout: REGISTER_TEST_TIMEOUT_MS },
-);
-
-test(
-  "register domain governance name",
-  async () => {
-    createPathsForTest("register_domain_governance_name");
-    const keystorePath = await ensureDefaultKeystore();
-    const governanceLabel = generateGovernanceLabel(5);
-
-    const registerResult = await registerDomain(keystorePath, [
-      "--name",
-      governanceLabel,
-      "--governance",
-    ]);
-
-    expectNoPopStatusMutationAttempt(registerResult);
-    expectSuccessfulRegistration(registerResult, governanceLabel);
-  },
-  { timeout: REGISTER_TEST_TIMEOUT_MS },
-);
-
-test(
-  "register domain governance name and transfer",
-  async () => {
-    createPathsForTest("register_domain_governance_name_and_transfer");
-    const keystorePath = await ensureDefaultKeystore();
-    const governanceLabel = generateGovernanceLabel(5);
-
-    const registerResult = await registerDomain(keystorePath, [
-      "--name",
-      governanceLabel,
-      "--governance",
-      "--transfer",
-      "--to",
-      TEST_OWNER_EVM_ADDRESS,
-    ]);
-
-    expectNoPopStatusMutationAttempt(registerResult);
-    expectSuccessfulRegistration(registerResult, governanceLabel);
-  },
-  { timeout: REGISTER_TEST_TIMEOUT_MS },
-);
-
-test(
-  "register domain governance name for someone else using owner flag",
-  async () => {
-    createPathsForTest("register_domain_governance_for_someone_else_using_owner");
-    const keystorePath = await ensureDefaultKeystore();
-    const governanceLabel = generateGovernanceLabel(5);
-    const ownerAddress = TEST_OWNER_EVM_ADDRESS;
-
-    const registerResult = await registerDomain(keystorePath, [
-      "--name",
-      governanceLabel,
-      "--governance",
-      "--owner",
-      ownerAddress,
-    ]);
-
-    expectNoPopStatusMutationAttempt(registerResult);
-    expectSuccessfulRegistration(registerResult, governanceLabel);
   },
   { timeout: REGISTER_TEST_TIMEOUT_MS },
 );

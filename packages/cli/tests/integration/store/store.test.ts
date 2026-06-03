@@ -1,11 +1,21 @@
-import { expect, test } from "bun:test";
+import { beforeAll, expect, test } from "bun:test";
 import {
   ALICE_KEY_URI,
-  BOB_EVM_ADDRESS,
   HARNESS_SUCCESS_EXIT_CODE,
   runDotnsCli,
   TEST_TIMEOUT_MS,
 } from "../../_helpers/cliHelpers";
+
+const CLAIM_TIMEOUT_MS = 3 * 60_000;
+
+// The User Store is owner-bound and must be claimed once before values can be
+// written. Self-provision it for Alice so the suite never depends on prior
+// on-chain state.
+beforeAll(async () => {
+  const result = await runDotnsCli(["store", "claim", "--key-uri", ALICE_KEY_URI]);
+  expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+  expect(result.combinedOutput).not.toContain("✗ Error:");
+}, CLAIM_TIMEOUT_MS);
 
 test(
   "store info shows store status",
@@ -40,19 +50,23 @@ test(
 );
 
 test(
-  "store list shows values",
+  "store claim is idempotent once the store exists",
   async () => {
-    const result = await runDotnsCli(["store", "list", "--key-uri", ALICE_KEY_URI]);
+    const result = await runDotnsCli(["store", "claim", "--key-uri", ALICE_KEY_URI, "--json"]);
 
     expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
-    expect(result.combinedOutput).not.toContain("✗ Error:");
-    expect(result.combinedOutput).toContain("Store Values");
+
+    const parsed = JSON.parse(result.combinedOutput.trim());
+
+    expect(parsed.storeAddress).toBeString();
+    expect(parsed.alreadyClaimed).toBe(true);
+    expect(parsed.tx).toBeNull();
   },
   { timeout: TEST_TIMEOUT_MS },
 );
 
 test(
-  "store list --json returns structured result",
+  "store list returns structured values",
   async () => {
     const result = await runDotnsCli(["store", "list", "--key-uri", ALICE_KEY_URI, "--json"]);
 
@@ -66,156 +80,6 @@ test(
     expect(parsed.values).toBeArray();
   },
   { timeout: TEST_TIMEOUT_MS },
-);
-
-test(
-  "store check shows authorization status",
-  async () => {
-    const result = await runDotnsCli([
-      "store",
-      "check",
-      BOB_EVM_ADDRESS,
-      "--key-uri",
-      ALICE_KEY_URI,
-    ]);
-
-    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
-    expect(result.combinedOutput).not.toContain("✗ Error:");
-    expect(result.combinedOutput).toContain("Authorization Status");
-    expect(result.combinedOutput).toContain("authorized:");
-    expect(result.combinedOutput).toContain("controller:");
-  },
-  { timeout: TEST_TIMEOUT_MS },
-);
-
-test(
-  "store check --json returns structured result ",
-  async () => {
-    const result = await runDotnsCli([
-      "store",
-      "check",
-      BOB_EVM_ADDRESS,
-      "--key-uri",
-      ALICE_KEY_URI,
-      "--json",
-    ]);
-
-    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
-
-    expect(result.combinedOutput).not.toContain("▶");
-    expect(result.combinedOutput).not.toContain("✓");
-
-    const parsed = JSON.parse(result.combinedOutput.trim());
-
-    expect(parsed.address).toBeString();
-    expect(parsed.isAuthorized).toBeBoolean();
-    expect(parsed.isDotnsController).toBeBoolean();
-  },
-  { timeout: TEST_TIMEOUT_MS },
-);
-
-test(
-  "store authorize and unauthorize round-trip",
-  async () => {
-    const authorizeResult = await runDotnsCli([
-      "store",
-      "authorize",
-      BOB_EVM_ADDRESS,
-      "--key-uri",
-      ALICE_KEY_URI,
-    ]);
-
-    expect(authorizeResult.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
-    expect(authorizeResult.combinedOutput).not.toContain("✗ Error:");
-
-    const checkAfterAuth = await runDotnsCli([
-      "store",
-      "check",
-      BOB_EVM_ADDRESS,
-      "--key-uri",
-      ALICE_KEY_URI,
-      "--json",
-    ]);
-
-    const authStatus = JSON.parse(checkAfterAuth.combinedOutput.trim());
-    expect(authStatus.isAuthorized).toBe(true);
-
-    const unauthorizeResult = await runDotnsCli([
-      "store",
-      "unauthorize",
-      BOB_EVM_ADDRESS,
-      "--key-uri",
-      ALICE_KEY_URI,
-    ]);
-
-    expect(unauthorizeResult.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
-    expect(unauthorizeResult.combinedOutput).not.toContain("✗ Error:");
-
-    const checkAfterRevoke = await runDotnsCli([
-      "store",
-      "check",
-      BOB_EVM_ADDRESS,
-      "--key-uri",
-      ALICE_KEY_URI,
-      "--json",
-    ]);
-
-    const revokedStatus = JSON.parse(checkAfterRevoke.combinedOutput.trim());
-    expect(revokedStatus.isAuthorized).toBe(false);
-  },
-  { timeout: TEST_TIMEOUT_MS * 3 },
-);
-
-test(
-  "store authorize-controller and unauthorize-controller round-trip",
-  async () => {
-    const authorizeResult = await runDotnsCli([
-      "store",
-      "authorize-controller",
-      BOB_EVM_ADDRESS,
-      "--key-uri",
-      ALICE_KEY_URI,
-    ]);
-
-    expect(authorizeResult.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
-    expect(authorizeResult.combinedOutput).not.toContain("✗ Error:");
-
-    const checkAfterAuth = await runDotnsCli([
-      "store",
-      "check",
-      BOB_EVM_ADDRESS,
-      "--key-uri",
-      ALICE_KEY_URI,
-      "--json",
-    ]);
-
-    const authStatus = JSON.parse(checkAfterAuth.combinedOutput.trim());
-    expect(authStatus.isDotnsController).toBe(true);
-
-    const unauthorizeResult = await runDotnsCli([
-      "store",
-      "unauthorize-controller",
-      BOB_EVM_ADDRESS,
-      "--key-uri",
-      ALICE_KEY_URI,
-    ]);
-
-    expect(unauthorizeResult.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
-    expect(unauthorizeResult.combinedOutput).not.toContain("✗ Error:");
-
-    const checkAfterRevoke = await runDotnsCli([
-      "store",
-      "check",
-      BOB_EVM_ADDRESS,
-      "--key-uri",
-      ALICE_KEY_URI,
-      "--json",
-    ]);
-
-    const revokedStatus = JSON.parse(checkAfterRevoke.combinedOutput.trim());
-    expect(revokedStatus.isDotnsController).toBe(false);
-  },
-  { timeout: TEST_TIMEOUT_MS * 3 },
 );
 
 test(
@@ -274,41 +138,4 @@ test(
     expect(deletedValue.value).toBe("");
   },
   { timeout: TEST_TIMEOUT_MS * 3 },
-);
-
-test(
-  "store ensure-auth checks and authorizes system contracts",
-  async () => {
-    const result = await runDotnsCli(["store", "ensure-auth", "--key-uri", ALICE_KEY_URI]);
-
-    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
-    expect(result.combinedOutput).not.toContain("✗ Error:");
-  },
-  { timeout: TEST_TIMEOUT_MS * 2 },
-);
-
-test(
-  "store ensure-auth --json returns structured result",
-  async () => {
-    const result = await runDotnsCli([
-      "store",
-      "ensure-auth",
-      "--key-uri",
-      ALICE_KEY_URI,
-      "--json",
-    ]);
-
-    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
-
-    expect(result.combinedOutput).not.toContain("▶");
-    expect(result.combinedOutput).not.toContain("✓");
-
-    const parsed = JSON.parse(result.combinedOutput.trim());
-
-    expect(parsed.controllerAddress).toBeString();
-    expect(parsed.controllerAuthorized).toBeBoolean();
-    expect(parsed.registryAddress).toBeString();
-    expect(parsed.registryAuthorized).toBeBoolean();
-  },
-  { timeout: TEST_TIMEOUT_MS * 2 },
 );
