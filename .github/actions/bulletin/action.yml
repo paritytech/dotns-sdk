@@ -7,11 +7,14 @@ inputs:
     required: true
   authorizer-mnemonic:
     description: |
-      BIP39 mnemonic (or SURI like //Alice) of the Bulletin Authorizer that
+      BIP39 mnemonic (or SURI like //Eve) of the Bulletin Authorizer that
       grants on-chain upload quota to the deployer before upload.
-      Defaults to //Alice for local zombienet networks.
+      Defaults to //Eve, the account seeded into AllowedAuthorizers on the
+      bulletin testnet and dev runtimes (the same key the Bulletin console
+      faucet uses). //Alice is sudo and a storage account, not an authoriser,
+      so a plain signed authorize from Alice is rejected as BadOrigin.
     required: false
-    default: "//Alice"
+    default: "//Eve"
   bulletin-rpc:
     description: "Bulletin chain WebSocket RPC endpoint (default: CLI built-in)"
     required: false

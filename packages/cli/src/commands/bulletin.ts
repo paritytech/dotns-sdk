@@ -85,7 +85,7 @@ export function isTestnetSpecName(specName: string | undefined | null): boolean 
   return false;
 }
 
-// Gates the implicit `//Alice` Authorizer fallback: mainnet without an
+// Gates the implicit default Authorizer fallback (`//Eve`): mainnet without an
 // explicit signer must fail loudly instead of submitting a doomed extrinsic.
 export async function detectBulletinTestnet(rpc: string): Promise<boolean> {
   const client = createClient(withPolkadotSdkCompat(getWsProvider(rpc)));

@@ -38,6 +38,13 @@ export const DEFAULT_MNEMONIC =
 
 export const DEFAULT_SUDO_KEY_URI = "//Alice";
 
+// The Bulletin Authorizer that grants storage quota. //Eve is seeded into
+// AllowedAuthorizers on the bulletin testnet and dev runtimes (the same key the
+// Bulletin console faucet signs with). //Alice is sudo and a storage account,
+// not an authorizer, so a plain signed authorize from Alice is rejected as
+// BadOrigin.
+export const DEFAULT_BULLETIN_AUTHORIZER_KEY_URI = "//Eve";
+
 export const BULLETIN_BLOCK_TIME_MS = 6000;
 
 export const OPERATION_TIMEOUT_MILLISECONDS = 300_000;
