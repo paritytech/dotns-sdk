@@ -285,7 +285,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .deploy-cache
-          key: deploy-${{ steps.hash.outputs.hash }}
+          # Scope the cache to the environment: a CID is only valid on the
+          # bulletin chain it was uploaded to, so content cached for one env
+          # must not be reused for another. Bump the suffix to force a
+          # re-upload after a bulletin chain migration within the same env.
+          key: deploy-${{ inputs.env }}-next-${{ steps.hash.outputs.hash }}
 
       - name: Load cached CID
         id: cached
