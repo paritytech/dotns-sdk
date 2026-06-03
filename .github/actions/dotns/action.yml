@@ -93,10 +93,20 @@ runs:
       run: |
         echo "::add-mask::$DOTNS_MNEMONIC"
 
+        # Names of 5 characters or fewer classify as Reserved and must be
+        # registered through the governance (registerReserved) path, which is
+        # gated on the caller being whitelisted (the "Whitelist deployer" step
+        # authorises exactly this). Longer names use regular registration.
+        REGISTER_ARGS=(register domain --name "$BASENAME")
+        if [[ "${#BASENAME}" -le 5 ]]; then
+          REGISTER_ARGS+=(--governance)
+          echo "::notice::${BASENAME}.dot is a reserved name; using governance registration."
+        fi
+
         for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
           echo "Register base attempt $ATTEMPT/$MAX_RETRIES"
 
-          if dotns register domain --name "$BASENAME" 2>&1; then
+          if dotns "${REGISTER_ARGS[@]}" 2>&1; then
             echo "::notice::Base domain ${BASENAME}.dot registered"
             exit 0
           fi
@@ -107,12 +117,13 @@ runs:
 
         echo "::error::Base domain registration failed after $MAX_RETRIES attempts."
         echo ""
-        echo "This usually means the account does not have the required"
-        echo "Proof-of-Personhood status for this name."
+        echo "For reserved names (5 characters or fewer) the deployer must be"
+        echo "whitelisted for governance registration. For longer names the"
+        echo "account must hold the required Proof-of-Personhood status."
         echo ""
         echo "To fix this:"
-        echo "  1. Check your POP status:  dotns pop status"
-        echo "  2. Complete personhood verification outside DotNS if needed."
+        echo "  1. Confirm the deployer is whitelisted:  dotns account is-whitelisted <address>"
+        echo "  2. Check PoP status (longer names):       dotns pop status"
         echo "  3. Then re-run this workflow."
         echo ""
         echo "You can also register manually at https://dotns.paseo.li"
