@@ -323,6 +323,97 @@ export async function waitForMinimumCommitmentAge(
   );
 }
 
+export async function readDomainOwner(
+  clientWrapper: ReviveClientWrapper,
+  originSubstrateAddress: string,
+  label: string,
+): Promise<Address> {
+  const tokenId = computeDomainTokenId(label);
+  try {
+    return await withTimeout(
+      performContractCall<Address>(
+        clientWrapper,
+        originSubstrateAddress,
+        CONTRACTS.DOTNS_REGISTRAR,
+        DOTNS_REGISTRAR_ABI,
+        "ownerOf",
+        [tokenId],
+      ),
+      30000,
+      "ownerOf",
+    );
+  } catch {
+    return zeroAddress;
+  }
+}
+
+export type CommitmentStatus = {
+  committedTimestampSeconds: number;
+  nowSeconds: number;
+  minAgeSeconds: number;
+  maxAgeSeconds: number;
+};
+
+export async function readCommitmentStatus(
+  clientWrapper: ReviveClientWrapper,
+  originSubstrateAddress: string,
+  commitment: Hex,
+): Promise<CommitmentStatus> {
+  const toNumber = (value: bigint | number): number =>
+    typeof value === "bigint" ? Number(value) : value;
+
+  const [minAge, maxAge, committedAt] = await Promise.all([
+    withTimeout(
+      performContractCall<bigint | number>(
+        clientWrapper,
+        originSubstrateAddress,
+        CONTRACTS.DOTNS_REGISTRAR_CONTROLLER,
+        DOTNS_REGISTRAR_CONTROLLER_ABI,
+        "minCommitmentAge",
+        [],
+      ),
+      30000,
+      "minCommitmentAge",
+    ),
+    withTimeout(
+      performContractCall<bigint | number>(
+        clientWrapper,
+        originSubstrateAddress,
+        CONTRACTS.DOTNS_REGISTRAR_CONTROLLER,
+        DOTNS_REGISTRAR_CONTROLLER_ABI,
+        "maxCommitmentAge",
+        [],
+      ),
+      30000,
+      "maxCommitmentAge",
+    ),
+    withTimeout(
+      performContractCall<bigint | number>(
+        clientWrapper,
+        originSubstrateAddress,
+        CONTRACTS.DOTNS_REGISTRAR_CONTROLLER,
+        DOTNS_REGISTRAR_CONTROLLER_ABI,
+        "commitments",
+        [commitment],
+      ),
+      30000,
+      "commitments",
+    ),
+  ]);
+
+  const timestampQuery = (clientWrapper.client as any).query?.Timestamp?.Now;
+  const nowSeconds = timestampQuery?.getValue
+    ? Math.floor(Number((await timestampQuery.getValue()) as bigint | number) / 1000)
+    : Math.floor(Date.now() / 1000);
+
+  return {
+    committedTimestampSeconds: toNumber(committedAt),
+    nowSeconds,
+    minAgeSeconds: toNumber(minAge),
+    maxAgeSeconds: toNumber(maxAge),
+  };
+}
+
 export async function getUserProofOfPersonhoodStatus(
   clientWrapper: ReviveClientWrapper,
   originSubstrateAddress: string,

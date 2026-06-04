@@ -80,6 +80,8 @@ export type RegistrationCommandOptions = {
   owner?: string | Address;
   /** Extra seconds to wait after minCommitmentAge before attempting registration */
   commitmentBuffer?: number;
+  /** On failure, resume from the cached commitment up to this many times */
+  retry?: number;
 };
 
 export type DomainOwnership = {
