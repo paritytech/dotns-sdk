@@ -118,6 +118,40 @@ dotns --password test-password register domain --account default --name coolname
 
 # With reverse record
 dotns --password test-password register domain --account default --name coolname42 --reverse
+
+# Auto-retry on failure, resuming from the cached commitment (here, up to 3 times)
+dotns --password test-password register domain --account default --name coolname42 --retry 3
+```
+
+### Resume and manage commitments
+
+Registration is a two-step commit-reveal: the commit lands on-chain, then after the
+minimum commitment age the reveal completes the mint. If the reveal is interrupted
+(crash, network drop, closed terminal), the commitment is cached locally so it can be
+resumed rather than restarted. The reveal secret is encrypted at rest with your
+credential (keystore password, mnemonic, or key URI); the rest of the record is
+plaintext so it can be listed and cleared without unlocking.
+
+Records live under `~/.dotns/registrations/` (override with `DOTNS_REGISTRATION_DIR`).
+
+```bash
+# Resume the most recent interrupted registration
+dotns --password test-password register retry --account default
+
+# Resume a specific cached commitment by name
+dotns --password test-password register retry coolname42 --account default
+
+# List cached commitments and their on-chain status
+dotns register list
+
+# Review cached commitments: purges completed ones, then prompts for any pending
+dotns --password test-password register clear --account default
+
+# Non-interactively discard pending commitments
+dotns register clear --discard
+
+# Non-interactively complete pending commitments
+dotns --password test-password register clear --register --account default
 ```
 
 ### Register Subnames

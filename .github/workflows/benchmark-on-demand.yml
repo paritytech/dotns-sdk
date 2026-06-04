@@ -45,8 +45,6 @@ jobs:
               "25 MB":  { size: "25MB",  slug: "25mb" },
               "50 MB":  { size: "50MB",  slug: "50mb" },
               "100 MB": { size: "100MB", slug: "100mb" },
-              "200 MB": { size: "200MB", slug: "200mb" },
-              "500 MB": { size: "500MB", slug: "500mb" },
             };
 
             const selected = [];
@@ -269,7 +267,7 @@ jobs:
             const reports = reportFiles
               .map((f) => JSON.parse(fs.readFileSync(path.join(reportsDir, f), "utf8")))
               .sort((a, b) => {
-                const sizeOrder = ["1MB","5MB","10MB","25MB","50MB","100MB","200MB","500MB","UI build"];
+                const sizeOrder = ["1MB","5MB","10MB","25MB","50MB","100MB","UI build"];
                 return sizeOrder.indexOf(a.size) - sizeOrder.indexOf(b.size);
               });
 

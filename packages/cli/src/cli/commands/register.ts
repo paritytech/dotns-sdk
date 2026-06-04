@@ -1,5 +1,6 @@
 import chalk from "chalk";
-import { checksumAddress, isAddress, type Address } from "viem";
+import { checksumAddress, isAddress, type Address, type Hex } from "viem";
+import { formatErrorMessage } from "../../utils/formatting";
 import {
   classifyDomainName,
   ensureDomainNotRegistered,
@@ -13,13 +14,26 @@ import {
   registerSubnode,
   verifyDomainOwnership,
   ensureLabelStoreReady,
+  readCommitmentStatus,
+  readDomainOwner,
 } from "../../commands/register";
+import {
+  saveCommitmentRecord,
+  loadCommitmentRecords,
+  findCommitmentRecord,
+  latestCommitmentRecord,
+  deleteCommitmentRecord,
+  decryptCommitmentSecret,
+  resolveManifestCredential,
+  type CommitmentRecord,
+} from "../../commands/registrationManifest";
 import {
   isValidSubstrateAddress,
   validateDomainLabel,
   validateGovernanceLabel,
 } from "../../utils/validation";
 import {
+  type DomainRegistration,
   type NameClassification,
   type PricingAndEligibility,
   type RegistrationCommandOptions,
@@ -27,8 +41,22 @@ import {
 } from "../../types/types";
 import { step } from "../ui";
 import { prepareAssetHubContext } from "../context";
+import { prepareReadOnlyContext } from "./lookup";
 import { generateRandomLabel } from "../labels";
 import { resolveTransferRecipient, transferDomain } from "../transfer";
+
+type PersistContext = {
+  env: string;
+  caller: Address;
+  credential: string | null;
+};
+
+function requireEnvironment(environment: string | undefined): string {
+  if (!environment) {
+    throw new Error("Could not resolve the DotNS environment for this command.");
+  }
+  return environment;
+}
 
 export type TransferDestinationKind = "evm" | "substrate" | "label";
 
@@ -86,6 +114,47 @@ export type SubnameRegistrationResult = {
   domain: string;
   owner: string;
 };
+
+async function registerWithRetries(params: {
+  attempt: () => Promise<void>;
+  context: Awaited<ReturnType<typeof prepareAssetHubContext>>;
+  persistContext: PersistContext;
+  label: string;
+  retries: number;
+  commitmentBuffer?: number;
+}): Promise<void> {
+  try {
+    await params.attempt();
+    return;
+  } catch (error) {
+    if (params.retries <= 0) throw error;
+
+    const { env, caller, credential } = params.persistContext;
+    let lastError: unknown = error;
+
+    for (let attempt = 1; attempt <= params.retries; attempt++) {
+      console.log(
+        chalk.yellow(
+          `\n↻ Registration failed: ${formatErrorMessage(lastError)}` +
+            `\n  Retry ${attempt}/${params.retries} (resuming from commitment)…`,
+        ),
+      );
+      try {
+        const record = credential ? findCommitmentRecord(env, caller, params.label) : null;
+        if (record && credential) {
+          await resumeRegistration(params.context, record, credential, params.commitmentBuffer);
+        } else {
+          await params.attempt();
+        }
+        return;
+      } catch (retryError) {
+        lastError = retryError;
+      }
+    }
+
+    throw lastError;
+  }
+}
 
 export async function executeRegistration(
   options: Partial<RegisterActionOptions> = {},
@@ -163,36 +232,50 @@ export async function executeRegistration(
     clientWrapper.ensureAccountMapped(substrateAddress, signer),
   );
 
-  if (options.governance) {
-    await executeGovernanceRegistration(
-      clientWrapper,
-      substrateAddress,
-      signer,
-      evmAddress,
-      label,
-      transferDestination,
-      options.commitmentBuffer,
-      context.nativeTokenDecimals,
-    );
-  } else {
-    await executeRegularRegistration(
-      clientWrapper,
-      substrateAddress,
-      signer,
-      evmAddress,
-      ownerEvmAddress,
-      label,
-      context.nativeTokenDecimals,
-      options.reverse ?? false,
-      transferDestination,
-      options.commitmentBuffer,
-    );
-  }
+  const credential = resolveManifestCredential(options);
+  const persistContext: PersistContext = {
+    env: requireEnvironment(context.environment),
+    caller: evmAddress as Address,
+    credential,
+  };
 
-  console.log(`\n${chalk.bold.green("═══════════════════════════════════════")}`);
-  console.log(`${chalk.bold.green("         ✓ Operation Complete          ")}`);
-  console.log(`${chalk.bold.green("═══════════════════════════════════════")}\n`);
-  console.log(chalk.gray("  Domain: ") + chalk.cyan(label + ".dot"));
+  const attemptRegistration = (): Promise<void> =>
+    options.governance
+      ? executeGovernanceRegistration(
+          clientWrapper,
+          substrateAddress,
+          signer,
+          evmAddress,
+          label,
+          transferDestination,
+          persistContext,
+          options.commitmentBuffer,
+          context.nativeTokenDecimals,
+        )
+      : executeRegularRegistration(
+          clientWrapper,
+          substrateAddress,
+          signer,
+          evmAddress,
+          ownerEvmAddress,
+          label,
+          context.nativeTokenDecimals,
+          options.reverse ?? false,
+          transferDestination,
+          persistContext,
+          options.commitmentBuffer,
+        );
+
+  await registerWithRetries({
+    attempt: attemptRegistration,
+    context,
+    persistContext,
+    label,
+    retries: options.retry ?? 0,
+    commitmentBuffer: options.commitmentBuffer,
+  });
+
+  printCompletionBanner("✓ Operation Complete", `${label}.dot`);
 
   return {
     ok: true as const,
@@ -241,10 +324,7 @@ export async function executeSubnameRegistration(
     ownerAddress,
   );
 
-  console.log(`\n${chalk.bold.green("═══════════════════════════════════════")}`);
-  console.log(`${chalk.bold.green("         ✓ Subname Registered          ")}`);
-  console.log(`${chalk.bold.green("═══════════════════════════════════════")}\n`);
-  console.log(chalk.gray("  Domain: ") + chalk.cyan(fullName));
+  printCompletionBanner("✓ Subname Registered", fullName);
 
   return {
     ok: true as const,
@@ -255,6 +335,148 @@ export async function executeSubnameRegistration(
   };
 }
 
+function persistCommitment(
+  persistContext: PersistContext,
+  params: {
+    label: string;
+    owner: Address;
+    reserved: boolean;
+    governance: boolean;
+    secret: Hex;
+    commitmentHash: Hex;
+    transferDestination?: string;
+  },
+): void {
+  if (!persistContext.credential) return;
+  try {
+    saveCommitmentRecord({
+      env: persistContext.env,
+      caller: persistContext.caller,
+      label: params.label,
+      owner: params.owner,
+      reserved: params.reserved,
+      governance: params.governance,
+      secret: params.secret,
+      commitmentHash: params.commitmentHash,
+      committedAtIso: new Date().toISOString(),
+      transferDestination: params.transferDestination,
+      credential: persistContext.credential,
+    });
+  } catch (error) {
+    console.warn(chalk.yellow(`  ⚠ Could not cache commitment: ${formatErrorMessage(error)}`));
+  }
+}
+
+function forgetCommitment(persistContext: PersistContext, label: string): void {
+  try {
+    deleteCommitmentRecord(persistContext.env, persistContext.caller, label);
+  } catch (error) {
+    console.warn(
+      chalk.yellow(`  ⚠ Could not clear cached commitment: ${formatErrorMessage(error)}`),
+    );
+  }
+}
+
+const BANNER_RULE = "═══════════════════════════════════════";
+
+/** Centre a title within the banner rule width for the completion box. */
+function centerInBanner(title: string): string {
+  const width = BANNER_RULE.length;
+  if (title.length >= width) return title;
+  const left = Math.floor((width - title.length) / 2);
+  return title.padStart(title.length + left).padEnd(width);
+}
+
+function printCompletionBanner(title: string, domain: string): void {
+  console.log(`\n${chalk.bold.green(BANNER_RULE)}`);
+  console.log(chalk.bold.green(centerInBanner(title)));
+  console.log(`${chalk.bold.green(BANNER_RULE)}\n`);
+  console.log(chalk.gray("  Domain: ") + chalk.cyan(domain));
+}
+
+/** Resolve the recipient, transfer the freshly minted name, and verify the move. */
+async function replayTransfer(params: {
+  clientWrapper: any;
+  substrateAddress: string;
+  signer: any;
+  evmAddress: Address;
+  label: string;
+  transferDestination: string;
+  nativeTokenDecimals?: number;
+}): Promise<void> {
+  const recipient = await step("Resolving recipient", async () =>
+    resolveTransferRecipient(
+      params.clientWrapper,
+      params.substrateAddress,
+      params.transferDestination,
+    ),
+  );
+
+  await step("Transferring domain", async () =>
+    transferDomain(
+      params.clientWrapper,
+      params.substrateAddress,
+      params.signer,
+      params.evmAddress,
+      recipient,
+      params.label,
+      params.nativeTokenDecimals,
+    ),
+  );
+
+  await step("Verifying ownership", async () =>
+    verifyDomainOwnership(params.clientWrapper, params.substrateAddress, params.label, recipient),
+  );
+}
+
+/** Price, quote cross-payer friction when needed, and submit the regular reveal. */
+async function finalizeRegularReveal(params: {
+  clientWrapper: any;
+  substrateAddress: string;
+  signer: any;
+  evmAddress: Address;
+  ownerEvmAddress: Address;
+  label: string;
+  registration: DomainRegistration;
+  nativeTokenDecimals: number;
+}): Promise<void> {
+  const isCrossPayer =
+    checksumAddress(params.ownerEvmAddress) !== checksumAddress(params.evmAddress);
+
+  const pricing: PricingAndEligibility = await step("Pricing and eligibility", async () =>
+    getPriceAndValidateEligibility(
+      params.clientWrapper,
+      params.substrateAddress,
+      params.label,
+      params.ownerEvmAddress,
+    ),
+  );
+
+  const frictionWei: bigint = isCrossPayer
+    ? await step("Quoting cross-payer friction", async () =>
+        quoteCrossPayerFriction(
+          params.clientWrapper,
+          params.substrateAddress,
+          params.label,
+          params.evmAddress,
+          params.ownerEvmAddress,
+        ),
+      )
+    : 0n;
+
+  await step("Finalizing registration", async () =>
+    finalizeRegularRegistration(
+      params.clientWrapper,
+      params.substrateAddress,
+      params.signer,
+      params.registration,
+      pricing.priceWei,
+      params.nativeTokenDecimals,
+      frictionWei,
+    ),
+  );
+}
+
 async function executeGovernanceRegistration(
   clientWrapper: any,
   substrateAddress: string,
@@ -262,6 +484,7 @@ async function executeGovernanceRegistration(
   evmAddress: Address,
   label: string,
   transferDestination: string | undefined,
+  persistContext: PersistContext,
   commitmentBuffer?: number,
   nativeTokenDecimals?: number,
 ): Promise<void> {
@@ -291,6 +514,16 @@ async function executeGovernanceRegistration(
     submitCommitment(clientWrapper, substrateAddress, signer, commitment),
   );
 
+  persistCommitment(persistContext, {
+    label,
+    owner: evmAddress,
+    reserved: true,
+    governance: true,
+    secret: registration.secret,
+    commitmentHash: commitment,
+    transferDestination,
+  });
+
   await step("Waiting commitment age", async () =>
     waitForMinimumCommitmentAge(clientWrapper, substrateAddress, commitment, commitmentBuffer),
   );
@@ -298,6 +531,8 @@ async function executeGovernanceRegistration(
   await step("Finalizing registration", async () =>
     finalizeGovernanceRegistration(clientWrapper, substrateAddress, signer, registration),
   );
+
+  forgetCommitment(persistContext, label);
 
   await step("Verifying ownership", async () =>
     verifyDomainOwnership(clientWrapper, substrateAddress, label, evmAddress),
@@ -308,25 +543,15 @@ async function executeGovernanceRegistration(
   );
 
   if (transferDestination) {
-    const recipient = await step("Resolving recipient", async () =>
-      resolveTransferRecipient(clientWrapper, substrateAddress, transferDestination),
-    );
-
-    await step("Transferring domain", async () =>
-      transferDomain(
-        clientWrapper,
-        substrateAddress,
-        signer,
-        evmAddress,
-        recipient,
-        label,
-        nativeTokenDecimals,
-      ),
-    );
-
-    await step("Verifying ownership", async () =>
-      verifyDomainOwnership(clientWrapper, substrateAddress, label, recipient),
-    );
+    await replayTransfer({
+      clientWrapper,
+      substrateAddress,
+      signer,
+      evmAddress,
+      label,
+      transferDestination,
+      nativeTokenDecimals,
+    });
   }
 }
 
@@ -340,6 +565,7 @@ async function executeRegularRegistration(
   nativeTokenDecimals: number,
   enableReverseRecord: boolean,
   transferDestination: string | undefined,
+  persistContext: PersistContext,
   commitmentBuffer?: number,
 ): Promise<void> {
   console.log(chalk.bold("\n🧾 Regular registration (commit-reveal)\n"));
@@ -370,37 +596,32 @@ async function executeRegularRegistration(
     submitCommitment(clientWrapper, substrateAddress, signer, commitment),
   );
 
+  persistCommitment(persistContext, {
+    label,
+    owner: ownerEvmAddress,
+    reserved: enableReverseRecord,
+    governance: false,
+    secret: registration.secret,
+    commitmentHash: commitment,
+    transferDestination,
+  });
+
   await step("Waiting commitment age", async () =>
     waitForMinimumCommitmentAge(clientWrapper, substrateAddress, commitment, commitmentBuffer),
   );
 
-  const pricing: PricingAndEligibility = await step("Pricing and eligibility", async () =>
-    getPriceAndValidateEligibility(clientWrapper, substrateAddress, label, ownerEvmAddress),
-  );
+  await finalizeRegularReveal({
+    clientWrapper,
+    substrateAddress,
+    signer,
+    evmAddress,
+    ownerEvmAddress,
+    label,
+    registration,
+    nativeTokenDecimals,
+  });
 
-  const frictionWei: bigint = isCrossPayer
-    ? await step("Quoting cross-payer friction", async () =>
-        quoteCrossPayerFriction(
-          clientWrapper,
-          substrateAddress,
-          label,
-          evmAddress,
-          ownerEvmAddress,
-        ),
-      )
-    : 0n;
-
-  await step("Finalizing registration", async () =>
-    finalizeRegularRegistration(
-      clientWrapper,
-      substrateAddress,
-      signer,
-      registration,
-      pricing.priceWei,
-      nativeTokenDecimals,
-      frictionWei,
-    ),
-  );
+  forgetCommitment(persistContext, label);
 
   await step("Verifying ownership", async () =>
     verifyDomainOwnership(clientWrapper, substrateAddress, label, ownerEvmAddress),
@@ -413,26 +634,334 @@ async function executeRegularRegistration(
   }
 
   if (transferDestination) {
-    const recipient = await step("Resolving recipient", async () =>
-      resolveTransferRecipient(clientWrapper, substrateAddress, transferDestination),
-    );
-
-    await step("Transferring domain", async () =>
-      transferDomain(
-        clientWrapper,
-        substrateAddress,
-        signer,
-        evmAddress,
-        recipient,
-        label,
-        nativeTokenDecimals,
-      ),
-    );
-
-    await step("Verifying ownership", async () =>
-      verifyDomainOwnership(clientWrapper, substrateAddress, label, recipient),
-    );
+    await replayTransfer({
+      clientWrapper,
+      substrateAddress,
+      signer,
+      evmAddress,
+      label,
+      transferDestination,
+      nativeTokenDecimals,
+    });
   }
 
   void classification;
+}
+
+async function isRegisteredTo(
+  clientWrapper: any,
+  substrateAddress: string,
+  label: string,
+  owner: Address,
+): Promise<boolean> {
+  const actual = await readDomainOwner(clientWrapper, substrateAddress, label);
+  return checksumAddress(actual) === checksumAddress(owner);
+}
+
+export async function resumeRegistration(
+  context: Awaited<ReturnType<typeof prepareAssetHubContext>>,
+  record: CommitmentRecord,
+  credential: string,
+  commitmentBuffer?: number,
+): Promise<DomainRegistrationResult> {
+  const { clientWrapper, substrateAddress, signer, evmAddress, nativeTokenDecimals } = context;
+  const { label } = record;
+  const persistContext: PersistContext = {
+    env: requireEnvironment(context.environment),
+    caller: evmAddress as Address,
+    credential,
+  };
+
+  console.log(chalk.bold(`\n▶ Resuming ${chalk.cyan(label + ".dot")}\n`));
+
+  const registration: DomainRegistration = {
+    label,
+    owner: record.owner,
+    secret: decryptCommitmentSecret(record, credential),
+    reserved: record.reserved,
+  };
+
+  const alreadyOwned = await step("Checking on-chain ownership", async () =>
+    isRegisteredTo(clientWrapper, substrateAddress, label, record.owner),
+  );
+
+  if (alreadyOwned) {
+    console.log(chalk.green(`  ✓ ${label}.dot is already registered to ${record.owner}`));
+    forgetCommitment(persistContext, label);
+    return {
+      ok: true as const,
+      label,
+      domain: `${label}.dot`,
+      caller: evmAddress,
+      owner: record.owner,
+    };
+  }
+
+  const status = await step("Reading commitment status", async () =>
+    readCommitmentStatus(clientWrapper, substrateAddress, record.commitmentHash),
+  );
+
+  const commitmentAge = status.nowSeconds - status.committedTimestampSeconds;
+  const needsRecommit =
+    status.committedTimestampSeconds === 0 || commitmentAge > status.maxAgeSeconds;
+
+  if (needsRecommit) {
+    await step("Re-submitting commitment", async () =>
+      submitCommitment(clientWrapper, substrateAddress, signer, record.commitmentHash),
+    );
+  }
+
+  await step("Waiting commitment age", async () =>
+    waitForMinimumCommitmentAge(
+      clientWrapper,
+      substrateAddress,
+      record.commitmentHash,
+      commitmentBuffer,
+    ),
+  );
+
+  if (record.governance) {
+    await step("Finalizing registration", async () =>
+      finalizeGovernanceRegistration(clientWrapper, substrateAddress, signer, registration),
+    );
+  } else {
+    await finalizeRegularReveal({
+      clientWrapper,
+      substrateAddress,
+      signer,
+      evmAddress,
+      ownerEvmAddress: record.owner,
+      label,
+      registration,
+      nativeTokenDecimals,
+    });
+  }
+
+  await step("Verifying ownership", async () =>
+    verifyDomainOwnership(clientWrapper, substrateAddress, label, record.owner),
+  );
+
+  forgetCommitment(persistContext, label);
+
+  if (record.transferDestination) {
+    await replayTransfer({
+      clientWrapper,
+      substrateAddress,
+      signer,
+      evmAddress,
+      label,
+      transferDestination: record.transferDestination,
+      nativeTokenDecimals,
+    });
+  }
+
+  printCompletionBanner("✓ Registration Resumed", `${label}.dot`);
+
+  return {
+    ok: true as const,
+    label,
+    domain: `${label}.dot`,
+    caller: evmAddress,
+    owner: record.owner,
+  };
+}
+
+function requireManifestCredential(options: Partial<RegisterActionOptions>): string {
+  const credential = resolveManifestCredential(options);
+  if (!credential) {
+    throw new Error(
+      "A credential is required to decrypt the cached commitment: pass --password, --mnemonic, or --key-uri.",
+    );
+  }
+  return credential;
+}
+
+export async function executeRetry(
+  options: Partial<RegisterActionOptions> = {},
+): Promise<DomainRegistrationResult> {
+  const context = await prepareAssetHubContext(options);
+  const credential = requireManifestCredential(options);
+  const caller = context.evmAddress as Address;
+  const env = requireEnvironment(context.environment);
+
+  const record = options.name
+    ? findCommitmentRecord(env, caller, options.name)
+    : latestCommitmentRecord(env, caller);
+
+  if (!record) {
+    throw new Error("No cached commitment to retry.");
+  }
+
+  return resumeRegistration(context, record, credential, options.commitmentBuffer);
+}
+
+export type ClearSummary = {
+  ok: true;
+  purged: string[];
+  discarded: string[];
+  resumed: string[];
+  cancelled: boolean;
+};
+
+async function promptPendingAction(
+  pending: CommitmentRecord[],
+): Promise<"register" | "discard" | "cancel"> {
+  const readline = await import("node:readline/promises");
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+
+  console.log(chalk.bold("\n▶ Pending commitments\n"));
+  for (const record of pending) {
+    console.log(
+      chalk.gray("  • ") +
+        chalk.cyan(record.label + ".dot") +
+        chalk.gray(`  committed ${record.committedAtIso}`),
+    );
+  }
+
+  try {
+    const answer = (
+      await rl.question(chalk.bold("\nregister / discard / cancel (default cancel): "))
+    )
+      .trim()
+      .toLowerCase();
+    if (answer === "register" || answer === "r") return "register";
+    if (answer === "discard" || answer === "d") return "discard";
+    return "cancel";
+  } finally {
+    rl.close();
+  }
+}
+
+export async function executeClear(
+  options: Partial<RegisterActionOptions> & { discard?: boolean; register?: boolean } = {},
+): Promise<ClearSummary> {
+  const context = await prepareAssetHubContext(options);
+  const { clientWrapper, substrateAddress } = context;
+  const caller = context.evmAddress as Address;
+  const env = requireEnvironment(context.environment);
+
+  const records = loadCommitmentRecords(env, caller);
+
+  const summary: ClearSummary = {
+    ok: true as const,
+    purged: [],
+    discarded: [],
+    resumed: [],
+    cancelled: false,
+  };
+
+  const pending: CommitmentRecord[] = [];
+  for (const record of records) {
+    const registered = await step(`Checking ${record.label}.dot`, async () =>
+      isRegisteredTo(clientWrapper, substrateAddress, record.label, record.owner),
+    );
+    if (registered) {
+      deleteCommitmentRecord(env, caller, record.label);
+      summary.purged.push(record.label);
+    } else {
+      pending.push(record);
+    }
+  }
+
+  if (summary.purged.length > 0) {
+    console.log(chalk.green(`  ✓ Purged ${summary.purged.length} completed`));
+  }
+
+  if (pending.length === 0) {
+    return summary;
+  }
+
+  let action: "register" | "discard" | "cancel";
+  if (options.discard) {
+    action = "discard";
+  } else if (options.register) {
+    action = "register";
+  } else if (process.stdin.isTTY) {
+    action = await promptPendingAction(pending);
+  } else {
+    throw new Error(
+      `${pending.length} pending commitment(s) found. Pass --discard to delete them or --register to complete them.`,
+    );
+  }
+
+  if (action === "cancel") {
+    summary.cancelled = true;
+    return summary;
+  }
+
+  if (action === "discard") {
+    for (const record of pending) {
+      deleteCommitmentRecord(env, caller, record.label);
+      summary.discarded.push(record.label);
+    }
+    return summary;
+  }
+
+  const credential = requireManifestCredential(options);
+  for (const record of pending) {
+    await resumeRegistration(context, record, credential, options.commitmentBuffer);
+    summary.resumed.push(record.label);
+  }
+
+  return summary;
+}
+
+export type CommitmentRow = {
+  label: string;
+  status: "registered" | "pending";
+  committedAtIso: string;
+  env: string;
+};
+
+export type ListSummary = {
+  ok: true;
+  records: CommitmentRow[];
+};
+
+export async function executeList(
+  options: Partial<RegisterActionOptions> & { json?: boolean } = {},
+): Promise<ListSummary> {
+  const context = await prepareReadOnlyContext(options);
+  const { clientWrapper } = context;
+  const caller = context.evmAddress as Address;
+  const env = requireEnvironment(context.environment);
+
+  const records = loadCommitmentRecords(env, caller);
+
+  const rows: CommitmentRow[] = [];
+  for (const record of records) {
+    const registered = await isRegisteredTo(
+      clientWrapper,
+      context.account.address,
+      record.label,
+      record.owner,
+    );
+    rows.push({
+      label: record.label,
+      status: registered ? "registered" : "pending",
+      committedAtIso: record.committedAtIso,
+      env: record.env,
+    });
+  }
+
+  if (!options.json) {
+    if (rows.length === 0) {
+      console.log(chalk.gray("\n  No cached commitments.\n"));
+    } else {
+      console.log(chalk.bold("\n▶ Cached commitments\n"));
+      for (const row of rows) {
+        const statusLabel =
+          row.status === "registered" ? chalk.green("registered") : chalk.yellow("pending");
+        console.log(
+          chalk.gray("  • ") +
+            chalk.cyan((row.label + ".dot").padEnd(24)) +
+            statusLabel +
+            chalk.gray(`  ${row.committedAtIso}  ${row.env}`),
+        );
+      }
+      console.log();
+    }
+  }
+
+  return { ok: true as const, records: rows };
 }

@@ -97,23 +97,23 @@ runs:
         # registered through the governance (registerReserved) path, which is
         # gated on the caller being whitelisted (the "Whitelist deployer" step
         # authorises exactly this). Longer names use regular registration.
-        REGISTER_ARGS=(register domain --name "$BASENAME")
+        # Base registration is commit-reveal, so retries are delegated to the
+        # CLI's --retry: on failure it resumes from the cached commitment rather
+        # than submitting a fresh commit each attempt. --retry counts retries on
+        # top of the initial attempt, so subtract one from the total budget.
+        RETRIES=$((MAX_RETRIES - 1))
+        [[ "$RETRIES" -lt 0 ]] && RETRIES=0
+
+        REGISTER_ARGS=(register domain --name "$BASENAME" --retry "$RETRIES")
         if [[ "${#BASENAME}" -le 5 ]]; then
           REGISTER_ARGS+=(--governance)
           echo "::notice::${BASENAME}.dot is a reserved name; using governance registration."
         fi
 
-        for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
-          echo "Register base attempt $ATTEMPT/$MAX_RETRIES"
-
-          if dotns "${REGISTER_ARGS[@]}" 2>&1; then
-            echo "::notice::Base domain ${BASENAME}.dot registered"
-            exit 0
-          fi
-
-          echo "::warning::Register base attempt $ATTEMPT failed"
-          [[ "$ATTEMPT" -lt "$MAX_RETRIES" ]] && sleep "$RETRY_DELAY"
-        done
+        if dotns "${REGISTER_ARGS[@]}" 2>&1; then
+          echo "::notice::Base domain ${BASENAME}.dot registered"
+          exit 0
+        fi
 
         echo "::error::Base domain registration failed after $MAX_RETRIES attempts."
         echo ""
