@@ -8,6 +8,10 @@ DotNS will be accessed from multiple surfaces: scripts, command-line tools, web 
 
 This monorepo exists to concentrate shared logic in one place, with explicit boundaries, shared primitives, and a small set of versioned artefacts that multiple runtimes can consume.
 
+## Status
+
+This is reference and proof-of-concept tooling for the DotNS protocol, intended for reference and experimentation rather than as a production-ready artefact. Unless a specific release states otherwise, it has not received a full security audit; see [SECURITY.md](./SECURITY.md) for the security status and disclosure process. The defaults target Paseo and its Bulletin chain; point the configuration at your own network before relying on it elsewhere.
+
 ## Scope
 
 **Client-side** here means off-chain code that reads and writes DotNS contracts. The repository is cross-platform:
@@ -152,4 +156,8 @@ Prefer:
 * Changes accompanied by invariant-style tests, especially when touching name parsing, hashing, or transaction encoding
 
 If a change alters how a name is interpreted or how a transaction is encoded, treat it like a consensus change for clients: document it, test it, and assume downstream consumers will break if it is ambiguous.
+
+## License
+
+Licensed under the MIT License. See [LICENSE](./LICENSE). Security policy and disclosure: see [SECURITY.md](./SECURITY.md).
 

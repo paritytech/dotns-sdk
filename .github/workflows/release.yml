@@ -30,6 +30,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.6"
+          no-cache: true
 
       - name: Install dependencies
         shell: bash
@@ -287,6 +288,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.6"
+          no-cache: true
 
       - name: Install dependencies
         shell: bash

@@ -1,0 +1,27 @@
+# Gitleaks configuration for dotns-sdk.
+#
+# Extends the upstream default ruleset and adds a project allowlist so the
+# scanner ignores generated and vendored content we do not author:
+#   1. Installed dependencies (node_modules).
+#   2. Build output (dist, out), including bundled and minified artefacts.
+#   3. Lockfiles, whose integrity hashes look like secrets but are not.
+#   4. Generated polkadot-api descriptors under packages/*/.papi.
+#
+# Anything outside those cases is a genuine finding and fails the scan.
+
+title = "dotns-sdk gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Generated, vendored, and lockfile content"
+
+paths = [
+  '''(^|/)node_modules/''',
+  '''(^|/)dist/''',
+  '''(^|/)out/''',
+  '''(^|/)bun\.lock$''',
+  '''(^|/)package-lock\.json$''',
+  '''(^|/)\.papi/''',
+]

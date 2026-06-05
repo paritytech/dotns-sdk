@@ -43,3 +43,16 @@ benchmark-report.html
 .benchmark-temp
 arb-generated
 .abis-version
+
+# AI-assistant per-developer state. Session, cache, worktrees, and local
+# settings are personal scratch and never belong in the repo; intentional team
+# config (CLAUDE.md, .claude/commands, .claude/skills, .claude/agents) is not
+# ignored.
+.claude/sessions/
+.claude/cache/
+.claude/worktrees/
+.claude/settings.local.json
+.cursor/
+.aider*
+.codeium/
+.gemini/

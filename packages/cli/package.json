@@ -4,6 +4,7 @@
   "version": "0.7.0",
   "type": "module",
   "private": true,
+  "license": "MIT",
   "packageManager": "bun@1.2.6",
   "files": [
     "dist"
