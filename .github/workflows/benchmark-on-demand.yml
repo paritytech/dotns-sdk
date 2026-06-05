@@ -106,6 +106,7 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.6"
+          no-cache: true
 
       - name: Setup CLI
         uses: ./.github/actions/setup-cli
@@ -153,6 +154,7 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.6"
+          no-cache: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
