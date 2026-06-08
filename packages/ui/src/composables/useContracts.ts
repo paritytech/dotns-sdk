@@ -18,14 +18,17 @@ import { ZERO_SUBSTRATE_ADDRESS } from "@/utils";
 
 // Default options applied to every contract write (.tx()) in this app.
 //
-// `storageDepositLimit`: SDK's buildReviveCall passes the dry-run's exact
-// storage_deposit value with no buffer; chain state can grow between dry-run
-// and on-chain execution (e.g., `register()` deploying a fresh LabelStore
-// proxy) and the tx then reverts as Revive.ContractReverted. Pre-Phase-5 code
-// used max(2 PAS, dryRun * 1.2). 6 PAS was tried first (matching the OLD
-// formula's effective max for register) and still hit the cap in practice,
-// so we run with a higher 10 PAS ceiling. `storage_deposit_limit` is a cap,
-// not a charge — the user pays only actual usage.
+// `storageDepositLimit`: the SDK's buildReviveCall runs its dry-run internally
+// and, with no override, uses the *exact* storage_deposit with no buffer — which
+// reverts as Revive.ContractReverted when chain state grows between dry-run and
+// execution (e.g. `register()` deploying a fresh LabelStore proxy). The OG
+// ReviveClientWrapper used `max(floor, dryRun * 1.2)`, but the SDK exposes no
+// buffer hook, so we pass a fixed, generous ceiling instead.
+//
+// 10_000_000_000_000n = 10^13 planck = 1000 PAS at the chain's 10 native
+// decimals. It's a *cap*, not a charge — refundable, and only the actual (small)
+// deposit is reserved, so the headroom is safe. (Follow-up: request an SDK
+// storage-deposit buffer/multiplier so we can drop this magic number.)
 //
 // `waitFor`: "finalized" mirrors the prior signSubmitAndWatch behavior of
 // resolving only after block finalization (not just inclusion).
