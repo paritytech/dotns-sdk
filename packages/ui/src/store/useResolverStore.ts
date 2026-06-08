@@ -2,8 +2,9 @@ import { defineStore } from "pinia";
 import { namehash, type Hash, type Address, zeroAddress, zeroHash } from "viem";
 import { CID } from "multiformats/cid";
 import { getContract, withContractRecovery, WRITE_TX_DEFAULTS } from "@/composables/useContracts";
+import { getChainClient } from "@/composables/useTypedAPI";
 import { useWalletStore } from "./useWalletStore";
-import type { TxStatus } from "@parity/product-sdk-tx";
+import { batchSubmitAndWatch, type BatchApi, type TxStatus } from "@parity/product-sdk-tx";
 import { computeDomainTokenId, normalizeDomainName, ZERO_SUBSTRATE_ADDRESS } from "../utils";
 import type { TextRecord, TransactionResult } from "@/type";
 
@@ -102,18 +103,15 @@ export const useResolverStore = defineStore("useResolverStore", () => {
   }
 
   // ---------------------------------------------------------------------
-  // Multi-record profile updates — originally batched via MultiCall3.aggregate
-  // with a setApprovalForAll → multicall → revokeApprovalForAll three-tx
-  // ceremony. MultiCall3 is not deployed on paseo-next-v2 (see
-  // useMulticallOwnership.ts header for context), so the batched path silently
-  // returned an empty execution and the user's records never landed.
+  // Multi-record profile updates — one signing prompt for N records.
   //
-  // Replaced with N sequential setText txs. UX cost: N signing modals instead
-  // of 1, but writes are actually applied. When MultiCall3 lands on v2 (and
-  // approval-batched delegation becomes available), the old aggregate-based
-  // body can be restored from git — see useMulticallOwnership.ts for the
-  // recipe. Function name preserved so callers in profile/whois views don't
-  // need to change.
+  // Each record is prepared as a Revive.call (`setText`) via the contract's
+  // `.prepare()`, then submitted together in a single `Utility.batch_all`
+  // extrinsic the product account signs once. No MultiCall3 / approval
+  // ceremony is needed for writes — the calls are the user's own and batch
+  // natively. (MultiCall3 is re-adopted only for read aggregation; see
+  // useMulticallOwnership.ts.) Function name preserved so the profile/whois
+  // views don't change.
   // ---------------------------------------------------------------------
   async function setProfileRecordsMulticall(
     domain: string,
@@ -123,16 +121,31 @@ export const useResolverStore = defineStore("useResolverStore", () => {
     const validRecords = records.filter((r) => r.value && r.value.length > 0);
     if (validRecords.length === 0) return { status: false, hash: zeroHash };
     try {
-      let lastHash: Hash = zeroHash;
-      for (const record of validRecords) {
-        lastHash = await setText(domain, record.key, record.value);
-      }
-      return lastHash && lastHash !== zeroHash
-        ? { hash: lastHash, status: true }
-        : { hash: zeroHash, status: false };
+      const resolver = await getContract("@dotns/content-resolver");
+      const node = namehash(`${normalizeDomainName(domain)}.dot`);
+      const calls = await Promise.all(
+        validRecords.map((record) =>
+          resolver.setText!.prepare(node, record.key, record.value, {
+            storageDepositLimit: WRITE_TX_DEFAULTS.storageDepositLimit,
+          }),
+        ),
+      );
+      const chain = await getChainClient();
+      const signer = walletStore.getInjected();
+      const result = await batchSubmitAndWatch(
+        calls,
+        chain.assetHub as unknown as BatchApi,
+        signer,
+        { waitFor: WRITE_TX_DEFAULTS.waitFor, onStatus: relayStatus },
+      );
+      if (!result.ok) return { hash: zeroHash, status: false };
+      const hash = result.txHash as Hash;
+      return hash && hash !== zeroHash ? { hash, status: true } : { hash: zeroHash, status: false };
     } catch (error) {
       console.warn("[ResolverStore:setProfileRecordsMulticall]", error);
       return { status: false, hash: zeroHash };
+    } finally {
+      walletStore.setTransactionStatus("idle");
     }
   }
 

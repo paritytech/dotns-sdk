@@ -1,7 +1,6 @@
 import {
   ContractManager,
   createContract,
-  createContractRuntimeFromClient,
   type AbiEntry,
   type CdmJson,
   type Contract,
@@ -9,7 +8,13 @@ import {
   type TxOptions,
 } from "@parity/product-sdk-contracts";
 import { paseo_asset_hub } from "@parity/product-sdk-descriptors/paseo-asset-hub";
-import type { HexString } from "polkadot-api";
+import type { HexString, SS58String } from "polkadot-api";
+import cdmJsonRaw from "../../cdm.json" with { type: "json" };
+import { labelStoreAbi } from "@/lib/abis/labelStore";
+import { getChainClient } from "@/composables/useTypedAPI";
+import { useNetworkStore } from "@/store/useNetworkStore";
+import { signerManager } from "@/store/useWalletStore";
+import { ZERO_SUBSTRATE_ADDRESS } from "@/utils";
 
 // Default options applied to every contract write (.tx()) in this app.
 //
@@ -28,13 +33,39 @@ export const WRITE_TX_DEFAULTS: Pick<TxOptions, "storageDepositLimit" | "waitFor
   storageDepositLimit: 10_000_000_000_000n,
   waitFor: "finalized",
 };
-import cdmJsonRaw from "../../cdm.json" with { type: "json" };
-import { getChainClient } from "@/composables/useTypedAPI";
-import { useNetworkStore } from "@/store/useNetworkStore";
-import { signerManager } from "@/store/useWalletStore";
 
-const cdmJson = cdmJsonRaw as unknown as CdmJson;
-const TARGET = "paseo-asset-hub-next-v2";
+// `cdm install` (cdm 0.8.17) writes a target-bucketed manifest:
+//   { targets: { <hash>: { registry } }, dependencies: { <hash>: {…} }, contracts: { <hash>: {…} } }
+// ContractManager 0.7.x reads the flat shape ({ registry, dependencies, contracts }).
+// Normalise at load by lifting the registry-bearing target to the top level —
+// survives future `cdm install` runs without a post-process step.
+type NestedCdm = {
+  targets?: Record<string, { registry?: HexString }>;
+  dependencies?: Record<string, CdmJson["dependencies"]>;
+  contracts?: Record<string, CdmJson["contracts"]>;
+};
+
+function flattenCdm(raw: NestedCdm): CdmJson {
+  const targetsMap = raw.targets;
+  if (!targetsMap) return raw as unknown as CdmJson;
+  const keys = Object.keys(targetsMap);
+  const target = keys.find((k) => targetsMap[k]?.registry) ?? keys[0];
+  if (!target) return raw as unknown as CdmJson;
+  return {
+    registry: targetsMap[target]?.registry,
+    dependencies: raw.dependencies?.[target] ?? {},
+    contracts: raw.contracts?.[target] ?? {},
+  } as CdmJson;
+}
+
+const cdmJson = flattenCdm(cdmJsonRaw as unknown as NestedCdm);
+
+// Per-user store proxies whose LOGIC ABI is not published to the CDM registry
+// (only the StoreFactory + beacon are — see src/lib/abis/labelStore.ts). The
+// proxy address is resolved at call time via StoreFactory; the ABI is vendored.
+const PROXY_ABIS: Record<string, AbiEntry[]> = {
+  "@dotns/label-store": labelStoreAbi,
+};
 
 let managerPromise: Promise<ContractManager> | null = null;
 
@@ -42,8 +73,13 @@ export async function getContractManager(): Promise<ContractManager> {
   if (!managerPromise) {
     managerPromise = (async () => {
       const chain = await getChainClient();
-      const runtime = createContractRuntimeFromClient(chain.raw.assetHub, paseo_asset_hub);
-      return new ContractManager(cdmJson, runtime, { signerManager, targetHash: TARGET });
+      // Live address resolution: contract addresses are pulled from the on-chain
+      // CDM meta-registry (robust to redeploys), ABIs from the installed snapshot.
+      // registryOrigin is the read-only dry-run origin for the registry lookup.
+      return ContractManager.fromLiveClient(cdmJson, chain.raw.assetHub, paseo_asset_hub, {
+        signerManager,
+        registryOrigin: ZERO_SUBSTRATE_ADDRESS as SS58String,
+      });
     })();
   }
   return managerPromise;
@@ -54,21 +90,21 @@ export async function getContract(library: string): Promise<Contract<ContractDef
   return m.getContract(library);
 }
 
-// Per-user beacon proxies (LabelStore, UserStore) have no fixed address in
-// cdm.json — the address is resolved at call time via StoreFactory. Use the
-// ABI from cdm.json combined with the dynamically-discovered address.
+// Per-user beacon proxies (LabelStore) — address resolved at call time via
+// StoreFactory, ABI from PROXY_ABIS (vendored) or the cdm.json snapshot.
 export async function getProxyContract(
   library: string,
   address: HexString,
 ): Promise<Contract<ContractDef>> {
   const m = await getContractManager();
-  return createContract(m.getRuntime(), address, getAbi(library), { signerManager });
+  const abi = PROXY_ABIS[library] ?? getAbi(library);
+  return createContract(m.getRuntime(), address, abi, { signerManager });
 }
 
 export function getAbi(library: string): AbiEntry[] {
-  const entry = cdmJson.contracts?.[TARGET]?.[library];
+  const entry = cdmJson.contracts?.[library];
   if (!entry) {
-    throw new Error(`Library ${library} not in cdm.json target ${TARGET}`);
+    throw new Error(`Library ${library} not in cdm.json`);
   }
   return entry.abi;
 }

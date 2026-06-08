@@ -4,19 +4,20 @@
  * Decimal Constants for PAS Token and EVM Compatibility
  *
  * @remarks
- * The Paseo Asset Hub uses a 12-decimal native token that is converted
- * to 18-decimal wei for EVM compatibility via the Revive pallet.
+ * Paseo Asset Hub Next uses a 10-decimal native token that is converted
+ * to 18-decimal wei for EVM compatibility via the Revive pallet. (Matches
+ * the CLI's DEFAULT_NATIVE_TOKEN_DECIMALS=10 / EVM_TOKEN_DECIMALS=18.)
  *
- * - Native substrate units: 12 decimals (PAS token)
+ * - Native substrate units: 10 decimals (PAS token)
  * - EVM wei units: 18 decimals (contract space)
- * - Conversion ratio: 1 native unit = 1,000,000 wei (10^6)
+ * - Conversion ratio: 1 native unit = 100,000,000 wei (10^8 = 10^(18-10))
  *
  * **CRITICAL**: Contract read operations return wei values.
  * Transaction submissions require native units.
  */
 
-export const DECIMALS = 12n;
-export const NATIVE_TO_ETH_RATIO = 1_000_000n;
+export const DECIMALS = 10n;
+export const NATIVE_TO_ETH_RATIO = 100_000_000n;
 
 /**
  * Converts EVM wei units to native substrate units.
