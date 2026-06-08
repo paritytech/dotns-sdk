@@ -2,7 +2,7 @@
 // Syncs Dotns contract ABIs from the latest paritytech/dotns GitHub release.
 //
 // - Downloads only the ABIs the SDK consumes (see ABI_NAMES below).
-// - Writes to packages/cli/abis/ and packages/ui/abis/.
+// - Writes to packages/cli/abis/ (the UI consumes ABIs via cdm.json + the SDK).
 // - Skips Multicall3 and Store: not published in releases, kept as local files.
 // - Idempotent: caches the synced tag in .abis-version and skips if unchanged.
 // - Network/auth failures warn and exit 0 so `bun install` keeps working.
@@ -34,10 +34,7 @@ const ABI_NAMES = [
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
-const TARGETS = [
-	join(ROOT, "packages/cli/abis"),
-	join(ROOT, "packages/ui/abis"),
-];
+const TARGETS = [join(ROOT, "packages/cli/abis")];
 const VERSION_FILE = join(ROOT, ".abis-version");
 
 const warn = (msg) => console.warn(`[sync-abis] ${msg}`);

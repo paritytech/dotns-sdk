@@ -2,6 +2,8 @@
 
 Frontend application for managing usernames registered on **dotns**.
 
+> [!WARNING]
+> The following is a prototype, reference implementation, and proof-of-concept. This open source code is provided for research, experimentation, and developer education only. This code has not been audited, is actively experimental, and may contain bugs, vulnerabilities, or incomplete features. Use at your own risk.
 
 ## Prerequisites
 
@@ -14,8 +16,8 @@ Frontend application for managing usernames registered on **dotns**.
 Clone the repository and move into the UI directory:
 
 ```bash
-git clone https://github.com/paritytech/dotns-ui
-cd dotns-ui
+git clone https://github.com/paritytech/dotns-sdk
+cd dotns-sdk/packages/ui
 ```
 
 Install dependencies:
@@ -23,14 +25,6 @@ Install dependencies:
 ```bash
 bun install
 ```
-
-Generate Polkadot API descriptors:
-
-```bash
-bunx papi add paseo -w wss://paseo-asset-hub-next-rpc.polkadot.io
-```
-
-This generates the `.papi/` directory required by `polkadot-api`.
 
 ## Development
 
@@ -69,6 +63,19 @@ RPCs can be adjusted in code or environment configuration depending on deploymen
 
 ## Notes
 
-* `.papi/` is generated locally and should not be edited by hand.
-* If `.papi/descriptors` is missing, dependency resolution will fail. Always run `papi` after a fresh clone.
 * The UI assumes contracts and chain metadata are already deployed and available.
+
+## Security
+
+This is reference code, not a hardened production build. Before deploying it for real use cases, you are responsible for:
+
+* Reviewing the code yourself
+* Checking that dependencies are up to date and free of known vulnerabilities
+* Securing your own fork or deployment environment (keys, secrets, network configuration)
+* Tracking the latest tagged release/commits for security fixes
+
+See [`SECURITY.md`](../../SECURITY.md) for the disclosure process. For Parity's security disclosure process and Bug Bounty program: https://parity.io/bug-bounty
+
+## License
+
+MIT — see [`LICENSE`](../../LICENSE).
