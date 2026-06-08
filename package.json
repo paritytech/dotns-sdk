@@ -30,11 +30,5 @@
   ],
   "engines": {
     "bun": ">=1.2.6"
-  },
-  "overrides": {
-    "polkadot-api": "^2.1.4"
-  },
-  "dependencies": {
-    "polkadot-api": "^2.1.6"
   }
 }
