@@ -1,3 +1,6 @@
+> [!WARNING]
+> This open source code is provided for research, experimentation, and developer education only. This code has not been audited, is actively experimental, and may contain bugs, vulnerabilities, or incomplete features. Use at your own risk.
+
 # dotns-sdk
 
 This repository is the home for dotns developer CLIent tooling. The goal is to make DotNS interactions reproducible, auditable, and consistent across environments and languages.
@@ -156,6 +159,17 @@ Prefer:
 * Changes accompanied by invariant-style tests, especially when touching name parsing, hashing, or transaction encoding
 
 If a change alters how a name is interpreted or how a transaction is encoded, treat it like a consensus change for clients: document it, test it, and assume downstream consumers will break if it is ambiguous.
+
+## Security
+
+Before deploying it for real use cases, you are responsible for:
+
+- Reviewing the code yourself, we publish a reference, not a hardened production build
+- Checking that the dependencies are up to date and free of known vulnerabilities
+- Securing your own fork or deployment environment (keys, secrets, network configuration)
+- Tracking the latest tagged release/commits for security fixes; older releases are not backported (exceptions might apply)
+
+For Parity's security disclosure process, and Bug Bounty program, feel free to visit:  https://parity.io/bug-bounty
 
 ## License
 
