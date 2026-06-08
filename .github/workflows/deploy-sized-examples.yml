@@ -2,6 +2,15 @@ name: Deploy Sized Examples
 
 on:
   workflow_dispatch:
+    inputs:
+      env:
+        description: "DotNS environment"
+        required: false
+        type: choice
+        default: paseo-v2
+        options:
+          - paseo-v2
+          - previewnet
 
 permissions:
   contents: read
@@ -38,9 +47,11 @@ jobs:
       subname: pr${{ github.event.pull_request.number }}-${{ matrix.slug }}
       report-artifact-prefix: deploy-sized-report
       report-retention-days: 7
+      env: ${{ inputs.env }}
     secrets:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
       bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC_BENCHMARK }}
+      registrar-operator-mnemonic: ${{ secrets.DOTNS_REGISTRAR_OPERATOR_MNEMONIC }}
 
   comment:
     name: Comment Benchmarks

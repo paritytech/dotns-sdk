@@ -1,0 +1,29 @@
+name: Lint Workflows
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/**"
+      - ".github/actions/**"
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+      - ".github/actions/**"
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run actionlint
+        uses: docker://rhysd/actionlint:latest
+        env:
+          SHELLCHECK_OPTS: "-e SC2129 -e SC2086 -e SC2193"
+        with:
+          args: -color

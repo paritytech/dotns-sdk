@@ -51,10 +51,6 @@ export function parseNativeBalance(decimalValue: string, decimals?: number): big
   return wholePart * 10n ** nativeDecimals + BigInt(paddedFraction);
 }
 
-export function convertNativeToWei(nativeValue: bigint, nativeDecimals?: number): bigint {
-  return nativeValue * getNativeToWeiRatio(nativeDecimals);
-}
-
 export function convertWeiToNative(weiValue: bigint, nativeDecimals?: number): bigint {
   return weiValue / getNativeToWeiRatio(nativeDecimals);
 }
@@ -164,13 +160,22 @@ export async function withTimeout<T>(
   promise: Promise<T>,
   timeoutMilliseconds: number,
   operationName: string,
+  onTimeout?: () => void,
 ): Promise<T> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+
   const timeoutPromise = new Promise<T>((_, reject) => {
-    setTimeout(
-      () => reject(new Error(`${operationName} timed out after ${timeoutMilliseconds}ms`)),
-      timeoutMilliseconds,
-    );
+    timeoutHandle = setTimeout(() => {
+      onTimeout?.();
+      reject(new Error(`${operationName} timed out after ${timeoutMilliseconds}ms`));
+    }, timeoutMilliseconds);
   });
 
-  return Promise.race([promise, timeoutPromise]);
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutHandle !== undefined) {
+      clearTimeout(timeoutHandle);
+    }
+  }
 }

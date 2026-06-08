@@ -41,6 +41,7 @@ on:
         default: ""
 
       env:
+        description: "DotNS environment (paseo-v2 | previewnet)"
         required: false
         type: string
         default: paseo-v2
@@ -50,6 +51,9 @@ on:
         required: true
 
       bulletin-mnemonic:
+        required: false
+
+      registrar-operator-mnemonic:
         required: false
 
 jobs:
@@ -62,6 +66,7 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.6"
+          no-cache: true
 
       - name: Generate sized fixture
         run: |
@@ -96,6 +101,7 @@ jobs:
     secrets:
       dotns-mnemonic: ${{ secrets.dotns-mnemonic }}
       bulletin-mnemonic: ${{ secrets.bulletin-mnemonic }}
+      registrar-operator-mnemonic: ${{ secrets.registrar-operator-mnemonic }}
 
   report:
     needs: deploy

@@ -3,42 +3,42 @@ description: Look up, register, and set contenthash for a DotNS domain or subnam
 
 inputs:
   mnemonic:
-    description: 'BIP39 mnemonic for DotNS on-chain operations'
+    description: "BIP39 mnemonic for DotNS on-chain operations"
     required: true
   rpc:
-    description: 'WebSocket RPC endpoint (default: CLI built-in)'
+    description: "WebSocket RPC endpoint (default: CLI built-in)"
     required: false
   env:
-    description: 'DotNS environment'
+    description: "DotNS environment"
     required: false
-    default: 'paseo-v2'
+    default: "paseo-v2"
   basename:
-    description: 'Base domain without .dot'
+    description: "Base domain without .dot"
     required: true
   mode:
-    description: 'preview (subname deploy) | production (basename deploy)'
+    description: "preview (subname deploy) | production (basename deploy)"
     required: true
   subname:
-    description: 'Subname to register (required when mode=preview)'
+    description: "Subname to register (required when mode=preview)"
     required: false
   domain:
-    description: 'Resolved domain (e.g. pr42.mysite or mysite)'
+    description: "Resolved domain (e.g. pr42.mysite or mysite)"
     required: true
   register-base:
-    description: 'Attempt base domain registration if not already owned'
+    description: "Attempt base domain registration if not already owned"
     required: false
-    default: 'false'
+    default: "false"
   cid:
-    description: 'Content Identifier to set as contenthash'
+    description: "Content Identifier to set as contenthash"
     required: true
   max-retries:
-    description: 'Max retry attempts for transient RPC failures'
+    description: "Max retry attempts for transient RPC failures"
     required: false
-    default: '3'
+    default: "3"
   retry-delay:
-    description: 'Seconds to wait between retries'
+    description: "Seconds to wait between retries"
     required: false
-    default: '15'
+    default: "15"
 
 runs:
   using: composite
@@ -93,26 +93,37 @@ runs:
       run: |
         echo "::add-mask::$DOTNS_MNEMONIC"
 
-        for ATTEMPT in $(seq 1 "$MAX_RETRIES"); do
-          echo "Register base attempt $ATTEMPT/$MAX_RETRIES"
+        # Names of 5 characters or fewer classify as Reserved and must be
+        # registered through the governance (registerReserved) path, which is
+        # gated on the caller being whitelisted (the "Whitelist deployer" step
+        # authorises exactly this). Longer names use regular registration.
+        # Base registration is commit-reveal, so retries are delegated to the
+        # CLI's --retry: on failure it resumes from the cached commitment rather
+        # than submitting a fresh commit each attempt. --retry counts retries on
+        # top of the initial attempt, so subtract one from the total budget.
+        RETRIES=$((MAX_RETRIES - 1))
+        [[ "$RETRIES" -lt 0 ]] && RETRIES=0
 
-          if dotns register domain --name "$BASENAME" 2>&1; then
-            echo "::notice::Base domain ${BASENAME}.dot registered"
-            exit 0
-          fi
+        REGISTER_ARGS=(register domain --name "$BASENAME" --retry "$RETRIES")
+        if [[ "${#BASENAME}" -le 5 ]]; then
+          REGISTER_ARGS+=(--governance)
+          echo "::notice::${BASENAME}.dot is a reserved name; using governance registration."
+        fi
 
-          echo "::warning::Register base attempt $ATTEMPT failed"
-          [[ "$ATTEMPT" -lt "$MAX_RETRIES" ]] && sleep "$RETRY_DELAY"
-        done
+        if dotns "${REGISTER_ARGS[@]}" 2>&1; then
+          echo "::notice::Base domain ${BASENAME}.dot registered"
+          exit 0
+        fi
 
         echo "::error::Base domain registration failed after $MAX_RETRIES attempts."
         echo ""
-        echo "This usually means the account does not have the required"
-        echo "Proof-of-Personhood status for this name."
+        echo "For reserved names (5 characters or fewer) the deployer must be"
+        echo "whitelisted for governance registration. For longer names the"
+        echo "account must hold the required Proof-of-Personhood status."
         echo ""
         echo "To fix this:"
-        echo "  1. Check your POP status:  dotns pop status"
-        echo "  2. Complete personhood verification outside DotNS if needed."
+        echo "  1. Confirm the deployer is whitelisted:  dotns account is-whitelisted <address>"
+        echo "  2. Check PoP status (longer names):       dotns pop status"
         echo "  3. Then re-run this workflow."
         echo ""
         echo "You can also register manually at https://dotns.paseo.li"

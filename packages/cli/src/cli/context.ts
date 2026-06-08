@@ -7,6 +7,7 @@ import { ReviveClientWrapper, type PolkadotApiClient } from "../client/polkadotC
 import { parseNativeBalance, formatNativeBalance } from "../utils/formatting";
 import {
   resolveRpc,
+  resolveBulletinRpc,
   resolveMinBalancePas,
   resolveKeystorePath,
   resolveDotnsEnvironment,
@@ -182,7 +183,7 @@ export async function prepareAssetHubContext(options: any): Promise<AssetHubCont
 
 export async function prepareBulletinContext(options: any): Promise<BulletinContext> {
   const environment = resolveDotnsEnvironment(resolveRpcEnvironment(options));
-  const rpc = resolveRpc(options.bulletinRpc ?? options.rpc, environment.id);
+  const rpc = resolveBulletinRpc(options.bulletinRpc ?? options.rpc, environment.id);
   const minBalancePas = resolveMinBalancePas(options.minBalance);
   const keystorePath = resolveKeystorePath(options.keystorePath);
 

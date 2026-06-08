@@ -106,7 +106,7 @@ async function ensureDefaultKeystore() {
 function expectSuccessfulUpload(result: CliRunResult) {
   expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
   expect(result.combinedOutput).not.toContain("✗ Error:");
-  expect(result.combinedOutput).toContain("▶ Bulletin Upload");
+  expect(result.combinedOutput).toMatch(/▶ Uploading (directory|file):/);
   expect(result.combinedOutput).toContain("cid:");
   expect(result.combinedOutput).toContain("✓ Upload Complete");
 }
@@ -233,7 +233,7 @@ test(
 
     const parsed = parseJsonUploadResult(result);
     expect(parsed.cid).toMatch(/^bafy|^bafk/);
-    expect(parsed.contenthash).toMatch(/^[0-9a-f]+$/i);
+    expect(parsed.contenthash).toMatch(/^0x[0-9a-f]+$/i);
     expect(parsed.preview).toContain("preview");
     expect(parsed.type).toBe("file");
 
@@ -271,7 +271,7 @@ test(
     const result = await runBulletinUpload([dirPath, "--concurrency", "3", "--no-history"]);
 
     expectSuccessfulUpload(result);
-    expect(result.combinedOutput).toContain("directory (parallel");
+    expect(result.combinedOutput).toContain("parallel waves");
   },
   { timeout: BULLETIN_TEST_TIMEOUT_MS },
 );
@@ -339,7 +339,7 @@ test(
     ]);
 
     expectSuccessfulAuthorize(result);
-    expect(result.combinedOutput).toContain("1000.00 B");
+    expect(result.combinedOutput).toContain("1000 B");
   },
   { timeout: BULLETIN_TEST_TIMEOUT_MS },
 );
@@ -353,7 +353,7 @@ test(
     const result = await runBulletinAuthorize([targetAddress]);
 
     expectSuccessfulAuthorize(result);
-    expect(result.combinedOutput).toContain("wss://paseo-bulletin-rpc.polkadot.io");
+    expect(result.combinedOutput).toContain("wss://paseo-bulletin-next-rpc.polkadot.io");
   },
   { timeout: BULLETIN_TEST_TIMEOUT_MS },
 );
@@ -389,7 +389,7 @@ test("bulletin history remove nonexistent cid", async () => {
   expect(result.combinedOutput).toContain("not found");
 });
 
-function isAuthorizationSufficient(
+function meetsAuthorizationQuota(
   existingTransactions: number,
   existingBytes: bigint,
   requestedTransactions: number = DEFAULT_AUTHORIZATION_TRANSACTIONS,
@@ -398,14 +398,14 @@ function isAuthorizationSufficient(
   return existingTransactions >= requestedTransactions && existingBytes >= requestedBytes;
 }
 
-describe("authorization sufficiency check", () => {
+describe("authorization quota defaults", () => {
   test("DEFAULT_AUTHORIZATION_BYTES is 1 GB", () => {
     expect(DEFAULT_AUTHORIZATION_BYTES).toBe(BigInt(1024 * 1024 * 1024));
   });
 
-  test("Paseo account with 196 GB passes sufficiency check against 1 GB default", () => {
+  test("Paseo account with 196 GB meets the 1 GB default quota", () => {
     const paseoExistingBytes = BigInt(196) * BigInt(1024 * 1024 * 1024);
-    expect(isAuthorizationSufficient(1_000_000, paseoExistingBytes)).toBe(true);
+    expect(meetsAuthorizationQuota(1_000_000, paseoExistingBytes)).toBe(true);
   });
 
   test("Paseo account would have failed with the old 1 TB default", () => {
@@ -414,7 +414,7 @@ describe("authorization sufficiency check", () => {
 
     expect(paseoExistingBytes < oldDefaultBytes).toBe(true);
     expect(
-      isAuthorizationSufficient(
+      meetsAuthorizationQuota(
         1_000_000,
         paseoExistingBytes,
         DEFAULT_AUTHORIZATION_TRANSACTIONS,
@@ -423,8 +423,8 @@ describe("authorization sufficiency check", () => {
     ).toBe(false);
   });
 
-  test("zero authorization fails sufficiency check", () => {
-    expect(isAuthorizationSufficient(0, 0n)).toBe(false);
+  test("zero authorization fails the quota check", () => {
+    expect(meetsAuthorizationQuota(0, 0n)).toBe(false);
   });
 });
 
@@ -488,7 +488,7 @@ test(
   "bulletin authorize shows expiration date",
   async () => {
     createPathsForTest("bulletin_authorize_expiration");
-    const targetAddress = "5GNJqTPyNqANBkUVMN1LPPrxXnFouWA2MRQg3gKrUYgw6J9y";
+    const targetAddress = "5GzaAaXZXKtq5etqqMSYDxofP4DWreUZV8PHpYDNeQhJfNkP";
 
     const result = await runBulletinAuthorize([targetAddress]);
 

@@ -30,10 +30,14 @@ export function validateDomainLabel(label: string): void {
     throw new Error("Invalid domain label: cannot start or end with hyphen");
   }
 
+  // PopRules accepts exactly zero or exactly two trailing digits. One, three, or more
+  // are rejected outright. The two-digit lite-gateway suffix is the only digit shape
+  // the protocol issues; allowing other counts would let users masquerade as gateway
+  // names or create labels no class cleanly owns.
   const trailingDigitCount = countTrailingDigits(label);
-  if (trailingDigitCount > 2) {
+  if (trailingDigitCount !== 0 && trailingDigitCount !== 2) {
     throw new Error(
-      `Invalid domain label: maximum 2 trailing digits allowed, found ${trailingDigitCount}`,
+      `Invalid domain label: must have either no trailing digits or exactly two, found ${trailingDigitCount}`,
     );
   }
 }

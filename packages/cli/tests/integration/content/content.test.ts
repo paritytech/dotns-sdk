@@ -1,8 +1,9 @@
-import { afterAll, afterEach, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
 import {
   createDefaultAccountKeystore,
   HARNESS_SUCCESS_EXIT_CODE,
   ALICE_KEY_URI,
+  registerFreshDomain,
   runDotnsCli,
   TEST_ACCOUNT,
   TEST_PASSWORD,
@@ -20,9 +21,17 @@ const createdTestTemporaryDirectoryPaths: string[] = [];
 let testFileTemporaryRootDirectoryPath: string | undefined;
 let testFileKeystoreDirectoryPath: string | undefined;
 
-const REGISTERED_DOMAIN = "dotnscli";
+const REGISTRATION_TIMEOUT_MS = 3 * 60_000;
 const UNREGISTERED_DOMAIN = "unregistered123456789xyz";
 const TEST_CID = "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
+
+// Self-provisioned in beforeAll: a fresh domain owned by Alice (//Alice), so
+// the suite never depends on a pre-existing on-chain registration.
+let REGISTERED_DOMAIN: string;
+
+beforeAll(async () => {
+  REGISTERED_DOMAIN = await registerFreshDomain(ALICE_KEY_URI);
+}, REGISTRATION_TIMEOUT_MS);
 
 function createPathsForTest(testName: string) {
   const paths = createKeystorePathsForTest(testName);

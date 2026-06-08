@@ -353,7 +353,8 @@ export function attachLookupCommands(root: Command): void {
         }
 
         const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(merged));
-        const { clientWrapper, substrateAddress, signer, evmAddress } = context;
+        const { clientWrapper, substrateAddress, signer, evmAddress, nativeTokenDecimals } =
+          context;
 
         if (!jsonOutput) {
           console.log(chalk.bold("\n▶ Transfer\n"));
@@ -382,6 +383,7 @@ export function attachLookupCommands(root: Command): void {
               evmAddress,
               recipient as Address,
               label,
+              nativeTokenDecimals,
             ),
           ),
         );

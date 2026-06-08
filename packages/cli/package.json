@@ -1,9 +1,10 @@
 {
   "name": "@parity/dotns-cli",
   "module": "index.ts",
-  "version": "0.6.3",
+  "version": "0.7.0",
   "type": "module",
   "private": true,
+  "license": "MIT",
   "packageManager": "bun@1.2.6",
   "files": [
     "dist"
@@ -18,6 +19,8 @@
     "test": "bun test tests/",
     "test:unit": "bun test tests/unit/",
     "test:integration": "bun test tests/integration/",
+    "benchmark": "bun benchmarks/benchmark.ts",
+    "benchmark:dashboard": "bun benchmarks/generate-dashboard.ts",
     "build": "bun build src/cli/index.ts --outfile dist/cli.tmp.js --target node --format esm && echo '#!/usr/bin/env node' | cat - dist/cli.tmp.js > dist/cli.js && rm dist/cli.tmp.js && chmod +x dist/cli.js",
     "prepublishOnly": "bun run build",
     "prepare": "bunx papi generate"

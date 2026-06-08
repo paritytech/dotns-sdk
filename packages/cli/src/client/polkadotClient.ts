@@ -269,7 +269,7 @@ export class ReviveClientWrapper {
     const mappingExtrinsic = this.client.tx.Revive.map_account();
 
     try {
-      await this.signAndSubmitExtrinsic(mappingExtrinsic, signer, () => {});
+      await this.signAndSubmitExtrinsic(mappingExtrinsic, signer, () => {}, substrateAddress);
       this.mappedAccounts.add(substrateAddress);
     } catch (error: any) {
       const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
@@ -281,14 +281,45 @@ export class ReviveClientWrapper {
     }
   }
 
-  private signAndSubmitExtrinsic(
+  private async fetchNextNonce(substrateAddress: string): Promise<number> {
+    const accountInfo: any = await this.client.query.System.Account.getValue(substrateAddress);
+    return Number(accountInfo.nonce);
+  }
+
+  private async signAndSubmitExtrinsic(
     extrinsic: any,
     signer: PolkadotSigner,
     statusCallback: (status: TransactionStatus) => void,
+    signerSubstrateAddress: string,
+    signal?: AbortSignal,
   ): Promise<Hash> {
+    const nonce = await this.fetchNextNonce(signerSubstrateAddress);
+
     return new Promise<Hash>((resolve, reject) => {
+      let subscription: { unsubscribe: () => void } | undefined;
+      let settled = false;
+
+      const settle = (action: () => void): void => {
+        if (settled) return;
+        settled = true;
+        signal?.removeEventListener("abort", onAbort);
+        subscription?.unsubscribe();
+        action();
+      };
+
+      const onAbort = (): void => {
+        statusCallback("failed");
+        settle(() => reject(new Error("Transaction aborted")));
+      };
+
+      if (signal?.aborted) {
+        onAbort();
+        return;
+      }
+      signal?.addEventListener("abort", onAbort);
+
       try {
-        extrinsic.signSubmitAndWatch(signer).subscribe({
+        subscription = extrinsic.signSubmitAndWatch(signer, { nonce }).subscribe({
           next: (event: any) => {
             const transactionHash = event.txHash?.toString();
 
@@ -305,18 +336,20 @@ export class ReviveClientWrapper {
               case "finalized":
                 if (event.dispatchError) {
                   statusCallback("failed");
-                  reject(
-                    new Error(`Transaction failed: ${formatDispatchError(event.dispatchError)}`),
+                  settle(() =>
+                    reject(
+                      new Error(`Transaction failed: ${formatDispatchError(event.dispatchError)}`),
+                    ),
                   );
                   return;
                 }
                 statusCallback("finalized");
-                resolve(transactionHash as Hash);
+                settle(() => resolve(transactionHash as Hash));
                 return;
               case "invalid":
               case "dropped":
                 statusCallback("failed");
-                reject(new Error(`Transaction ${event.type}`));
+                settle(() => reject(new Error(`Transaction ${event.type}`)));
                 return;
               default:
                 break;
@@ -324,12 +357,12 @@ export class ReviveClientWrapper {
           },
           error: (error: any) => {
             statusCallback("failed");
-            reject(ensureError(error));
+            settle(() => reject(ensureError(error)));
           },
         });
       } catch (error) {
         statusCallback("failed");
-        reject(error);
+        settle(() => reject(error));
       }
     });
   }
@@ -341,6 +374,7 @@ export class ReviveClientWrapper {
     signerSubstrateAddress: string,
     signer: PolkadotSigner,
     statusCallback: (status: TransactionStatus) => void,
+    signal?: AbortSignal,
   ): Promise<Hash> {
     await this.ensureAccountMapped(signerSubstrateAddress, signer);
 
@@ -379,6 +413,12 @@ export class ReviveClientWrapper {
       data: Binary.fromHex(encodedData),
     });
 
-    return await this.signAndSubmitExtrinsic(callExtrinsic, signer, statusCallback);
+    return await this.signAndSubmitExtrinsic(
+      callExtrinsic,
+      signer,
+      statusCallback,
+      signerSubstrateAddress,
+      signal,
+    );
   }
 }

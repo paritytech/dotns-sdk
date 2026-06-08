@@ -4,121 +4,128 @@ on:
   workflow_call:
     inputs:
       basename:
-        description: 'Base domain without .dot'
+        description: "Base domain without .dot"
         required: true
         type: string
 
       mode:
-        description: 'preview (subname deploy) | production (basename deploy)'
+        description: "preview (subname deploy) | production (basename deploy)"
         required: false
         type: string
-        default: 'preview'
+        default: "preview"
 
       subname-format:
-        description: 'pr-number | branch | sha-short (ignored in production mode)'
+        description: "pr-number | branch | sha-short (ignored in production mode)"
         required: false
         type: string
-        default: 'pr-number'
+        default: "pr-number"
 
       subname:
-        description: 'Explicit subname override for preview deployments'
+        description: "Explicit subname override for preview deployments"
         required: false
         type: string
-        default: ''
+        default: ""
 
       register-base:
-        description: 'Attempt base domain registration if not already owned'
+        description: "Attempt base domain registration if not already owned"
         required: false
         type: boolean
         default: false
 
       artifact-name:
-        description: 'Build artifact to deploy'
+        description: "Build artifact to deploy"
         required: true
         type: string
 
       cli-source:
-        description: 'CLI install source: release or source'
+        description: "CLI install source: release or source"
         required: false
         type: string
-        default: 'release'
+        default: "release"
 
       sdk-ref:
-        description: 'dotns-sdk ref used for checked out composite actions and source builds'
+        description: "dotns-sdk ref used for checked out composite actions and source builds"
         required: false
         type: string
-        default: 'main'
+        default: "main"
 
       sdk-repository:
-        description: 'Repository used for checked out composite actions and source builds'
+        description: "Repository used for checked out composite actions and source builds"
         required: false
         type: string
-        default: 'paritytech/dotns-sdk'
+        default: "paritytech/dotns-sdk"
 
       use-car:
-        description: 'Merkleize with IPFS CLI and upload as a single CAR file'
+        description: "Merkleize with IPFS CLI and upload as a single CAR file"
         required: false
         type: boolean
         default: true
 
       key-uri:
-        description: 'Substrate key URI for dev/test (e.g., //Alice)'
+        description: "Substrate key URI for dev/test (e.g., //Alice)"
         required: false
         type: string
 
       bulletin-rpc:
-        description: 'Bulletin chain WebSocket RPC endpoint (default: CLI built-in)'
+        description: "Bulletin chain WebSocket RPC endpoint (default: CLI built-in)"
         required: false
         type: string
 
       rpc:
-        description: 'WebSocket RPC endpoint (default: CLI built-in)'
+        description: "WebSocket RPC endpoint (default: CLI built-in)"
         required: false
         type: string
 
       env:
-        description: 'DotNS environment'
+        description: "DotNS environment (paseo-v2 | previewnet)"
         required: false
         type: string
-        default: 'paseo-v2'
+        default: "paseo-v2"
 
       upload-concurrency:
-        description: 'Adaptive scheduler max window (max: 4)'
+        description: "Adaptive scheduler max window (max: 4)"
         required: false
         type: number
         default: 4
 
       skip-cache:
-        description: 'Skip deployment cache and force re-upload'
+        description: "Skip deployment cache and force re-upload"
         required: false
         type: boolean
         default: false
 
       cache:
-        description: 'Write uploaded CID to on-chain Store after upload'
+        description: "Write uploaded CID to on-chain Store after upload"
         required: false
         type: boolean
         default: false
 
       max-retries:
-        description: 'Max retry attempts per step for transient RPC failures'
+        description: "Max retry attempts per step for transient RPC failures"
         required: false
         type: number
         default: 3
 
       retry-delay:
-        description: 'Seconds to wait between retries'
+        description: "Seconds to wait between retries"
         required: false
         type: number
         default: 15
 
     secrets:
       dotns-mnemonic:
-        description: 'BIP39 mnemonic for DotNS on-chain operations (register, contenthash)'
+        description: "BIP39 mnemonic for DotNS on-chain operations (register, contenthash)"
         required: true
 
       bulletin-mnemonic:
-        description: 'BIP39 mnemonic for Bulletin uploads (defaults to //Alice dev seed)'
+        description: "BIP39 mnemonic for Bulletin uploads (defaults to //Alice dev seed)"
+        required: false
+
+      registrar-operator-mnemonic:
+        description: |
+          BIP39 mnemonic (or SURI like //Alice) of the DotNS registrar operator
+          that whitelists the deployer address before name registration.
+          Defaults to //Alice for local zombienet networks.
         required: false
 
     outputs:
@@ -140,6 +147,13 @@ on:
         value: ${{ jobs.deploy.outputs.cache-hit }}
       duration-seconds:
         value: ${{ jobs.deploy.outputs.duration-seconds }}
+
+# Serialise deploys per environment so the registrar-operator key (e.g. //Alice)
+# whitelist extrinsic and the deployer key registration extrinsics do not race
+# and produce duplicate-nonce / priority-too-low failures.
+concurrency:
+  group: dotns-deploy-${{ inputs.env }}
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -167,13 +181,14 @@ jobs:
             packages/cli
             packages/ui/package.json
             packages/ui/.papi
+            scripts
             package.json
             bun.lock
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
 
       - name: Download build artifact
         uses: actions/download-artifact@v4
@@ -185,6 +200,37 @@ jobs:
         uses: ./.github/actions/setup-cli
         with:
           source: ${{ inputs.cli-source }}
+
+      - name: Whitelist deployer for DotNS name registrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$DOTNS_MNEMONIC"
+          echo "::add-mask::$OPERATOR_MNEMONIC"
+
+          ADDRESS=$(dotns account address)
+
+          # SURI like //Alice goes via --key-uri; everything else is a BIP39 mnemonic.
+          if [[ "$OPERATOR_MNEMONIC" == //* ]]; then
+            AUTH_ARGS=(--key-uri "$OPERATOR_MNEMONIC")
+          else
+            AUTH_ARGS=(-m "$OPERATOR_MNEMONIC")
+          fi
+
+          if dotns account whitelist "$ADDRESS" --env "$DOTNS_ENV" "${AUTH_ARGS[@]}" --json; then
+            echo "::notice::Deployer ${ADDRESS} whitelisted on ${DOTNS_ENV}"
+          else
+            echo "::error::Failed to whitelist deployer ${ADDRESS} on ${DOTNS_ENV}"
+            exit 1
+          fi
+        env:
+          DOTNS_MNEMONIC: ${{ secrets.dotns-mnemonic }}
+          OPERATOR_MNEMONIC: ${{ secrets.registrar-operator-mnemonic || '//Alice' }}
+          DOTNS_ENV: ${{ inputs.env }}
+          CI: "true"
+          FORCE_COLOR: "0"
+          NODE_NO_WARNINGS: "1"
+          NODE_OPTIONS: "--max-old-space-size=4096"
 
       - name: Record deploy start
         id: timer-start
@@ -239,7 +285,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .deploy-cache
-          key: deploy-${{ steps.hash.outputs.hash }}
+          # Scope the cache to the environment: a CID is only valid on the
+          # bulletin chain it was uploaded to, so content cached for one env
+          # must not be reused for another. Bump the suffix to force a
+          # re-upload after a bulletin chain migration within the same env.
+          key: deploy-${{ inputs.env }}-next-${{ steps.hash.outputs.hash }}
 
       - name: Load cached CID
         id: cached

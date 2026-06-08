@@ -6,10 +6,3 @@ export class CliExit extends Error {
     super(message ?? `Exit ${code}`);
   }
 }
-
-export function ok(): never {
-  throw new CliExit(0);
-}
-export function fail(msg: string): never {
-  throw new CliExit(1, msg);
-}

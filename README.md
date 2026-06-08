@@ -1,3 +1,6 @@
+> [!WARNING]
+> This open source code is provided for research, experimentation, and developer education only. This code has not been audited, is actively experimental, and may contain bugs, vulnerabilities, or incomplete features. Use at your own risk.
+
 # dotns-sdk
 
 This repository is the home for dotns developer CLIent tooling. The goal is to make DotNS interactions reproducible, auditable, and consistent across environments and languages.
@@ -7,6 +10,10 @@ This repository is the home for dotns developer CLIent tooling. The goal is to m
 DotNS will be accessed from multiple surfaces: scripts, command-line tools, web apps, backend services, indexers. If each surface re-implements name parsing, ABI handling, network configuration, and transaction encoding, behaviour drifts. Drift shows up as subtle incompatibilities: a name that validates in one place but not another, a call encoded differently across clients, or a release that “works” for one consumer and breaks another.
 
 This monorepo exists to concentrate shared logic in one place, with explicit boundaries, shared primitives, and a small set of versioned artefacts that multiple runtimes can consume.
+
+## Status
+
+This is reference and proof-of-concept tooling for the DotNS protocol, intended for reference and experimentation rather than as a production-ready artefact. Unless a specific release states otherwise, it has not received a full security audit; see [SECURITY.md](./SECURITY.md) for the security status and disclosure process. The defaults target Paseo and its Bulletin chain; point the configuration at your own network before relying on it elsewhere.
 
 ## Scope
 
@@ -152,4 +159,19 @@ Prefer:
 * Changes accompanied by invariant-style tests, especially when touching name parsing, hashing, or transaction encoding
 
 If a change alters how a name is interpreted or how a transaction is encoded, treat it like a consensus change for clients: document it, test it, and assume downstream consumers will break if it is ambiguous.
+
+## Security
+
+Before deploying it for real use cases, you are responsible for:
+
+- Reviewing the code yourself, we publish a reference, not a hardened production build
+- Checking that the dependencies are up to date and free of known vulnerabilities
+- Securing your own fork or deployment environment (keys, secrets, network configuration)
+- Tracking the latest tagged release/commits for security fixes; older releases are not backported (exceptions might apply)
+
+For Parity's security disclosure process, and Bug Bounty program, feel free to visit:  https://parity.io/bug-bounty
+
+## License
+
+Licensed under the MIT License. See [LICENSE](./LICENSE). Security policy and disclosure: see [SECURITY.md](./SECURITY.md).
 

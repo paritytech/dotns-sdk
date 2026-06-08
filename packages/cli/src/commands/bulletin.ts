@@ -30,6 +30,7 @@ import type {
   AuthorizeAccountOptions,
   AuthorizeAccountResult,
   AuthorizationStatus,
+  RefreshAccountAuthorizationOptions,
   StoreDirectoryOptions,
   StoreDirectoryResult,
   UploadChunkedBlocksOptions,
@@ -53,9 +54,57 @@ import {
 } from "../utils/constants";
 import { formatErrorMessage, formatBytes, formatDuration } from "../utils/formatting";
 
+const U32_MAX = 0xffff_ffffn;
+
+export function clampU32(value: bigint | number, fieldName: string): number {
+  const asBigInt = typeof value === "bigint" ? value : BigInt(value);
+  if (asBigInt < 0n) {
+    throw new Error(`${fieldName} must be non-negative (received ${asBigInt})`);
+  }
+  if (asBigInt > U32_MAX) {
+    throw new Error(
+      `${fieldName} (${asBigInt}) exceeds u32 max (${U32_MAX}); choose a smaller value`,
+    );
+  }
+  return Number(asBigInt);
+}
+
+export function isAuthorizationSufficient(status: AuthorizationStatus): boolean {
+  if (!status.authorized) return false;
+  if (status.expired) return false;
+  return true;
+}
+
+export function isTestnetSpecName(specName: string | undefined | null): boolean {
+  if (!specName) return false;
+  const s = specName.toLowerCase();
+  if (s.includes("paseo")) return true;
+  if (/\b(westend|rococo)\b/.test(s)) return true;
+  if (/\b(testnet|devnet)\b/.test(s)) return true;
+  if (/-test$|-testnet$|-dev$/.test(s)) return true;
+  return false;
+}
+
+// Gates the implicit default Authorizer fallback (`//Eve`): mainnet without an
+// explicit signer must fail loudly instead of submitting a doomed extrinsic.
+export async function detectBulletinTestnet(rpc: string): Promise<boolean> {
+  const client = createClient(withPolkadotSdkCompat(getWsProvider(rpc)));
+  try {
+    const typedApi = client.getTypedApi(bulletin);
+    const version = await typedApi.constants.System.Version();
+    const raw = (version as { spec_name?: unknown }).spec_name;
+    const specName = typeof raw === "string" ? raw : String(raw ?? "");
+    return isTestnetSpecName(specName);
+  } catch {
+    return false;
+  } finally {
+    client.destroy();
+  }
+}
+
 function emitPhase(
   onPhase: BulletinPhaseHandler | undefined,
-  phase: "validate" | "authorize" | "upload" | "verify",
+  phase: "validate" | "authorize" | "refresh" | "upload" | "verify",
   state: "start" | "update" | "success" | "warning" | "failure",
   message: string,
 ): void {
@@ -451,12 +500,14 @@ export async function authorizeAccount(
       emitPhase(onPhase, "authorize", "update", "Authorizing account");
     }
 
+    const transactionsU32 = clampU32(transactions, "transactions");
+
     client = createClient(withPolkadotSdkCompat(getWsProvider(rpc)));
     const typedApi = client.getTypedApi(bulletin);
 
     const authTransaction = typedApi.tx.TransactionStorage.authorize_account({
       who: targetAddress,
-      transactions,
+      transactions: transactionsU32,
       bytes,
     });
 
@@ -550,6 +601,84 @@ export async function authorizeAccount(
   }
 }
 
+export async function refreshAccountAuthorization(
+  options: RefreshAccountAuthorizationOptions,
+): Promise<AuthorizeAccountResult> {
+  const { rpc, signer, targetAddress, onPhase } = options;
+  let client: PolkadotClient | undefined;
+  let txHash = "";
+  emitPhase(onPhase, "refresh", "start", "Checking authorization status");
+
+  try {
+    const existing = await checkAuthorization(rpc, targetAddress);
+    if (!existing.authorized) {
+      emitPhase(onPhase, "refresh", "failure", "Account is not authorized");
+      throw new Error(
+        `Account ${targetAddress} has no Bulletin authorization to refresh.\n` +
+          `Authorize it first:\n\n  dotns bulletin authorize ${targetAddress}\n`,
+      );
+    }
+
+    emitPhase(onPhase, "refresh", "update", "Refreshing authorization");
+
+    client = createClient(withPolkadotSdkCompat(getWsProvider(rpc)));
+    const typedApi = client.getTypedApi(bulletin);
+
+    const refreshTransaction = typedApi.tx.TransactionStorage.refresh_account_authorization({
+      who: targetAddress,
+    });
+
+    return await new Promise<AuthorizeAccountResult>((resolve, reject) => {
+      const subscription = refreshTransaction.signSubmitAndWatch(signer).subscribe({
+        next: (event) => {
+          switch (event.type) {
+            case "signed":
+              emitPhase(onPhase, "refresh", "update", "Refresh: signing");
+              break;
+            case "broadcasted":
+              emitPhase(onPhase, "refresh", "update", "Refresh: broadcasting");
+              txHash = event.txHash;
+              break;
+            case "txBestBlocksState":
+              if (event.found) {
+                emitPhase(onPhase, "refresh", "update", "Refresh: included, awaiting finalization");
+              }
+              break;
+            case "finalized":
+              subscription.unsubscribe();
+              client?.destroy();
+
+              if (!event.ok) {
+                emitPhase(onPhase, "refresh", "failure", "Refresh transaction failed");
+                reject(new Error("Refresh transaction was rejected by the chain"));
+                return;
+              }
+
+              emitPhase(onPhase, "refresh", "success", "Authorization refreshed");
+              resolve({ txHash, blockHash: event.block.hash });
+              break;
+          }
+        },
+        error: (error) => {
+          subscription.unsubscribe();
+          client?.destroy();
+          emitPhase(onPhase, "refresh", "failure", "Refresh failed");
+          reject(error);
+        },
+      });
+    });
+  } catch (error) {
+    client?.destroy();
+    const errorMessage = formatErrorMessage(error);
+
+    if (errorMessage.includes("BadOrigin")) {
+      throw new Error("Refresh failed: The signer does not have Authorizer privileges.");
+    }
+
+    throw error;
+  }
+}
+
 export async function checkAuthorization(
   rpc: string,
   accountAddress: string,
@@ -572,8 +701,8 @@ export async function checkAuthorization(
 
       return {
         authorized: true,
-        transactions_allowance: authorizationState.extent.transactions,
-        bytes_allowance: authorizationState.extent.bytes,
+        transactions_allowance: authorizationState.extent.transactions_allowance,
+        bytes_allowance: authorizationState.extent.bytes_allowance,
         expiration,
         currentBlock,
         expired,
@@ -594,7 +723,7 @@ export async function ensureAccountAuthorized(
 ): Promise<AuthorizationState> {
   const authStatus = await checkAuthorization(bulletinRpc, accountAddress);
 
-  if (authStatus.authorized && !authStatus.expired) {
+  if (isAuthorizationSufficient(authStatus)) {
     return { expiration: authStatus.expiration, currentBlock: authStatus.currentBlock };
   }
 
