@@ -2,8 +2,7 @@ import { concat, keccak256, toBytes } from "viem";
 import type { SS58String } from "polkadot-api";
 import { AccountId, type TypedApi } from "polkadot-api";
 import type { Paseo_asset_hub as Paseo } from "@parity/product-sdk-descriptors/paseo-asset-hub";
-import { isHex } from "@polkadot/util";
-import { decodeAddress, encodeAddress } from "@polkadot/util-crypto";
+import { ss58Decode, ss58Encode } from "@parity/product-sdk-address";
 
 /**
  * Cryptographic Utilities
@@ -13,11 +12,6 @@ import { decodeAddress, encodeAddress } from "@polkadot/util-crypto";
 
 export const DOT_NODE: `0x${string}` =
   "0x3fce7d1364a893e213bc4212792b517ffc88f5b13b86c8ef9c8d390c3a1370ce";
-
-export const ZERO_SUBSTRATE_ADDRESS: SS58String = encodeAddress(
-  new Uint8Array(32),
-  42,
-) as SS58String;
 
 /**
  * Compute the keccak256 hash of a label
@@ -126,12 +120,9 @@ export const isMappedTypedApi = async (
  */
 export const isValidSubstrateAddress = (address: string, ss58Format = 42): boolean => {
   try {
-    if (isHex(address)) return false;
-
-    const decoded = decodeAddress(address);
-    const checksummed = encodeAddress(decoded, ss58Format);
-
-    return address === checksummed;
+    if (address.startsWith("0x")) return false;
+    const { publicKey } = ss58Decode(address);
+    return address === ss58Encode(publicKey, ss58Format);
   } catch {
     return false;
   }

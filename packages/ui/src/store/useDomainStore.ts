@@ -160,7 +160,7 @@ export const useDomainStore = defineStore("useDomainStore", () => {
     if (!commitment || typeof commitment !== "string" || !commitment.startsWith("0x")) {
       throw new Error("Invalid commitment hash");
     }
-    walletStore.ensureWalletConnected();
+    await walletStore.ensureSignerReady();
     try {
       const controller = await getContract("@dotns/registrar-controller");
       const result = await controller.commit!.tx(commitment as Hash, {
@@ -185,7 +185,7 @@ export const useDomainStore = defineStore("useDomainStore", () => {
     if (!registration?.label || !registration?.owner) {
       throw new Error("Invalid registration data");
     }
-    walletStore.ensureWalletConnected();
+    await walletStore.ensureSignerReady();
     try {
       const controller = await getContract("@dotns/registrar-controller");
       const price = await priceWithoutCheck(registration.label);
@@ -215,7 +215,7 @@ export const useDomainStore = defineStore("useDomainStore", () => {
     if (!registration?.label || !registration?.owner) {
       throw new Error("Invalid registration data");
     }
-    walletStore.ensureWalletConnected();
+    await walletStore.ensureSignerReady();
     try {
       const controller = await getContract("@dotns/registrar-controller");
       const result = await controller.registerReserved!.tx(registration, {
@@ -340,7 +340,7 @@ export const useDomainStore = defineStore("useDomainStore", () => {
     if (!newOwner || newOwner === zeroAddress) {
       throw new Error("Invalid recipient address");
     }
-    walletStore.ensureWalletConnected();
+    await walletStore.ensureSignerReady();
     try {
       const registrar = await getContract("@dotns/registrar");
       const tokenId = computeDomainTokenId(normalizeDomainName(domain));
@@ -367,7 +367,7 @@ export const useDomainStore = defineStore("useDomainStore", () => {
     subname: string,
     owner: Address,
   ): Promise<Hash> {
-    walletStore.ensureWalletConnected();
+    await walletStore.ensureSignerReady();
     try {
       const registry = await getContract("@dotns/registry");
       const parentLabel = normalizeDomainName(parentName).trim();

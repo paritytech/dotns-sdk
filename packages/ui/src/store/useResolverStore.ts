@@ -52,7 +52,7 @@ export const useResolverStore = defineStore("useResolverStore", () => {
   }
 
   async function setText(domain: string, key: string, value: string): Promise<Hash> {
-    walletStore.ensureWalletConnected();
+    await walletStore.ensureSignerReady();
     try {
       const resolver = await getContract("@dotns/content-resolver");
       const node = namehash(`${normalizeDomainName(domain)}.dot`);
@@ -73,7 +73,7 @@ export const useResolverStore = defineStore("useResolverStore", () => {
   }
 
   async function setContentHash(domain: string, ipfsCid: string): Promise<TransactionResult> {
-    walletStore.ensureWalletConnected();
+    await walletStore.ensureSignerReady();
     try {
       const resolver = await getContract("@dotns/content-resolver");
       const node = namehash(`${normalizeDomainName(domain)}.dot`);
@@ -117,7 +117,7 @@ export const useResolverStore = defineStore("useResolverStore", () => {
     domain: string,
     records: TextRecord[],
   ): Promise<TransactionResult> {
-    walletStore.ensureWalletConnected();
+    await walletStore.ensureSignerReady();
     const validRecords = records.filter((r) => r.value && r.value.length > 0);
     if (validRecords.length === 0) return { status: false, hash: zeroHash };
     try {

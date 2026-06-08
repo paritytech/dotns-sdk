@@ -2,66 +2,17 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { isAddress, zeroAddress, type Address } from "viem";
 import type { PolkadotSigner } from "polkadot-api";
-import {
-  SignerManager,
-  HostProvider,
-  type HostProviderOptions,
-  type ProductAccount,
-  type Result,
-  type SignerAccount,
-  SignerError,
-  ok,
-} from "@parity/product-sdk-signer";
-import { requestResourceAllocation } from "@parity/product-sdk-host";
+import { SignerManager, HostProvider, type SignerAccount } from "@parity/product-sdk-signer";
+import { requestPermission, requestResourceAllocation } from "@parity/product-sdk-host";
 import { useUserStoreManager } from "./useUserStoreManager";
 import { getChainClient } from "@/composables/useTypedAPI";
 import { PopStatus, type TransactionStatus } from "@/type";
 
-// Nova @novasamatech/product-sdk@0.7.9-4 ships a `signerType` arg on
-// getProductAccountSigner that routes through host_create_transaction, but
-// the Parity SDK's exposed TypeScript surface doesn't expose it yet. Widen
-// at the call site. Pattern mirrors ~/playground-app/src/utils/contracts.ts.
-type AccountsProviderWithSignerType = {
-  getProductAccountSigner: (
-    account: ProductAccount,
-    signerType?: "signPayload" | "createTransaction",
-  ) => PolkadotSigner;
-};
-
-class ProductAccountHostProvider extends HostProvider {
-  constructor(
-    private readonly dotNsId: string,
-    options?: HostProviderOptions,
-  ) {
-    super(options);
-  }
-
-  async connect(signal?: AbortSignal): Promise<Result<SignerAccount[], SignerError>> {
-    const base = await super.connect(signal);
-    if (!base.ok) return base;
-    const product = await this.getProductAccount(this.dotNsId);
-    if (!product.ok) return product;
-    const acc = product.value;
-    const productAccount: ProductAccount = {
-      dotNsIdentifier: this.dotNsId,
-      derivationIndex: 0,
-      publicKey: acc.publicKey,
-    };
-    return ok([
-      {
-        ...acc,
-        getSigner: () => {
-          const provider = (
-            this as unknown as { accountsProvider: AccountsProviderWithSignerType | null }
-          ).accountsProvider;
-          if (!provider) throw new Error("Host provider is disconnected");
-          return provider.getProductAccountSigner(productAccount, "createTransaction");
-        },
-      },
-    ]);
-  }
-}
-
+// Product-account signing is handled natively by HostProvider's `productAccount`
+// option (signer ≥0.6.0): connect() fetches the per-dapp derived account (skipping
+// the legacy-account fetch) and pins signing to `createTransaction`, so unknown
+// signed-extensions like AsPgas on Paseo Next survive end-to-end. Replaces the
+// former hand-rolled `class extends HostProvider` workaround.
 export const signerManager = new SignerManager({
   ss58Prefix: 0,
   dappName: "dotns-ui",
@@ -69,29 +20,33 @@ export const signerManager = new SignerManager({
     if (type !== "host") {
       throw new Error(`Unsupported provider type: ${type}`);
     }
-    return new ProductAccountHostProvider(window.location.host);
+    return new HostProvider({
+      // ChainSubmit is deferred (requested lazily on first write via
+      // ensureSignerReady) so passive browsing triggers no signing prompts.
+      productAccount: { dotNsIdentifier: window.location.host },
+      requestChainSubmitPermission: false,
+    });
   },
 });
 
 // ----------------------------------------------------------------------------
-// Resource-allocation request, cached per product-account h160 across reloads
+// Write-permission request, cached per product-account h160 across reloads.
 //
-// Bundles SmartContractAllowance (required for Revive writes) and AutoSigning
-// (future host capability — returns NotAvailable today, accepted as success so
-// it ships with the migration). ChainSubmit is auto-requested by
-// SignerManager.connect() and isn't part of this bundle.
+// Requested lazily on the first write (via ensureSignerReady), NOT on connect,
+// so passive browsing triggers no signing prompts. Bundles:
+//   - ChainSubmit: required for the host to accept signed chain txs. We pass
+//     `requestChainSubmitPermission: false` to HostProvider and request it here
+//     instead, keeping it off the connect path.
+//   - SmartContractAllowance: required for Revive contract writes.
+//   - AutoSigning: future host capability (NotAvailable today, accepted).
 //
-// Key version: bump when the host-side allowance state may have drifted out
-// of sync with our cache (e.g., users clearing Polkadot Desktop caches that
-// don't include the papp's localStorage). Bumping invalidates every client's
-// cached grant and forces a fresh host-prompt that re-aligns both sides. Also
-// bump when the acceptance policy in requestProductPermissions changes (e.g.
-// AutoSigning tightens from `NotAvailable=ok` to `Allocated-only`).
-//   v3 (2026-05-19): force re-grant to resolve out-of-sync allowance state
-//     observed after desktop cache clears.
+// Key version: bump when the host-side state may have drifted out of sync with
+// our cache (e.g. clearing Polkadot Desktop caches that don't include the papp's
+// localStorage), or when the acceptance policy below changes.
+//   v3 (2026-05-19): force re-grant after desktop cache-clear drift.
+//   v4 (2026-06-08): lazy-on-write + ChainSubmit folded into the bundle.
 // ----------------------------------------------------------------------------
-const PERMISSION_STORAGE_PREFIX = "dotns-ui:permissions:v3:";
-let permissionsRequested = false;
+const PERMISSION_STORAGE_PREFIX = "dotns-ui:permissions:v4:";
 
 function permissionStorageKey(h160: string): string {
   return `${PERMISSION_STORAGE_PREFIX}${h160.toLowerCase()}`;
@@ -113,34 +68,28 @@ function markPermissionsGranted(h160: string): void {
   }
 }
 
-async function requestProductPermissions(account: SignerAccount): Promise<void> {
-  if (permissionsRequested) return;
-  // Claim the slot synchronously, before any await. The subscribe handler can
-  // fire multiple "connected" ticks back-to-back as selectedAccount transitions
-  // from null to set; without the immediate flag, both ticks would race past
-  // the cache read and double-prompt.
-  permissionsRequested = true;
+async function requestWritePermissions(account: SignerAccount): Promise<void> {
   if (hasGrantedPermissions(account.h160Address)) return;
   try {
-    const outcomes = await requestResourceAllocation([
+    // ChainSubmit first — the host rejects signing without it (deferred from
+    // the connect path via requestChainSubmitPermission: false).
+    const chainSubmit = await requestPermission({ tag: "ChainSubmit", value: undefined });
+    const [smartContract, autoSigning] = await requestResourceAllocation([
       { tag: "SmartContractAllowance", value: 0 },
       { tag: "AutoSigning", value: undefined },
     ]);
-    const smartContract = outcomes[0];
-    const autoSigning = outcomes[1];
     console.log(
-      `[WalletStore:requestProductPermissions] outcomes smartContract=${smartContract?.tag} autoSigning=${autoSigning?.tag}`,
+      `[WalletStore:requestWritePermissions] chainSubmit=${chainSubmit} smartContract=${smartContract?.tag} autoSigning=${autoSigning?.tag}`,
     );
-    // SmartContractAllowance must be Allocated to use Revive writes.
-    // AutoSigning is accepted as Allocated or NotAvailable (host hasn't shipped
-    // the backend yet); only an explicit Rejected counts against the cache.
+    // SmartContractAllowance must be Allocated for Revive writes. AutoSigning is
+    // accepted as Allocated or NotAvailable (host hasn't shipped it yet).
     const smartContractOk = smartContract?.tag === "Allocated";
     const autoSigningOk = autoSigning?.tag === "Allocated" || autoSigning?.tag === "NotAvailable";
-    if (smartContractOk && autoSigningOk) {
+    if (chainSubmit && smartContractOk && autoSigningOk) {
       markPermissionsGranted(account.h160Address);
     }
   } catch (err) {
-    console.warn("[WalletStore:requestProductPermissions] request failed", err);
+    console.warn("[WalletStore:requestWritePermissions] request failed", err);
   }
 }
 
@@ -210,12 +159,9 @@ export const useWalletStore = defineStore("useWalletStore", () => {
         `[WalletStore:connectWallet] account state ss58=${account.address} h160=${evmAddress.value}`,
       );
 
-      // Resource allocations are requested from the signerManager.subscribe handler
-      // (disconnected → connected transition), fire-and-forget, cached per
-      // account in hostLocalStorage. Out of this inline await chain so the
-      // connect handshake isn't blocked on (or coupled to) the allocation
-      // modal — the inline-await previously caused Desktop to freeze when a
-      // second mobile prompt stacked on top of the still-settling SSO handshake.
+      // Write permissions (ChainSubmit + allowance) are NOT requested here —
+      // they're deferred to the first write via ensureSignerReady() so passive
+      // browsing prompts for nothing.
 
       await userStoreManager.getUserStore(evmAddress.value);
       isConnected.value = true;
@@ -236,23 +182,13 @@ export const useWalletStore = defineStore("useWalletStore", () => {
     console.log("[WalletStore:handleDisconnect] Wallet disconnected");
   }
 
-  // React to host state transitions. Two responsibilities:
-  //   1. Whenever a selectedAccount is present in a connected state, attempt
-  //      the cached permission request. requestProductPermissions dedupes
-  //      itself via permissionsRequested so multiple "connected" ticks (e.g.
-  //      a transient one with selectedAccount=null followed by one with it
-  //      set after signerManager.selectAccount) collapse into a single attempt.
-  //   2. On a definitive disconnected while we believe we're connected:
-  //      tear down local state and reset the permission gate so the next
-  //      connect tries again. SignerManager auto-reconnects on transient
-  //      drops so we don't react to those.
+  // React to host disconnects: on a definitive disconnected while we believe
+  // we're connected, tear down local state. SignerManager auto-reconnects on
+  // transient drops, so we don't react to those. (Write permissions are no
+  // longer requested here — see ensureSignerReady.)
   let unsub: (() => void) | null = signerManager.subscribe((state) => {
-    if (state.status === "connected" && state.selectedAccount) {
-      void requestProductPermissions(state.selectedAccount);
-    }
-    if (state.status === "disconnected") {
-      permissionsRequested = false;
-      if (isConnected.value) handleDisconnect();
+    if (state.status === "disconnected" && isConnected.value) {
+      handleDisconnect();
     }
   });
   if (import.meta.hot) {
@@ -292,6 +228,25 @@ export const useWalletStore = defineStore("useWalletStore", () => {
     return injected.value!;
   }
 
+  let pendingSignerReady: Promise<PolkadotSigner> | null = null;
+  // Connect-if-needed + request write permissions (ChainSubmit + allowance,
+  // cached) before a signed write. Concurrent writes share one in-flight
+  // request. Reads never call this, so passive browsing prompts for nothing.
+  async function ensureSignerReady(): Promise<PolkadotSigner> {
+    if (pendingSignerReady) return pendingSignerReady;
+    pendingSignerReady = (async () => {
+      await ensureReady();
+      ensureWalletConnected();
+      const account = currentAccount.value;
+      if (!account) throw new Error("Wallet not connected");
+      await requestWritePermissions(account);
+      return getInjected();
+    })().finally(() => {
+      pendingSignerReady = null;
+    });
+    return pendingSignerReady;
+  }
+
   async function convertToEVM(substrateAddr: string): Promise<Address> {
     let defaultAddress = zeroAddress as Address;
     try {
@@ -323,6 +278,7 @@ export const useWalletStore = defineStore("useWalletStore", () => {
 
   return {
     ensureWalletConnected,
+    ensureSignerReady,
     isConnected,
     evmAddress,
     substrateAddress,

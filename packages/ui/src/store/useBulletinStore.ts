@@ -521,8 +521,7 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
           );
         }
 
-        walletStore.ensureConnected();
-        const signer = walletStore.getInjected();
+        const signer = await walletStore.ensureSignerReady();
 
         setStage("preparing", "Connecting to Bulletin chain...", 2);
         const bulletinClient = getBulletinClient();
