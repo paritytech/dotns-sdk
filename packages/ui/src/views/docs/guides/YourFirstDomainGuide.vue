@@ -63,9 +63,9 @@
         lang="bash"
       />
       <DocCallout variant="tip" title="How much do you need?">
-        Registration fees range from 0.001 to 0.012 DOT depending on name length. Users verified
-        through Proof of Personhood (PoP) pay nothing. Either way, 1 PAS is more than enough for
-        several registrations plus transaction fees.
+        Registering a NoStatus name costs a single flat refundable deposit; users verified through
+        Proof of Personhood (PoP) pay nothing. Either way, 1 PAS is more than enough for several
+        registrations plus transaction fees.
       </DocCallout>
     </div>
 

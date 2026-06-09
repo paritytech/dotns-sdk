@@ -42,7 +42,7 @@
       </p>
       <DocCodeBlock :code="resolveBeforeSendCode" lang="typescript" filename="send-with-dotns.ts" />
       <DocCallout variant="info" title="Namehash encoding">
-        The resolver's <span class="font-mono">addr(bytes32 node)</span> function expects a
+        The resolver's <span class="font-mono">addressOf(bytes32 node)</span> function expects a
         <span class="font-mono">namehash</span>. Compute it from the full domain (e.g.
         <span class="font-mono">namehash("alice.dot")</span>). See the
         <RouterLink to="/docs/protocol/resolution" class="text-dot-accent hover:underline"
@@ -230,7 +230,7 @@ const comparisons = [
 
 const resolveBeforeSendCode = `import { createPublicClient, http, parseEther, namehash } from "viem";
 
-const RESOLVER = "0x95645C7fD0fF38790647FE13F87Eb11c1DCc8514";
+const RESOLVER = "0xA8988eA083174ea94Ed1D686f0F073a10f65598D";
 
 // User types "alice.dot" into the send field
 const input = "alice.dot";
@@ -241,7 +241,7 @@ const node = namehash(label + ".dot");
 const resolved = await client.readContract({
   address: RESOLVER,
   abi: resolverAbi,
-  functionName: "addr",
+  functionName: "addressOf",
   args: [node],
 });
 
@@ -260,16 +260,16 @@ const tx = await walletClient.sendTransaction({
 
 const displayIdentityCode = `import { namehash, getAddress } from "viem";
 
-const REVERSE_RESOLVER = "0x95D57363B491CF743970c640fe419541386ac8BF";
+const REVERSE_RESOLVER = "0x259B9D8199c29d2EF132264ad05f8F74F3115A2E";
 
 // Given an address from a governance vote or transaction
-const voterAddress = "0x4Da0d37aBe96C06ab19963F31ca2DC0412057a6f";
+const voterAddress = "0xa1b2b939E82b2ecE55Bd8a0E283818BfC1CA6CDc";
 
 // Reverse-resolve to get the primary .dot name
 const name = await client.readContract({
   address: REVERSE_RESOLVER,
   abi: reverseResolverAbi,
-  functionName: "name",
+  functionName: "nameOf",
   args: [voterAddress],
 });
 
@@ -284,7 +284,8 @@ if (name) {
 
 const profileCardCode = `import { namehash } from "viem";
 
-const RESOLVER = "0x95645C7fD0fF38790647FE13F87Eb11c1DCc8514";
+// Text records live on the content resolver
+const CONTENT_RESOLVER = "0x8A26480b0B5Df3d4D9b95adc24a5Ecb33A5b8F64";
 
 // Build a profile card from text records
 const label = "alice";
@@ -295,8 +296,8 @@ const profile: Record<string, string> = {};
 
 for (const key of keys) {
   const value = await client.readContract({
-    address: RESOLVER,
-    abi: resolverAbi,
+    address: CONTENT_RESOLVER,
+    abi: contentResolverAbi,
     functionName: "text",
     args: [node, key],
   });

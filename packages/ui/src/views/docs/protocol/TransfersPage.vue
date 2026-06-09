@@ -253,7 +253,7 @@ registrar.safeTransferFrom(msg.sender, newOwner, tokenId);`;
 
 const tsExample = `import { namehash } from "viem";
 
-const REGISTRAR = "0x329aAA5b6bEa94E750b2dacBa74Bf41291E6c2BD";
+const REGISTRAR = "0xf7Ad3F44F316C73E4a2b46b1ed48d376bCc9E639";
 
 // Compute the tokenId for "alice.dot"
 const node = namehash("alice.dot");
@@ -269,7 +269,7 @@ await walletClient.writeContract({
 
 // Transfer to a .dot name (resolve first, then transfer)
 const bobAddr = await client.readContract({
-  address: "0x95645C7fD0fF38790647FE13F87Eb11c1DCc8514",
+  address: "0xA8988eA083174ea94Ed1D686f0F073a10f65598D",
   abi: resolverAbi,
   functionName: "addressOf",
   args: [namehash("bob.dot")],

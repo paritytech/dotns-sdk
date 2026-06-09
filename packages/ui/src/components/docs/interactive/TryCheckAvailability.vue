@@ -137,7 +137,7 @@ const tokenId = BigInt(keccak256(toHex(label)))
 
 try {
   const owner = await client.readContract({
-    address: '0x329aAA5b6bEa94E750b2dacBa74Bf41291E6c2BD',
+    address: '0xf7Ad3F44F316C73E4a2b46b1ed48d376bCc9E639',
     abi: [{
       type: 'function',
       name: 'ownerOf',

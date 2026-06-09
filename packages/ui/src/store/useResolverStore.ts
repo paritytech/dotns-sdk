@@ -5,25 +5,9 @@ import { getContract, withContractRecovery, WRITE_TX_DEFAULTS } from "@/composab
 import { getChainClient } from "@/composables/useTypedAPI";
 import { useWalletStore } from "./useWalletStore";
 import { batchSubmitAndWatch, type BatchApi, type TxStatus } from "@parity/product-sdk-tx";
+import { mapTxStatus } from "@/lib/txStatus";
 import { computeDomainTokenId, normalizeDomainName, ZERO_SUBSTRATE_ADDRESS } from "../utils";
 import type { TextRecord, TransactionResult } from "@/type";
-
-function mapTxStatus(
-  s: TxStatus,
-): "signing" | "broadcasting" | "included" | "finalized" | "failed" {
-  switch (s) {
-    case "signing":
-      return "signing";
-    case "broadcasting":
-      return "broadcasting";
-    case "in-block":
-      return "included";
-    case "finalized":
-      return "finalized";
-    case "error":
-      return "failed";
-  }
-}
 
 export const useResolverStore = defineStore("useResolverStore", () => {
   const walletStore = useWalletStore();
@@ -102,17 +86,11 @@ export const useResolverStore = defineStore("useResolverStore", () => {
     }
   }
 
-  // ---------------------------------------------------------------------
-  // Multi-record profile updates — one signing prompt for N records.
-  //
-  // Each record is prepared as a Revive.call (`setText`) via the contract's
-  // `.prepare()`, then submitted together in a single `Utility.batch_all`
-  // extrinsic the product account signs once. No MultiCall3 / approval
-  // ceremony is needed for writes — the calls are the user's own and batch
-  // natively. (MultiCall3 is re-adopted only for read aggregation; see
-  // useMulticallOwnership.ts.) Function name preserved so the profile/whois
-  // views don't change.
-  // ---------------------------------------------------------------------
+  // Multi-record profile updates with one signing prompt: each record is
+  // prepared as a Revive.call (`setText`) via `.prepare()`, then submitted
+  // together in a single `Utility.batch_all` extrinsic the account signs once.
+  // The calls are the user's own and batch natively, so no MultiCall3/approval
+  // ceremony is needed for writes (MultiCall3 is used only for read aggregation).
   async function setProfileRecordsMulticall(
     domain: string,
     records: TextRecord[],

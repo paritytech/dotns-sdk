@@ -16,7 +16,7 @@
       <div class="p-4 border border-dot-border rounded-lg bg-dot-surface">
         <p class="text-xs text-dot-text-tertiary mb-1">Paseo AssetHub</p>
         <p class="font-mono text-sm text-dot-accent break-all">
-          0x95D57363B491CF743970c640fe419541386ac8BF
+          0x259B9D8199c29d2EF132264ad05f8F74F3115A2E
         </p>
       </div>
     </div>
@@ -167,7 +167,7 @@ const client = createPublicClient({
   transport: http(),
 });
 
-const REVERSE_RESOLVER = "0x95D57363B491CF743970c640fe419541386ac8BF";
+const REVERSE_RESOLVER = "0x259B9D8199c29d2EF132264ad05f8F74F3115A2E";
 
 // Reverse resolve: address -> name
 const name = await client.readContract({

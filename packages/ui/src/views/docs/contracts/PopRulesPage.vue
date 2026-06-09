@@ -17,7 +17,7 @@
       <div class="p-4 border border-dot-border rounded-lg bg-dot-surface">
         <p class="text-xs text-dot-text-tertiary mb-1">Paseo AssetHub</p>
         <p class="font-mono text-sm text-dot-accent break-all">
-          0x4e8920B1E69d0cEA9b23CBFC87A17Ee6fE02d2d3
+          0x4909bFb3f4Fd86244abD6430fDfA0Ce5C91aD0c4
         </p>
       </div>
     </div>
@@ -146,33 +146,6 @@
         />
         <DocReturnsTable
           :returns="[{ name: 'price', type: 'uint256', description: 'Registration cost in wei' }]"
-        />
-      </div>
-
-      <div class="space-y-2">
-        <div class="flex items-center gap-2">
-          <h3 class="text-base font-semibold text-dot-text-primary font-mono">
-            userPopStatus(user)
-          </h3>
-          <DocBadge variant="read-only">read-only</DocBadge>
-        </div>
-        <p class="text-sm text-dot-text-secondary">
-          Returns the current PoP verification status of a user.
-        </p>
-        <DocParamTable
-          :params="[
-            {
-              name: 'user',
-              type: 'address',
-              description: 'The address to check',
-              required: true,
-            },
-          ]"
-        />
-        <DocReturnsTable
-          :returns="[
-            { name: 'status', type: 'PopStatus', description: 'Current PoP tier of the user' },
-          ]"
         />
       </div>
 
@@ -359,7 +332,7 @@ const client = createPublicClient({
   transport: http(),
 });
 
-const POP_RULES = "0x4e8920B1E69d0cEA9b23CBFC87A17Ee6fE02d2d3";
+const POP_RULES = "0x4909bFb3f4Fd86244abD6430fDfA0Ce5C91aD0c4";
 
 // Classify a name
 const [status, message] = await client.readContract({

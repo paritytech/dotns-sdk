@@ -17,7 +17,7 @@
       <div class="p-4 border border-dot-border rounded-lg bg-dot-surface">
         <p class="text-xs text-dot-text-tertiary mb-1">Paseo AssetHub</p>
         <p class="font-mono text-sm text-dot-accent break-all">
-          0x7756DF72CBc7f062e7403cD59e45fBc78bed1cD7
+          0x8A26480b0B5Df3d4D9b95adc24a5Ecb33A5b8F64
         </p>
       </div>
     </div>
@@ -329,7 +329,7 @@ const client = createPublicClient({
   transport: http(),
 });
 
-const CONTENT_RESOLVER = "0x7756DF72CBc7f062e7403cD59e45fBc78bed1cD7";
+const CONTENT_RESOLVER = "0x8A26480b0B5Df3d4D9b95adc24a5Ecb33A5b8F64";
 const node = namehash("alice.dot");
 
 // Read text records

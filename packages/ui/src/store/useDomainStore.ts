@@ -17,6 +17,7 @@ import {
 } from "@/composables/useContracts";
 import { signerManager, useWalletStore } from "./useWalletStore";
 import type { TxStatus } from "@parity/product-sdk-tx";
+import { mapTxStatus } from "@/lib/txStatus";
 import {
   computeDomainTokenId,
   computeDotLabelNode,
@@ -37,13 +38,9 @@ import {
   type PriceWithMeta,
 } from "@/type";
 
-// ---------------------------------------------------------------------------
-// PERSONHOOD precompile (individuality runtime)
-//
-// Lives at a well-known precompile address — not a deployable contract, so
-// not in cdm.json. The ABI is small enough to keep inline; resolved at call
-// time via createContract(runtime, address, ABI).
-// ---------------------------------------------------------------------------
+// PERSONHOOD precompile: lives at a well-known precompile address, not a
+// deployable contract, so it is absent from cdm.json. The ABI is small enough to
+// keep inline; resolved at call time via createContract(runtime, address, ABI).
 const PERSONHOOD_PRECOMPILE_ADDRESS = "0x000000000000000000000000000000000a010000" as const;
 const PERSONHOOD_CONTEXT =
   "0x646f746e73000000000000000000000000000000000000000000000000000000" as const;
@@ -68,26 +65,6 @@ const PERSONHOOD_ABI: AbiEntry[] = [
     stateMutability: "view",
   },
 ];
-
-// Map ContractManager .tx()'s TxStatus enum onto walletStore's internal
-// TransactionStatus. The names differ slightly between the two: SDK uses
-// "in-block"/"error", walletStore expects "included"/"failed".
-function mapTxStatus(
-  s: TxStatus,
-): "signing" | "broadcasting" | "included" | "finalized" | "failed" {
-  switch (s) {
-    case "signing":
-      return "signing";
-    case "broadcasting":
-      return "broadcasting";
-    case "in-block":
-      return "included";
-    case "finalized":
-      return "finalized";
-    case "error":
-      return "failed";
-  }
-}
 
 export const useDomainStore = defineStore("useDomainStore", () => {
   const walletStore = useWalletStore();
@@ -362,6 +339,70 @@ export const useDomainStore = defineStore("useDomainStore", () => {
     }
   }
 
+  // Delegate full control of a single name to `delegate` via the registrar's
+  // ERC-721 single-token approval. The delegate can manage and transfer this
+  // name until revoked, and ERC-721 clears the approval automatically on any
+  // transfer. Pass the zero address to revoke.
+  async function setNameDelegate(domain: string, delegate: Address): Promise<Hash> {
+    await walletStore.ensureSignerReady();
+    try {
+      const registrar = await getContract("@dotns/registrar");
+      const tokenId = computeDomainTokenId(normalizeDomainName(domain));
+      const result = await registrar.approve!.tx(delegate, tokenId, {
+        ...WRITE_TX_DEFAULTS,
+        onStatus: relayStatus,
+      });
+      if (!result.ok) {
+        throw new Error(`approve reverted: ${JSON.stringify(result.dispatchError ?? "unknown")}`);
+      }
+      return result.txHash as Hash;
+    } catch (error) {
+      console.warn("[DomainStore:setNameDelegate]", error);
+      throw error;
+    } finally {
+      walletStore.setTransactionStatus("idle");
+    }
+  }
+
+  // The address currently delegated full control of `domain`, or null if none.
+  async function getNameDelegate(domain: string): Promise<Address | null> {
+    return withContractRecovery(async () => {
+      const registrar = await getContract("@dotns/registrar");
+      const tokenId = computeDomainTokenId(normalizeDomainName(domain));
+      const result = await registrar.getApproved!.query(tokenId, {
+        origin: ZERO_SUBSTRATE_ADDRESS,
+      });
+      if (!result.success) return null;
+      const delegate = result.value as Address;
+      return !delegate || delegate === zeroAddress ? null : delegate;
+    }).catch(() => null);
+  }
+
+  // Delegate (or revoke) record editing across ALL your names via the content
+  // resolver's operator approval. Account-wide and record-scoped: the operator
+  // can set text and contenthash but cannot transfer or change ownership.
+  async function setRecordDelegate(operator: Address, approved: boolean): Promise<Hash> {
+    await walletStore.ensureSignerReady();
+    try {
+      const resolver = await getContract("@dotns/content-resolver");
+      const result = await resolver.setApprovalForAll!.tx(operator, approved, {
+        ...WRITE_TX_DEFAULTS,
+        onStatus: relayStatus,
+      });
+      if (!result.ok) {
+        throw new Error(
+          `setApprovalForAll reverted: ${JSON.stringify(result.dispatchError ?? "unknown")}`,
+        );
+      }
+      return result.txHash as Hash;
+    } catch (error) {
+      console.warn("[DomainStore:setRecordDelegate]", error);
+      throw error;
+    } finally {
+      walletStore.setTransactionStatus("idle");
+    }
+  }
+
   async function registerSubDomain(
     parentName: string,
     subname: string,
@@ -424,6 +465,9 @@ export const useDomainStore = defineStore("useDomainStore", () => {
     extractLabel,
     calculateTokenId,
     transferDomain,
+    setNameDelegate,
+    getNameDelegate,
+    setRecordDelegate,
     formatNativeBalance,
     formatWeiAsEther,
     convertWeiToNative,

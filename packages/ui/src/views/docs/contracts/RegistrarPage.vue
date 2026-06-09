@@ -16,7 +16,7 @@
       <div class="p-4 border border-dot-border rounded-lg bg-dot-surface">
         <p class="text-xs text-dot-text-tertiary mb-1">Paseo AssetHub</p>
         <p class="font-mono text-sm text-dot-accent break-all">
-          0x329aAA5b6bEa94E750b2dacBa74Bf41291E6c2BD
+          0xf7Ad3F44F316C73E4a2b46b1ed48d376bCc9E639
         </p>
       </div>
     </div>
@@ -200,7 +200,7 @@ const client = createPublicClient({
   transport: http(),
 });
 
-const REGISTRAR = "0x329aAA5b6bEa94E750b2dacBa74Bf41291E6c2BD";
+const REGISTRAR = "0xf7Ad3F44F316C73E4a2b46b1ed48d376bCc9E639";
 
 // Check if a name is available
 const labelhash = keccak256(toBytes("alice"));

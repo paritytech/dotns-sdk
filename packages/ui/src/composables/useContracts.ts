@@ -11,6 +11,7 @@ import { paseo_asset_hub } from "@parity/product-sdk-descriptors/paseo-asset-hub
 import type { HexString, SS58String } from "polkadot-api";
 import cdmJsonRaw from "../../cdm.json" with { type: "json" };
 import { labelStoreAbi } from "@/lib/abis/labelStore";
+import { userStoreAbi } from "@/lib/abis/userStore";
 import { getChainClient } from "@/composables/useTypedAPI";
 import { useNetworkStore } from "@/store/useNetworkStore";
 import { signerManager } from "@/store/useWalletStore";
@@ -68,6 +69,7 @@ const cdmJson = flattenCdm(cdmJsonRaw as unknown as NestedCdm);
 // proxy address is resolved at call time via StoreFactory; the ABI is vendored.
 const PROXY_ABIS: Record<string, AbiEntry[]> = {
   "@dotns/label-store": labelStoreAbi,
+  "@dotns/user-store": userStoreAbi,
 };
 
 let managerPromise: Promise<ContractManager> | null = null;

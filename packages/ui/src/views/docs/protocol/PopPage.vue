@@ -16,8 +16,8 @@
       <p class="text-dot-text-secondary leading-relaxed">
         PoP verifies that a person registering a name is a unique human, not a bot or a collection
         of fake wallets. DotNS connects to on-chain identity systems to place users into tiers. Each
-        tier unlocks different name lengths and pricing &mdash; verified humans get access to
-        shorter names and lower (or zero) registration fees.
+        tier unlocks a different class of name &mdash; verified humans get access to shorter stems
+        and register without a deposit.
       </p>
       <DocCallout variant="info" title="Why does this matter?">
         Without this protection, a single entity could register every short .dot name and resell
@@ -95,81 +95,69 @@
         </table>
       </div>
       <DocCallout variant="warning" title="Invalid names">
-        Names with more than 2 trailing digits are considered
-        <span class="font-semibold">invalid</span> and cannot be registered through any path. This
-        prevents numeric squatting patterns like <span class="font-mono">alice12345</span>.
+        A name's stem must carry either no trailing digits or exactly two. A single trailing digit
+        or more than two are <span class="font-semibold">invalid</span> and cannot be registered
+        through any path. This prevents numeric squatting patterns like
+        <span class="font-mono">alice12345</span>.
       </DocCallout>
     </div>
 
     <div class="space-y-4">
-      <h2 class="text-xl font-semibold text-dot-text-primary">Pricing (NoStatus Tier)</h2>
+      <h2 class="text-xl font-semibold text-dot-text-primary">Pricing (NoStatus tier)</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Users without PoP verification (NoStatus) pay a length-based registration fee. The shorter
-        the name, the higher the price. Users with PoP verification (PopLite or PopFull) pay
-        <span class="text-dot-text-primary font-medium">zero registration fees</span>.
+        Registering a NoStatus-tier name (a stem of nine characters or more) costs a single flat
+        deposit, the same amount whatever the name's length. The deposit is refundable: it is bound
+        to the name, travels with it on transfer, and unlocks only when the holder releases the name
+        back to escrow. Verified users (PopLite or PopFull) pay
+        <span class="text-dot-text-primary font-medium">nothing</span> to register the names their
+        tier allows.
       </p>
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm border border-dot-border rounded-lg overflow-hidden">
-          <thead>
-            <tr class="bg-dot-surface-secondary">
-              <th class="text-left px-4 py-3 text-dot-text-tertiary font-medium">Name Length</th>
-              <th class="text-left px-4 py-3 text-dot-text-tertiary font-medium">Price (DOT)</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-dot-border">
-            <tr v-for="price in pricingTable" :key="price.length" class="bg-dot-surface">
-              <td class="px-4 py-3 font-mono text-dot-text-primary text-xs">{{ price.length }}</td>
-              <td class="px-4 py-3 font-mono text-dot-accent text-xs">{{ price.price }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <DocCallout variant="info" title="Length does not change the price">
+        A shorter stem is not cheaper or dearer &mdash; it simply requires a higher tier. A stem of
+        five characters or fewer is governance-reserved, six to eight needs proof of personhood, and
+        nine or more is open to anyone for the flat NoStatus deposit.
+      </DocCallout>
       <DocCallout variant="tip" title="Free for verified users">
-        PoP-verified users (PopLite and PopFull) pay <strong>0 DOT</strong> for registration. Get
-        verified to get free name registration for all names your tier allows.
+        PoP-verified users (PopLite and PopFull) pay <strong>nothing</strong> to register. Get
+        verified for free registration of every name your tier allows.
       </DocCallout>
     </div>
 
     <div class="space-y-4">
-      <h2 class="text-xl font-semibold text-dot-text-primary">Fee Formula</h2>
+      <h2 class="text-xl font-semibold text-dot-text-primary">How the deposit is priced</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        The <span class="font-mono text-dot-accent">PopRules</span> contract computes registration
-        prices using a stepped linear formula. The
-        <span class="font-mono text-dot-accent">startingPrice</span> (currently 0.002 DOT) is set at
-        deployment and can be updated by governance.
+        The <span class="font-mono text-dot-accent">PopRules</span> contract prices a name from the
+        caller's tier, not its length. The flat amount is
+        <span class="font-mono text-dot-accent">startingPrice</span>, set at deployment and
+        updatable by governance.
       </p>
       <div
-        class="p-4 rounded-lg border border-dot-border bg-dot-surface font-mono text-xs leading-relaxed text-dot-text-secondary whitespace-pre"
+        class="p-4 rounded-lg border border-dot-border bg-dot-surface font-mono text-xs leading-relaxed text-dot-text-secondary space-y-1"
       >
-        price(n) = 0 if n &lt; 9 (PoP-gated) = startingPrice &times; (15 &minus; n) if 9 &le; n &le;
-        14 = startingPrice &divide; 2 if n &ge; 15 (floor)
-      </div>
-
-      <div class="space-y-2">
-        <p class="text-sm font-medium text-dot-text-primary">Worked example</p>
-        <div
-          class="p-4 rounded-lg border border-dot-border bg-dot-surface font-mono text-xs leading-relaxed text-dot-text-secondary whitespace-pre"
-        >
-          startingPrice = 0.002 DOT name = "domainname" &rarr; length = 10 multiplier = 15 &minus;
-          10 = 5 price = 0.002 &times; 5 = <span class="text-dot-accent font-bold">0.010 DOT</span>
-        </div>
+        <p>price = 0 &mdash; PopLite / PopFull users</p>
+        <p>price = startingPrice (flat) &mdash; NoStatus user on a NoStatus-tier name</p>
       </div>
 
       <DocCallout variant="info" title="Design rationale">
         <ul class="list-disc list-inside space-y-1 text-sm">
-          <li>Shorter names cost more, which discourages name hoarding.</li>
-          <li>The floor price keeps long names affordable but not free.</li>
-          <li>PoP bypasses fees entirely, preventing abuse through identity verification.</li>
+          <li>
+            A flat per-name deposit caps Sybil cost at one deposit per live NoStatus name, however
+            often names change hands.
+          </li>
+          <li>The deposit is refundable on release to escrow, not a burned fee.</li>
+          <li>
+            Proof of personhood waives the deposit entirely, so verified humans register free.
+          </li>
           <li>
             <span class="font-mono text-dot-accent">startingPrice</span> is upgradeable &mdash;
-            governance can adjust the slope without redeploying.
+            governance can adjust it without redeploying.
           </li>
         </ul>
       </DocCallout>
     </div>
 
-    <TryItSection title="Try it — Pricing curve">
-      <TryPricingCurve />
+    <TryItSection title="Try it — Will a transfer pay a fee?">
+      <TryTransferMatrix />
     </TryItSection>
 
     <TryItSection title="Try it — Classify a name">
@@ -254,16 +242,16 @@ import DocCodeBlock from "@/components/docs/DocCodeBlock.vue";
 import TryItSection from "@/components/docs/TryItSection.vue";
 import TryClassifyName from "@/components/docs/interactive/TryClassifyName.vue";
 import TryPopStatus from "@/components/docs/interactive/TryPopStatus.vue";
-import TryPricingCurve from "@/components/docs/interactive/TryPricingCurve.vue";
+import TryTransferMatrix from "@/components/docs/interactive/TryTransferMatrix.vue";
 
 const tiers = [
   {
     name: "NoStatus",
     description:
-      "Default tier for unverified users. Can register longer names with trailing digits, but must pay a length-based fee.",
+      "Default tier for unverified users. Can register names with a stem of nine characters or more, for a single flat refundable deposit.",
     requires: "No verification needed",
-    pricing: "Length-based fee (0.001 - 0.012 DOT)",
-    names: "9+ char base with 2 trailing digits",
+    pricing: "Flat refundable deposit (startingPrice)",
+    names: "9+ char stem, with no trailing digits or exactly two",
     borderClass: "border-dot-border bg-dot-surface",
     dotClass: "bg-dot-text-tertiary",
   },
@@ -342,16 +330,6 @@ const classificationRules = [
     classification: "Invalid",
     badgeClass: "bg-error/10 text-error",
   },
-];
-
-const pricingTable = [
-  { length: "9 characters", price: "0.012 DOT" },
-  { length: "10 characters", price: "0.010 DOT" },
-  { length: "11 characters", price: "0.008 DOT" },
-  { length: "12 characters", price: "0.006 DOT" },
-  { length: "13 characters", price: "0.004 DOT" },
-  { length: "14 characters", price: "0.002 DOT" },
-  { length: ">= 15 characters", price: "0.001 DOT" },
 ];
 
 const classificationCode = `// PopRules classification logic (simplified)

@@ -15,7 +15,7 @@
       <div class="p-4 border border-dot-border rounded-lg bg-dot-surface">
         <p class="text-xs text-dot-text-tertiary mb-1">Paseo AssetHub</p>
         <p class="font-mono text-sm text-dot-accent break-all">
-          0x4Da0d37aBe96C06ab19963F31ca2DC0412057a6f
+          0xa1b2b939E82b2ecE55Bd8a0E283818BfC1CA6CDc
         </p>
       </div>
     </div>
@@ -121,12 +121,17 @@
       <div class="space-y-2">
         <div class="flex items-center gap-2">
           <h3 class="text-base font-semibold text-dot-text-primary font-mono">
-            setOwner(node, newOwner, resolver)
+            setOwner(node, owner)
           </h3>
           <DocBadge variant="transaction">transaction</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Transfers ownership of a node to a new address and optionally updates the resolver.
+          Transfers ownership of a node to a new address. To change the resolver, call
+          <code
+            class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
+            >setResolver</code
+          >
+          separately.
         </p>
         <DocParamTable
           :params="[
@@ -137,15 +142,9 @@
               required: true,
             },
             {
-              name: 'newOwner',
+              name: 'owner',
               type: 'address',
               description: 'The new owner address',
-              required: true,
-            },
-            {
-              name: 'resolver',
-              type: 'address',
-              description: 'The resolver address to set',
               required: true,
             },
           ]"
@@ -287,7 +286,7 @@ const client = createPublicClient({
   transport: http(),
 });
 
-const REGISTRY = "0x4Da0d37aBe96C06ab19963F31ca2DC0412057a6f";
+const REGISTRY = "0xa1b2b939E82b2ecE55Bd8a0E283818BfC1CA6CDc";
 const node = namehash("alice.dot");
 
 // Check if a node exists and get its owner

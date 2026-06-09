@@ -243,48 +243,21 @@
             variant="secondary"
             :loading="storeWriteLoading"
             :disabled="storeWriteLoading"
-            @click="handleDeployStore"
+            @click="handleClaimStore"
           >
-            Deploy Store
-          </Button>
-          <Button
-            v-else-if="pendingAuthCount > 0"
-            variant="secondary"
-            :loading="storeWriteLoading"
-            :disabled="storeWriteLoading"
-            @click="showAuthModal = true"
-          >
-            Authorize ({{ pendingAuthCount }})
-          </Button>
-          <Button
-            v-else-if="!nameInStore"
-            variant="secondary"
-            :loading="storeWriteLoading"
-            :disabled="storeWriteLoading"
-            @click="handleWriteToStore"
-          >
-            Add to Store
+            Claim User Store
           </Button>
           <span
             v-else
             class="inline-flex items-center gap-1.5 text-xs text-success font-medium px-3 py-2"
           >
             <span class="w-1.5 h-1.5 rounded-full bg-success" />
-            Stored
+            User Store ready
           </span>
         </div>
         <p v-if="!hasStore" class="text-xs text-dot-text-tertiary max-w-sm text-center">
-          Deploy a personal Store to index your domain. This is a one-time setup.
-        </p>
-        <p
-          v-else-if="pendingAuthCount > 0"
-          class="text-xs text-dot-text-tertiary max-w-sm text-center"
-        >
-          {{ pendingAuthCount }} contract{{ pendingAuthCount > 1 ? "s" : "" }} need authorization on
-          your Store.
-        </p>
-        <p v-else-if="!nameInStore" class="text-xs text-dot-text-tertiary max-w-sm text-center">
-          Write this name to your Store so it can be indexed and discovered by others.
+          Claim your User Store to publish custom records such as content CIDs. This is a one-time
+          setup, separate from the Label Store that lists your .dot names.
         </p>
         <p v-if="storeError" class="text-xs text-error max-w-sm text-center">
           {{ storeError }}
@@ -480,17 +453,6 @@
       :transaction="transaction"
       @close="showTxStatus = false"
     />
-
-    <AuthorizeStoreModal
-      v-if="showAuthModal"
-      :open="showAuthModal"
-      :contracts="authStatuses"
-      :loading="storeWriteLoading"
-      :progress="storeProgress"
-      :error="storeError"
-      @close="showAuthModal = false"
-      @submit="handleAuthChanges"
-    />
   </main>
 </template>
 
@@ -502,8 +464,7 @@ import { zeroAddress, zeroHash, getAddress, type Address } from "viem";
 import makeBlockie from "ethereum-blockies-base64";
 import EditRecordsModal from "../components/EditRecordsModal.vue";
 import TransactionStatus from "../components/TransactionStatus.vue";
-import AuthorizeStoreModal from "../components/modals/AuthorizeStoreModal.vue";
-import type { ProfileRecord, TransactionResult, MyDomain, ContractAuthStatus } from "@/type";
+import type { ProfileRecord, TransactionResult, MyDomain } from "@/type";
 import { useNetworkStore } from "@/store/useNetworkStore";
 import { useUserStoreManager } from "@/store/useUserStoreManager";
 import { useResolverStore } from "@/store/useResolverStore";
@@ -546,14 +507,8 @@ const showTxStatus = ref(false);
 const transaction = ref<TransactionResult>({ hash: zeroHash, status: false });
 
 const hasStore = ref(false);
-const nameInStore = ref(false);
 const storeWriteLoading = ref(false);
 const storeError = ref("");
-const storeProgress = ref("");
-const showAuthModal = ref(false);
-const authStatuses = ref<ContractAuthStatus[]>([]);
-
-const pendingAuthCount = computed(() => authStatuses.value.filter((c) => !c.authorized).length);
 
 const explorer = computed(() => networkStore.currentNetwork?.blockExplorerUrls?.[0] || "");
 
@@ -675,27 +630,13 @@ onBeforeMount(async () => {
   }
 });
 
-function domainLabel(): string {
-  const raw = (name.value || "").trim().toLowerCase();
-  return raw.endsWith(".dot") ? raw.slice(0, -4) : raw;
-}
-
 async function checkStoreState(): Promise<void> {
   try {
     if (!isOwner.value || !wallet.isConnected) return;
-
     const storeAddress = await userStore.getUserStore(wallet.evmAddress as Address);
     hasStore.value = storeAddress !== zeroAddress;
-    if (!hasStore.value) return;
-
-    authStatuses.value = await userStore.getAuthorizationStatus(storeAddress);
-
-    const label = domainLabel();
-    if (!label) return;
-    nameInStore.value = await userStore.isNameInStore(label);
   } catch {
     hasStore.value = false;
-    nameInStore.value = false;
   }
 }
 
@@ -711,9 +652,9 @@ function handleStoreError(action: string, e: unknown): void {
   }
 }
 
-async function handleDeployStore(): Promise<void> {
+async function handleClaimStore(): Promise<void> {
   if (!isOwner.value || !wallet.isConnected) {
-    storeError.value = "Connect your wallet to deploy a Store.";
+    storeError.value = "Connect your wallet to claim a Store.";
     return;
   }
 
@@ -723,74 +664,12 @@ async function handleDeployStore(): Promise<void> {
     showTxStatus.value = true;
     transaction.value = { hash: zeroHash, status: undefined };
 
-    const hash = await userStore.deployStore();
+    const hash = await userStore.claimUserStore();
     transaction.value = { hash, status: true };
     hasStore.value = true;
     await checkStoreState();
   } catch (e) {
-    handleStoreError("Store deployment failed", e);
-    transaction.value = { hash: zeroHash, status: false };
-  } finally {
-    storeWriteLoading.value = false;
-  }
-}
-
-async function handleAuthChanges(
-  changes: { address: Address; authorize: boolean }[],
-): Promise<void> {
-  if (!isOwner.value || !wallet.isConnected) return;
-
-  const storeAddress = await userStore.getUserStore(wallet.evmAddress as Address);
-  if (storeAddress === zeroAddress) return;
-  if (changes.length === 0) return;
-
-  storeWriteLoading.value = true;
-  storeError.value = "";
-  storeProgress.value =
-    changes.length === 1
-      ? `${changes[0]!.authorize ? "Authorizing" : "Revoking"} contract…`
-      : `Batching ${changes.length} authorization changes…`;
-  try {
-    const hash = await userStore.batchAuthChanges(storeAddress, changes);
-
-    for (const change of changes) {
-      const contract = authStatuses.value.find((c) => c.address === change.address);
-      if (contract) {
-        contract.authorized = change.authorize;
-      }
-    }
-
-    showAuthModal.value = false;
-    showTxStatus.value = true;
-    transaction.value = { hash, status: true };
-  } catch (e) {
-    handleStoreError("Authorization change failed", e);
-  } finally {
-    storeWriteLoading.value = false;
-    storeProgress.value = "";
-  }
-}
-
-async function handleWriteToStore(): Promise<void> {
-  if (!isOwner.value || !wallet.isConnected) {
-    storeError.value = "Connect your wallet to write to your Store.";
-    return;
-  }
-
-  const label = domainLabel();
-  if (!label) return;
-
-  storeWriteLoading.value = true;
-  storeError.value = "";
-  try {
-    showTxStatus.value = true;
-    transaction.value = { hash: zeroHash, status: undefined };
-
-    const hash = await userStore.writeNameToStore(label);
-    transaction.value = { hash, status: true };
-    nameInStore.value = true;
-  } catch (e) {
-    handleStoreError("Failed to write name", e);
+    handleStoreError("Store claim failed", e);
     transaction.value = { hash: zeroHash, status: false };
   } finally {
     storeWriteLoading.value = false;

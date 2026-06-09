@@ -692,7 +692,7 @@ function handleTransactionClose(): void {
           </span>
           <span class="text-dot-text-secondary">
             Save CID to on-chain Store
-            <span v-if="!hasStore" class="text-dot-text-tertiary">(will deploy a Store)</span>
+            <span v-if="!hasStore" class="text-dot-text-tertiary">(will claim a Store)</span>
           </span>
         </button>
       </div>

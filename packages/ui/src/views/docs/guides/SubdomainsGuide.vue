@@ -135,8 +135,15 @@ const subnodeHashCode = `// The node for blog.alice.dot:
 bytes32 aliceNode = keccak256(abi.encodePacked(DOT_NODE, keccak256("alice")));
 bytes32 blogNode  = keccak256(abi.encodePacked(aliceNode, keccak256("blog")));
 
-// In the Registry:
-registry.setSubnodeOwner(aliceNode, keccak256("blog"), newOwner);`;
+// In the Registry — pass the labels as plain strings inside a struct:
+registry.setSubnodeOwner(
+    IDotnsRegistry.SubnodeRecord({
+        parentNode: aliceNode,
+        subLabel: "blog",
+        parentLabel: "alice",
+        owner: newOwner
+    })
+);`;
 
 const cliCode = `# Create a subdomain owned by yourself
 dotns register subname --name blog --parent alice
@@ -144,16 +151,23 @@ dotns register subname --name blog --parent alice
 # Create a subdomain owned by someone else
 dotns register subname --name team --parent mydao --owner 0x1234...`;
 
-const programmaticCode = `import { encodeFunctionData, namehash, keccak256, toBytes } from "viem";
+const programmaticCode = `import { encodeFunctionData, namehash } from "viem";
 
 const parentNode = namehash("alice.dot");
-const label = keccak256(toBytes("blog"));
 const newOwner = "0x1234...";
 
 const data = encodeFunctionData({
   abi: registryAbi,
   functionName: "setSubnodeOwner",
-  args: [parentNode, label, newOwner],
+  // Single struct argument with the labels as plain strings
+  args: [
+    {
+      parentNode,
+      subLabel: "blog",
+      parentLabel: "alice",
+      owner: newOwner,
+    },
+  ],
 });
 
 await walletClient.sendTransaction({

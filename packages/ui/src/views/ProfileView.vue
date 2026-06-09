@@ -284,6 +284,14 @@
                       <Button size="sm" variant="secondary" @click="openResolve(domain.name)">
                         Resolve
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        :disabled="!domain.isOwner || getType(domain.name) !== 'TLD'"
+                        @click="openDelegateModal(domain.name)"
+                      >
+                        Delegate
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -514,6 +522,13 @@
       @transferred="handleDomainTransferred"
     />
 
+    <DelegateDomainModal
+      :open="showDelegateModal"
+      :domain="delegateDomain"
+      @close="showDelegateModal = false"
+      @delegated="handleDelegated"
+    />
+
     <TransactionStatus
       :open="showTransaction"
       :handle="selectedHandle"
@@ -546,6 +561,7 @@ import { ref, computed, onBeforeMount, watch } from "vue";
 import { useWalletStore } from "@/store/useWalletStore";
 import AddSubdomainModal from "../components/modals/AddSubdomainModal.vue";
 import TransferDomainModal from "../components/modals/TransferDomainModal.vue";
+import DelegateDomainModal from "../components/modals/DelegateDomainModal.vue";
 import AuthorizeStoreModal from "../components/modals/AuthorizeStoreModal.vue";
 import ResolveIPFSModal from "../components/modals/ResolveIPFSModal.vue";
 import TransactionStatus from "../components/TransactionStatus.vue";
@@ -669,6 +685,19 @@ const {
 
 function openRecordEditor(name: string) {
   router.push(`/whois/${name}`);
+}
+
+const showDelegateModal = ref(false);
+const delegateDomain = ref("");
+
+function openDelegateModal(name: string) {
+  delegateDomain.value = name;
+  showDelegateModal.value = true;
+}
+
+function handleDelegated() {
+  showDelegateModal.value = false;
+  loadDomains();
 }
 
 function parseDotName(name: string): { parts: string[]; tldLabel: string } {

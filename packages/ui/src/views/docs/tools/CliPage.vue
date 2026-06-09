@@ -590,8 +590,12 @@ const commandReference: CmdGroup[] = [
   {
     name: "store",
     description:
-      "Manage your on-chain Store: read and write key-value pairs, control write access, and authorise DotNS system contracts.",
+      "Manage your on-chain stores: claim your User Store, read and write key-value pairs, and sync your Label Store names.",
     subcommands: [
+      {
+        usage: "store claim",
+        description: "Claim your User Store. Required once before setting values.",
+      },
       {
         usage: "store info",
         description: "Show your Store contract address and deployment status.",
@@ -614,31 +618,9 @@ const commandReference: CmdGroup[] = [
         description: "Delete a value from your Store by key.",
       },
       {
-        usage: "store check <address>",
+        usage: "store sync",
         description:
-          "Check whether an EVM address is authorised as a writer or DotNS controller on your Store.",
-      },
-      {
-        usage: "store authorize <address>",
-        description: "Authorise an EVM address to write to your Store (grants setValueFor access).",
-      },
-      {
-        usage: "store unauthorize <address>",
-        description: "Revoke write access from an address on your Store.",
-      },
-      {
-        usage: "store authorize-controller <address>",
-        description:
-          "Authorise an address as a DotNS controller. Controllers lock keys permanently on write.",
-      },
-      {
-        usage: "store unauthorize-controller <address>",
-        description: "Revoke DotNS controller authorisation from an address.",
-      },
-      {
-        usage: "store ensure-auth",
-        description:
-          "Grant the DotNS system contracts writer and controller access on your Store. Idempotent — safe to run multiple times.",
+          "Sync your Label Store with the protocol, settling any pending names (deploys the store on first call).",
       },
       {
         usage: "store names",
@@ -739,8 +721,11 @@ dotns store names
 # Store: list all uploaded CIDs
 dotns store cids
 
-# Store: authorise DotNS system contracts
-dotns store ensure-auth
+# Store: claim your User Store (required once before writing values)
+dotns store claim
+
+# Store: sync your Label Store and settle pending names
+dotns store sync
 
 # JSON output (pipe to jq)
 dotns lookup name alice --json | jq .`;

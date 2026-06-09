@@ -4,8 +4,9 @@
       <p class="text-sm font-medium text-dot-accent mb-2">Contracts</p>
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">Store &amp; StoreFactory</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
-        API reference for the StoreFactory and Store contracts. For the design rationale, ownership
-        model, key format, locking semantics, and transfer behaviour, see
+        API reference for the StoreFactory and the two per-account store contracts it manages: the
+        UserStore (your custom key/value data) and the LabelStore (the .dot names you hold). For the
+        design rationale, ownership model, key format, and locking semantics, see
         <RouterLink to="/docs/protocol/store" class="text-dot-accent hover:text-dot-accent-hover"
           >On-Chain Storage</RouterLink
         >.
@@ -17,7 +18,7 @@
       <div class="p-4 border border-dot-border rounded-lg bg-dot-surface">
         <p class="text-xs text-dot-text-tertiary mb-1">StoreFactory &mdash; Paseo AssetHub</p>
         <p class="font-mono text-sm text-dot-accent break-all">
-          0x030296782F4d3046B080BcB017f01837561D9702
+          0x692047C1477a017F287488E1c85F96Ca28C23fD8
         </p>
       </div>
     </div>
@@ -27,19 +28,19 @@
 
       <div class="space-y-2">
         <div class="flex items-center gap-2">
-          <h3 class="text-base font-semibold text-dot-text-primary font-mono">deploy()</h3>
+          <h3 class="text-base font-semibold text-dot-text-primary font-mono">claimUserStore()</h3>
           <DocBadge variant="transaction">transaction</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Deploys a new Store contract for the caller. Each address can only deploy one Store.
-          Reverts if the caller already has a Store.
+          Claims a Store contract for the caller. Each address can only claim one Store. Reverts if
+          the caller already has a Store.
         </p>
         <DocReturnsTable
           :returns="[
             {
               name: 'store',
               type: 'address',
-              description: 'The address of the newly deployed Store contract',
+              description: 'The address of the claimed Store contract',
             },
           ]"
         />
@@ -48,22 +49,22 @@
       <div class="space-y-2">
         <div class="flex items-center gap-2">
           <h3 class="text-base font-semibold text-dot-text-primary font-mono">
-            getDeployedStore(who)
+            getUserStore(user)
           </h3>
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Returns the Store contract address deployed for a given user. Returns
+          Returns the UserStore address claimed by a given user. Returns
           <code
             class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
             >address(0)</code
           >
-          if no Store has been deployed.
+          if no UserStore has been claimed.
         </p>
         <DocParamTable
           :params="[
             {
-              name: 'who',
+              name: 'user',
               type: 'address',
               description: 'The user address to look up',
               required: true,
@@ -75,44 +76,7 @@
             {
               name: 'store',
               type: 'address',
-              description: 'Store contract address, or zero address if none deployed',
-            },
-          ]"
-        />
-      </div>
-    </div>
-
-    <div class="space-y-6">
-      <h2 class="text-xl font-semibold text-dot-text-primary">Store Functions</h2>
-      <p class="text-sm text-dot-text-secondary">
-        Each Store is an independent contract deployed per user. It provides key-value storage with
-        authorisation controls.
-      </p>
-
-      <div class="space-y-2">
-        <div class="flex items-center gap-2">
-          <h3 class="text-base font-semibold text-dot-text-primary font-mono">getValue(key)</h3>
-          <DocBadge variant="read-only">read-only</DocBadge>
-        </div>
-        <p class="text-sm text-dot-text-secondary">
-          Returns the value stored at the given key for the Store owner.
-        </p>
-        <DocParamTable
-          :params="[
-            {
-              name: 'key',
-              type: 'bytes32',
-              description: 'The storage key to look up',
-              required: true,
-            },
-          ]"
-        />
-        <DocReturnsTable
-          :returns="[
-            {
-              name: 'value',
-              type: 'bytes',
-              description: 'The stored value, or empty bytes if unset',
+              description: 'UserStore address, or the zero address if none claimed',
             },
           ]"
         />
@@ -121,40 +85,93 @@
       <div class="space-y-2">
         <div class="flex items-center gap-2">
           <h3 class="text-base font-semibold text-dot-text-primary font-mono">
-            getValueFor(user, key)
+            getLabelStore(user)
           </h3>
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Returns the value stored at the given key for a specific user's namespace within the
-          Store.
+          Returns the LabelStore address for a user, or the zero address if none has been deployed.
+          LabelStores are deployed by the protocol during registration, not claimed by users.
         </p>
         <DocParamTable
           :params="[
             {
               name: 'user',
               type: 'address',
-              description: 'The user whose namespace to read from',
-              required: true,
-            },
-            {
-              name: 'key',
-              type: 'bytes32',
-              description: 'The storage key to look up',
+              description: 'The user address to look up',
               required: true,
             },
           ]"
         />
         <DocReturnsTable
           :returns="[
-            {
-              name: 'value',
-              type: 'bytes',
-              description: 'The stored value, or empty bytes if unset',
-            },
+            { name: 'store', type: 'address', description: 'LabelStore address, or zero' },
           ]"
         />
       </div>
+
+      <div class="space-y-2">
+        <div class="flex items-center gap-2">
+          <h3 class="text-base font-semibold text-dot-text-primary font-mono">
+            deployLabelStoreFor(user)
+          </h3>
+          <DocBadge variant="transaction">transaction</DocBadge>
+        </div>
+        <p class="text-sm text-dot-text-secondary">
+          Deploys a LabelStore for a user. Called by the protocol during the first registration; not
+          a user-facing action.
+        </p>
+        <DocParamTable
+          :params="[
+            {
+              name: 'user',
+              type: 'address',
+              description: 'The user to deploy a LabelStore for',
+              required: true,
+            },
+          ]"
+        />
+        <DocReturnsTable
+          :returns="[
+            { name: 'store', type: 'address', description: 'The deployed LabelStore address' },
+          ]"
+        />
+      </div>
+
+      <div class="space-y-2">
+        <div class="flex items-center gap-2">
+          <h3 class="text-base font-semibold text-dot-text-primary font-mono">Enumeration</h3>
+          <DocBadge variant="read-only">read-only</DocBadge>
+        </div>
+        <p class="text-sm text-dot-text-secondary">
+          <code class="text-xs font-mono text-dot-accent">getUserStoreCount()</code> and
+          <code class="text-xs font-mono text-dot-accent">getLabelStoreCount()</code> return the
+          number of stores deployed, and
+          <code class="text-xs font-mono text-dot-accent">getUserStores(offset, limit)</code> /
+          <code class="text-xs font-mono text-dot-accent">getLabelStores(offset, limit)</code>
+          return paginated address lists.
+        </p>
+      </div>
+
+      <DocCallout variant="info" title="Beacons and upgrades">
+        <code class="text-xs font-mono text-dot-accent">userStoreBeacon()</code>,
+        <code class="text-xs font-mono text-dot-accent">labelStoreBeacon()</code> and
+        <code class="text-xs font-mono text-dot-accent">protocolRegistry()</code> expose the proxy
+        beacons and the protocol registry. Both store types are beacon proxies, so the
+        governance-only
+        <code class="text-xs font-mono text-dot-accent">upgradeUserStoreImplementation</code> /
+        <code class="text-xs font-mono text-dot-accent">upgradeLabelStoreImplementation</code>
+        upgrade every store of that type at once.
+      </DocCallout>
+    </div>
+
+    <div class="space-y-6">
+      <h2 class="text-xl font-semibold text-dot-text-primary">UserStore Functions</h2>
+      <p class="text-sm text-dot-text-secondary">
+        A UserStore is your personal key/value store for custom data such as content CIDs. Keys are
+        <code class="text-xs font-mono text-dot-accent">bytes32</code> and values are arbitrary
+        bytes; each key keeps an append-only history. Writes are restricted to the store owner.
+      </p>
 
       <div class="space-y-2">
         <div class="flex items-center gap-2">
@@ -164,8 +181,7 @@
           <DocBadge variant="transaction">transaction</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Sets a key-value pair in the Store. Only callable by the Store owner or an authorised
-          address.
+          Sets the value at a key. Owner only. Writing empty bytes clears the key.
         </p>
         <DocParamTable
           :params="[
@@ -173,108 +189,111 @@
             { name: 'value', type: 'bytes', description: 'The value to store', required: true },
           ]"
         />
-        <DocCallout variant="warning" title="Reverts when">
-          The key is locked by the Controller (immutable registration data).
-        </DocCallout>
       </div>
 
       <div class="space-y-2">
         <div class="flex items-center gap-2">
-          <h3 class="text-base font-semibold text-dot-text-primary font-mono">
-            setValueFor(user, key, value)
-          </h3>
-          <DocBadge variant="transaction">transaction</DocBadge>
-        </div>
-        <p class="text-sm text-dot-text-secondary">
-          Sets a key-value pair on behalf of another user. Requires authorisation from the Store
-          owner.
-        </p>
-        <DocParamTable
-          :params="[
-            {
-              name: 'user',
-              type: 'address',
-              description: 'The user whose namespace to write to',
-              required: true,
-            },
-            { name: 'key', type: 'bytes32', description: 'The storage key', required: true },
-            { name: 'value', type: 'bytes', description: 'The value to store', required: true },
-          ]"
-        />
-        <DocCallout variant="warning" title="Reverts when">
-          Caller is not an authorised Store writer.
-        </DocCallout>
-      </div>
-
-      <div class="space-y-2">
-        <div class="flex items-center gap-2">
-          <h3 class="text-base font-semibold text-dot-text-primary font-mono">deleteValue(key)</h3>
-          <DocBadge variant="transaction">transaction</DocBadge>
-        </div>
-        <p class="text-sm text-dot-text-secondary">
-          Deletes the value at the given key. Only callable by the Store owner or an authorised
-          address.
-        </p>
-        <DocParamTable
-          :params="[
-            {
-              name: 'key',
-              type: 'bytes32',
-              description: 'The storage key to delete',
-              required: true,
-            },
-          ]"
-        />
-        <DocCallout variant="warning" title="Reverts when">
-          The key is locked (immutable registration data cannot be deleted).
-        </DocCallout>
-      </div>
-
-      <div class="space-y-2">
-        <div class="flex items-center gap-2">
-          <h3 class="text-base font-semibold text-dot-text-primary font-mono">
-            isLocked(user, key)
-          </h3>
+          <h3 class="text-base font-semibold text-dot-text-primary font-mono">getValue(key)</h3>
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Returns whether a specific key is locked (immutable) for the given user. Locked keys
-          cannot be modified or deleted.
+          Returns the value stored at a key, or empty bytes if unset.
         </p>
         <DocParamTable
           :params="[
-            { name: 'user', type: 'address', description: 'The user address', required: true },
             {
               name: 'key',
               type: 'bytes32',
-              description: 'The storage key to check',
+              description: 'The storage key to look up',
               required: true,
             },
           ]"
         />
         <DocReturnsTable
-          :returns="[{ name: 'locked', type: 'bool', description: 'True if the key is immutable' }]"
+          :returns="[
+            { name: 'value', type: 'bytes', description: 'The stored value, or empty bytes' },
+          ]"
         />
       </div>
 
       <div class="space-y-2">
         <div class="flex items-center gap-2">
-          <h3 class="text-base font-semibold text-dot-text-primary font-mono">
-            authoriseStore(addr)
-          </h3>
-          <DocBadge variant="transaction">transaction</DocBadge>
+          <h3 class="text-base font-semibold text-dot-text-primary font-mono">hasValue(key)</h3>
+          <DocBadge variant="read-only">read-only</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Grants write permission to an address, allowing it to set values in this Store.
+          Returns whether a key currently holds a value.
         </p>
         <DocParamTable
           :params="[
+            { name: 'key', type: 'bytes32', description: 'The storage key', required: true },
+          ]"
+        />
+        <DocReturnsTable
+          :returns="[{ name: 'present', type: 'bool', description: 'True if the key is set' }]"
+        />
+      </div>
+
+      <div class="space-y-2">
+        <div class="flex items-center gap-2">
+          <h3 class="text-base font-semibold text-dot-text-primary font-mono">Key enumeration</h3>
+          <DocBadge variant="read-only">read-only</DocBadge>
+        </div>
+        <p class="text-sm text-dot-text-secondary">
+          <code class="text-xs font-mono text-dot-accent">getKeyCount()</code> returns the number of
+          keys, <code class="text-xs font-mono text-dot-accent">getKeyAt(index)</code> returns a
+          single key, and
+          <code class="text-xs font-mono text-dot-accent">getKeys(offset, limit)</code> returns a
+          paginated <code class="text-xs font-mono text-dot-accent">bytes32[]</code> of keys.
+        </p>
+      </div>
+
+      <div class="space-y-2">
+        <div class="flex items-center gap-2">
+          <h3 class="text-base font-semibold text-dot-text-primary font-mono">History</h3>
+          <DocBadge variant="read-only">read-only</DocBadge>
+        </div>
+        <p class="text-sm text-dot-text-secondary">
+          Every key retains its prior values.
+          <code class="text-xs font-mono text-dot-accent">getHistoryCount(key)</code>,
+          <code class="text-xs font-mono text-dot-accent">getHistoryAt(key, index)</code> and
+          <code class="text-xs font-mono text-dot-accent">getHistory(key, offset, limit)</code>
+          read the append-only entries for a key.
+          <code class="text-xs font-mono text-dot-accent">owner()</code> returns the store owner.
+        </p>
+      </div>
+    </div>
+
+    <div class="space-y-6">
+      <h2 class="text-xl font-semibold text-dot-text-primary">LabelStore Functions</h2>
+      <p class="text-sm text-dot-text-secondary">
+        A LabelStore is the read-oriented index of the .dot names an account holds. The protocol
+        writes to it during registration through
+        <code class="text-xs font-mono text-dot-accent">storeLabel</code> (registry-gated, not
+        user-callable); you do not write custom data here. Entries are keyed by labelhash.
+      </p>
+
+      <div class="space-y-2">
+        <div class="flex items-center gap-2">
+          <h3 class="text-base font-semibold text-dot-text-primary font-mono">
+            getLabel(labelhash)
+          </h3>
+          <DocBadge variant="read-only">read-only</DocBadge>
+        </div>
+        <p class="text-sm text-dot-text-secondary">Returns the stored label for a labelhash.</p>
+        <DocParamTable
+          :params="[
             {
-              name: 'addr',
-              type: 'address',
-              description: 'The address to authorise',
+              name: 'labelhash',
+              type: 'bytes32',
+              description: 'keccak256 of the label',
               required: true,
             },
+          ]"
+        />
+        <DocReturnsTable
+          :returns="[
+            { name: 'label', type: 'string', description: 'The label, or empty if unset' },
           ]"
         />
       </div>
@@ -282,24 +301,34 @@
       <div class="space-y-2">
         <div class="flex items-center gap-2">
           <h3 class="text-base font-semibold text-dot-text-primary font-mono">
-            authoriseDotnsController(addr)
+            hasLabel / isLocked
           </h3>
-          <DocBadge variant="transaction">transaction</DocBadge>
+          <DocBadge variant="read-only">read-only</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Grants the DotNS Controller contract write permission. This is required during
-          registration so the Controller can write registration records to the user's Store.
+          <code class="text-xs font-mono text-dot-accent">hasLabel(labelhash)</code> returns whether
+          a label is stored;
+          <code class="text-xs font-mono text-dot-accent">isLocked(labelhash)</code> returns whether
+          it is locked. Both take a single
+          <code class="text-xs font-mono text-dot-accent">bytes32</code> labelhash.
         </p>
-        <DocParamTable
-          :params="[
-            {
-              name: 'addr',
-              type: 'address',
-              description: 'The Controller contract address to authorise',
-              required: true,
-            },
-          ]"
-        />
+      </div>
+
+      <div class="space-y-2">
+        <div class="flex items-center gap-2">
+          <h3 class="text-base font-semibold text-dot-text-primary font-mono">Label enumeration</h3>
+          <DocBadge variant="read-only">read-only</DocBadge>
+        </div>
+        <p class="text-sm text-dot-text-secondary">
+          <code class="text-xs font-mono text-dot-accent">getLabelCount()</code> returns the number
+          of names; <code class="text-xs font-mono text-dot-accent">getLabelAt(index)</code> /
+          <code class="text-xs font-mono text-dot-accent">getLabelhashAt(index)</code> return a
+          single entry; and
+          <code class="text-xs font-mono text-dot-accent">getLabels(offset, limit)</code> /
+          <code class="text-xs font-mono text-dot-accent">getLabelhashes(offset, limit)</code>
+          return paginated lists over the same indices.
+          <code class="text-xs font-mono text-dot-accent">owner()</code> returns the store owner.
+        </p>
       </div>
     </div>
 
@@ -308,11 +337,11 @@
       <DocCodeBlock :code="exampleCode" lang="typescript" filename="store.ts" />
     </div>
 
-    <DocCallout variant="info" title="One Store per user">
-      Each address can only deploy a single Store contract via the StoreFactory. The Controller
-      automatically creates a Store for users during their first registration if one does not
-      already exist. Store records written by the Controller during registration are locked and
-      cannot be modified.
+    <DocCallout variant="info" title="Two stores per account">
+      Each account has at most one UserStore and one LabelStore. The UserStore is claimed by the
+      owner via <code class="text-xs font-mono text-dot-accent">claimUserStore</code> and holds
+      custom records; the LabelStore is deployed by the protocol on first registration and lists the
+      account's names. Names written to the LabelStore during registration are locked.
     </DocCallout>
 
     <div class="border-t border-dot-border pt-6 flex justify-between text-sm">
@@ -342,14 +371,14 @@ const exampleCode = `import { createPublicClient, createWalletClient, custom, de
 const storeFactoryAbi = [
   {
     type: "function",
-    name: "getDeployedStore",
-    inputs: [{ name: "who", type: "address" }],
+    name: "getUserStore",
+    inputs: [{ name: "owner", type: "address" }],
     outputs: [{ name: "", type: "address" }],
     stateMutability: "view",
   },
   {
     type: "function",
-    name: "deploy",
+    name: "claimUserStore",
     inputs: [],
     outputs: [{ name: "", type: "address" }],
     stateMutability: "nonpayable",
@@ -357,13 +386,6 @@ const storeFactoryAbi = [
 ] as const;
 
 const storeAbi = [
-  {
-    type: "function",
-    name: "authoriseDotnsController",
-    inputs: [{ name: "addr", type: "address" }],
-    outputs: [],
-    stateMutability: "nonpayable",
-  },
   {
     type: "function",
     name: "setValue",
@@ -402,13 +424,13 @@ const walletClient = createWalletClient({
   transport: custom(window.ethereum),
 });
 
-const STORE_FACTORY = "0x030296782F4d3046B080BcB017f01837561D9702";
+const STORE_FACTORY = "0x692047C1477a017F287488E1c85F96Ca28C23fD8";
 
-// Get or deploy a Store
+// Get or claim a Store
 let storeAddress = await client.readContract({
   address: STORE_FACTORY,
   abi: storeFactoryAbi,
-  functionName: "getDeployedStore",
+  functionName: "getUserStore",
   args: [walletClient.account.address],
 });
 
@@ -416,24 +438,15 @@ if (storeAddress === zeroAddress) {
   await walletClient.writeContract({
     address: STORE_FACTORY,
     abi: storeFactoryAbi,
-    functionName: "deploy",
+    functionName: "claimUserStore",
   });
   storeAddress = await client.readContract({
     address: STORE_FACTORY,
     abi: storeFactoryAbi,
-    functionName: "getDeployedStore",
+    functionName: "getUserStore",
     args: [walletClient.account.address],
   });
 }
-
-// Authorise the Controller to write registration records
-const CONTROLLER = "0xd09e0F1c1E6CE8Cf40df929ef4FC778629573651";
-await walletClient.writeContract({
-  address: storeAddress,
-  abi: storeAbi,
-  functionName: "authoriseDotnsController",
-  args: [CONTROLLER],
-});
 
 // Write a custom value
 const key = keccak256(toBytes("my-custom-key"));

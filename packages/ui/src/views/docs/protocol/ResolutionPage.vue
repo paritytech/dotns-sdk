@@ -167,7 +167,7 @@ const client = createPublicClient({
   transport: http(),
 });
 
-const RESOLVER = "0x95645C7fD0fF38790647FE13F87Eb11c1DCc8514";
+const RESOLVER = "0xA8988eA083174ea94Ed1D686f0F073a10f65598D";
 
 // Resolve "alice.dot"
 const node = namehash("alice.dot");

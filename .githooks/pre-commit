@@ -1,6 +1,17 @@
 #!/usr/bin/env sh
 set -eu
 
+# GUI git clients (GitHub Desktop, IDE integrations) launch without the user's
+# shell profile, so PATH often misses bun's install directory. Prepend the
+# common locations before resolving it.
+export PATH="$HOME/.bun/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+if ! command -v bun >/dev/null 2>&1; then
+  echo "pre-commit: bun was not found on PATH."
+  echo "Install bun (https://bun.sh) or add its bin directory to your PATH, then commit again."
+  exit 1
+fi
+
 echo "Running formatters and linters before commit..."
 bun run precommit
 

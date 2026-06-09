@@ -164,9 +164,6 @@ await walletClient.sendTransaction({
   data,
 });`;
 
-const reverseRecordCode = `# Set reverse record during registration
-dotns register domain --name alice --reverse
-
-# Or set it separately afterwards
-dotns lookup set-reverse alice`;
+const reverseRecordCode = `# Set the reverse record at registration time with --reverse
+dotns register domain --name alice --reverse`;
 </script>

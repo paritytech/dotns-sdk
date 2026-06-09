@@ -39,7 +39,7 @@
             <p class="text-sm font-medium text-dot-text-secondary">No primary name set</p>
             <p class="text-xs text-dot-text-tertiary">
               This address has no reverse record. The owner needs to call
-              <span class="font-mono text-dot-accent">setPrimaryName</span> to set one.
+              <span class="font-mono text-dot-accent">setReverseName</span> to set one.
             </p>
           </div>
           <div v-else-if="status === 'success'" class="space-y-1">
@@ -102,7 +102,7 @@ const client = createPublicClient({
 const evmAddress = '${addr}'
 
 const name = await client.readContract({
-  address: '0x95D57363B491CF743970c640fe419541386ac8BF',
+  address: '0x259B9D8199c29d2EF132264ad05f8F74F3115A2E',
   abi: [{
     type: 'function',
     name: 'nameOf',

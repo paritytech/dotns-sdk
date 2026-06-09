@@ -25,7 +25,7 @@
         RegistrarController writes a registration record via
         <code
           class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-          >setValueFor</code
+          >setValue</code
         >, the key is locked forever. Not the user, not the Store owner, not governance &mdash;
         nobody can overwrite or delete it. Registration records are immutable.
       </p>
@@ -42,7 +42,7 @@
         deploys exactly one Store per address using the CREATE opcode. On first registration, the
         <code
           class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-          >StoreUtils.getOrCreateStore()</code
+          >StoreFactory.claimUserStore()</code
         >
         library function deploys a Store, authorises the protocol contracts as DotNS controllers,
         transfers Ownable ownership to the user, and remaps the factory's internal lookup.
@@ -132,7 +132,7 @@
             Calls
             <code
               class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-              >setValueFor(user, key, value)</code
+              >setValue(key, value)</code
             >. If the caller is marked as a DotNS controller, the key is
             <span class="text-dot-text-primary font-medium">locked permanently</span> after the
             write. Used during registration to create immutable records.
@@ -231,23 +231,20 @@ import DocCodeBlock from "@/components/docs/DocCodeBlock.vue";
 import TryItSection from "@/components/docs/TryItSection.vue";
 import TryStoreLookup from "@/components/docs/interactive/TryStoreLookup.vue";
 
-const storeFactoryCode = `// Each address can deploy exactly one Store
-function deploy() external returns (IStore);
+const storeFactoryCode = `// The caller claims their own Store (deploys one on first call)
+function claimUserStore() external returns (address store);
 
-// Lookup — returns address(0) if no Store exists
-function getDeployedStore(address who) external view returns (IStore);
+// Lookup — returns address(0) if no Store exists for the user
+function getUserStore(address user) external view returns (address store);
 
-// Remap the factory's internal lookup (does NOT transfer Store.owner)
-function transferOwnership(address newOwner) external;
+// Total number of Stores deployed by the factory
+function getUserStoreCount() external view returns (uint256 count);
 
-// The StoreUtils library handles the common pattern:
-// 1. Check if Store exists for owner
-// 2. If not, deploy + authorize controllers + transfer ownership
-function getOrCreateStore(
-    IStoreFactory factory,
-    address[] memory controllers,
-    address owner
-) internal returns (Store);`;
+// Paginated list of deployed Stores
+function getUserStores(uint256 offset, uint256 limit)
+    external
+    view
+    returns (address[] memory stores);`;
 
 const keyFormatCode = `// Key prefix reserved for DotNS registration records
 bytes32 constant DOTNS_REGISTERED_KEY = bytes32("dotns.registered");
@@ -262,43 +259,36 @@ function storeKey(bytes32 labelhash) internal pure returns (bytes32 key) {
 //   keccak256(bytes32("dotns.registered"), keccak256("alice"))
 // Value stored: "alice.dot"`;
 
-const storeApiCode = `// User writes to their own namespace (mutable, reverts if key is locked)
-function setValue(bytes32 key, string calldata value) external;
+const storeApiCode = `// Owner writes a value under a key
+function setValue(bytes32 key, bytes calldata value) external;
 
-// Authorized contract writes on behalf of a user
-// If caller is a DotNS controller, the key is locked permanently after write
-function setValueFor(address user, bytes32 key, string calldata value) external;
+// Read the value stored under a key
+function getValue(bytes32 key) external view returns (bytes memory);
 
-// Read from caller's namespace
-function getValue(bytes32 key) external view returns (string memory);
+// Check whether a key has a value
+function hasValue(bytes32 key) external view returns (bool);
 
-// Read from any user's namespace
-function getValueFor(address user, bytes32 key) external view returns (string memory);
+// Enumerate the keys held by this Store
+function getKeyCount() external view returns (uint256);
+function getKeyAt(uint256 index) external view returns (bytes32);
+function getKeys(uint256 offset, uint256 limit) external view returns (bytes32[] memory);
 
-// Delete (reverts if key is locked)
-function deleteValue(bytes32 key) external;
+// The address that owns this Store (set on initialise)
+function owner() external view returns (address);`;
 
-// Check lock state
-function isLocked(address user, bytes32 key) external view returns (bool);
+const registrationRecordCode = `// 1. Resolve the user's Store (claim one if it does not exist yet)
+address store = factory.getUserStore(owner);
+if (store == address(0)) {
+    store = factory.claimUserStore();
+}
 
-// Owner-only: manage who can call setValueFor
-function authorizeStore(address writer) external;
-function unauthorizeStore(address writer) external;
-
-// Owner-only: mark an address as DotNS controller (writes lock keys)
-function authorizeDotnsController(address controller) external;
-function unauthorizeDotnsController(address controller) external;`;
-
-const registrationRecordCode = `// 1. Controller computes the store key
+// 2. Compute the store key
 bytes32 labelhash = keccak256(bytes("alice"));
 bytes32 key = StoreUtils.storeKey(labelhash);
 
-// 2. Controller writes to the user's Store via setValueFor
-//    Because the Controller is a DotNS controller, the key is locked after write
-store.setValueFor(owner, key, "alice.dot");
+// 3. Write the registration record to the user's Store
+IUserStore(store).setValue(key, bytes("alice.dot"));
 
-// 3. The key is now permanently locked:
-//    store.isLocked(owner, key) == true
-//    store.setValueFor(owner, key, "anything") reverts with KeyLocked
-//    store.setValue(key, "anything") reverts with KeyLocked (even if called by owner)`;
+// 4. Read it back
+bytes memory value = IUserStore(store).getValue(key); // "alice.dot"`;
 </script>

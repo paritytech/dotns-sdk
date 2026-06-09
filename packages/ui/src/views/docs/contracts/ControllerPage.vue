@@ -16,7 +16,7 @@
       <div class="p-4 border border-dot-border rounded-lg bg-dot-surface">
         <p class="text-xs text-dot-text-tertiary mb-1">Paseo AssetHub</p>
         <p class="font-mono text-sm text-dot-accent break-all">
-          0xd09e0F1c1E6CE8Cf40df929ef4FC778629573651
+          0x674b705268DAE369F0a7BE9cbaCDb928b8BA38C2
         </p>
       </div>
     </div>
@@ -307,7 +307,7 @@ const controllerAbi = [
       },
     ],
     outputs: [{ name: "", type: "bytes32" }],
-    stateMutability: "view",
+    stateMutability: "pure",
   },
   {
     type: "function",
@@ -356,7 +356,7 @@ const walletClient = createWalletClient({
   transport: custom(window.ethereum),
 });
 
-const CONTROLLER = "0xd09e0F1c1E6CE8Cf40df929ef4FC778629573651";
+const CONTROLLER = "0x674b705268DAE369F0a7BE9cbaCDb928b8BA38C2";
 
 // Step 1: Check availability
 const isAvailable = await client.readContract({

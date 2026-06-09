@@ -197,7 +197,9 @@
                       <p class="font-semibold mb-1">Pricing by PoP Status:</p>
                       <ul class="space-y-1 text-left">
                         <li>• <span class="font-medium">Pop Lite/Full:</span> Free registration</li>
-                        <li>• <span class="font-medium">No Status:</span> Based on name length</li>
+                        <li>
+                          • <span class="font-medium">No Status:</span> Flat refundable deposit
+                        </li>
                       </ul>
                       <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-1">
                         <div class="border-4 border-transparent border-t-gray-900"></div>

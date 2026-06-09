@@ -16,7 +16,7 @@
       <div class="p-4 border border-dot-border rounded-lg bg-dot-surface">
         <p class="text-xs text-dot-text-tertiary mb-1">Paseo AssetHub</p>
         <p class="font-mono text-sm text-dot-accent break-all">
-          0x95645C7fD0fF38790647FE13F87Eb11c1DCc8514
+          0xA8988eA083174ea94Ed1D686f0F073a10f65598D
         </p>
       </div>
     </div>
@@ -178,7 +178,7 @@ const client = createPublicClient({
   transport: http(),
 });
 
-const RESOLVER = "0x95645C7fD0fF38790647FE13F87Eb11c1DCc8514";
+const RESOLVER = "0xA8988eA083174ea94Ed1D686f0F073a10f65598D";
 const node = namehash("alice.dot");
 
 // Forward resolve: name -> address

@@ -1,17 +1,41 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { keccak256, encodePacked, zeroAddress, type Address, type Hash, isAddress } from "viem";
-import { getContract, getProxyContract, withContractRecovery } from "@/composables/useContracts";
+import {
+  keccak256,
+  toHex,
+  stringToHex,
+  hexToString,
+  zeroAddress,
+  type Address,
+  type Hash,
+  type Hex,
+  isAddress,
+} from "viem";
+import {
+  getContract,
+  getProxyContract,
+  withContractRecovery,
+  WRITE_TX_DEFAULTS,
+} from "@/composables/useContracts";
+import type { TxStatus } from "@parity/product-sdk-tx";
+import { mapTxStatus } from "@/lib/txStatus";
 import { isValidSubstrateAddress, normalizeDomainName, ZERO_SUBSTRATE_ADDRESS } from "../utils";
 import type { ContractAuthStatus, DotnsAvailability } from "@/type";
 import { useResolverStore } from "./useResolverStore";
 import { useWalletStore } from "./useWalletStore";
 
-// Maximum LabelStore entries enumerated per page. A user with more than 256
-// registered domains would need a paginated read; treat as a soft cap.
+// Maximum store entries enumerated per page. A user with more than 256 entries
+// would need a paginated read; treat as a soft cap (shared by both stores).
 const LABEL_STORE_PAGE = 256n;
+const USER_STORE_PAGE = 256n;
 
 const ZERO: Address = zeroAddress;
+
+// UserStore keys are bytes32. To stay interoperable with the CLI (`dotns store`),
+// a plain string key is hashed exactly as the CLI does: keccak256(toHex(value)).
+function userStoreKey(value: string): Hash {
+  return keccak256(toHex(value));
+}
 
 export const useUserStoreManager = defineStore("userStoreManager", () => {
   // Exposed for back-compat with the old single-Store model. Populated by
@@ -22,18 +46,10 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
   const walletStore = useWalletStore();
   const resolverStore = useResolverStore();
 
-  function encodeKey(walletAddress: Address, value: string): Hash {
-    return keccak256(encodePacked(["address", "string"], [walletAddress, value]));
-  }
-
-  // ---------------------------------------------------------------------
-  // StoreFactory lookups (new two-Store model)
-  //
-  // LabelStore is protocol-managed — deployed by the registrar/controller
-  // when the user registers a name. Holds the user's domain labels.
-  // UserStore is user-claimed (via claimUserStore) — holds arbitrary KV data
-  // including Bulletin CIDs. We don't claim UserStores in this build.
-  // ---------------------------------------------------------------------
+  // LabelStore is protocol-managed — deployed by the registrar/controller when
+  // the user registers a name; holds the user's domain labels. UserStore is
+  // user-claimed (via claimUserStore) and holds arbitrary KV data including
+  // Bulletin CIDs; ensureUserStore() claims it on first write.
   async function getLabelStore(evm: Address): Promise<Address> {
     return withContractRecovery(async () => {
       const factory = await getContract("@dotns/store-factory");
@@ -51,6 +67,44 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
       userStore.value = addr;
       return addr;
     });
+  }
+
+  function relayStatus(s: TxStatus): void {
+    walletStore.setTransactionStatus(mapTxStatus(s));
+  }
+
+  // Claim the caller's UserStore (StoreFactory.claimUserStore). Required once
+  // before any write to user data; returns the claim transaction hash.
+  async function claimUserStore(): Promise<Hash> {
+    await walletStore.ensureSignerReady();
+    try {
+      const factory = await getContract("@dotns/store-factory");
+      const result = await factory.claimUserStore!.tx({
+        ...WRITE_TX_DEFAULTS,
+        onStatus: relayStatus,
+      });
+      if (!result.ok) {
+        throw new Error(
+          `claimUserStore reverted: ${JSON.stringify(result.dispatchError ?? "unknown")}`,
+        );
+      }
+      return result.txHash as Hash;
+    } finally {
+      walletStore.setTransactionStatus("idle");
+    }
+  }
+
+  // Resolve the caller's UserStore, claiming it first if they have none. This is
+  // the guard every write-to-store action should call before writing.
+  async function ensureUserStore(): Promise<Address> {
+    const evm = walletStore.evmAddress as Address | undefined;
+    if (!evm) throw new Error("Connect a wallet to claim a UserStore.");
+    const existing = await getUserStore(evm);
+    if (existing !== ZERO) return existing;
+    await claimUserStore();
+    const claimed = await getUserStore(evm);
+    if (claimed === ZERO) throw new Error("UserStore claim did not produce a store address.");
+    return claimed;
   }
 
   async function getSubdomainsForAddress(evm: Address): Promise<string[]> {
@@ -119,37 +173,17 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
     }
   }
 
-  // ---------------------------------------------------------------------
-  // Deprecated single-Store API — stubs to preserve compile-time consumers
-  //
-  // The old Store model had: explicit `deploy()`, per-contract authorization,
-  // and unified setValue/getValue across labels and user data. The new model
-  // splits these:
-  //   - LabelStore is protocol-deployed during register(); no `deploy()` needed
-  //   - No per-contract authorization (protocol registry gates writers)
-  //   - UserStore writes (Bulletin CIDs) require `claimUserStore` — OOS today
-  //
-  // Stubs keep ProfileView, WhoProfileView, TryStoreLookup, FileUpload, and
-  // useBulletinStore compiling without changing their UI shape. Read paths
-  // return inert defaults; write paths throw a migration message so a clicked
-  // button surfaces a toast rather than silently doing nothing.
-  // ---------------------------------------------------------------------
+  // Stubs for genuinely removed single-Store capabilities, kept so ProfileView,
+  // WhoProfileView, and TryStoreLookup compile unchanged. Read paths return inert
+  // defaults; removed write paths throw a migration message so a clicked button
+  // surfaces a toast rather than silently doing nothing.
   async function getAuthorizationStatus(store: Address): Promise<ContractAuthStatus[]> {
     void store;
     return [];
   }
 
-  async function isNameInStore(label: string): Promise<boolean> {
-    void label;
-    return true;
-  }
-
   function migrationDisabled(op: string): never {
     throw new Error(`${op} is not supported on the v2 architecture migration.`);
-  }
-
-  async function deployStore(): Promise<Hash> {
-    return migrationDisabled("Store deployment");
   }
 
   async function batchAuthChanges(
@@ -161,41 +195,77 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
     return migrationDisabled("Contract authorization changes");
   }
 
-  async function writeNameToStore(label: string): Promise<Hash> {
-    void label;
-    return migrationDisabled("writeNameToStore");
+  // Write a key/value into the caller's UserStore, claiming the store first if
+  // they have none. The single canonical write path for user data.
+  async function setUserStoreValue(key: Hash, value: Hex): Promise<Hash> {
+    const store = await ensureUserStore();
+    try {
+      const proxy = await getProxyContract("@dotns/user-store", store);
+      const result = await proxy.setValue!.tx(key, value, {
+        ...WRITE_TX_DEFAULTS,
+        onStatus: relayStatus,
+      });
+      if (!result.ok) {
+        throw new Error(`setValue reverted: ${JSON.stringify(result.dispatchError ?? "unknown")}`);
+      }
+      return result.txHash as Hash;
+    } finally {
+      walletStore.setTransactionStatus("idle");
+    }
   }
 
+  // Persist a Bulletin CID. Key/value encoding matches the CLI so
+  // `dotns store cids` and the UI read the same entries.
   async function writeCidToStore(cid: string): Promise<Hash> {
-    void cid;
-    return migrationDisabled("Bulletin CID writes");
+    return setUserStoreValue(userStoreKey(cid), stringToHex(cid));
   }
 
+  // UserStore has no delete; clearing a key means writing an empty value, which
+  // getBulletinUploads then filters out. Mirrors the CLI's delete behaviour.
   async function deleteCidFromStore(cid: string): Promise<Hash> {
-    void cid;
-    return migrationDisabled("Bulletin CID deletes");
+    return setUserStoreValue(userStoreKey(cid), "0x");
   }
 
   async function getBulletinUploads(): Promise<string[]> {
-    return [];
+    return withContractRecovery(async () => {
+      const evm = walletStore.evmAddress as Address | undefined;
+      if (!evm) return [];
+      const store = await getUserStore(evm);
+      if (store === ZERO) return [];
+
+      const proxy = await getProxyContract("@dotns/user-store", store);
+      const keysResult = await proxy.getKeys!.query(0n, USER_STORE_PAGE, {
+        origin: ZERO_SUBSTRATE_ADDRESS,
+      });
+      if (!keysResult.success) return [];
+      const keys = (keysResult.value as Hash[]) ?? [];
+
+      const cids: string[] = [];
+      for (const key of keys) {
+        const valueResult = await proxy.getValue!.query(key, { origin: ZERO_SUBSTRATE_ADDRESS });
+        if (!valueResult.success) continue;
+        const raw = valueResult.value as Hex;
+        if (!raw || raw === "0x") continue;
+        const decoded = hexToString(raw);
+        if (decoded) cids.push(decoded);
+      }
+      return cids;
+    });
   }
 
   return {
     userStore,
     getLabelStore,
     getUserStore,
+    claimUserStore,
     getSubdomains,
     getSubdomainsForAddress,
     checkHandleAvailability,
-    encodeKey,
-    // deprecated stubs
-    getAuthorizationStatus,
-    isNameInStore,
-    deployStore,
-    batchAuthChanges,
-    writeNameToStore,
     writeCidToStore,
     deleteCidFromStore,
     getBulletinUploads,
+    // deprecated stubs
+    getAuthorizationStatus,
+    batchAuthChanges,
   };
 });

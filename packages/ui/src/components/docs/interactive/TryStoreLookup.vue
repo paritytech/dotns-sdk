@@ -29,7 +29,7 @@
         <div v-if="status !== 'idle'" class="p-4 rounded-lg border" :class="panelClasses">
           <div v-if="status === 'loading'" class="flex items-center gap-2">
             <Loader size="xs" />
-            <span class="text-sm text-dot-text-secondary">Looking up Store&hellip;</span>
+            <span class="text-sm text-dot-text-secondary">Looking up LabelStore&hellip;</span>
           </div>
 
           <div v-else-if="status === 'error'" class="space-y-1">
@@ -38,16 +38,16 @@
           </div>
 
           <div v-else-if="status === 'no-store'" class="space-y-1">
-            <p class="text-sm font-medium text-dot-text-secondary">No Store deployed</p>
+            <p class="text-sm font-medium text-dot-text-secondary">No LabelStore deployed</p>
             <p class="text-xs text-dot-text-tertiary">
               <span class="text-dot-text-primary font-mono">{{ resolvedAddress }}</span> does not
-              have a Store contract yet.
+              own any names, so it has no LabelStore yet.
             </p>
           </div>
 
           <div v-else-if="status === 'success'" class="space-y-4">
             <div class="space-y-1">
-              <p class="text-xs text-dot-text-tertiary">Store contract</p>
+              <p class="text-xs text-dot-text-tertiary">LabelStore contract</p>
               <p class="text-sm font-mono text-dot-accent break-all">{{ storeAddress }}</p>
             </div>
             <div class="space-y-1">
@@ -81,7 +81,7 @@
               </div>
             </div>
             <div v-else>
-              <p class="text-xs text-dot-text-tertiary">No names found in Store.</p>
+              <p class="text-xs text-dot-text-tertiary">No names found in LabelStore.</p>
             </div>
           </div>
         </div>
@@ -131,7 +131,7 @@ const codeExample = computed(() => {
   const addr = resolvedAddress.value || "0x...";
   return `import { createPublicClient, http, zeroAddress } from 'viem'
 
-const STORE_FACTORY = '0x030296782F4d3046B080BcB017f01837561D9702'
+const STORE_FACTORY = '0x692047C1477a017F287488E1c85F96Ca28C23fD8'
 
 const client = createPublicClient({
   chain: { id: 420420417, name: 'Paseo AssetHub',
@@ -141,29 +141,34 @@ const client = createPublicClient({
   transport: http(),
 })
 
-// 1. Look up Store address
+// 1. Look up the account's LabelStore address
 const store = await client.readContract({
   address: STORE_FACTORY,
-  abi: [{ type: 'function', name: 'getDeployedStore',
+  abi: [{ type: 'function', name: 'getLabelStore',
     inputs: [{ name: 'who', type: 'address' }],
     outputs: [{ name: '', type: 'address' }],
     stateMutability: 'view' }],
-  functionName: 'getDeployedStore',
+  functionName: 'getLabelStore',
   args: ['${addr}'],
 })
 
 if (store === zeroAddress) {
-  console.log('No Store deployed')
+  console.log('No LabelStore deployed')
 } else {
-  // 2. Read all names from Store
-  const values = await client.readContract({
+  // 2. Read the account's .dot names from the LabelStore
+  const labels = await client.readContract({
     address: store,
-    abi: [{ type: 'function', name: 'getValues',
-      inputs: [], outputs: [{ name: '', type: 'string[]' }],
+    abi: [{ type: 'function', name: 'getLabels',
+      inputs: [
+        { name: 'offset', type: 'uint256' },
+        { name: 'limit', type: 'uint256' },
+      ],
+      outputs: [{ name: 'labels', type: 'string[]' }],
       stateMutability: 'view' }],
-    functionName: 'getValues',
+    functionName: 'getLabels',
+    args: [0n, 256n],
   })
-  console.log('Names:', values.filter(v => v.endsWith('.dot')))
+  console.log('Names:', labels)
 }`;
 });
 
@@ -201,7 +206,7 @@ async function lookup() {
     const evmAddr = await resolveToEvmAddress(value);
     resolvedAddress.value = evmAddr;
 
-    const store = await userStoreManager.getUserStore(evmAddr);
+    const store = await userStoreManager.getLabelStore(evmAddr);
     if (store === zeroAddress) {
       status.value = "no-store";
       return;
@@ -209,8 +214,7 @@ async function lookup() {
 
     storeAddress.value = store;
 
-    const allValues = await userStoreManager.getSubdomainsForAddress(evmAddr);
-    names.value = allValues.filter((v) => v.endsWith(".dot"));
+    names.value = await userStoreManager.getSubdomainsForAddress(evmAddr);
     status.value = "success";
   } catch (e) {
     error.value = formatNetworkError(e);
