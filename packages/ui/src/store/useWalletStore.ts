@@ -21,8 +21,10 @@ export const signerManager = new SignerManager({
       throw new Error(`Unsupported provider type: ${type}`);
     }
     return new HostProvider({
-      // ChainSubmit is deferred (requested lazily on first write via
-      // ensureSignerReady) so passive browsing triggers no signing prompts.
+      // ChainSubmit is requested explicitly at connect (see ensureChainSubmit),
+      // so HostProvider's own auto-request stays off. Letting HostProvider
+      // request it (true) would block account return on the prompt and delay
+      // the header pill.
       productAccount: { dotNsIdentifier: window.location.host },
       requestChainSubmitPermission: false,
     });
@@ -30,19 +32,22 @@ export const signerManager = new SignerManager({
 });
 
 // ----------------------------------------------------------------------------
-// Write-permission request, cached per product-account h160 across reloads.
+// Resource-allowance request, cached per product-account h160 across reloads.
 //
 // Requested lazily on the first write (via ensureSignerReady), NOT on connect,
-// so passive browsing triggers no signing prompts. Bundles:
-//   - ChainSubmit: required for the host to accept signed chain txs. We pass
-//     `requestChainSubmitPermission: false` to HostProvider and request it here
-//     instead, keeping it off the connect path.
+// so passive browsing triggers no prompts. Covers:
 //   - SmartContractAllowance: required for Revive contract writes.
 //   - AutoSigning: future host capability (NotAvailable today, accepted).
 //
-// Key version: bump when the host-side state may have drifted out of sync with
-// our cache (e.g. clearing Polkadot Desktop caches that don't include the papp's
-// localStorage), or when the acceptance policy below changes.
+// ChainSubmit is NOT here — it's the host's sign gate and is requested at
+// connect, uncached (see ensureChainSubmit). It must reflect live host state
+// every session, so it can't sit behind this persistent flag.
+//
+// Key version: bump ONLY when a stale "granted" flag would make new code behave
+// wrongly — i.e. the acceptance policy for the cached allowances tightens. Every
+// bump re-prompts all users, so don't bump for churn. Moving ChainSubmit OUT of
+// this cache did NOT need a bump: an old flag still correctly means "allowances
+// granted", and ChainSubmit is now requested fresh at connect regardless.
 //   v3 (2026-05-19): force re-grant after desktop cache-clear drift.
 //   v4 (2026-06-08): lazy-on-write + ChainSubmit folded into the bundle.
 // ----------------------------------------------------------------------------
@@ -71,21 +76,18 @@ function markPermissionsGranted(h160: string): void {
 async function requestWritePermissions(account: SignerAccount): Promise<void> {
   if (hasGrantedPermissions(account.h160Address)) return;
   try {
-    // ChainSubmit first — the host rejects signing without it (deferred from
-    // the connect path via requestChainSubmitPermission: false).
-    const chainSubmit = await requestPermission({ tag: "ChainSubmit", value: undefined });
     const [smartContract, autoSigning] = await requestResourceAllocation([
       { tag: "SmartContractAllowance", value: 0 },
       { tag: "AutoSigning", value: undefined },
     ]);
     console.log(
-      `[WalletStore:requestWritePermissions] chainSubmit=${chainSubmit} smartContract=${smartContract?.tag} autoSigning=${autoSigning?.tag}`,
+      `[WalletStore:requestWritePermissions] smartContract=${smartContract?.tag} autoSigning=${autoSigning?.tag}`,
     );
     // SmartContractAllowance must be Allocated for Revive writes. AutoSigning is
     // accepted as Allocated or NotAvailable (host hasn't shipped it yet).
     const smartContractOk = smartContract?.tag === "Allocated";
     const autoSigningOk = autoSigning?.tag === "Allocated" || autoSigning?.tag === "NotAvailable";
-    if (chainSubmit && smartContractOk && autoSigningOk) {
+    if (smartContractOk && autoSigningOk) {
       markPermissionsGranted(account.h160Address);
     }
   } catch (err) {
@@ -107,6 +109,30 @@ export const useWalletStore = defineStore("useWalletStore", () => {
   const userPopState = ref<PopStatus>(PopStatus.NoStatus);
 
   const userStoreManager = useUserStoreManager();
+
+  // ChainSubmit is the host's sign gate: without it the host rejects every
+  // createTransaction with PermissionDenied (often as a silent hang). Requested
+  // once per session at connect — NOT cached in localStorage, because the grant
+  // lives in host state that can reset independently of our storage, and a stale
+  // "granted" flag would skip the request and let signing race ahead of the
+  // prompt. The in-flight promise is shared so a write that fires before connect
+  // finishes still awaits the same grant (see ensureSignerReady).
+  let chainSubmitReady: Promise<boolean> | null = null;
+  function ensureChainSubmit(): Promise<boolean> {
+    if (!chainSubmitReady) {
+      chainSubmitReady = requestPermission({ tag: "ChainSubmit", value: undefined })
+        .then((granted) => {
+          console.log(`[WalletStore:ensureChainSubmit] chainSubmit=${granted}`);
+          return granted;
+        })
+        .catch((err) => {
+          console.warn("[WalletStore:ensureChainSubmit] request failed", err);
+          chainSubmitReady = null; // let the next write retry the grant
+          return false;
+        });
+    }
+    return chainSubmitReady;
+  }
 
   function setIsLoading(status: boolean): void {
     isLoading.value = status;
@@ -159,12 +185,19 @@ export const useWalletStore = defineStore("useWalletStore", () => {
         `[WalletStore:connectWallet] account state ss58=${account.address} h160=${evmAddress.value}`,
       );
 
-      // Write permissions (ChainSubmit + allowance) are NOT requested here —
-      // they're deferred to the first write via ensureSignerReady() so passive
-      // browsing prompts for nothing.
-
-      await userStoreManager.getUserStore(evmAddress.value);
+      // Flip connected as soon as the account is known — the header pill and
+      // Profile tab gate on isConnected only, so nothing UI-facing should wait
+      // on the contract reads below.
       isConnected.value = true;
+
+      // ChainSubmit is the host's sign gate. Request it here (uncached, every
+      // session) AFTER flipping isConnected, so the pill never waits on the
+      // permission round-trip and writes can't sign before it's granted.
+      void ensureChainSubmit();
+
+      // Background-warm the contract manager + chain client so the first
+      // search/read is fast. Result is unused; allowance prompts stay lazy.
+      void userStoreManager.getUserStore(evmAddress.value).catch(() => {});
       return true;
     } catch (error) {
       console.warn("[WalletStore:connectWallet] threw", error);
@@ -179,6 +212,9 @@ export const useWalletStore = defineStore("useWalletStore", () => {
     currentAccount.value = null;
     injected.value = null;
     userPopState.value = PopStatus.NoStatus;
+    // Drop the ChainSubmit grant so a reconnect re-requests against fresh host
+    // state rather than reusing a promise tied to the prior session.
+    chainSubmitReady = null;
     console.log("[WalletStore:handleDisconnect] Wallet disconnected");
   }
 
@@ -229,9 +265,11 @@ export const useWalletStore = defineStore("useWalletStore", () => {
   }
 
   let pendingSignerReady: Promise<PolkadotSigner> | null = null;
-  // Connect-if-needed + request write permissions (ChainSubmit + allowance,
-  // cached) before a signed write. Concurrent writes share one in-flight
-  // request. Reads never call this, so passive browsing prompts for nothing.
+  // Connect-if-needed + confirm the host sign gate (ChainSubmit) and request
+  // the cached write allowances before a signed write. Concurrent writes share
+  // one in-flight request. Reads never call this, so passive browsing prompts
+  // for nothing. Awaiting ensureChainSubmit() here guarantees the grant lands
+  // before signing even if the write fires before connect's request resolves.
   async function ensureSignerReady(): Promise<PolkadotSigner> {
     if (pendingSignerReady) return pendingSignerReady;
     pendingSignerReady = (async () => {
@@ -239,6 +277,7 @@ export const useWalletStore = defineStore("useWalletStore", () => {
       ensureWalletConnected();
       const account = currentAccount.value;
       if (!account) throw new Error("Wallet not connected");
+      await ensureChainSubmit();
       await requestWritePermissions(account);
       return getInjected();
     })().finally(() => {
