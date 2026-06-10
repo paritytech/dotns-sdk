@@ -37,6 +37,10 @@ import {
 const PERSONHOOD_PRECOMPILE_ADDRESS = "0x000000000000000000000000000000000a010000" as const;
 const PERSONHOOD_CONTEXT =
   "0x646f746e73000000000000000000000000000000000000000000000000000000" as const;
+// Returned by classifyName when the on-chain classifier rejects or cannot reach
+// the name (e.g. a non-canonical label). Callers must treat this as not registerable.
+export const UNCLASSIFIABLE_MESSAGE = "Unable to classify name";
+
 const PERSONHOOD_ABI: AbiEntry[] = [
   {
     type: "function",
@@ -232,7 +236,7 @@ export const useDomainStore = defineStore("useDomainStore", () => {
       const popRules = await getContract("@dotns/pop-rules");
       const result = await popRules.classifyName!.query(name, { origin: ZERO_SUBSTRATE_ADDRESS });
       if (!result.success) {
-        return { requirement: PopStatus.NoStatus, message: "Unable to classify name" };
+        return { requirement: PopStatus.NoStatus, message: UNCLASSIFIABLE_MESSAGE };
       }
       // classifyName has two named outputs (requirement, message), so viem
       // decodes to an object rather than a tuple.
@@ -240,7 +244,7 @@ export const useDomainStore = defineStore("useDomainStore", () => {
       return { requirement: Number(decoded.requirement) as PopStatus, message: decoded.message };
     }).catch((error) => {
       console.warn("[DomainStore:classifyName]", error);
-      return { requirement: PopStatus.NoStatus, message: "Unable to classify name" };
+      return { requirement: PopStatus.NoStatus, message: UNCLASSIFIABLE_MESSAGE };
     });
   }
 

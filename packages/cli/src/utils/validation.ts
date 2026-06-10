@@ -19,6 +19,24 @@ export function stripTrailingDigits(label: string): string {
   return label.replace(/\d+$/, "");
 }
 
+// A single canonical DNS label, mirroring the contract's StringUtils._isDnsLabel
+// (PopRules._requireCanonicalLabel / registry subnode rules): lowercase ASCII
+// letters, digits and hyphen only, no leading or trailing hyphen, length 1-63, no
+// dots. Non-canonical labels revert on-chain, so reject them before submitting.
+const CANONICAL_LABEL_REGEX = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+
+export function isCanonicalLabel(label: string): boolean {
+  return label.length > 0 && label.length <= 63 && CANONICAL_LABEL_REGEX.test(label);
+}
+
+export function validateCanonicalLabel(label: string, role = "label"): void {
+  if (!isCanonicalLabel(label)) {
+    throw new Error(
+      `Invalid ${role}: must be a single label of lowercase letters, digits and hyphens (no dots, spaces or uppercase), 1-63 characters, not starting or ending with a hyphen`,
+    );
+  }
+}
+
 export function validateDomainLabel(label: string): void {
   if (!/^[a-z0-9-]{3,}$/.test(label)) {
     throw new Error(

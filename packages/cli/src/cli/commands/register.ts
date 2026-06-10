@@ -29,6 +29,7 @@ import {
 } from "../../commands/registrationManifest";
 import {
   isValidSubstrateAddress,
+  validateCanonicalLabel,
   validateDomainLabel,
   validateGovernanceLabel,
 } from "../../utils/validation";
@@ -302,6 +303,8 @@ export async function executeSubnameRegistration(
 
   const sublabel = options.name;
   const parentLabel = options.parent;
+  validateCanonicalLabel(sublabel, "subname");
+  validateCanonicalLabel(parentLabel, "parent label");
   const ownerAddress = (options.owner as Address) ?? evmAddress;
 
   const fullName = `${sublabel}.${parentLabel}.dot`;

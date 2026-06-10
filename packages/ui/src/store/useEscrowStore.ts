@@ -63,7 +63,6 @@ export const useEscrowStore = defineStore("useEscrowStore", () => {
     return computeDomainTokenId(normalizeDomainName(domain));
   }
 
-  // Reads the release position for a name; null when no position is recorded.
   async function getPosition(domain: string): Promise<EscrowPosition | null> {
     return withContractRecovery(async () => {
       const escrow = await getEscrowContract();
@@ -89,8 +88,7 @@ export const useEscrowStore = defineStore("useEscrowStore", () => {
     });
   }
 
-  // Reads a paginated window of the caller's pending refund ledger. pendingRefunds
-  // returns both ids and entries, so a single read is sufficient.
+  // pendingRefunds returns ids and entries together, so one read covers the page.
   async function listRefunds(
     recipient: Address,
     offset: number,
@@ -125,77 +123,75 @@ export const useEscrowStore = defineStore("useEscrowStore", () => {
     });
   }
 
-  // Approves the escrow on the registrar then releases the NFT, starting the
-  // refund cooldown. The caller must own the name.
-  async function release(domain: string): Promise<Hash> {
-    await walletStore.ensureSignerReady();
-    const tokenId = tokenIdFor(domain);
-    try {
-      const registrar = await getContract("@dotns/registrar");
-      const approveResult = await registrar.approve!.tx(NAME_ESCROW_ADDRESS, tokenId, txOptions());
-      if (!approveResult.ok) {
-        throw new Error(
-          `Approve reverted: ${JSON.stringify(approveResult.dispatchError ?? "unknown")}`,
-        );
-      }
-
-      const escrow = await getEscrowContract();
-      const releaseResult = await escrow.release!.tx(tokenId, txOptions());
-      if (!releaseResult.ok) {
-        throw new Error(
-          `Release reverted: ${JSON.stringify(releaseResult.dispatchError ?? "unknown")}`,
-        );
-      }
-      return releaseResult.txHash as Hash;
-    } finally {
-      walletStore.setTransactionStatus("idle");
-    }
-  }
-
-  async function withdraw(domain: string): Promise<Hash> {
-    return runWrite((escrow) => escrow.withdraw!.tx(tokenIdFor(domain), txOptions()), "Withdraw");
-  }
-
-  async function claimWithdrawal(): Promise<Hash> {
-    return runWrite((escrow) => escrow.claimWithdrawal!.tx(txOptions()), "Claim withdrawal");
-  }
-
-  async function claimRefund(entryId: bigint): Promise<Hash> {
-    return runWrite((escrow) => escrow.claimRefund!.tx(entryId, txOptions()), "Claim refund");
-  }
-
-  async function claimRefundsBatch(entryIds: bigint[]): Promise<Hash> {
-    return runWrite(
-      (escrow) => escrow.claimRefundsBatch!.tx(entryIds, txOptions()),
-      "Claim refunds",
-    );
-  }
-
   function txOptions() {
     return { ...WRITE_TX_DEFAULTS, onStatus: relayStatus };
   }
 
-  // Single-write helper: ensures the signer, runs the escrow call, and surfaces a
-  // revert as a thrown error. Keeps the simple single-extrinsic writes DRY.
-  async function runWrite(
-    call: (escrow: Awaited<ReturnType<typeof getEscrowContract>>) => Promise<{
-      ok: boolean;
-      txHash: string;
-      dispatchError?: unknown;
-    }>,
-    label: string,
-  ): Promise<Hash> {
+  async function withWrite(run: () => Promise<Hash>): Promise<Hash> {
     await walletStore.ensureSignerReady();
     try {
-      const escrow = await getEscrowContract();
-      const result = await call(escrow);
-      if (!result.ok) {
-        throw new Error(`${label} reverted: ${JSON.stringify(result.dispatchError ?? "unknown")}`);
-      }
-      return result.txHash as Hash;
+      return await run();
     } finally {
       walletStore.setTransactionStatus("idle");
     }
+  }
+
+  async function submitWrite(
+    tx: Promise<{ ok: boolean; txHash: string; dispatchError?: unknown }>,
+    label: string,
+  ): Promise<Hash> {
+    const result = await tx;
+    if (!result.ok) {
+      throw new Error(`${label} reverted: ${JSON.stringify(result.dispatchError ?? "unknown")}`);
+    }
+    return result.txHash as Hash;
+  }
+
+  // Caller must own the name: approve the escrow on the registrar, then release.
+  async function release(domain: string): Promise<Hash> {
+    const tokenId = tokenIdFor(domain);
+    return withWrite(async () => {
+      const registrar = await getContract("@dotns/registrar");
+      await submitWrite(
+        registrar.approve!.tx(NAME_ESCROW_ADDRESS, tokenId, txOptions()),
+        "Approve",
+      );
+      const escrow = await getEscrowContract();
+      return submitWrite(escrow.release!.tx(tokenId, txOptions()), "Release");
+    });
+  }
+
+  async function withdraw(domain: string): Promise<Hash> {
+    return withWrite(async () =>
+      submitWrite(
+        (await getEscrowContract()).withdraw!.tx(tokenIdFor(domain), txOptions()),
+        "Withdraw",
+      ),
+    );
+  }
+
+  async function claimWithdrawal(): Promise<Hash> {
+    return withWrite(async () =>
+      submitWrite((await getEscrowContract()).claimWithdrawal!.tx(txOptions()), "Claim withdrawal"),
+    );
+  }
+
+  async function claimRefund(entryId: bigint): Promise<Hash> {
+    return withWrite(async () =>
+      submitWrite(
+        (await getEscrowContract()).claimRefund!.tx(entryId, txOptions()),
+        "Claim refund",
+      ),
+    );
+  }
+
+  async function claimRefundsBatch(entryIds: bigint[]): Promise<Hash> {
+    return withWrite(async () =>
+      submitWrite(
+        (await getEscrowContract()).claimRefundsBatch!.tx(entryIds, txOptions()),
+        "Claim refunds",
+      ),
+    );
   }
 
   return {

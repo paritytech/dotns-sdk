@@ -36,6 +36,7 @@ export {
 export {
   SPECIAL_CHAR_REGEX,
   validateENSName,
+  isCanonicalLabel,
   normalizeDomainName,
   filterDotNames,
   extractBytes,
