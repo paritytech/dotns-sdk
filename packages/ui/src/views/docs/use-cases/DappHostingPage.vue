@@ -233,5 +233,5 @@ const accessCode = `# Open in dot.li (production)
 https://mydapp.dot.li
 
 # Open in dot.li (Paseo testnet)
-https://mydapp.paseo.dot.li`;
+https://mydapp.paseo.li`;
 </script>

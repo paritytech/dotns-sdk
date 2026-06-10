@@ -161,10 +161,8 @@ jobs:
           DEPLOY_FQDN: ${{ needs.deploy-preview.outputs.fqdn }}
           DEPLOY_URL: ${{ needs.deploy-preview.outputs.url }}
           DEPLOY_URL_DIRECT: ${{ needs.deploy-preview.outputs.url-direct }}
-          DEPLOY_URL_DOTLI_PATH: ${{ needs.deploy-preview.outputs.url-dotli-path }}
-          DEPLOY_URL_DOTLI_PASEO_PATH: ${{ needs.deploy-preview.outputs.url-dotli-paseo-path }}
-          DEPLOY_URL_DOTLI_HOST: ${{ needs.deploy-preview.outputs.url-dotli-host }}
-          DEPLOY_URL_DOTLI_PASEO_HOST: ${{ needs.deploy-preview.outputs.url-dotli-paseo-host }}
+          DEPLOY_URL_DOTLI: ${{ needs.deploy-preview.outputs.url-dotli }}
+          DEPLOY_URL_DOTLI_PASEO: ${{ needs.deploy-preview.outputs.url-dotli-paseo }}
           DEPLOY_CACHE_HIT: ${{ needs.deploy-preview.outputs.cache-hit }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
@@ -204,10 +202,8 @@ jobs:
             const fqdn = process.env.DEPLOY_FQDN;
             const url = process.env.DEPLOY_URL;
             const urlDirect = process.env.DEPLOY_URL_DIRECT;
-            const urlDotliPath = process.env.DEPLOY_URL_DOTLI_PATH;
-            const urlDotliPaseoPath = process.env.DEPLOY_URL_DOTLI_PASEO_PATH;
-            const urlDotliHost = process.env.DEPLOY_URL_DOTLI_HOST;
-            const urlDotliPaseoHost = process.env.DEPLOY_URL_DOTLI_PASEO_HOST;
+            const urlDotli = process.env.DEPLOY_URL_DOTLI;
+            const urlDotliPaseo = process.env.DEPLOY_URL_DOTLI_PASEO;
             const cacheHit = process.env.DEPLOY_CACHE_HIT === "true";
 
             const buildPassed = buildStatus === "Passed";
@@ -301,21 +297,14 @@ jobs:
             if (allPassed && cid && fqdn) {
               const cidDisplay = cacheHit ? `\`${cid}\` (cached)` : `\`${cid}\``;
               const urlRows = [];
-              if (urlDotliHost) {
-                urlRows.push(`| URL (dot.li) | [${urlDotliHost}](${urlDotliHost}) |`);
-                if (urlDotliPaseoHost) {
-                  urlRows.push(`| URL (paseo.dot.li) | [${urlDotliPaseoHost}](${urlDotliPaseoHost}) |`);
-                }
-              } else {
-                if (urlDotliPath) {
-                  urlRows.push(`| URL (dot.li) | [${urlDotliPath}](${urlDotliPath}) |`);
-                }
-                if (urlDotliPaseoPath) {
-                  urlRows.push(`| URL (paseo.dot.li) | [${urlDotliPaseoPath}](${urlDotliPaseoPath}) |`);
-                }
-                if (urlDirect) {
-                  urlRows.push(`| URL (direct) | [${urlDirect}](${urlDirect}) |`);
-                }
+              if (urlDotli) {
+                urlRows.push(`| URL (dot.li) | [${urlDotli}](${urlDotli}) |`);
+              }
+              if (urlDotliPaseo) {
+                urlRows.push(`| URL (paseo.li) | [${urlDotliPaseo}](${urlDotliPaseo}) |`);
+              }
+              if (urlDirect) {
+                urlRows.push(`| URL (direct) | [${urlDirect}](${urlDirect}) |`);
               }
               if (urlRows.length === 0 && url) {
                 urlRows.push(`| URL | [${url}](${url}) |`);

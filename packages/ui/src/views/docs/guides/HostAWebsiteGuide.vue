@@ -101,15 +101,15 @@
       <h2 class="text-xl font-semibold text-dot-text-primary">4. Access Your Site</h2>
       <p class="text-dot-text-secondary leading-relaxed">
         dot.li serves your site at <code class="text-dot-accent">yourname.dot.li</code>, or at
-        <code class="text-dot-accent">yourname.paseo.dot.li</code> on the Paseo testnet. It reads
-        the content hash from the ContentResolver, fetches the files from Bulletin or IPFS, and
-        renders them client-side in your browser.
+        <code class="text-dot-accent">yourname.paseo.li</code> on the Paseo testnet. It reads the
+        content hash from the ContentResolver, fetches the files from Bulletin or IPFS, and renders
+        them client-side in your browser.
       </p>
       <DocCallout variant="info" title="Verify it resolves">
         Open <code class="text-dot-accent">https://yourname.dot.li</code> (or
-        <code class="text-dot-accent">https://yourname.paseo.dot.li</code> on Paseo). The
-        verification shield in the toolbar turns green once the on-chain content hash matches the
-        content it has rendered.
+        <code class="text-dot-accent">https://yourname.paseo.li</code> on Paseo). The verification
+        shield in the toolbar turns green once the on-chain content hash matches the content it has
+        rendered.
       </DocCallout>
     </div>
 

@@ -201,7 +201,7 @@ dotns content set yourname bafybeif2uyxcrahg5kkjramreslhmssp4dkexumd7vqp5dmhtrxq
 
 const visitCode = `# Your portfolio is now live! Open it in dot.li:
 # https://yourname.dot.li
-# https://yourname.paseo.dot.li`;
+# https://yourname.paseo.li`;
 
 const hugoExample = `# 1. Create a new Hugo site
 hugo new site my-portfolio

@@ -169,34 +169,20 @@ import { zeroHash } from "viem";
 import { useDomainStore, UNCLASSIFIABLE_MESSAGE } from "@/store/useDomainStore";
 import { useUserStoreManager } from "@/store/useUserStoreManager";
 import { useWalletStore } from "@/store/useWalletStore";
+import { useMyPopStatus } from "@/composables";
 import { isCanonicalLabel } from "@/utils";
 
 const storeManager = useUserStoreManager();
 const domainStore = useDomainStore();
 const userWallet = useWalletStore();
+const { popStatus: myPopStatus } = useMyPopStatus();
 
 const searchQuery = ref("");
 const isFocused = ref(false);
 const isLoading = ref(false);
 const status = ref<DotNSStatus | null>(null);
 const userPopState = ref<NameRequirement | null>(null);
-const myPopStatus = ref<PopStatus | null>(null);
 const validationError = ref<string | null>(null);
-
-async function refreshMyPopStatus(): Promise<void> {
-  const evm = userWallet.evmAddress;
-  if (!userWallet.isConnected || !evm) {
-    myPopStatus.value = null;
-    return;
-  }
-  try {
-    myPopStatus.value = await domainStore.userPopStatus(evm);
-  } catch {
-    myPopStatus.value = null;
-  }
-}
-
-watch(() => userWallet.isConnected, refreshMyPopStatus, { immediate: true });
 
 const showModal = ref(false);
 const showWaiting = ref(false);

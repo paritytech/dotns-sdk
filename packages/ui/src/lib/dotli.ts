@@ -1,10 +1,12 @@
-// dot.li viewing URLs for a .dot name: the production host and the Paseo
-// testnet host. A name with a content hash set is reachable at `<base>/<name>.dot`
-// on both, so callers show both options together.
-const DOTLI_BASE_URLS = ["https://dot.li", "https://paseo.dot.li"] as const;
+// dot.li serves a name as a gateway subdomain: strip the .dot TLD and append the
+// gateway domain (mainnet dot.li, Paseo testnet paseo.li). alice.dot is reachable
+// at alice.dot.li and alice.paseo.li.
+const DOTLI_GATEWAYS = ["dot.li", "paseo.li"] as const;
 
 export function dotliViewUrls(name: string): string[] {
-  const normalised = name.trim().toLowerCase();
-  const fqdn = normalised.endsWith(".dot") ? normalised : `${normalised}.dot`;
-  return DOTLI_BASE_URLS.map((base) => `${base}/${fqdn}`);
+  const stem = name
+    .trim()
+    .toLowerCase()
+    .replace(/\.dot$/, "");
+  return DOTLI_GATEWAYS.map((gateway) => `https://${stem}.${gateway}`);
 }

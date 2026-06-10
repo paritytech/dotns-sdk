@@ -140,8 +140,8 @@ jobs:
           DEPLOY_FQDN: ${{ needs.deploy.outputs.fqdn }}
           DEPLOY_URL: ${{ needs.deploy.outputs.url }}
           DEPLOY_URL_DIRECT: ${{ needs.deploy.outputs.url-direct }}
-          DEPLOY_URL_DOTLI_PATH: ${{ needs.deploy.outputs.url-dotli-path }}
-          DEPLOY_URL_DOTLI_HOST: ${{ needs.deploy.outputs.url-dotli-host }}
+          DEPLOY_URL_DOTLI: ${{ needs.deploy.outputs.url-dotli }}
+          DEPLOY_URL_DOTLI_PASEO: ${{ needs.deploy.outputs.url-dotli-paseo }}
           DEPLOY_CACHE_HIT: ${{ needs.deploy.outputs.cache-hit }}
           DEPLOY_DURATION_SECONDS: ${{ needs.deploy.outputs.duration-seconds }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -182,8 +182,8 @@ jobs:
             const fqdn = process.env.DEPLOY_FQDN;
             const url = process.env.DEPLOY_URL;
             const urlDirect = process.env.DEPLOY_URL_DIRECT;
-            const urlDotliPath = process.env.DEPLOY_URL_DOTLI_PATH;
-            const urlDotliHost = process.env.DEPLOY_URL_DOTLI_HOST;
+            const urlDotli = process.env.DEPLOY_URL_DOTLI;
+            const urlDotliPaseo = process.env.DEPLOY_URL_DOTLI_PASEO;
             const cacheHit = process.env.DEPLOY_CACHE_HIT === "true";
             const durationSeconds = process.env.DEPLOY_DURATION_SECONDS;
 
@@ -278,15 +278,14 @@ jobs:
             if (allPassed && cid && fqdn) {
               const cidDisplay = cacheHit ? `\`${cid}\` (cached)` : `\`${cid}\``;
               const urlRows = [];
-              if (urlDotliHost) {
-                urlRows.push(`| URL | [${urlDotliHost}](${urlDotliHost}) |`);
-              } else {
-                if (urlDotliPath) {
-                  urlRows.push(`| URL (dot.li) | [${urlDotliPath}](${urlDotliPath}) |`);
-                }
-                if (urlDirect) {
-                  urlRows.push(`| URL (direct) | [${urlDirect}](${urlDirect}) |`);
-                }
+              if (urlDotli) {
+                urlRows.push(`| URL (dot.li) | [${urlDotli}](${urlDotli}) |`);
+              }
+              if (urlDotliPaseo) {
+                urlRows.push(`| URL (paseo.li) | [${urlDotliPaseo}](${urlDotliPaseo}) |`);
+              }
+              if (urlDirect) {
+                urlRows.push(`| URL (direct) | [${urlDirect}](${urlDirect}) |`);
               }
               if (urlRows.length === 0 && url) {
                 urlRows.push(`| URL | [${url}](${url}) |`);

@@ -104,8 +104,8 @@
       <p class="text-dot-text-secondary leading-relaxed">
         dot.li resolves subdomains the same way it resolves base domains. Open
         <code class="text-dot-accent">blog.alice.dot.li</code> (or
-        <code class="text-dot-accent">blog.alice.paseo.dot.li</code> on Paseo) and it renders
-        whatever content hash is set on that subname's node.
+        <code class="text-dot-accent">blog.alice.paseo.li</code> on Paseo) and it renders whatever
+        content hash is set on that subname's node.
       </p>
     </div>
 

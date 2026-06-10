@@ -13,16 +13,14 @@ import DotnsPopController from "../../abis/DotnsPopController.json" assert { typ
 
 export const PREVIEW_BASE_URL = "http://dotns.paseo.li/#/preview";
 
-// The two dot.li viewing hosts: production and the Paseo testnet. A registered
-// name is reachable at `<base>/<name>.dot` on both.
-export const DOTLI_BASE_URLS = ["https://dot.li", "https://paseo.dot.li"] as const;
+// dot.li serves a name as a gateway subdomain: strip the .dot TLD and append the
+// gateway domain (mainnet dot.li, Paseo testnet paseo.li).
+export const DOTLI_GATEWAYS = ["dot.li", "paseo.li"] as const;
 
-/** Both dot.li viewing URLs for a name, e.g. ["https://dot.li/alice.dot", ...]. */
+/** Both dot.li viewing URLs for a name, e.g. ["https://alice.dot.li", "https://alice.paseo.li"]. */
 export function dotliViewUrls(name: string): string[] {
-  const fqdn = name.toLowerCase().endsWith(".dot")
-    ? name.toLowerCase()
-    : `${name.toLowerCase()}.dot`;
-  return DOTLI_BASE_URLS.map((base) => `${base}/${fqdn}`);
+  const stem = name.toLowerCase().replace(/\.dot$/, "");
+  return DOTLI_GATEWAYS.map((gateway) => `https://${stem}.${gateway}`);
 }
 export const PASEO_ASSET_HUB_URL = "wss://paseo-asset-hub-next-rpc.polkadot.io";
 export const PREVIEWNET_ASSET_HUB_URL = "wss://previewnet.substrate.dev/asset-hub";
