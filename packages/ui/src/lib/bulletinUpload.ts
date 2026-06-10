@@ -1,6 +1,6 @@
 import { CID } from "multiformats/cid";
 import { create as createMultihashDigest } from "multiformats/hashes/digest";
-import { sha256 } from "@noble/hashes/sha2.js";
+import { blake2b } from "@noble/hashes/blake2.js";
 import type { PreparedBlock } from "./bulletinUploadWorkerProtocol";
 
 export const BULLETIN_RPC = "wss://paseo-bulletin-next-rpc.polkadot.io";
@@ -10,7 +10,9 @@ export const CHUNK_SIZE = 2 * 1024 * 1024;
 export const MAX_BROWSER_UPLOAD_SIZE = 5 * 1024 * 1024;
 export const CODEC_RAW = 0x55;
 export const CODEC_DAG_PB = 0x70;
-export const HASH_SHA2_256 = 0x12;
+// blake2b-256 multihash code. The host preimage manager hashes stored bytes
+// with blake2b-256, so CIDs we compute locally must match for reads to resolve.
+export const HASH_BLAKE2B_256 = 0xb220;
 
 export type CompletedChunk = {
   index: number;
@@ -32,8 +34,8 @@ type DagRootBuilder = {
 let dagRootBuilder: Promise<DagRootBuilder> | null = null;
 
 export function createCid(data: Uint8Array, codec: number): CID {
-  const hash = sha256(data);
-  const multihash = createMultihashDigest(HASH_SHA2_256, hash);
+  const hash = blake2b(data, { dkLen: 32 });
+  const multihash = createMultihashDigest(HASH_BLAKE2B_256, hash);
   return CID.createV1(codec, multihash);
 }
 
