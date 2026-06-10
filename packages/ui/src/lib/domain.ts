@@ -11,6 +11,16 @@ const DOT_NAME_REGEX =
 
 export const SPECIAL_CHAR_REGEX = /[&^%$*+~=`{}|\\<>\/\[\]"]+/;
 
+// A single canonical DNS label, mirroring the contract's StringUtils._isDnsLabel
+// (PopRules._requireCanonicalLabel): lowercase ASCII letters, digits and hyphen
+// only, no leading or trailing hyphen, length 1-63, and no dots. Names that fail
+// this revert at classify/register, so the UI must reject them up front.
+const CANONICAL_LABEL_REGEX = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+
+export function isCanonicalLabel(label: string): boolean {
+  return label.length > 0 && label.length <= 63 && CANONICAL_LABEL_REGEX.test(label);
+}
+
 /**
  * Validate an ENS/dotNS label
  *

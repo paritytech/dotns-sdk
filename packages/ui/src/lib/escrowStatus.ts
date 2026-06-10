@@ -1,5 +1,4 @@
-// Pure cooldown and status logic for escrow positions and refund entries.
-// Separated from the component so the time-gated rules can be unit tested.
+// Time-gated escrow rules kept pure and out of the component so they can be tested.
 
 export type ReleaseState = {
   amount: bigint;

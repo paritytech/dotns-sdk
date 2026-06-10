@@ -55,12 +55,28 @@
 
         <Icon v-else-if="status === 'available'" name="Check" size="lg" class="text-success" />
 
-        <Icon v-else-if="status === 'taken'" name="X" size="lg" class="text-error" />
+        <Icon
+          v-else-if="status === 'taken' || validationError"
+          name="X"
+          size="lg"
+          class="text-error"
+        />
       </div>
     </div>
 
     <div
-      v-if="status && !isLoading && userPopState"
+      v-if="validationError && !isLoading"
+      class="mt-3 rounded-xl border border-error/40 bg-dot-surface p-4 text-left transition-all duration-200"
+    >
+      <span class="inline-flex items-center gap-1.5 text-sm font-medium text-error">
+        <Icon name="X" size="sm" />
+        Invalid name
+      </span>
+      <p class="mt-1 text-sm text-dot-text-secondary">{{ validationError }}</p>
+    </div>
+
+    <div
+      v-else-if="status && !isLoading && userPopState"
       class="mt-3 rounded-xl border border-dot-border bg-dot-surface p-4 text-left space-y-3 transition-all duration-200"
     >
       <div class="flex flex-wrap items-center gap-2">
@@ -150,9 +166,10 @@ import {
   type Registration,
 } from "@/type";
 import { zeroHash } from "viem";
-import { useDomainStore } from "@/store/useDomainStore";
+import { useDomainStore, UNCLASSIFIABLE_MESSAGE } from "@/store/useDomainStore";
 import { useUserStoreManager } from "@/store/useUserStoreManager";
 import { useWalletStore } from "@/store/useWalletStore";
+import { isCanonicalLabel } from "@/utils";
 
 const storeManager = useUserStoreManager();
 const domainStore = useDomainStore();
@@ -164,6 +181,7 @@ const isLoading = ref(false);
 const status = ref<DotNSStatus | null>(null);
 const userPopState = ref<NameRequirement | null>(null);
 const myPopStatus = ref<PopStatus | null>(null);
+const validationError = ref<string | null>(null);
 
 async function refreshMyPopStatus(): Promise<void> {
   const evm = userWallet.evmAddress;
@@ -193,23 +211,39 @@ let debounceTimer: ReturnType<typeof setTimeout>;
 watch(
   searchQuery,
   async (value) => {
-    if (!value.trim()) {
+    const label = value.trim();
+    if (!label) {
       userPopState.value = null;
       status.value = null;
+      validationError.value = null;
+      isLoading.value = false;
       return;
     }
+    if (!isCanonicalLabel(label)) {
+      userPopState.value = null;
+      status.value = null;
+      validationError.value =
+        "Names use lowercase letters, digits and hyphens only, with no dots or spaces.";
+      isLoading.value = false;
+      return;
+    }
+    validationError.value = null;
     isLoading.value = true;
     try {
-      userPopState.value = await domainStore.classifyName(value);
-      const available = await storeManager.checkHandleAvailability(value);
+      const classification = await domainStore.classifyName(label);
+      userPopState.value = classification;
+      if (classification.message === UNCLASSIFIABLE_MESSAGE) {
+        status.value = null;
+        validationError.value = "This name cannot be registered.";
+        return;
+      }
+      const available = await storeManager.checkHandleAvailability(label);
       status.value = available.available ? "available" : "taken";
     } catch (err) {
       console.warn("Handle check failed:", err);
-      status.value = "taken";
-      userPopState.value = {
-        requirement: PopStatus.Reserved,
-        message: "This handle is invalid, all handles can have max 2 suffixed digits.",
-      };
+      status.value = null;
+      userPopState.value = null;
+      validationError.value = "This name cannot be registered.";
     } finally {
       isLoading.value = false;
     }
@@ -229,7 +263,11 @@ const meetsRequirement = computed(() => {
 });
 
 const canRegister = computed(
-  () => status.value === "available" && userWallet.isConnected && meetsRequirement.value,
+  () =>
+    !validationError.value &&
+    status.value === "available" &&
+    userWallet.isConnected &&
+    meetsRequirement.value,
 );
 
 const registerHint = computed(() => {
@@ -292,7 +330,8 @@ function handleBlur() {
 
 const borderClass = computed(() => {
   if (status.value === "available") return "border-success focus-within:border-success";
-  if (status.value === "taken") return "border-error focus-within:border-error";
+  if (status.value === "taken" || validationError.value)
+    return "border-error focus-within:border-error";
   return "border-dot-border focus-within:border-dot-border-strong focus-within:ring-1 focus-within:ring-dot-border-strong";
 });
 </script>
