@@ -38,6 +38,7 @@
     ".": "./dist/cli.js"
   },
   "devDependencies": {
+    "@polkadot-api/descriptors": "file:.papi/descriptors",
     "@types/bun": "^1.2.6",
     "@types/ora": "^3.2.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
@@ -57,7 +58,6 @@
     "@multiformats/blake2": "^2.0.2",
     "@multiformats/multiaddr": "^13.0.1",
     "@noble/hashes": "^2.0.1",
-    "@polkadot-api/descriptors": "file:.papi/descriptors",
     "@polkadot-labs/hdkd": "^0.0.26",
     "@polkadot-labs/hdkd-helpers": "^0.0.27",
     "@polkadot/keyring": "^14.0.1",
