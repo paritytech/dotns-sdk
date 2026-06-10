@@ -91,8 +91,9 @@
       <h2 class="text-xl font-semibold text-dot-text-primary">Censorship Resistance</h2>
       <p class="text-dot-text-secondary leading-relaxed">
         Every layer of the stack is decentralised. Name resolution lives on Polkadot smart
-        contracts. Content is stored on Bulletin (on-chain) or IPFS. The gateway is open-source and
-        can be self-hosted. No single entity can take your dApp down.
+        contracts. Content is stored on Bulletin (on-chain) or IPFS. dot.li resolves and renders it
+        client-side in the browser, is open-source, and can be self-hosted. No single entity can
+        take your dApp down.
       </p>
       <div class="overflow-x-auto">
         <table class="w-full text-sm border border-dot-border rounded-lg overflow-hidden">
@@ -115,14 +116,14 @@
     </div>
 
     <DocCallout variant="tip" title="Automate with CI/CD">
-      For production dApps, use the DotNS
+      For production dApps, follow the
       <RouterLink
-        to="/docs/dweb/deploy-workflow"
+        to="/docs/guides/deploy-with-ci"
         class="text-dot-accent hover:text-dot-accent-hover"
       >
-        Deploy Workflow
+        Deploy with CI
       </RouterLink>
-      to automate the entire build-upload-deploy pipeline on every push to main.
+      guide to automate the entire build-upload-deploy pipeline on every push to main.
     </DocCallout>
 
     <div class="border-t border-dot-border pt-6 flex justify-between text-sm">
@@ -180,9 +181,9 @@ const pipelineSteps = [
       "Link the resulting CID to your .dot name by updating the ContentResolver contract.",
   },
   {
-    title: "Access via gateway",
+    title: "Access through dot.li",
     description:
-      "Users visit your .dot domain. The gateway resolves the name, fetches the content, and serves it.",
+      "Users open your .dot domain in dot.li, which resolves the name on-chain, fetches the content, and renders it client-side.",
   },
 ];
 
@@ -203,9 +204,9 @@ const comparisons = [
     dotns: "On-chain lookup (censorship-resistant)",
   },
   {
-    layer: "Gateway",
+    layer: "Browser",
     traditional: "CDN / Load balancer",
-    dotns: "Open-source dweb-proxy (self-hostable)",
+    dotns: "dot.li, in-browser client-side resolution",
   },
 ];
 
@@ -228,12 +229,9 @@ dotns bulletin upload ./dist
 # Set the content hash on your .dot name
 dotns content set mydapp bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi`;
 
-const accessCode = `# Testnet
-https://mydapp.dotns.paseo.li
+const accessCode = `# Open in dot.li (production)
+https://mydapp.dot.li
 
-# Mainnet (via gateway)
-https://mydapp.dot
-
-# Verify with curl
-curl -H "Host: mydapp.dot" https://gateway.dotns.dev`;
+# Open in dot.li (Paseo testnet)
+https://mydapp.paseo.dot.li`;
 </script>

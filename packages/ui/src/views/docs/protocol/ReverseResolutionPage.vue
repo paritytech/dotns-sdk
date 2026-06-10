@@ -36,18 +36,19 @@
         <div class="p-4 border border-dot-border rounded-lg bg-dot-surface">
           <p class="text-sm font-medium text-dot-text-primary">Automatic (during registration)</p>
           <p class="text-xs text-dot-text-secondary mt-1">
-            When a name is registered with
-            <span class="font-mono text-dot-accent">reserved = true</span>
-            in the registration options, the Controller sets the reverse record for the owner's
-            address automatically. The address displays the new .dot name straight away.
+            When a reserved registration lands and the registrant has no existing primary, the
+            Controller seeds the reverse record through
+            <span class="font-mono text-dot-accent">setReverseName</span> (a controller-only path).
+            The address then displays the new .dot name straight away.
           </p>
         </div>
         <div class="p-4 border border-dot-border rounded-lg bg-dot-surface">
           <p class="text-sm font-medium text-dot-text-primary">Manual (after registration)</p>
           <p class="text-xs text-dot-text-secondary mt-1">
-            Users who own multiple .dot names can change their primary name by calling
-            <span class="font-mono text-dot-accent">setName</span> on the ReverseResolver directly.
-            Only the address owner can set their own reverse record.
+            Users who own multiple .dot names can set or change their primary name by calling
+            <span class="font-mono text-dot-accent">claimReverseRecord(label)</span> on the
+            ReverseResolver directly. The resolver checks that the caller currently owns that name
+            on the registrar before overwriting their reverse entry.
           </p>
         </div>
       </div>

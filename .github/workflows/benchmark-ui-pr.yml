@@ -86,7 +86,9 @@ jobs:
           PREVIEW_URL: ${{ needs.deploy.outputs.url || '' }}
           PREVIEW_URL_DIRECT: ${{ needs.deploy.outputs.url-direct || '' }}
           PREVIEW_URL_DOTLI_PATH: ${{ needs.deploy.outputs.url-dotli-path || '' }}
+          PREVIEW_URL_DOTLI_PASEO_PATH: ${{ needs.deploy.outputs.url-dotli-paseo-path || '' }}
           PREVIEW_URL_DOTLI_HOST: ${{ needs.deploy.outputs.url-dotli-host || '' }}
+          PREVIEW_URL_DOTLI_PASEO_HOST: ${{ needs.deploy.outputs.url-dotli-paseo-host || '' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
@@ -100,7 +102,9 @@ jobs:
             const previewUrl = process.env.PREVIEW_URL;
             const previewUrlDirect = process.env.PREVIEW_URL_DIRECT;
             const previewUrlDotliPath = process.env.PREVIEW_URL_DOTLI_PATH;
+            const previewUrlDotliPaseoPath = process.env.PREVIEW_URL_DOTLI_PASEO_PATH;
             const previewUrlDotliHost = process.env.PREVIEW_URL_DOTLI_HOST;
+            const previewUrlDotliPaseoHost = process.env.PREVIEW_URL_DOTLI_PASEO_HOST;
             const runUrl = process.env.RUN_URL;
 
             const { owner, repo } = context.repo;
@@ -142,10 +146,16 @@ jobs:
 
             const previewRows = [];
             if (previewUrlDotliHost) {
-              previewRows.push(`| Preview | [open](${previewUrlDotliHost}) |`);
+              previewRows.push(`| Preview (dot.li) | [open](${previewUrlDotliHost}) |`);
+              if (previewUrlDotliPaseoHost) {
+                previewRows.push(`| Preview (paseo.dot.li) | [open](${previewUrlDotliPaseoHost}) |`);
+              }
             } else {
               if (previewUrlDotliPath) {
                 previewRows.push(`| Preview (dot.li) | [open](${previewUrlDotliPath}) |`);
+              }
+              if (previewUrlDotliPaseoPath) {
+                previewRows.push(`| Preview (paseo.dot.li) | [open](${previewUrlDotliPaseoPath}) |`);
               }
               if (previewUrlDirect) {
                 previewRows.push(`| Preview (direct) | [open](${previewUrlDirect}) |`);

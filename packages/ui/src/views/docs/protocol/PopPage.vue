@@ -4,10 +4,10 @@
       <p class="text-sm font-medium text-dot-accent mb-2">Protocol</p>
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">Proof of Personhood</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
-        Proof of Personhood (PoP) is how DotNS ensures
-        <span class="text-dot-text-primary font-medium">fair name distribution</span>. It stops a
-        single person or bot from hoarding thousands of names, so shorter, more desirable names are
-        priced fairly based on who is registering them.
+        Proof of Personhood (PoP) is how DotNS keeps
+        <span class="text-dot-text-primary font-medium">name distribution fair</span>. It stops one
+        person or bot from hoarding thousands of names, and gates the shorter, more desirable names
+        behind verification rather than price.
       </p>
     </div>
 
@@ -21,8 +21,8 @@
       </p>
       <DocCallout variant="info" title="Why does this matter?">
         Without this protection, a single entity could register every short .dot name and resell
-        them at inflated prices. PoP keeps desirable names available to real users at fair prices
-        and the namespace healthy and accessible.
+        them at inflated prices. PoP keeps desirable names available to real users and the namespace
+        healthy and accessible.
       </DocCallout>
     </div>
 
@@ -118,8 +118,8 @@
         nine or more is open to anyone for the flat NoStatus deposit.
       </DocCallout>
       <DocCallout variant="tip" title="Free for verified users">
-        PoP-verified users (PopLite and PopFull) pay <strong>nothing</strong> to register. Get
-        verified for free registration of every name your tier allows.
+        PopLite and PopFull users pay <strong>nothing</strong> to register any name their tier
+        allows. Verification, not payment, is what unlocks the shorter stems.
       </DocCallout>
     </div>
 
@@ -183,27 +183,31 @@
         <p class="text-sm font-medium text-dot-text-primary">Examples</p>
         <div class="space-y-2 text-xs font-mono text-dot-text-secondary">
           <p>
-            <span class="text-dot-accent">alice</span> &rarr; baselen=5, digits=0 &rarr;
+            <span class="text-dot-accent">alice</span> &rarr; stemlen=5, digits=0 &rarr;
             <span class="text-warning">Reserved</span>
           </p>
           <p>
-            <span class="text-dot-accent">charlie</span> &rarr; baselen=7, digits=0 &rarr;
+            <span class="text-dot-accent">charlie</span> &rarr; stemlen=7, digits=0 &rarr;
             <span class="text-success">PopFull</span>
           </p>
           <p>
-            <span class="text-dot-accent">charlie42</span> &rarr; baselen=7, digits=2 &rarr;
+            <span class="text-dot-accent">charlie42</span> &rarr; stemlen=7, digits=2 &rarr;
             <span class="text-dot-accent">PopLite</span>
           </p>
           <p>
-            <span class="text-dot-accent">longername</span> &rarr; baselen=10, digits=0 &rarr;
-            <span class="text-success">PopFull</span>
-          </p>
-          <p>
-            <span class="text-dot-accent">longername99</span> &rarr; baselen=10, digits=2 &rarr;
+            <span class="text-dot-accent">longername</span> &rarr; stemlen=10, digits=0 &rarr;
             <span class="text-dot-text-secondary">NoStatus</span>
           </p>
           <p>
-            <span class="text-dot-accent">name12345</span> &rarr; baselen=4, digits=5 &rarr;
+            <span class="text-dot-accent">longername99</span> &rarr; stemlen=10, digits=2 &rarr;
+            <span class="text-dot-text-secondary">NoStatus</span>
+          </p>
+          <p>
+            <span class="text-dot-accent">charlie1</span> &rarr; stemlen=7, digits=1 &rarr;
+            <span class="text-error">Invalid (one trailing digit)</span>
+          </p>
+          <p>
+            <span class="text-dot-accent">charlie123</span> &rarr; stemlen=7, digits=3 &rarr;
             <span class="text-error">Invalid (&gt;2 digits)</span>
           </p>
         </div>
@@ -258,20 +262,20 @@ const tiers = [
   {
     name: "PopLite",
     description:
-      "Basic proof of personhood. Grants access to names with 6-8 character base and 2 trailing digits at zero cost.",
+      "Basic proof of personhood. Grants access to names with a 6-8 character stem and exactly two trailing digits at zero cost.",
     requires: "Basic PoP verification",
     pricing: "Free (0 DOT)",
-    names: "6-8 char base with 2 trailing digits",
+    names: "6-8 char stem with exactly two trailing digits",
     borderClass: "border-dot-accent/30 bg-dot-accent-soft",
     dotClass: "bg-dot-accent",
   },
   {
     name: "PopFull",
     description:
-      "Full proof of personhood. Grants access to premium names with 6+ character base and no trailing digits at zero cost.",
+      "Full proof of personhood. Grants access to premium names with a 6-8 character stem and no trailing digits at zero cost.",
     requires: "Full PoP verification",
     pricing: "Free (0 DOT)",
-    names: "6+ char base, no trailing digits",
+    names: "6-8 char stem, no trailing digits",
     borderClass: "border-success/30 bg-success/5",
     dotClass: "bg-success",
   },
@@ -305,7 +309,7 @@ const classificationRules = [
   {
     id: 3,
     baseLen: "6 - 8",
-    digits: "1 - 2",
+    digits: "exactly 2",
     classification: "PopLite",
     badgeClass: "bg-dot-accent/10 text-dot-accent",
   },
@@ -313,20 +317,20 @@ const classificationRules = [
     id: 4,
     baseLen: ">= 9",
     digits: "0",
-    classification: "PopFull",
-    badgeClass: "bg-success/10 text-success",
+    classification: "NoStatus",
+    badgeClass: "bg-dot-surface-secondary text-dot-text-secondary",
   },
   {
     id: 5,
     baseLen: ">= 9",
-    digits: "1 - 2",
+    digits: "exactly 2",
     classification: "NoStatus",
     badgeClass: "bg-dot-surface-secondary text-dot-text-secondary",
   },
   {
     id: 6,
     baseLen: "any",
-    digits: "> 2",
+    digits: "1, or > 2",
     classification: "Invalid",
     badgeClass: "bg-error/10 text-error",
   },
@@ -334,16 +338,16 @@ const classificationRules = [
 
 const classificationCode = `// PopRules classification logic (simplified)
 function classify(string calldata label) external pure returns (Status) {
-    (uint256 baselen, uint256 trailingDigits) = _analyse(label);
+    (uint256 stemLen, uint256 trailingDigits) = _analyse(label);
 
-    if (trailingDigits > 2) revert InvalidName();
-    if (baselen <= 5)       return Status.Reserved;
+    // Trailing digits must be zero or exactly two
+    if (trailingDigits == 1 || trailingDigits > 2) revert InvalidName();
+    if (stemLen <= 5)        return Status.Reserved;
+
+    if (stemLen >= 9)        return Status.NoStatus; // zero or two digits
+    // stemLen is 6-8 from here
 
     if (trailingDigits == 0) return Status.PopFull;
-    // trailingDigits is 1 or 2 from here
-
-    if (baselen <= 8)       return Status.PopLite;
-    // baselen >= 9 with 1-2 trailing digits
-    return Status.NoStatus;
+    return Status.PopLite;   // stem 6-8 with exactly two digits
 }`;
 </script>

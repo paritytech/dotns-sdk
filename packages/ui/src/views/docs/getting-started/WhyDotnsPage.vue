@@ -119,7 +119,7 @@ const comparison = [
   },
   {
     feature: "Web hosting",
-    dotns: "Native (Bulletin + dweb-proxy)",
+    dotns: "Native (Bulletin + dot.li)",
     ens: "Via third-party gateways",
   },
   {

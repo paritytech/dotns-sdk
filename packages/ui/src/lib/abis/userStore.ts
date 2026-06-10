@@ -1,7 +1,7 @@
 // Copyright 2026 Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: Apache-2.0
 //
-// UserStore logic ABI — vendored from dotns out/UserStore.sol/UserStore.json.
+// UserStore logic ABI, vendored from dotns out/UserStore.sol/UserStore.json.
 //
 // Per-user UserStores are BeaconProxy instances claimed by the owner via
 // StoreFactory.claimUserStore(); their LOGIC ABI is NOT published to the CDM

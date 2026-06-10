@@ -108,10 +108,10 @@
       <p class="text-dot-text-secondary leading-relaxed">
         See the
         <RouterLink
-          to="/docs/dweb/deploy-workflow"
+          to="/docs/guides/deploy-with-ci"
           class="text-dot-accent hover:text-dot-accent-hover"
         >
-          Deploy Workflow
+          Deploy with CI
         </RouterLink>
         docs for full configuration options.
       </p>
@@ -199,9 +199,9 @@ dotns bulletin upload ./public
 const setHashCode = `# Set the content hash on your .dot name
 dotns content set yourname bafybeif2uyxcrahg5kkjramreslhmssp4dkexumd7vqp5dmhtrxqjxngle`;
 
-const visitCode = `# Your portfolio is now live!
-# Testnet: https://yourname.dotns.paseo.li
-# Mainnet: https://yourname.dot (via gateway)`;
+const visitCode = `# Your portfolio is now live! Open it in dot.li:
+# https://yourname.dot.li
+# https://yourname.paseo.dot.li`;
 
 const hugoExample = `# 1. Create a new Hugo site
 hugo new site my-portfolio
@@ -223,7 +223,7 @@ dotns content set yourname bafybeif2uyxcrahg5kkjramreslhmssp4dkexumd7vqp5dmhtrxq
 const updateCode = `# Make changes to your site, then rebuild
 hugo --minify
 
-# Re-upload (only changed files are uploaded thanks to content-addressable caching)
+# Re-upload the rebuilt site (a new CID is produced for the new content)
 dotns bulletin upload ./public
 # New Root CID: bafybeiabcdef...
 
@@ -238,12 +238,23 @@ on:
     branches: [main]
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: hugo --minify
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: public/
+
   deploy:
+    needs: build
     uses: paritytech/dotns-sdk/.github/workflows/deploy.yml@main
     with:
       basename: yourname
       mode: production
-      parallel: 4
+      artifact-name: site
     secrets:
       dotns-mnemonic: \${{ secrets.DOTNS_MNEMONIC }}
       bulletin-mnemonic: \${{ secrets.BULLETIN_MNEMONIC }}`;

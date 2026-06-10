@@ -30,8 +30,7 @@
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Returns whether a given token ID (derived from the label's hash) is available for
-          registration.
+          Returns whether a registration call may proceed for the given token ID.
         </p>
         <DocParamTable
           :params="[
@@ -46,9 +45,9 @@
         <DocReturnsTable
           :returns="[
             {
-              name: 'available',
+              name: 'isAvailable',
               type: 'bool',
-              description: 'True if the token ID has not been minted',
+              description: 'True when a registration call may proceed for the token ID',
             },
           ]"
         />
@@ -110,8 +109,27 @@
           <DocBadge variant="transaction">transaction</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Transfers the NFT to a new owner. The transfer hook automatically copies Store records
-          (on-chain metadata) to the new owner, so registration data follows the name.
+          Transfers a .dot name NFT to a new owner. Every transfer overload is
+          <code
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+            >payable</code
+          >: the registrar's update hook consults
+          <code
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+            >PopRules.transferFloor</code
+          >
+          to compute a required reach floor, and if the caller does not forward at least that amount
+          as
+          <code
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+            >msg.value</code
+          >
+          the transfer reverts. Use
+          <code
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+            >quoteTransferFee</code
+          >
+          to quote the fee before transferring.
         </p>
         <DocParamTable
           :params="[
@@ -126,8 +144,58 @@
           ]"
         />
         <DocCallout variant="warning" title="Reverts when">
-          Caller is not the owner or an approved operator, or the recipient is the zero address.
+          The recipient owes a non-zero reach floor and the caller has not forwarded it as
+          <code
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+            >msg.value</code
+          >
+          (TransferFeeRequired), or the standard ERC-721 authorisation and recipient checks fail.
         </DocCallout>
+      </div>
+
+      <div class="space-y-2">
+        <div class="flex items-center gap-2">
+          <h3 class="text-base font-semibold text-dot-text-primary font-mono">
+            quoteTransferFee(tokenId, to)
+          </h3>
+          <DocBadge variant="read-only">read-only</DocBadge>
+        </div>
+        <p class="text-sm text-dot-text-secondary">
+          Quotes the additional native fee required to transfer a token to a recipient. Returns the
+          reach floor from
+          <code
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+            >PopRules.transferFloor</code
+          >: the maximum of the flat reach component charged when the recipient does not meet the
+          label's required tier and the downgrade component charged when the recipient tier is
+          strictly below the sender tier. Self-transfers and escrow-touching transfers return zero,
+          as does a token whose sender has no stored label.
+        </p>
+        <DocParamTable
+          :params="[
+            {
+              name: 'tokenId',
+              type: 'uint256',
+              description: 'The token ID to be transferred',
+              required: true,
+            },
+            {
+              name: 'to',
+              type: 'address',
+              description: 'The prospective recipient',
+              required: true,
+            },
+          ]"
+        />
+        <DocReturnsTable
+          :returns="[
+            {
+              name: 'requiredFee',
+              type: 'uint256',
+              description: 'The additional native fee required for the transfer, in wei',
+            },
+          ]"
+        />
       </div>
     </div>
 
@@ -136,10 +204,11 @@
       <DocCodeBlock :code="exampleCode" lang="typescript" filename="registrar.ts" />
     </div>
 
-    <DocCallout variant="warning" title="Transfer hook side effects">
-      When a .dot name NFT is transferred, the Registrar automatically copies the sender's Store
-      records to the recipient. This means registration metadata (such as resolver settings) follows
-      the name to its new owner.
+    <DocCallout variant="warning" title="Fee on transfer">
+      The Registrar polices a fee-on-transfer hook. When the recipient does not meet the label's
+      required PoP tier, or their tier is strictly below the sender's, the transfer requires a reach
+      floor to be forwarded as native value in the same call. Quote the amount with
+      <code>quoteTransferFee</code> first.
     </DocCallout>
 
     <div class="border-t border-dot-border pt-6 flex justify-between text-sm">

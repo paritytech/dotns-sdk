@@ -3,7 +3,6 @@ import type {
   BulletinUploadWorkerRequestInput,
   BulletinUploadWorkerResponse,
   BulletinUploadWorkerSuccessResponse,
-  PreparedBlock,
   PreparedChunk,
   PrepareRootSuccessResponse,
   PrepareSliceSuccessResponse,
@@ -34,10 +33,6 @@ export class BulletinUploadWorkerClient {
     this.worker.onmessageerror = () => {
       this.rejectAll(new Error("Background upload worker returned an unreadable message."));
     };
-  }
-
-  async prepareFile(file: File, codec: number): Promise<PreparedBlock> {
-    return this.prepareSlice(file, 0, file.size, codec);
   }
 
   async prepareSlice(

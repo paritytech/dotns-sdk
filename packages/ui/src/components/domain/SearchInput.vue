@@ -59,22 +59,54 @@
       </div>
     </div>
 
-    <div v-if="status && !isLoading" class="mt-2 text-center transition-all duration-200">
-      <p
-        class="text-xs font-medium mb-2"
-        :class="status === 'available' ? 'text-success' : 'text-error'"
-      >
-        {{ statusMessage }}
-      </p>
+    <div
+      v-if="status && !isLoading && userPopState"
+      class="mt-3 rounded-xl border border-dot-border bg-dot-surface p-4 text-left space-y-3 transition-all duration-200"
+    >
+      <div class="flex flex-wrap items-center gap-2">
+        <span
+          class="px-3 py-1 rounded-full text-xs font-bold"
+          :class="tierClasses(userPopState.requirement)"
+        >
+          {{ tierLabel(userPopState.requirement) }}
+        </span>
+        <span class="text-sm font-medium text-dot-text-primary break-all">
+          {{ searchQuery.trim().toLowerCase() }}.dot
+        </span>
+        <span
+          class="sm:ml-auto inline-flex items-center gap-1.5 text-xs font-semibold"
+          :class="status === 'available' ? 'text-success' : 'text-error'"
+        >
+          <Icon :name="status === 'available' ? 'Check' : 'X'" size="sm" />
+          {{ status === "available" ? "Available" : "Taken" }}
+        </span>
+      </div>
 
-      <Button
-        v-if="status === 'available' && canRegister"
-        variant="primary"
-        size="sm"
-        @click="registerHandle"
-      >
-        Register Handle
-      </Button>
+      <p class="text-sm text-dot-text-secondary">{{ userPopState.message }}</p>
+
+      <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-dot-text-tertiary">
+        <span
+          >Length:
+          <span class="text-dot-text-primary">{{ searchQuery.trim().length }} chars</span></span
+        >
+        <span
+          >Trailing digits:
+          <span class="text-dot-text-primary">{{ trailingDigits(searchQuery) }}</span></span
+        >
+        <span v-if="myPopStatus !== null"
+          >Your status:
+          <span class="text-dot-text-primary font-medium">{{
+            PopStatusLabels[myPopStatus]
+          }}</span></span
+        >
+      </div>
+
+      <div v-if="status === 'available'" class="flex items-center justify-end gap-3 pt-1">
+        <p v-if="registerHint" class="text-xs text-dot-text-tertiary mr-auto">{{ registerHint }}</p>
+        <Button variant="primary" size="sm" :disabled="!canRegister" @click="registerHandle">
+          Register
+        </Button>
+      </div>
     </div>
 
     <RegisterModal
@@ -98,17 +130,6 @@
       :transaction="transaction"
       @close="showTransaction = false"
     />
-
-    <AuthorizeStoreModal
-      v-if="authGuard.showAuthModal.value"
-      :open="authGuard.showAuthModal.value"
-      :contracts="authGuard.authStatuses.value"
-      :loading="authGuard.authLoading.value"
-      :progress="authGuard.authProgress.value"
-      :error="authGuard.authError.value"
-      @close="authGuard.handleAuthClose"
-      @submit="authGuard.handleAuthSubmit"
-    />
   </div>
 </template>
 
@@ -117,33 +138,47 @@ import { ref, computed, watch } from "vue";
 import RegisterModal from "../RegisterModal.vue";
 import WaitingPeriod from "./WaitingPeriod.vue";
 import TransactionStatus from "../TransactionStatus.vue";
-import AuthorizeStoreModal from "../modals/AuthorizeStoreModal.vue";
 import Icon from "@/components/ui/Icon.vue";
 import Button from "@/components/ui/Button.vue";
-import { useStoreAuthGuard } from "@/composables/useStoreAuthGuard";
+import { tierLabel, tierClasses } from "@/lib/docInteractiveHelpers";
 import {
   type DotNSStatus,
   type TransactionResult,
   type NameRequirement,
   PopStatus,
+  PopStatusLabels,
   type Registration,
 } from "@/type";
 import { zeroHash } from "viem";
 import { useDomainStore } from "@/store/useDomainStore";
 import { useUserStoreManager } from "@/store/useUserStoreManager";
-import { canRegisterWithStatus } from "@/utils";
 import { useWalletStore } from "@/store/useWalletStore";
 
 const storeManager = useUserStoreManager();
 const domainStore = useDomainStore();
 const userWallet = useWalletStore();
-const authGuard = useStoreAuthGuard();
 
 const searchQuery = ref("");
 const isFocused = ref(false);
 const isLoading = ref(false);
 const status = ref<DotNSStatus | null>(null);
 const userPopState = ref<NameRequirement | null>(null);
+const myPopStatus = ref<PopStatus | null>(null);
+
+async function refreshMyPopStatus(): Promise<void> {
+  const evm = userWallet.evmAddress;
+  if (!userWallet.isConnected || !evm) {
+    myPopStatus.value = null;
+    return;
+  }
+  try {
+    myPopStatus.value = await domainStore.userPopStatus(evm);
+  } catch {
+    myPopStatus.value = null;
+  }
+}
+
+watch(() => userWallet.isConnected, refreshMyPopStatus, { immediate: true });
 
 const showModal = ref(false);
 const showWaiting = ref(false);
@@ -182,27 +217,35 @@ watch(
   { flush: "post", deep: true },
 );
 
-const statusMessage = computed(() => {
-  if (!userPopState.value || !status.value) return "";
-  const popStatus = userPopState.value;
-  const availability =
-    status.value === "available" ? "Handle is available" : "Handle is already taken";
-  return `${availability} — ${popStatus.message}`;
+function trailingDigits(value: string): number {
+  const match = value.trim().match(/\d+$/);
+  return match ? match[0].length : 0;
+}
+
+const meetsRequirement = computed(() => {
+  const required = userPopState.value?.requirement;
+  if (required === undefined || required === PopStatus.Reserved) return false;
+  return myPopStatus.value !== null && myPopStatus.value >= required;
 });
 
-const canRegister = computed(() => {
-  if (!userPopState.value || !searchQuery.value.trim()) return false;
-  return (
-    canRegisterWithStatus(searchQuery.value, userPopState.value.requirement) &&
-    userWallet.isConnected
-  );
+const canRegister = computed(
+  () => status.value === "available" && userWallet.isConnected && meetsRequirement.value,
+);
+
+const registerHint = computed(() => {
+  if (!userWallet.isConnected) return "Connect your wallet to register";
+  const required = userPopState.value?.requirement;
+  if (required === undefined) return "";
+  if (required === PopStatus.Reserved) return "Governance-reserved name";
+  if (myPopStatus.value === null || myPopStatus.value < required) {
+    return `Requires ${tierLabel(required)} verification`;
+  }
+  return "";
 });
 
 function registerHandle() {
   if (!canRegister.value) return;
-  authGuard.checkAuthAndProceed(() => {
-    showModal.value = true;
-  });
+  showModal.value = true;
 }
 
 function openWaitingModal(duration: bigint, waitTime: bigint, registration: Registration) {

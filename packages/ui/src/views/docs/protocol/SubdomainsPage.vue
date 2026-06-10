@@ -33,9 +33,10 @@
         <span class="font-mono text-dot-accent">*.alice.dot</span> subdomain.
       </p>
       <DocCallout variant="info" title="Ownership check">
-        The Registry verifies <span class="font-mono">msg.sender == owner(parentNode)</span> before
-        allowing subdomain creation. Approved operators of the parent node can also create
-        subdomains.
+        The Registry checks that the caller is authorised over the parent node &mdash; the current
+        ERC-721 holder, a single-token approvee, or an operator-for-all on the registrar &mdash;
+        before allowing subdomain creation. A registrar-level approval therefore delegates subdomain
+        creation too.
       </DocCallout>
     </div>
 
@@ -75,12 +76,12 @@
     </div>
 
     <div class="space-y-4">
-      <h2 class="text-xl font-semibold text-dot-text-primary">Store Integration</h2>
+      <h2 class="text-xl font-semibold text-dot-text-primary">Records and Resolution</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        When a subdomain is created, the name is written to the owner's
-        <span class="font-mono text-dot-accent">Store</span> (a personal on-chain key-value
-        contract). This keeps a record of all names linked to an address, making it easy to list and
-        look them up.
+        A subnode carries its own
+        <span class="font-mono text-dot-accent">(owner, resolver)</span> entry in the Registry, so
+        once created it resolves and accepts records exactly like a top-level name. The subdomain
+        owner can set a forward address, text records, and a content hash against the subnode.
       </p>
       <DocCallout variant="tip" title="Subdomain use cases">
         Subdomains are ideal for organisations (team.company.dot), project namespaces
@@ -113,14 +114,9 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Subnode Creation Sequence</h2>
       <p class="text-dot-text-secondary text-sm leading-relaxed">
-        The full on-chain flow when creating a subdomain. The Registry checks ownership, then works
-        with the Controller, StoreFactory, and Store to set up the new child name.
+        When creating a subdomain, the Registry checks ownership of the parent node, then records
+        the child node's owner and resolver.
       </p>
-      <DocDiagramImage
-        src="/diagrams/subname.png"
-        alt="Subnode creation sequence diagram showing interactions between User, DotnsRegistry, DotnsRegistrarController, StoreFactory, and Store"
-        caption="Subnode Creation Sequence"
-      />
     </div>
 
     <div class="border-t border-dot-border pt-6 flex justify-between text-sm">
@@ -140,19 +136,24 @@
 <script setup lang="ts">
 import DocCallout from "@/components/docs/DocCallout.vue";
 import DocCodeBlock from "@/components/docs/DocCodeBlock.vue";
-import DocDiagramImage from "@/components/docs/DocDiagramImage.vue";
 
-const setSubnodeCode = `// Create a subdomain in the Registry
-function setSubnodeOwner(
-    bytes32 parentNode,
-    bytes32 labelhash,
-    address owner
-) external;
+const setSubnodeCode = `// Create a subdomain in the Registry — takes a single struct
+struct SubnodeRecord {
+    bytes32 parentNode;   // node hash of the parent (e.g. alice.dot)
+    string  subLabel;     // the child label (e.g. "blog")
+    string  parentLabel;  // the parent label (e.g. "alice")
+    address owner;        // who will own the subdomain
+}
+
+function setSubnodeOwner(SubnodeRecord calldata record) external;
 
 // Example: Create "blog.alice.dot"
-bytes32 aliceNode = ...; // node hash of alice.dot
-bytes32 blogHash = keccak256(abi.encodePacked("blog"));
-registry.setSubnodeOwner(aliceNode, blogHash, newOwner);`;
+registry.setSubnodeOwner(SubnodeRecord({
+    parentNode: aliceNode,
+    subLabel: "blog",
+    parentLabel: "alice",
+    owner: newOwner
+}));`;
 
 const subnodeHashCode = `// The subnode follows the standard namehash pattern:
 bytes32 subnode = keccak256(abi.encodePacked(parentNode, keccak256(abi.encodePacked("sub"))));
@@ -180,14 +181,14 @@ const createSteps = [
       "Check that you own the parent name (e.g. alice.dot) or are an approved operator for it.",
   },
   {
-    title: "Compute the labelhash",
+    title: "Assemble the subnode parameters",
     description:
-      'Hash the subdomain label with keccak256 (e.g. keccak256("blog") for blog.alice.dot).',
+      'Build the struct with the parent node, the child label (e.g. "blog"), the parent label (e.g. "alice"), and the new owner.',
   },
   {
     title: "Call setSubnodeOwner",
     description:
-      "Call registry.setSubnodeOwner(parentNode, labelhash, owner) to create the subdomain and assign ownership.",
+      "Call registry.setSubnodeOwner(params) with the struct to create the subdomain and assign ownership.",
   },
   {
     title: "Configure records",

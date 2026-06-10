@@ -156,9 +156,10 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Content-Addressable Caching</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        The workflow computes the CID of your build output before uploading. If the CID already
-        matches the on-chain content hash, it skips both the upload and the content hash update. No
-        wasted transactions, no duplicate uploads. Rebuilding the same code produces no changes.
+        The workflow hashes your build output and keys a deployment cache on it, scoped to the
+        target environment. When the same content has already been uploaded, it reuses the cached
+        CID and skips the Bulletin upload entirely. Rebuilding identical code produces no duplicate
+        uploads. Pass <code class="text-dot-accent">skip-cache: true</code> to force a fresh upload.
       </p>
     </div>
 
@@ -166,11 +167,11 @@
       <h2 class="text-xl font-semibold text-dot-text-primary">Preview Subname Format</h2>
       <p class="text-dot-text-secondary leading-relaxed">
         The <code class="text-dot-accent">subname-format</code> input controls how preview subnames
-        are generated. The default format is <code class="text-dot-accent">pr{number}</code>, which
-        produces subnames like <code class="text-dot-accent">pr42.myapp.dot</code>. You can
-        customise it &mdash; for example,
-        <code class="text-dot-accent">preview-{number}</code> would produce
-        <code class="text-dot-accent">preview-42.myapp.dot</code>.
+        are generated. The default <code class="text-dot-accent">pr-number</code> produces subnames
+        like <code class="text-dot-accent">pr42.myapp.dot</code>. Set it to
+        <code class="text-dot-accent">branch</code> to derive the subname from the branch name, or
+        <code class="text-dot-accent">sha-short</code> to use the short commit SHA. To pin an exact
+        subname, pass the <code class="text-dot-accent">subname</code> input instead.
       </p>
     </div>
 
@@ -242,8 +243,7 @@ jobs:
       basename: myapp
       mode: \${{ github.event_name == 'push' && 'production' || 'preview' }}
       artifact-name: build
-      parallel: true
-      concurrency: 4
+      upload-concurrency: 4
     secrets:
       dotns-mnemonic: \${{ secrets.DOTNS_MNEMONIC }}
       bulletin-mnemonic: \${{ secrets.BULLETIN_MNEMONIC }}`;
@@ -261,23 +261,24 @@ const workflowInputs = [
   },
   {
     name: "artifact-name",
-    default: "build",
-    description: "Name of the uploaded build artefact to deploy.",
+    default: "—",
+    description: "Name of the uploaded build artefact to deploy. Required.",
   },
   {
     name: "subname-format",
-    default: "pr{number}",
-    description: "Template for preview subnames. {number} is replaced with the PR number.",
+    default: "pr-number",
+    description:
+      "Preview subname scheme: pr-number, branch, or sha-short. Ignored in production mode.",
   },
   {
-    name: "parallel",
+    name: "upload-concurrency",
+    default: "4",
+    description: "Adaptive scheduler max window for Bulletin uploads (max: 4).",
+  },
+  {
+    name: "cache",
     default: "false",
-    description: "Enable parallel Bulletin uploads for faster deployments.",
-  },
-  {
-    name: "concurrency",
-    default: "1",
-    description: "Number of concurrent Bulletin upload threads when parallel is enabled.",
+    description: "Write the uploaded CID to your on-chain Store contract after upload.",
   },
 ];
 

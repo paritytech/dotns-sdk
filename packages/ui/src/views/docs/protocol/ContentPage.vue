@@ -153,13 +153,13 @@ function contenthash(bytes32 node) external view returns (bytes memory);
 bytes memory ipfsHash = hex"e30101701220..."; // encoded CID
 contentResolver.setContenthash(aliceNode, ipfsHash);`;
 
-const operatorCode = `// Approve an operator to manage your records
-function approve(bytes32 node, address operator, bool approved) external;
+const operatorCode = `// Approve an operator to manage all your records (record-scoped, resolver-local)
+function setApprovalForAll(address operator, bool approved) external;
 
 // Check if an address is an approved operator
-function isApprovedFor(bytes32 node, address owner, address operator)
+function isApprovedForAll(address owner, address operator)
     external view returns (bool);
 
 // Example: Approve a CI/CD bot to update content hashes
-contentResolver.approve(aliceNode, ciBot, true);`;
+contentResolver.setApprovalForAll(ciBot, true);`;
 </script>

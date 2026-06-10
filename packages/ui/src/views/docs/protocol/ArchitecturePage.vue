@@ -4,18 +4,17 @@
       <p class="text-sm font-medium text-dot-accent mb-2">Protocol</p>
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">Architecture</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
-        DotNS is composed of
+        DotNS is built from
         <span class="text-dot-text-primary font-medium">8 smart contracts</span>
-        deployed on Paseo AssetHub. Each contract has a single responsibility, and together they
-        form a modular naming system with registration, resolution, content management, and
-        proof-of-personhood pricing.
+        deployed on Paseo AssetHub. Each one has a single responsibility, and together they cover
+        registration, resolution, content management, and proof-of-personhood pricing.
       </p>
     </div>
 
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Deployed Contracts</h2>
       <p class="text-dot-text-secondary text-sm">
-        All contracts are deployed on the Paseo AssetHub testnet. Addresses are shown below.
+        Each contract is live on the Paseo AssetHub testnet at the address shown below.
       </p>
       <div class="space-y-3">
         <div
@@ -37,16 +36,9 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Contract Relationships</h2>
       <p class="text-dot-text-secondary text-sm leading-relaxed">
-        The diagram below shows how the contracts interact during registration and resolution. The
-        Controller coordinates each step, while the Registry holds the definitive record of who owns
-        each name.
+        During registration and resolution the Controller coordinates each step, while the Registry
+        holds the definitive record of who owns each name.
       </p>
-
-      <DocDiagramImage
-        src="/diagrams/system.png"
-        alt="DotNS system diagram showing client interfaces, smart contracts, external systems, proxy, and blockchain layers"
-        caption="DotNS System Diagram"
-      />
     </div>
 
     <div class="space-y-4">
@@ -106,7 +98,6 @@
 
 <script setup lang="ts">
 import DocCallout from "@/components/docs/DocCallout.vue";
-import DocDiagramImage from "@/components/docs/DocDiagramImage.vue";
 
 const contracts = [
   {
@@ -148,7 +139,7 @@ const contracts = [
   {
     name: "StoreFactory",
     description:
-      "Deploys a personal key-value Store contract for each user to hold their registration records on-chain.",
+      "Deploys per-user stores: a protocol-managed LabelStore for the registration ledger and a user-claimed UserStore for arbitrary records.",
     address: "0x692047C1477a017F287488E1c85F96Ca28C23fD8",
   },
 ];
@@ -170,9 +161,9 @@ const flowSteps = [
       "The Registrar writes the owner and resolver addresses into the Registry for the newly registered name.",
   },
   {
-    title: "Controller writes to Store",
+    title: "Label written to the LabelStore",
     description:
-      "The Controller writes a permanent registration record to the user's personal Store contract through StoreFactory.",
+      "The owner's protocol-managed LabelStore records the registered label as a permanent, locked entry, building the address's lifetime-of-ownership ledger.",
   },
   {
     title: "Resolvers become queryable",

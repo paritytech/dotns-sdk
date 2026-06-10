@@ -69,7 +69,7 @@
       <p class="text-dot-text-secondary leading-relaxed">
         DotNS runs on Polkadot's EVM-compatible layer (Revive) through a system of 8 smart
         contracts. They handle registration, name resolution, content storage, and proof of
-        personhood. Everything lives on chain &mdash; no external servers or indexers needed.
+        personhood. Everything lives on chain, so there are no external servers or indexers to run.
       </p>
     </div>
 

@@ -1,0 +1,1482 @@
+// Copyright 2026 Parity Technologies (UK) Ltd.
+// SPDX-License-Identifier: Apache-2.0
+//
+// DotnsNameEscrow ABI, vendored from dotns out/DotnsNameEscrow.sol/DotnsNameEscrow.json.
+//
+// The escrow holds NoStatus deposits and the refund-on-leave ledger. It is the one
+// dotns contract not published to the CDM meta-registry, so the UI resolves it by
+// explicit address (see NAME_ESCROW_ADDRESS) rather than getContract(), mirroring
+// how the personhood precompile is wired in useDomainStore.
+// Re-vendor if IDotnsNameEscrow changes.
+import type { AbiEntry } from "@parity/product-sdk-contracts";
+import type { Address } from "viem";
+
+// Paseo deployment (paseo-asset-hub-next). The UI targets a single network today;
+// add a network-keyed lookup here if more environments are introduced.
+export const NAME_ESCROW_ADDRESS = "0x2Cb9899d91Ee575E8917958723F5E941b1BcC6A1" as Address;
+
+export const nameEscrowAbi = [
+  {
+    type: "constructor",
+    inputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "MAX_COOLDOWN",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "MAX_REFUND_PAGE_SIZE",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "MAX_RELEASED_PAGE_SIZE",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "UPGRADE_INTERFACE_VERSION",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "string",
+        internalType: "string",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "chargeTransferFee",
+    inputs: [
+      {
+        name: "params",
+        type: "tuple",
+        internalType: "struct IDotnsNameEscrow.ChargeTransferFeeParams",
+        components: [
+          {
+            name: "tokenId",
+            type: "uint256",
+            internalType: "uint256",
+          },
+          {
+            name: "reachFloor",
+            type: "uint256",
+            internalType: "uint256",
+          },
+          {
+            name: "payer",
+            type: "address",
+            internalType: "address",
+          },
+          {
+            name: "to",
+            type: "address",
+            internalType: "address",
+          },
+        ],
+      },
+    ],
+    outputs: [
+      {
+        name: "charged",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    stateMutability: "payable",
+  },
+  {
+    type: "function",
+    name: "claimRefund",
+    inputs: [
+      {
+        name: "entryId",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    outputs: [
+      {
+        name: "amount",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "claimRefundsBatch",
+    inputs: [
+      {
+        name: "entryIds",
+        type: "uint256[]",
+        internalType: "uint256[]",
+      },
+    ],
+    outputs: [
+      {
+        name: "totalAmount",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "claimWithdrawal",
+    inputs: [],
+    outputs: [
+      {
+        name: "amount",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "cooldown",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "creditOverpayment",
+    inputs: [
+      {
+        name: "recipient",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+    outputs: [],
+    stateMutability: "payable",
+  },
+  {
+    type: "function",
+    name: "deposit",
+    inputs: [
+      {
+        name: "params",
+        type: "tuple",
+        internalType: "struct IDotnsNameEscrow.DepositParams",
+        components: [
+          {
+            name: "tokenId",
+            type: "uint256",
+            internalType: "uint256",
+          },
+          {
+            name: "asset",
+            type: "address",
+            internalType: "address",
+          },
+          {
+            name: "amount",
+            type: "uint256",
+            internalType: "uint256",
+          },
+          {
+            name: "recipient",
+            type: "address",
+            internalType: "address",
+          },
+        ],
+      },
+    ],
+    outputs: [],
+    stateMutability: "payable",
+  },
+  {
+    type: "function",
+    name: "depositInsurance",
+    inputs: [
+      {
+        name: "params",
+        type: "tuple",
+        internalType: "struct IDotnsNameEscrow.InsuranceDepositParams",
+        components: [
+          {
+            name: "tokenId",
+            type: "uint256",
+            internalType: "uint256",
+          },
+          {
+            name: "payer",
+            type: "address",
+            internalType: "address",
+          },
+          {
+            name: "recipient",
+            type: "address",
+            internalType: "address",
+          },
+        ],
+      },
+    ],
+    outputs: [],
+    stateMutability: "payable",
+  },
+  {
+    type: "function",
+    name: "getReleasePosition",
+    inputs: [
+      {
+        name: "tokenId",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    outputs: [
+      {
+        name: "position",
+        type: "tuple",
+        internalType: "struct IDotnsNameEscrow.ReleasePosition",
+        components: [
+          {
+            name: "recipient",
+            type: "address",
+            internalType: "address",
+          },
+          {
+            name: "asset",
+            type: "address",
+            internalType: "address",
+          },
+          {
+            name: "amount",
+            type: "uint256",
+            internalType: "uint256",
+          },
+          {
+            name: "withdrawAvailableAt",
+            type: "uint64",
+            internalType: "uint64",
+          },
+          {
+            name: "released",
+            type: "bool",
+            internalType: "bool",
+          },
+          {
+            name: "claimed",
+            type: "bool",
+            internalType: "bool",
+          },
+        ],
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "initialize",
+    inputs: [
+      {
+        name: "registry",
+        type: "address",
+        internalType: "contract IDotnsProtocolRegistry",
+      },
+      {
+        name: "cooldownSeconds",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "insuranceFund",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "onERC721Received",
+    inputs: [
+      {
+        name: "",
+        type: "address",
+        internalType: "address",
+      },
+      {
+        name: "",
+        type: "address",
+        internalType: "address",
+      },
+      {
+        name: "tokenId",
+        type: "uint256",
+        internalType: "uint256",
+      },
+      {
+        name: "",
+        type: "bytes",
+        internalType: "bytes",
+      },
+    ],
+    outputs: [
+      {
+        name: "selector",
+        type: "bytes4",
+        internalType: "bytes4",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "owner",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "pendingRefundCount",
+    inputs: [
+      {
+        name: "recipient",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+    outputs: [
+      {
+        name: "count",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "pendingRefundIds",
+    inputs: [
+      {
+        name: "recipient",
+        type: "address",
+        internalType: "address",
+      },
+      {
+        name: "offset",
+        type: "uint256",
+        internalType: "uint256",
+      },
+      {
+        name: "limit",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    outputs: [
+      {
+        name: "entryIds",
+        type: "uint256[]",
+        internalType: "uint256[]",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "pendingRefunds",
+    inputs: [
+      {
+        name: "recipient",
+        type: "address",
+        internalType: "address",
+      },
+      {
+        name: "offset",
+        type: "uint256",
+        internalType: "uint256",
+      },
+      {
+        name: "limit",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    outputs: [
+      {
+        name: "entryIds",
+        type: "uint256[]",
+        internalType: "uint256[]",
+      },
+      {
+        name: "entries",
+        type: "tuple[]",
+        internalType: "struct IDotnsNameEscrow.RefundEntry[]",
+        components: [
+          {
+            name: "recipient",
+            type: "address",
+            internalType: "address",
+          },
+          {
+            name: "amount",
+            type: "uint256",
+            internalType: "uint256",
+          },
+          {
+            name: "availableAt",
+            type: "uint64",
+            internalType: "uint64",
+          },
+          {
+            name: "tokenId",
+            type: "uint256",
+            internalType: "uint256",
+          },
+        ],
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "pendingWithdrawal",
+    inputs: [
+      {
+        name: "recipient",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+    outputs: [
+      {
+        name: "amount",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "protocolRegistry",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "address",
+        internalType: "contract IDotnsProtocolRegistry",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "proxiableUUID",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "bytes32",
+        internalType: "bytes32",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "reclaim",
+    inputs: [
+      {
+        name: "tokenId",
+        type: "uint256",
+        internalType: "uint256",
+      },
+      {
+        name: "newOwner",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "refundEntry",
+    inputs: [
+      {
+        name: "entryId",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    outputs: [
+      {
+        name: "entry",
+        type: "tuple",
+        internalType: "struct IDotnsNameEscrow.RefundEntry",
+        components: [
+          {
+            name: "recipient",
+            type: "address",
+            internalType: "address",
+          },
+          {
+            name: "amount",
+            type: "uint256",
+            internalType: "uint256",
+          },
+          {
+            name: "availableAt",
+            type: "uint64",
+            internalType: "uint64",
+          },
+          {
+            name: "tokenId",
+            type: "uint256",
+            internalType: "uint256",
+          },
+        ],
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "release",
+    inputs: [
+      {
+        name: "tokenId",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "releasedTokenCount",
+    inputs: [],
+    outputs: [
+      {
+        name: "count",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "releasedTokens",
+    inputs: [
+      {
+        name: "start",
+        type: "uint256",
+        internalType: "uint256",
+      },
+      {
+        name: "limit",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    outputs: [
+      {
+        name: "tokenIds",
+        type: "uint256[]",
+        internalType: "uint256[]",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "renounceOwnership",
+    inputs: [],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "reserves",
+    inputs: [
+      {
+        name: "asset",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+    outputs: [
+      {
+        name: "amount",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "supportsInterface",
+    inputs: [
+      {
+        name: "interfaceId",
+        type: "bytes4",
+        internalType: "bytes4",
+      },
+    ],
+    outputs: [
+      {
+        name: "supported",
+        type: "bool",
+        internalType: "bool",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "tokenReserved",
+    inputs: [
+      {
+        name: "asset",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+    outputs: [
+      {
+        name: "amount",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "transferOwnership",
+    inputs: [
+      {
+        name: "newOwner",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "updateCooldown",
+    inputs: [
+      {
+        name: "newCooldown",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "upgradeToAndCall",
+    inputs: [
+      {
+        name: "newImplementation",
+        type: "address",
+        internalType: "address",
+      },
+      {
+        name: "data",
+        type: "bytes",
+        internalType: "bytes",
+      },
+    ],
+    outputs: [],
+    stateMutability: "payable",
+  },
+  {
+    type: "function",
+    name: "version",
+    inputs: [],
+    outputs: [
+      {
+        name: "versionString",
+        type: "string",
+        internalType: "string",
+      },
+    ],
+    stateMutability: "pure",
+  },
+  {
+    type: "function",
+    name: "withdraw",
+    inputs: [
+      {
+        name: "tokenId",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "event",
+    name: "CooldownUpdated",
+    inputs: [
+      {
+        name: "currentCooldown",
+        type: "uint256",
+        indexed: true,
+        internalType: "uint256",
+      },
+      {
+        name: "newCooldown",
+        type: "uint256",
+        indexed: true,
+        internalType: "uint256",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "CrossTierFeePaid",
+    inputs: [
+      {
+        name: "tokenId",
+        type: "uint256",
+        indexed: true,
+        internalType: "uint256",
+      },
+      {
+        name: "payer",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+      {
+        name: "recipient",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+      {
+        name: "amount",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+      {
+        name: "isRegistration",
+        type: "bool",
+        indexed: false,
+        internalType: "bool",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "Initialized",
+    inputs: [
+      {
+        name: "version",
+        type: "uint64",
+        indexed: false,
+        internalType: "uint64",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "InsuranceDraw",
+    inputs: [
+      {
+        name: "tokenId",
+        type: "uint256",
+        indexed: true,
+        internalType: "uint256",
+      },
+      {
+        name: "amount",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "NameReclaimed",
+    inputs: [
+      {
+        name: "tokenId",
+        type: "uint256",
+        indexed: true,
+        internalType: "uint256",
+      },
+      {
+        name: "previousRecipient",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+      {
+        name: "newOwner",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "NameReleased",
+    inputs: [
+      {
+        name: "tokenId",
+        type: "uint256",
+        indexed: true,
+        internalType: "uint256",
+      },
+      {
+        name: "recipient",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+      {
+        name: "asset",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+      {
+        name: "amount",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+      {
+        name: "withdrawAvailableAt",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "NativeDepositRecorded",
+    inputs: [
+      {
+        name: "tokenId",
+        type: "uint256",
+        indexed: true,
+        internalType: "uint256",
+      },
+      {
+        name: "amount",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "OverpaymentRefunded",
+    inputs: [
+      {
+        name: "payer",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+      {
+        name: "amount",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "OwnershipTransferred",
+    inputs: [
+      {
+        name: "previousOwner",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+      {
+        name: "newOwner",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "RefundClaimed",
+    inputs: [
+      {
+        name: "recipient",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+      {
+        name: "entryId",
+        type: "uint256",
+        indexed: true,
+        internalType: "uint256",
+      },
+      {
+        name: "amount",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "RefundCredited",
+    inputs: [
+      {
+        name: "recipient",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+      {
+        name: "entryId",
+        type: "uint256",
+        indexed: true,
+        internalType: "uint256",
+      },
+      {
+        name: "amount",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+      {
+        name: "availableAt",
+        type: "uint64",
+        indexed: false,
+        internalType: "uint64",
+      },
+      {
+        name: "tokenId",
+        type: "uint256",
+        indexed: true,
+        internalType: "uint256",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "RefundWithdrawn",
+    inputs: [
+      {
+        name: "tokenId",
+        type: "uint256",
+        indexed: true,
+        internalType: "uint256",
+      },
+      {
+        name: "recipient",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+      {
+        name: "asset",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+      {
+        name: "amount",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "Upgraded",
+    inputs: [
+      {
+        name: "implementation",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "WithdrawalClaimed",
+    inputs: [
+      {
+        name: "recipient",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+      {
+        name: "amount",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "error",
+    name: "AddressEmptyCode",
+    inputs: [
+      {
+        name: "target",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "AlreadyClaimed",
+    inputs: [
+      {
+        name: "tokenId",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "AlreadyReleased",
+    inputs: [
+      {
+        name: "tokenId",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "AssetNotSupported",
+    inputs: [
+      {
+        name: "asset",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "CooldownTooLong",
+    inputs: [
+      {
+        name: "supplied",
+        type: "uint256",
+        internalType: "uint256",
+      },
+      {
+        name: "maxAllowed",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "DepositNotConfigured",
+    inputs: [
+      {
+        name: "tokenId",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "ERC1967InvalidImplementation",
+    inputs: [
+      {
+        name: "implementation",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "ERC1967NonPayable",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "EscrowNotApproved",
+    inputs: [
+      {
+        name: "tokenId",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "FailedCall",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InsufficientFunds",
+    inputs: [
+      {
+        name: "tokenId",
+        type: "uint256",
+        internalType: "uint256",
+      },
+      {
+        name: "owed",
+        type: "uint256",
+        internalType: "uint256",
+      },
+      {
+        name: "available",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "InsufficientValue",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InvalidAmount",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InvalidAsset",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InvalidCooldown",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InvalidInitialization",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "InvalidPageSize",
+    inputs: [
+      {
+        name: "limit",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "InvalidRecipient",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "NoPendingWithdrawal",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "NoSuchRefundEntry",
+    inputs: [
+      {
+        name: "entryId",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "NotAcceptedTransfer",
+    inputs: [
+      {
+        name: "caller",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "NotController",
+    inputs: [
+      {
+        name: "caller",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "NotInitializing",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "NotReclaimable",
+    inputs: [
+      {
+        name: "tokenId",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "NotRefundRecipient",
+    inputs: [
+      {
+        name: "caller",
+        type: "address",
+        internalType: "address",
+      },
+      {
+        name: "tokenId",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "NotRegistrar",
+    inputs: [
+      {
+        name: "caller",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "NotReleased",
+    inputs: [
+      {
+        name: "tokenId",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "OwnableInvalidOwner",
+    inputs: [
+      {
+        name: "owner",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "OwnableUnauthorizedAccount",
+    inputs: [
+      {
+        name: "account",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "PositionAlreadyFunded",
+    inputs: [
+      {
+        name: "tokenId",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "ReentrancyGuardReentrantCall",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "RefundFailed",
+    inputs: [
+      {
+        name: "tokenId",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "RefundLocked",
+    inputs: [
+      {
+        name: "entryId",
+        type: "uint256",
+        internalType: "uint256",
+      },
+      {
+        name: "availableAt",
+        type: "uint64",
+        internalType: "uint64",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "UUPSUnauthorizedCallContext",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "UUPSUnsupportedProxiableUUID",
+    inputs: [
+      {
+        name: "slot",
+        type: "bytes32",
+        internalType: "bytes32",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "UnsolicitedDeposit",
+    inputs: [
+      {
+        name: "tokenId",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "WithdrawalTooEarly",
+    inputs: [
+      {
+        name: "tokenId",
+        type: "uint256",
+        internalType: "uint256",
+      },
+      {
+        name: "availableAt",
+        type: "uint256",
+        internalType: "uint256",
+      },
+      {
+        name: "currentTime",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+  },
+] as unknown as AbiEntry[];

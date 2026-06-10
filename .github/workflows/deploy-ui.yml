@@ -162,7 +162,9 @@ jobs:
           DEPLOY_URL: ${{ needs.deploy-preview.outputs.url }}
           DEPLOY_URL_DIRECT: ${{ needs.deploy-preview.outputs.url-direct }}
           DEPLOY_URL_DOTLI_PATH: ${{ needs.deploy-preview.outputs.url-dotli-path }}
+          DEPLOY_URL_DOTLI_PASEO_PATH: ${{ needs.deploy-preview.outputs.url-dotli-paseo-path }}
           DEPLOY_URL_DOTLI_HOST: ${{ needs.deploy-preview.outputs.url-dotli-host }}
+          DEPLOY_URL_DOTLI_PASEO_HOST: ${{ needs.deploy-preview.outputs.url-dotli-paseo-host }}
           DEPLOY_CACHE_HIT: ${{ needs.deploy-preview.outputs.cache-hit }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
@@ -203,7 +205,9 @@ jobs:
             const url = process.env.DEPLOY_URL;
             const urlDirect = process.env.DEPLOY_URL_DIRECT;
             const urlDotliPath = process.env.DEPLOY_URL_DOTLI_PATH;
+            const urlDotliPaseoPath = process.env.DEPLOY_URL_DOTLI_PASEO_PATH;
             const urlDotliHost = process.env.DEPLOY_URL_DOTLI_HOST;
+            const urlDotliPaseoHost = process.env.DEPLOY_URL_DOTLI_PASEO_HOST;
             const cacheHit = process.env.DEPLOY_CACHE_HIT === "true";
 
             const buildPassed = buildStatus === "Passed";
@@ -298,10 +302,16 @@ jobs:
               const cidDisplay = cacheHit ? `\`${cid}\` (cached)` : `\`${cid}\``;
               const urlRows = [];
               if (urlDotliHost) {
-                urlRows.push(`| URL | [${urlDotliHost}](${urlDotliHost}) |`);
+                urlRows.push(`| URL (dot.li) | [${urlDotliHost}](${urlDotliHost}) |`);
+                if (urlDotliPaseoHost) {
+                  urlRows.push(`| URL (paseo.dot.li) | [${urlDotliPaseoHost}](${urlDotliPaseoHost}) |`);
+                }
               } else {
                 if (urlDotliPath) {
                   urlRows.push(`| URL (dot.li) | [${urlDotliPath}](${urlDotliPath}) |`);
+                }
+                if (urlDotliPaseoPath) {
+                  urlRows.push(`| URL (paseo.dot.li) | [${urlDotliPaseoPath}](${urlDotliPaseoPath}) |`);
                 }
                 if (urlDirect) {
                   urlRows.push(`| URL (direct) | [${urlDirect}](${urlDirect}) |`);

@@ -1,5 +1,4 @@
 import { defineStore } from "pinia";
-import { ref } from "vue";
 import {
   keccak256,
   toHex,
@@ -20,7 +19,7 @@ import {
 import type { TxStatus } from "@parity/product-sdk-tx";
 import { mapTxStatus } from "@/lib/txStatus";
 import { isValidSubstrateAddress, normalizeDomainName, ZERO_SUBSTRATE_ADDRESS } from "../utils";
-import type { ContractAuthStatus, DotnsAvailability } from "@/type";
+import type { DotnsAvailability } from "@/type";
 import { useResolverStore } from "./useResolverStore";
 import { useWalletStore } from "./useWalletStore";
 
@@ -38,18 +37,13 @@ function userStoreKey(value: string): Hash {
 }
 
 export const useUserStoreManager = defineStore("userStoreManager", () => {
-  // Exposed for back-compat with the old single-Store model. Populated by
-  // getUserStore() but no longer load-bearing — readers should call the
-  // helpers directly.
-  const userStore = ref<Address>(ZERO);
-
   const walletStore = useWalletStore();
   const resolverStore = useResolverStore();
 
-  // LabelStore is protocol-managed — deployed by the registrar/controller when
-  // the user registers a name; holds the user's domain labels. UserStore is
-  // user-claimed (via claimUserStore) and holds arbitrary KV data including
-  // Bulletin CIDs; ensureUserStore() claims it on first write.
+  // LabelStore is protocol-deployed when a name is registered and holds the
+  // user's labels. UserStore is user-claimed via claimUserStore and holds
+  // arbitrary key/value data including Bulletin CIDs; ensureUserStore claims it
+  // on first write.
   async function getLabelStore(evm: Address): Promise<Address> {
     return withContractRecovery(async () => {
       const factory = await getContract("@dotns/store-factory");
@@ -63,9 +57,7 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
     return withContractRecovery(async () => {
       const factory = await getContract("@dotns/store-factory");
       const result = await factory.getUserStore!.query(evm, { origin: ZERO_SUBSTRATE_ADDRESS });
-      const addr = result.success ? ((result.value as Address) ?? ZERO) : ZERO;
-      userStore.value = addr;
-      return addr;
+      return result.success ? ((result.value as Address) ?? ZERO) : ZERO;
     });
   }
 
@@ -173,28 +165,6 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
     }
   }
 
-  // Stubs for genuinely removed single-Store capabilities, kept so ProfileView,
-  // WhoProfileView, and TryStoreLookup compile unchanged. Read paths return inert
-  // defaults; removed write paths throw a migration message so a clicked button
-  // surfaces a toast rather than silently doing nothing.
-  async function getAuthorizationStatus(store: Address): Promise<ContractAuthStatus[]> {
-    void store;
-    return [];
-  }
-
-  function migrationDisabled(op: string): never {
-    throw new Error(`${op} is not supported on the v2 architecture migration.`);
-  }
-
-  async function batchAuthChanges(
-    store: Address,
-    changes: { address: Address; authorize: boolean }[],
-  ): Promise<Hash> {
-    void store;
-    void changes;
-    return migrationDisabled("Contract authorization changes");
-  }
-
   // Write a key/value into the caller's UserStore, claiming the store first if
   // they have none. The single canonical write path for user data.
   async function setUserStoreValue(key: Hash, value: Hex): Promise<Hash> {
@@ -254,7 +224,6 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
   }
 
   return {
-    userStore,
     getLabelStore,
     getUserStore,
     claimUserStore,
@@ -264,8 +233,5 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
     writeCidToStore,
     deleteCidFromStore,
     getBulletinUploads,
-    // deprecated stubs
-    getAuthorizationStatus,
-    batchAuthChanges,
   };
 });

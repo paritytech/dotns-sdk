@@ -4,31 +4,46 @@
       <p class="text-sm font-medium text-dot-accent mb-2">Protocol</p>
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">On-Chain Storage</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
-        Each DotNS user has a dedicated
-        <span class="text-dot-text-primary font-medium">Store</span> contract &mdash; a
-        non-upgradeable key-value store that holds registration records, name associations, and
-        user-defined data. The protocol writes to it; the user owns it.
+        Stores are DotNS's per-user storage layer. Each address gets at most one of two store kinds,
+        forever: a protocol-managed
+        <span class="text-dot-text-primary font-medium">LabelStore</span> that holds the
+        registration ledger, and a user-claimed
+        <span class="text-dot-text-primary font-medium">UserStore</span> for arbitrary records the
+        user publishes. The <span class="font-mono text-dot-accent">StoreFactory</span> is the
+        single source of truth for which store belongs to which user.
       </p>
     </div>
 
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Why per-user Stores?</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Name data (labels, IPFS URIs, text records) must survive protocol contract upgrades. If it
-        lived inside the protocol contracts, upgrading those contracts would mean migrating or
-        losing user data. By putting each user's data in a separate, non-upgradeable Store, the
-        protocol can swap out its own contracts without touching user state.
+        Two questions the rest of the system needs to answer have nowhere else to live. "What names
+        has this address ever held?" cannot be served by resolvers, which are keyed per-node, nor by
+        the registry, which tracks live ownership with no history. "What user-controlled records
+        does this address publish?" has no home on a resolver because the data is not bound to any
+        one name. Stores fill both gaps.
       </p>
-      <p class="text-dot-text-secondary leading-relaxed">
-        The Store also enables
-        <span class="text-dot-text-primary font-medium">permanent locking</span>. When the
-        RegistrarController writes a registration record via
-        <code
-          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-          >setValue</code
-        >, the key is locked forever. Not the user, not the Store owner, not governance &mdash;
-        nobody can overwrite or delete it. Registration records are immutable.
-      </p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="p-5 border border-dot-border rounded-xl bg-dot-surface">
+          <p class="text-sm font-semibold text-dot-text-primary mb-2">
+            LabelStore (protocol-managed)
+          </p>
+          <p class="text-xs text-dot-text-secondary leading-relaxed">
+            The registrar and controller write a label entry once and the slot is permanently
+            locked. Entries are append-only, so transferring a name writes a fresh entry on the
+            recipient and leaves the sender's locked entry in place. This makes the LabelStore the
+            address's lifetime-of-ownership ledger. The invariant is labels only.
+          </p>
+        </div>
+        <div class="p-5 border border-dot-border rounded-xl bg-dot-surface">
+          <p class="text-sm font-semibold text-dot-text-primary mb-2">UserStore (user-claimed)</p>
+          <p class="text-xs text-dot-text-secondary leading-relaxed">
+            The bound owner is the only writer, and prior values are snapshotted into a per-key
+            history. It exists so that user-controlled records that do not belong to a name have a
+            home that bills the user's own contract rather than polluting a shared resolver.
+          </p>
+        </div>
+      </div>
     </div>
 
     <div class="space-y-4">
@@ -39,128 +54,49 @@
           class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
           >StoreFactory</code
         >
-        deploys exactly one Store per address using the CREATE opcode. On first registration, the
+        deploys at most one of each store kind per address.
         <code
           class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-          >StoreFactory.claimUserStore()</code
+          >claimUserStore()</code
         >
-        library function deploys a Store, authorises the protocol contracts as DotNS controllers,
-        transfers Ownable ownership to the user, and remaps the factory's internal lookup.
+        lets a caller deploy and claim their own UserStore, while
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+          >deployLabelStoreFor(owner)</code
+        >
+        is the protocol-driven path that creates a user's LabelStore. The factory tracks both via
+        separate lookups, each backed by an upgradeable beacon.
       </p>
       <DocCodeBlock :code="storeFactoryCode" lang="solidity" filename="StoreFactory.sol" />
     </div>
 
     <div class="space-y-4">
-      <h2 class="text-xl font-semibold text-dot-text-primary">Ownership Model</h2>
+      <h2 class="text-xl font-semibold text-dot-text-primary">The labels-only invariant</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Two distinct ownership concepts exist and both must be transferred together:
+        The split keeps the two halves cleanly separated. Every per-name record category &mdash;
+        reverse, content, forward address, chat key, lite link &mdash; lives on a dedicated
+        resolver, never in a store. The LabelStore holds only labels, and nothing user-written ever
+        lands on the protocol-managed side. The UserStore is the only place a user can write, and it
+        bills the user's own contract rather than a shared resolver.
       </p>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div class="p-5 border border-dot-border rounded-xl bg-dot-surface">
-          <p class="text-sm font-semibold text-dot-text-primary mb-2">Factory Mapping</p>
-          <p class="text-xs text-dot-text-secondary leading-relaxed">
-            <code
-              class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-              >StoreFactory._deployedStores[owner]</code
-            >
-            &mdash; tracks which address owns which Store for lookup purposes. Updated via
-            <code
-              class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-              >factory.transferOwnership(newOwner)</code
-            >.
-          </p>
-        </div>
-        <div class="p-5 border border-dot-border rounded-xl bg-dot-surface">
-          <p class="text-sm font-semibold text-dot-text-primary mb-2">Store Owner (Ownable)</p>
-          <p class="text-xs text-dot-text-secondary leading-relaxed">
-            <code
-              class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-              >Store.owner()</code
-            >
-            &mdash; controls who can authorise or revoke writers. Updated via
-            <code
-              class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-              >store.transferOwnership(newOwner)</code
-            >.
-          </p>
-        </div>
-      </div>
     </div>
 
     <div class="space-y-4">
-      <h2 class="text-xl font-semibold text-dot-text-primary">Key Format</h2>
+      <h2 class="text-xl font-semibold text-dot-text-primary">LabelStore API</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Store keys are
-        <code
-          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-          >bytes32</code
-        >. The protocol reserves the
-        <code
-          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-          >dotns.registered</code
-        >
-        prefix for registration records. The actual key is derived as
-        <code
-          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-          >keccak256(abi.encodePacked(prefix, labelhash))</code
-        >.
+        The LabelStore is read-only from a client's perspective &mdash; only the registrar and
+        controller write to it, and each entry is locked once written.
       </p>
-      <DocCodeBlock :code="keyFormatCode" lang="solidity" filename="StoreUtils.sol" />
-      <div class="p-4 border border-dot-border rounded-lg bg-dot-surface space-y-3">
-        <p class="text-sm font-medium text-dot-text-primary">Key Derivation Example</p>
-        <div class="space-y-2 text-xs font-mono text-dot-text-secondary">
-          <p><span class="text-dot-text-tertiary">prefix</span> = bytes32("dotns.registered")</p>
-          <p><span class="text-dot-text-tertiary">labelhash</span> = keccak256("alice")</p>
-          <p><span class="text-dot-text-tertiary">storeKey</span> = keccak256(prefix, labelhash)</p>
-          <p><span class="text-dot-text-tertiary">value</span> = "alice.dot"</p>
-        </div>
-      </div>
+      <DocCodeBlock :code="labelStoreApiCode" lang="solidity" filename="ILabelStore.sol" />
     </div>
 
     <div class="space-y-4">
-      <h2 class="text-xl font-semibold text-dot-text-primary">Write Modes</h2>
+      <h2 class="text-xl font-semibold text-dot-text-primary">UserStore API</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        The Store has two write paths. The critical difference is locking:
+        The UserStore is a key-value store the bound owner controls. Writes snapshot the prior value
+        into a per-key history, so earlier values remain readable.
       </p>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div class="p-5 border border-dot-border rounded-xl bg-dot-surface">
-          <div class="flex items-center gap-2 mb-3">
-            <span class="w-2.5 h-2.5 rounded-full bg-error" />
-            <p class="text-sm font-semibold text-dot-text-primary">DotNS Controller</p>
-          </div>
-          <p class="text-xs text-dot-text-secondary leading-relaxed">
-            Calls
-            <code
-              class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-              >setValue(key, value)</code
-            >. If the caller is marked as a DotNS controller, the key is
-            <span class="text-dot-text-primary font-medium">locked permanently</span> after the
-            write. Used during registration to create immutable records.
-          </p>
-        </div>
-        <div class="p-5 border border-dot-border rounded-xl bg-dot-surface">
-          <div class="flex items-center gap-2 mb-3">
-            <span class="w-2.5 h-2.5 rounded-full bg-success" />
-            <p class="text-sm font-semibold text-dot-text-primary">User / Authorized Writer</p>
-          </div>
-          <p class="text-xs text-dot-text-secondary leading-relaxed">
-            Calls
-            <code
-              class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-              >setValue(key, value)</code
-            >. Mutable &mdash; can be overwritten or deleted at any time. Reverts if the key was
-            previously locked. Used for custom metadata.
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <div class="space-y-4">
-      <h2 class="text-xl font-semibold text-dot-text-primary">Store API</h2>
-      <p class="text-dot-text-secondary leading-relaxed">
-        The actual function signatures from the deployed Store contract:
-      </p>
-      <DocCodeBlock :code="storeApiCode" lang="solidity" filename="IStore.sol" />
+      <DocCodeBlock :code="userStoreApiCode" lang="solidity" filename="IUserStore.sol" />
     </div>
 
     <div class="space-y-4">
@@ -170,17 +106,14 @@
         <code
           class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
           >alice.dot</code
-        >, the Controller writes the string
+        >, the controller records the label in your LabelStore as a permanent, locked entry. The
+        LabelStore now holds
         <code
           class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-          >"alice.dot"</code
+          >alice</code
         >
-        to your Store under the derived key. Because the Controller is a DotNS controller, the key
-        is locked. The Store now permanently records that this address registered
-        <code
-          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-          >alice.dot</code
-        >.
+        as part of your lifetime-of-ownership ledger. Your UserStore is untouched &mdash; it only
+        ever holds records you write yourself.
       </p>
       <DocCodeBlock :code="registrationRecordCode" lang="solidity" filename="registration flow" />
     </div>
@@ -189,26 +122,18 @@
       <TryStoreLookup />
     </TryItSection>
 
-    <DocCallout variant="warning" title="Store ownership transfer is irreversible">
-      The StoreFactory's
-      <code
-        class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-        >transferOwnership</code
-      >
-      function can transfer Store ownership to
-      <code
-        class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-        >address(0)</code
-      >, effectively burning the Store. All locked entries (names and CIDs) become permanently
-      orphaned and inaccessible. The previous owner loses control of their Store and all data
-      written to it. This action cannot be undone. Name tokens themselves cannot be burned &mdash;
-      the Registrar does not expose a burn function.
+    <DocCallout variant="warning" title="LabelStore entries are permanent">
+      LabelStore entries are append-only and locked once written. Transferring a name writes a fresh
+      entry on the recipient's LabelStore and leaves the sender's locked entry in place, so the
+      LabelStore is a durable lifetime-of-ownership ledger rather than a live-ownership record. For
+      live ownership, query the registry; the LabelStore answers "has this address ever held this
+      label?".
     </DocCallout>
 
-    <DocCallout variant="info" title="One Store per address">
-      The StoreFactory enforces one Store per address. If a user doesn't have a Store when the
-      Registrar needs to write to it (during a transfer), one is deployed on the fly. The Store
-      accumulates a record of every name an address has ever received.
+    <DocCallout variant="info" title="At most one of each store per address">
+      The StoreFactory binds at most one LabelStore and one UserStore to each address, forever, and
+      is the single source of truth for which store belongs to which user. The UserStore is claimed
+      by the user; the LabelStore is deployed by the protocol.
     </DocCallout>
 
     <div class="border-t border-dot-border pt-6 flex justify-between text-sm">
@@ -231,64 +156,48 @@ import DocCodeBlock from "@/components/docs/DocCodeBlock.vue";
 import TryItSection from "@/components/docs/TryItSection.vue";
 import TryStoreLookup from "@/components/docs/interactive/TryStoreLookup.vue";
 
-const storeFactoryCode = `// The caller claims their own Store (deploys one on first call)
+const storeFactoryCode = `// UserStore — the caller claims their own (deploys one on first call)
 function claimUserStore() external returns (address store);
-
-// Lookup — returns address(0) if no Store exists for the user
 function getUserStore(address user) external view returns (address store);
-
-// Total number of Stores deployed by the factory
 function getUserStoreCount() external view returns (uint256 count);
-
-// Paginated list of deployed Stores
 function getUserStores(uint256 offset, uint256 limit)
-    external
-    view
-    returns (address[] memory stores);`;
+    external view returns (address[] memory stores);
 
-const keyFormatCode = `// Key prefix reserved for DotNS registration records
-bytes32 constant DOTNS_REGISTERED_KEY = bytes32("dotns.registered");
+// LabelStore — protocol-deployed on behalf of a user
+function deployLabelStoreFor(address owner) external returns (address store);
+function getLabelStore(address user) external view returns (address store);
+function getLabelStoreCount() external view returns (uint256 count);
+function getLabelStores(uint256 offset, uint256 limit)
+    external view returns (address[] memory stores);`;
 
-// Derive the store key for a label
-function storeKey(bytes32 labelhash) internal pure returns (bytes32 key) {
-    // key = keccak256(DOTNS_REGISTERED_KEY, labelhash)
-    // Uses scratch-space assembly to avoid ABI-encoding overhead
-}
+const labelStoreApiCode = `// Read the labels this address has ever held (lifetime ledger)
+function getLabels() external view returns (string[] memory);
 
-// Example: key for "alice" =
-//   keccak256(bytes32("dotns.registered"), keccak256("alice"))
-// Value stored: "alice.dot"`;
+// Check whether a specific label is recorded
+function hasLabel(string calldata label) external view returns (bool);
 
-const storeApiCode = `// Owner writes a value under a key
+// Each entry is locked once written; this reports lock state
+function isLocked(string calldata label) external view returns (bool);`;
+
+const userStoreApiCode = `// Owner writes a value under a key (prior value snapshotted to history)
 function setValue(bytes32 key, bytes calldata value) external;
 
-// Read the value stored under a key
+// Read the current value stored under a key
 function getValue(bytes32 key) external view returns (bytes memory);
 
-// Check whether a key has a value
-function hasValue(bytes32 key) external view returns (bool);
+// Enumerate the keys held by this UserStore
+function getKeys() external view returns (bytes32[] memory);`;
 
-// Enumerate the keys held by this Store
-function getKeyCount() external view returns (uint256);
-function getKeyAt(uint256 index) external view returns (bytes32);
-function getKeys(uint256 offset, uint256 limit) external view returns (bytes32[] memory);
-
-// The address that owns this Store (set on initialise)
-function owner() external view returns (address);`;
-
-const registrationRecordCode = `// 1. Resolve the user's Store (claim one if it does not exist yet)
-address store = factory.getUserStore(owner);
-if (store == address(0)) {
-    store = factory.claimUserStore();
+const registrationRecordCode = `// 1. The protocol resolves (or deploys) the owner's LabelStore
+address labelStore = factory.getLabelStore(owner);
+if (labelStore == address(0)) {
+    labelStore = factory.deployLabelStoreFor(owner);
 }
 
-// 2. Compute the store key
-bytes32 labelhash = keccak256(bytes("alice"));
-bytes32 key = StoreUtils.storeKey(labelhash);
+// 2. The controller records the label as a permanent, locked entry
+//    (only the registrar and controller can write the LabelStore)
 
-// 3. Write the registration record to the user's Store
-IUserStore(store).setValue(key, bytes("alice.dot"));
-
-// 4. Read it back
-bytes memory value = IUserStore(store).getValue(key); // "alice.dot"`;
+// 3. Anyone can read the ledger back
+string[] memory labels = ILabelStore(labelStore).getLabels(); // ["alice", ...]
+bool held = ILabelStore(labelStore).hasLabel("alice");        // true`;
 </script>

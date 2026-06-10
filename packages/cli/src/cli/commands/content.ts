@@ -4,6 +4,7 @@ import { viewDomainContentHash, setDomainContentHash } from "../../commands/cont
 import { addAuthOptions } from "./authOptions";
 import { prepareContext } from "../context";
 import { prepareReadOnlyContext } from "./lookup";
+import { dotliViewUrls } from "../../utils/constants";
 import {
   getMergedOptions,
   getJsonFlag,
@@ -92,6 +93,11 @@ export function attachContentCommands(root: Command) {
 
         if (!emitJsonResult(jsonOutput, result)) {
           console.log(chalk.green("\n✓ Complete\n"));
+          console.log(chalk.gray("  View on dot.li:"));
+          for (const url of dotliViewUrls(name)) {
+            console.log("    " + chalk.cyan(url));
+          }
+          console.log();
         }
         process.exit(0);
       } catch (error) {

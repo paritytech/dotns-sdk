@@ -1,4 +1,5 @@
 import { getSharedHeliaClient, type HeliaContentFetchResult } from "@/lib/heliaClient";
+import { formatBytes } from "@/lib/bulletinUpload";
 
 const BULLETIN_VERIFICATION_GATEWAY = "https://paseo-bulletin-next-ipfs.polkadot.io/ipfs";
 const GATEWAY_FETCH_TIMEOUT_MS = 15_000;
@@ -54,12 +55,6 @@ function formatErrorMessage(error: unknown): string {
   }
 
   return String(error);
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function isResolvableStatus(status: number): boolean {

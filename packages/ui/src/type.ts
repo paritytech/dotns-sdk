@@ -157,9 +157,3 @@ export type AuthorizationState = {
 export type BulletinUploadResult = {
   cid: string;
 };
-
-export type ContractAuthStatus = {
-  name: string;
-  address: Address;
-  authorized: boolean;
-};

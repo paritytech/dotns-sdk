@@ -1,5 +1,4 @@
 import { normalize } from "viem/ens";
-import { PopStatus } from "@/type";
 
 /**
  * Domain Name Utilities
@@ -93,17 +92,6 @@ export function filterDotNames(values: unknown): string[] {
   }
 
   return out;
-}
-
-/**
- * Check if a label can be registered with the given PoP status
- *
- * @param label - Domain label
- * @param state - User's PoP status
- * @returns True if registration is allowed
- */
-export function canRegisterWithStatus(label: string, state: PopStatus | null): boolean {
-  return state !== null && label.trim().length > 0 && state !== PopStatus.Reserved;
 }
 
 /**

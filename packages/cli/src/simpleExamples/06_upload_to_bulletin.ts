@@ -8,8 +8,8 @@ import {
   generateContenthash,
   ensureAccountAuthorized,
 } from "../commands/bulletin";
+import { MAX_SINGLE_UPLOAD_SIZE_BYTES } from "../utils/constants";
 
-const MAX_SINGLE_UPLOAD_SIZE_BYTES = 8 * 1024 * 1024;
 const DEFAULT_CHUNK_SIZE_BYTES = 512 * 1024;
 
 async function main() {

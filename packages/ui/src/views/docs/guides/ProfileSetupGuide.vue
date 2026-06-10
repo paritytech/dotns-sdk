@@ -44,22 +44,20 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Set Records</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Text records are stored in the
+        Each record is a separate <code>setText</code> call on the
         <RouterLink
           to="/docs/contracts/content-resolver"
           class="font-mono text-dot-accent hover:text-dot-accent-hover"
           >DotnsContentResolver</RouterLink
-        >
-        contract. Each record is a separate <code>setText</code> transaction. You can set records
-        using the CLI, SDK, or the DotNS web interface.
+        >. Set them from the CLI, the SDK, or the DotNS web interface.
       </p>
     </div>
 
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Set Records via CLI</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        The <span class="font-mono text-dot-accent">dotns store set</span> command writes directly
-        to your on-chain Store. The ContentResolver reads from the Store, so the effect is the same.
+        The <span class="font-mono text-dot-accent">dotns text set</span> command writes a text
+        record to the ContentResolver for your domain. Each call sets one key-value pair.
       </p>
       <DocCodeBlock :code="cliSetRecords" lang="bash" filename="Terminal" />
     </div>
@@ -76,8 +74,9 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Verify Your Records</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Read back any record with <span class="font-mono text-dot-accent">getText</span>. This is a
-        read-only call &mdash; no wallet needed.
+        Read back any record with the <span class="font-mono text-dot-accent">text</span> getter on
+        the ContentResolver, or <span class="font-mono text-dot-accent">dotns text view</span> from
+        the CLI. This is a read-only call &mdash; no wallet needed.
       </p>
       <DocCallout variant="tip" title="Try it">
         <RouterLink to="/docs/protocol/content" class="text-dot-accent hover:text-dot-accent-hover">
@@ -139,14 +138,14 @@ const textRecords = [
   { key: "email", example: "alice@example.com", purpose: "Contact email" },
 ];
 
-const cliSetRecords = `# Set multiple text records
-dotns store set twitter "@alice"
-dotns store set github "alice"
-dotns store set url "https://alice.dev"
-dotns store set description "Building on Polkadot"
+const cliSetRecords = `# Set multiple text records on alice.dot
+dotns text set alice twitter "@alice"
+dotns text set alice github "alice"
+dotns text set alice url "https://alice.dev"
+dotns text set alice description "Building on Polkadot"
 
 # Verify
-dotns store get twitter`;
+dotns text view alice twitter`;
 
 const codeSetRecords = `import { encodeFunctionData, namehash } from "viem";
 

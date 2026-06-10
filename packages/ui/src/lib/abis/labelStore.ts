@@ -1,11 +1,11 @@
 // Copyright 2026 Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: Apache-2.0
 //
-// LabelStore logic ABI — vendored from dotns out/LabelStore.sol/LabelStore.json.
+// LabelStore logic ABI, vendored from dotns out/LabelStore.sol/LabelStore.json.
 //
 // Per-user LabelStores are BeaconProxy instances deployed by StoreFactory; their
 // LOGIC ABI is NOT published to the CDM registry (only StoreFactory + LabelStoreBeacon
-// are — the beacon carries the OZ admin ABI, not getLabels). We resolve the per-user
+// are; the beacon carries the OZ admin ABI, not getLabels). We resolve the per-user
 // address via store-factory.getLabelStore(user) at runtime and apply this ABI to it.
 // Re-vendor if ILabelStore changes, or drop once CDM publishes the logic ABI.
 import type { AbiEntry } from "@parity/product-sdk-contracts";

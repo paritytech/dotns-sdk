@@ -12,6 +12,7 @@ import type { HexString, SS58String } from "polkadot-api";
 import cdmJsonRaw from "../../cdm.json" with { type: "json" };
 import { labelStoreAbi } from "@/lib/abis/labelStore";
 import { userStoreAbi } from "@/lib/abis/userStore";
+import { nameEscrowAbi, NAME_ESCROW_ADDRESS } from "@/lib/abis/nameEscrow";
 import { getChainClient } from "@/composables/useTypedAPI";
 import { useNetworkStore } from "@/store/useNetworkStore";
 import { signerManager } from "@/store/useWalletStore";
@@ -104,6 +105,14 @@ export async function getProxyContract(
   const m = await getContractManager();
   const abi = PROXY_ABIS[library] ?? getAbi(library);
   return createContract(m.getRuntime(), address, abi, { signerManager });
+}
+
+// The name-escrow contract is absent from the CDM meta-registry, so it cannot be
+// resolved by getContract(). It is wired by explicit address + vendored ABI, the
+// same approach used for the personhood precompile.
+export async function getEscrowContract(): Promise<Contract<ContractDef>> {
+  const m = await getContractManager();
+  return createContract(m.getRuntime(), NAME_ESCROW_ADDRESS, nameEscrowAbi, { signerManager });
 }
 
 export function getAbi(library: string): AbiEntry[] {

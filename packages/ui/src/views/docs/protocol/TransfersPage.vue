@@ -10,8 +10,8 @@
           class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
           >safeTransferFrom</code
         >
-        function. When a name is transferred, the protocol automatically updates the Store records
-        for both parties.
+        function. When a name is transferred, the registrar keeps the registry owner in sync and
+        records the label on the recipient's LabelStore.
       </p>
     </div>
 
@@ -55,21 +55,60 @@
     </div>
 
     <div class="space-y-4">
-      <h2 class="text-xl font-semibold text-dot-text-primary">Store Record Migration</h2>
+      <h2 class="text-xl font-semibold text-dot-text-primary">Transfer Fee</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        The Registrar reads the name's label from the sender's Store and writes it to the
-        recipient's Store, so the new owner has the registration record linked to their address. If
-        either party does not have a Store deployed, the write is silently skipped (no revert).
+        Most transfers are free. A non-refundable friction fee equal to the
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+          >transferFloor</code
+        >
+        is charged only on a downward or reach-floor move: when the recipient's PoP tier is strictly
+        below the sender's, or the recipient cannot reach the label's required tier. Same-tier and
+        upward transfers between holders of the label's own class pay nothing. The fee is not
+        length-based; it is the single constant the registrar reads from PopRules.
       </p>
-      <DocCodeBlock
-        :code="storeMigrationCode"
-        lang="solidity"
-        filename="store migration on transfer"
-      />
-      <DocCallout variant="info" title="Silent failure">
-        The Store write during transfer is wrapped in a try/catch. If the recipient does not have a
-        Store deployed yet, or if any other issue prevents the write, the transfer still succeeds.
-        The NFT ownership always transfers regardless of Store state.
+      <p class="text-dot-text-secondary leading-relaxed">
+        Quote the fee before transferring with
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+          >quoteTransferFee</code
+        >
+        on the registrar, then pass that amount as
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+          >msg.value</code
+        >.
+      </p>
+      <DocCodeBlock :code="transferFeeCode" lang="solidity" filename="quoteTransferFee" />
+      <DocCallout variant="info" title="Zero fee until the LabelStore is settled">
+        The registrar derives the floor by reading the label from the sender's LabelStore. A
+        gateway-issued name held by a user who has not yet called
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+          >claimLabelStore</code
+        >
+        has no readable label, so the quoted fee is zero regardless of the recipient's tier. Treat
+        <code
+          class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+          >claimLabelStore</code
+        >
+        as a prerequisite for accurate transfer-time pricing.
+      </DocCallout>
+    </div>
+
+    <div class="space-y-4">
+      <h2 class="text-xl font-semibold text-dot-text-primary">LabelStore on Transfer</h2>
+      <p class="text-dot-text-secondary leading-relaxed">
+        The LabelStore is append-only. On transfer the registrar records a fresh label entry on the
+        recipient's LabelStore and leaves the sender's locked entry in place, so each address keeps
+        its own lifetime-of-ownership ledger. The deposit, when present, is bound to the name and
+        rides with it &mdash; the escrow position rebinds to the recipient rather than being
+        refunded.
+      </p>
+      <DocCallout variant="info" title="Best-effort, never blocking">
+        The recipient LabelStore write is best-effort: if the recipient has no LabelStore deployed
+        yet, the write is skipped and the NFT transfer still succeeds. Token ownership always
+        transfers regardless of store state.
       </DocCallout>
     </div>
 
@@ -125,11 +164,20 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Important Notes</h2>
       <div class="space-y-3">
-        <DocCallout variant="warning" title="Reverse record not updated">
-          Transferring a name does <strong>not</strong> automatically update the reverse resolver.
-          If the sender's reverse record pointed to the transferred name, it will become outdated.
-          The recipient must set their own reverse record if they want the name to display for their
-          address.
+        <DocCallout variant="warning" title="Reverse record fails closed">
+          The reverse resolver re-validates current ownership on every read, so once a name is
+          transferred,
+          <code
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+            >nameOf</code
+          >
+          returns an empty string for the previous owner until they claim a name they still hold.
+          The protocol also best-effort clears the entry on transfer. The recipient must call
+          <code
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+            >claimReverseRecord</code
+          >
+          to make the name display for their own address.
         </DocCallout>
         <DocCallout variant="info" title="Approval patterns">
           Standard ERC721 approval patterns apply. Use
@@ -144,25 +192,12 @@
           >
           to approve all your names at once. Marketplaces and transfer tools rely on these patterns.
         </DocCallout>
-        <DocCallout variant="warning" title="Store ownership transfer is irreversible">
-          The StoreFactory's
-          <code
-            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-            >transferOwnership</code
-          >
-          function can transfer Store ownership to
-          <code
-            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-            >address(0)</code
-          >, effectively burning the Store. All locked entries become permanently orphaned. Name
-          tokens themselves cannot be burned &mdash; the Registrar does not expose a burn function.
-          On ERC-721 transfer, the
-          <code
-            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-            >_update</code
-          >
-          hook writes the label to the recipient's Store only when both sender and recipient are
-          non-zero addresses.
+        <DocCallout variant="info" title="Deposit travels with the name">
+          When a name carries a refundable NoStatus deposit, the locked amount is bound to the name,
+          not the depositor. Transferring the name rebinds the escrow position to the recipient
+          rather than refunding the sender, so a funded transfer hands the locked deposit to the new
+          holder. Only releasing the name back to escrow ever unlocks it. Name tokens cannot be
+          burned &mdash; the Registrar exposes no burn function.
         </DocCallout>
       </div>
     </div>
@@ -175,13 +210,12 @@
           class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
           >DotnsRegistry</code
         >
-        to reflect the new owner. This means
+        to reflect the new owner, keeping the registry and token ownership in sync. Live ownership
+        is the registrar's
         <code
           class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-          >registry.owner(node)</code
-        >
-        always returns the current NFT holder's address, keeping the registry and token ownership in
-        sync.
+          >ownerOf(tokenId)</code
+        >, so management rights follow the token automatically once it changes hands.
       </p>
     </div>
 
@@ -218,30 +252,27 @@ const transferSteps = [
   {
     title: "Registry ownership updated",
     description:
-      "The Registrar's transfer hook updates the DotnsRegistry so that registry.owner(node) returns the new owner.",
+      "The Registrar's transfer hook updates the DotnsRegistry so the recorded owner stays in sync with the NFT holder.",
   },
   {
-    title: "Store record migrated",
+    title: "Friction fee settled (if owed)",
     description:
-      "The Registrar reads the name label from the sender's Store and writes it to the recipient's Store. Silently skipped if either Store does not exist.",
+      "The Registrar quotes the transfer floor from PopRules. A downward or reach-floor move charges the transferFloor; same-tier and upward moves are free.",
+  },
+  {
+    title: "Label recorded on recipient's LabelStore",
+    description:
+      "The Registrar appends a fresh label entry to the recipient's LabelStore. Best-effort: skipped if the recipient has no LabelStore yet, and never blocks the transfer.",
   },
 ];
 
-const storeMigrationCode = `// Inside Registrar's _afterTokenTransfer hook (simplified):
-function _afterTokenTransfer(address from, address to, uint256 tokenId) internal {
-    bytes32 node = bytes32(tokenId);
+const transferFeeCode = `// Quote the fee for a prospective transfer (zero when no friction is owed)
+function quoteTransferFee(uint256 tokenId, address to)
+    external view returns (uint256 fee);
 
-    // Update registry ownership
-    registry.setOwner(node, to);
-
-    // Migrate store record (silent on failure)
-    try storeFactory.getStore(from) returns (address fromStore) {
-        bytes memory label = Store(fromStore).read(storeKey);
-        try storeFactory.getStore(to) returns (address toStore) {
-            Store(toStore).write(storeKey, label);
-        } catch {}
-    } catch {}
-}`;
+// Example: check then transfer
+uint256 fee = registrar.quoteTransferFee(tokenId, recipient);
+registrar.safeTransferFrom{value: fee}(msg.sender, recipient, tokenId);`;
 
 const solidityExample = `// Transfer "alice.dot" to a new owner
 bytes32 DOT_NODE = 0x3fce7d1364a893e213bc4212792b517ffc88f5b13b86c8ef9c8d390c3a1370ce;

@@ -55,6 +55,11 @@ export function convertWeiToNative(weiValue: bigint, nativeDecimals?: number): b
   return weiValue / getNativeToWeiRatio(nativeDecimals);
 }
 
+export function convertWeiToNativeCeil(weiValue: bigint, nativeDecimals?: number): bigint {
+  const ratio = getNativeToWeiRatio(nativeDecimals);
+  return (weiValue + ratio - 1n) / ratio;
+}
+
 export function formatWeiAsEther(weiValue: bigint): string {
   return formatEther(weiValue);
 }
@@ -154,6 +159,21 @@ export function formatErrorMessage(error: unknown): string {
   } catch {
     return String(error);
   }
+}
+
+export function ensureError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(formatErrorMessage(error));
+}
+
+export function formatDispatchError(dispatchError: unknown): string {
+  if (!dispatchError) return "Unknown error";
+  if (typeof dispatchError === "string") return dispatchError;
+  const error = dispatchError as { type?: string; value?: unknown };
+  if (error.type === "Module") {
+    const moduleError = error.value as { type: string; value?: { type: string } };
+    return `Module error: ${moduleError.type}.${moduleError.value?.type || "Unknown"}`;
+  }
+  return error.type ?? formatErrorMessage(dispatchError);
 }
 
 export async function withTimeout<T>(

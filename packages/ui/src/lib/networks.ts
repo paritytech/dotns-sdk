@@ -33,7 +33,7 @@ export const MAX_WEIGHT = {
 
 /**
  * Get the first network in SUPPORTED_NETWORKS. Kept as a helper for callers
- * that need a default — historically named "deployed" when contract addresses
+ * that need a default. Historically named "deployed" when contract addresses
  * lived here. Returns the only configured network today.
  */
 export function getFirstDeployedNetwork(): NetworkConfig | undefined {

@@ -5,7 +5,8 @@
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">Host a Website</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
         Build a static site, upload it to Bulletin or IPFS, set the content hash on your .dot
-        domain, and serve it through the dweb gateway. No servers, no hosting bills.
+        domain, and view it through dot.li, the in-browser decentralised web browser. No servers, no
+        hosting bills.
       </p>
     </div>
 
@@ -18,15 +19,18 @@
           to="/docs/contracts/content-resolver"
           class="text-dot-accent hover:text-dot-accent-hover"
           >ContentResolver</RouterLink
-        >. When someone visits <code class="text-dot-accent">yourname.dot</code>, the dweb-proxy
-        looks up the content hash, fetches the files, and serves them.
+        >. When someone opens <code class="text-dot-accent">yourname.dot</code> in dot.li, it looks
+        up the content hash on-chain, fetches the files from Bulletin or IPFS, and renders them in
+        the browser.
       </p>
       <div
         class="p-4 border border-dot-border rounded-lg bg-dot-surface text-sm font-mono text-dot-text-secondary space-y-1"
       >
         <p>Build static site &rarr; Upload to Bulletin/IPFS &rarr; Get CID</p>
         <p>Set content hash on .dot domain &rarr; CID stored on-chain</p>
-        <p>User visits yourname.dot &rarr; Gateway resolves CID &rarr; Content served</p>
+        <p>
+          User opens yourname.dot in dot.li &rarr; CID resolved on-chain &rarr; Content rendered
+        </p>
       </div>
     </div>
 
@@ -34,21 +38,23 @@
       <h2 class="text-xl font-semibold text-dot-text-primary">1. Build Your Site</h2>
       <p class="text-dot-text-secondary leading-relaxed">
         Any static site generator works. The output must be a folder of static files (HTML, CSS, JS,
-        images). The gateway serves files as-is, so server-side rendering is not supported.
+        images). dot.li renders files as-is, so server-side rendering is not supported.
       </p>
       <DocCodeBlock :code="buildExamples" lang="bash" filename="Build examples" />
       <DocCallout variant="tip" title="SPA routing">
         If your site uses client-side routing (React Router, Vue Router), make sure your build
-        outputs a fallback <code>index.html</code>. The gateway serves <code>index.html</code> for
-        any path that does not match a static file.
+        outputs a fallback <code>index.html</code>. dot.li's service worker serves
+        <code>index.html</code> for any path that does not match a static file.
       </DocCallout>
     </div>
 
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">2. Upload to Bulletin</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Bulletin is Polkadot's on-chain IPFS block storage. Your files are stored permanently on the
-        Bulletin parachain.
+        Bulletin is Polkadot's on-chain IPFS block storage. Your files remain available on the
+        Bulletin parachain for the chain's retention period (about 14 days by default) and must be
+        renewed to persist longer. The upload flow stores for the retention window and does not
+        auto-renew.
       </p>
       <DocCodeBlock :code="uploadCode" lang="bash" filename="Terminal" />
       <p class="text-dot-text-secondary leading-relaxed">
@@ -94,23 +100,21 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">4. Access Your Site</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        On Paseo, the dweb gateway serves content at
-        <code class="text-dot-accent">yourname.paseo.li</code>. The gateway reads the content hash
-        from the ContentResolver, fetches the files from Bulletin/IPFS, and returns them with
-        correct MIME types.
+        dot.li serves your site at <code class="text-dot-accent">yourname.dot.li</code>, or at
+        <code class="text-dot-accent">yourname.paseo.dot.li</code> on the Paseo testnet. It reads
+        the content hash from the ContentResolver, fetches the files from Bulletin or IPFS, and
+        renders them client-side in your browser.
       </p>
-      <DocCodeBlock
-        code="curl -I https://yourname.paseo.li
-# X-Content-Location: ipfs://bafybeif...
-# X-Content-Storage-Type: bulletin
-# Content-Type: text/html"
-        lang="bash"
-        filename="Verify"
-      />
+      <DocCallout variant="info" title="Verify it resolves">
+        Open <code class="text-dot-accent">https://yourname.dot.li</code> (or
+        <code class="text-dot-accent">https://yourname.paseo.dot.li</code> on Paseo). The
+        verification shield in the toolbar turns green once the on-chain content hash matches the
+        content it has rendered.
+      </DocCallout>
     </div>
 
     <DocCallout variant="tip" title="Try it">
-      <RouterLink to="/docs/dweb/hosting" class="text-dot-accent hover:text-dot-accent-hover">
+      <RouterLink to="/docs/protocol/content" class="text-dot-accent hover:text-dot-accent-hover">
         Look up a content hash &rarr;
       </RouterLink>
     </DocCallout>
@@ -158,7 +162,7 @@ astro build     # outputs to ./dist
 next build && next export   # outputs to ./out`;
 
 const uploadCode = `# Upload your build directory to Bulletin
-dotns bulletin upload ./dist --print-contenthash --concurrency 4
+dotns bulletin upload ./dist --print-contenthash
 
 # Output:
 # Merkleising directory: 42 files (128 KB)

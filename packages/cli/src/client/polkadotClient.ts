@@ -2,6 +2,7 @@ import type { Paseo } from "@polkadot-api/descriptors";
 import { Binary, type PolkadotSigner, type TypedApi } from "polkadot-api";
 import { isAddress, type Address, type Hash } from "viem";
 import type { ReviveCallResult, SubstrateWeight, TransactionStatus } from "../types/types";
+import { ensureError, formatDispatchError } from "../utils/formatting";
 
 export type PolkadotApiClient = TypedApi<Paseo>;
 
@@ -97,34 +98,6 @@ function unwrapExecutionResult(rawResult: any): {
   if (rawResult.err != null) return { ok: null, err: rawResult.err, successFlag: false };
 
   return { ok: null, err: rawResult, successFlag: null };
-}
-
-function formatDispatchError(dispatchError: any): string {
-  if (!dispatchError) return "Unknown error";
-  if (typeof dispatchError === "string") return dispatchError;
-  if (dispatchError.type === "Module") {
-    const moduleError = dispatchError.value as {
-      type: string;
-      value?: { type: string };
-    };
-    return `Module error: ${moduleError.type}.${moduleError.value?.type || "Unknown"}`;
-  }
-  if (dispatchError.type) return dispatchError.type;
-  try {
-    return JSON.stringify(dispatchError);
-  } catch {
-    return String(dispatchError);
-  }
-}
-
-function ensureError(error: unknown): Error {
-  if (error instanceof Error) return error;
-  if (typeof error === "string") return new Error(error);
-  try {
-    return new Error(JSON.stringify(error));
-  } catch {
-    return new Error(String(error));
-  }
 }
 
 export class ReviveClientWrapper {

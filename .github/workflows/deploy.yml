@@ -141,8 +141,12 @@ on:
         value: ${{ jobs.deploy.outputs.url-direct }}
       url-dotli-path:
         value: ${{ jobs.deploy.outputs.url-dotli-path }}
+      url-dotli-paseo-path:
+        value: ${{ jobs.deploy.outputs.url-dotli-paseo-path }}
       url-dotli-host:
         value: ${{ jobs.deploy.outputs.url-dotli-host }}
+      url-dotli-paseo-host:
+        value: ${{ jobs.deploy.outputs.url-dotli-paseo-host }}
       cache-hit:
         value: ${{ jobs.deploy.outputs.cache-hit }}
       duration-seconds:
@@ -166,7 +170,9 @@ jobs:
       url-alt: ${{ steps.final.outputs.url-alt }}
       url-direct: ${{ steps.final.outputs.url-direct }}
       url-dotli-path: ${{ steps.final.outputs.url-dotli-path }}
+      url-dotli-paseo-path: ${{ steps.final.outputs.url-dotli-paseo-path }}
       url-dotli-host: ${{ steps.final.outputs.url-dotli-host }}
+      url-dotli-paseo-host: ${{ steps.final.outputs.url-dotli-paseo-host }}
       cache-hit: ${{ steps.cache.outputs.cache-hit }}
       duration-seconds: ${{ steps.duration.outputs.seconds }}
 
@@ -391,13 +397,16 @@ jobs:
         id: final
         run: |
           DOTLI_PATH_URL="https://dot.li/${FQDN}"
+          DOTLI_PASEO_PATH_URL="https://paseo.dot.li/${FQDN}"
           DIRECT_URL="https://${FQDN}"
           DOTLI_HOST_URL=""
+          DOTLI_PASEO_HOST_URL=""
 
           if [[ -n "$SUBNAME" ]]; then
             PRIMARY_URL="$DOTLI_PATH_URL"
           else
             DOTLI_HOST_URL="https://${DOMAIN}.dot.li"
+            DOTLI_PASEO_HOST_URL="https://${DOMAIN}.paseo.dot.li"
             PRIMARY_URL="$DOTLI_HOST_URL"
           fi
 
@@ -407,7 +416,9 @@ jobs:
           echo "url-alt=$DIRECT_URL" >> "$GITHUB_OUTPUT"
           echo "url-direct=$DIRECT_URL" >> "$GITHUB_OUTPUT"
           echo "url-dotli-path=$DOTLI_PATH_URL" >> "$GITHUB_OUTPUT"
+          echo "url-dotli-paseo-path=$DOTLI_PASEO_PATH_URL" >> "$GITHUB_OUTPUT"
           echo "url-dotli-host=$DOTLI_HOST_URL" >> "$GITHUB_OUTPUT"
+          echo "url-dotli-paseo-host=$DOTLI_PASEO_HOST_URL" >> "$GITHUB_OUTPUT"
         env:
           CID: ${{ steps.cid.outputs.cid }}
           FQDN: ${{ steps.target.outputs.fqdn }}
@@ -439,11 +450,16 @@ jobs:
           if [[ -n "$SUBNAME" ]]; then
             URL_ROWS=$(cat <<EOF
           | URL (dot.li) | [${URL_DOTLI_PATH}](${URL_DOTLI_PATH}) |
+          | URL (paseo.dot.li) | [${URL_DOTLI_PASEO_PATH}](${URL_DOTLI_PASEO_PATH}) |
           | URL (direct) | [${URL_DIRECT}](${URL_DIRECT}) |
           EOF
             )
           else
-            URL_ROWS="| URL | [${URL_DOTLI_HOST}](${URL_DOTLI_HOST}) |"
+            URL_ROWS=$(cat <<EOF
+          | URL (dot.li) | [${URL_DOTLI_HOST}](${URL_DOTLI_HOST}) |
+          | URL (paseo.dot.li) | [${URL_DOTLI_PASEO_HOST}](${URL_DOTLI_PASEO_HOST}) |
+          EOF
+            )
           fi
 
           cat >> "$GITHUB_STEP_SUMMARY" <<EOF
@@ -464,7 +480,9 @@ jobs:
           CID: ${{ steps.final.outputs.cid }}
           URL_DIRECT: ${{ steps.final.outputs.url-direct }}
           URL_DOTLI_PATH: ${{ steps.final.outputs.url-dotli-path }}
+          URL_DOTLI_PASEO_PATH: ${{ steps.final.outputs.url-dotli-paseo-path }}
           URL_DOTLI_HOST: ${{ steps.final.outputs.url-dotli-host }}
+          URL_DOTLI_PASEO_HOST: ${{ steps.final.outputs.url-dotli-paseo-host }}
           SUBNAME: ${{ steps.target.outputs.subname }}
           DURATION_SECONDS: ${{ steps.duration.outputs.seconds }}
           BULLETIN_MNEMONIC: ${{ secrets.bulletin-mnemonic }}

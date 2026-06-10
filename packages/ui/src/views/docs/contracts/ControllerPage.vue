@@ -30,13 +30,16 @@
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Checks whether a label is available for registration. Validates the label format and
-          checks the Registrar.
+          Returns whether a label is available for registration.
         </p>
         <DocParamTable :params="availableParams" />
         <DocReturnsTable
           :returns="[
-            { name: 'available', type: 'bool', description: 'True if the label can be registered' },
+            {
+              name: 'isAvailable',
+              type: 'bool',
+              description: 'True if the label is available for registration',
+            },
           ]"
         />
       </div>
@@ -49,8 +52,8 @@
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Computes the commitment hash for a registration. Call this first to get the hash you will
-          submit in the commit step.
+          Computes the commitment hash for a registration. All fields must match exactly between
+          commitment and reveal.
         </p>
         <DocParamTable
           :params="[
@@ -82,8 +85,10 @@
           <DocBadge variant="transaction">transaction</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Submits a commitment hash on-chain. Once the minimum waiting period has passed, you can
-          call
+          Submits a commitment for a future registration. This acts as the front-running guard:
+          re-committing a hash that has not yet expired reverts, while a hash whose stored timestamp
+          has passed the maximum commitment age may overwrite the slot so storage cannot be
+          permanently griefed. Once the minimum commitment age has passed, call
           <code
             class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
             >register</code
@@ -101,7 +106,7 @@
           ]"
         />
         <DocCallout variant="warning" title="Reverts when">
-          The commitment hash has already been submitted (duplicate commitment).
+          An unexpired commitment for the same hash already exists (UnexpiredCommitmentExists).
         </DocCallout>
       </div>
 
@@ -113,22 +118,15 @@
           <DocBadge variant="transaction">transaction</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Completes the registration by revealing the commitment. Must be called after
-          <code
-            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-            >minCommitmentAge</code
-          >
-          and before
-          <code
-            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-            >maxCommitmentAge</code
-          >
-          has elapsed since the commit. This function is payable &mdash; send the registration fee
-          as
+          Registers a name after the commitment delay by revealing the same registration parameters
+          used to build the commitment. Must be called after the minimum commitment age and before
+          the maximum commitment age has elapsed since the commit. This function is payable: send at
+          least the charge as
           <code
             class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
             >msg.value</code
-          >.
+          >. The direct path (caller is the owner) routes the charge to a refundable escrow deposit;
+          any overpayment is refunded to the caller.
         </p>
         <DocParamTable
           :params="[
@@ -142,19 +140,11 @@
           ]"
         />
         <DocCallout variant="warning" title="Reverts when">
-          Commitment not found, called before
-          <code
-            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-            >minCommitmentAge</code
-          >, called after
-          <code
-            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-            >maxCommitmentAge</code
-          >, insufficient
-          <code
-            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-            >msg.value</code
-          >, name not available, or caller fails the PoP eligibility check.
+          The label is non-canonical (InvalidLabel) or below the minimum length (LabelTooShort), the
+          name is not available (NameNotAvailable), the commitment is missing (CommitmentNotFound),
+          too new (CommitmentTooNew), or expired (CommitmentTooOld), the supplied value is
+          insufficient (InsufficientValue), the label is governance-reserved (GovernanceReserved) or
+          held by another user (NameReserved), or the PoP eligibility check fails.
         </DocCallout>
       </div>
 
@@ -166,8 +156,10 @@
           <DocBadge variant="transaction">transaction</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Registers a reserved name. Only callable by the user who holds the reservation via
-          PopRules. Skips the commit-reveal flow.
+          Registers a name after the commitment delay through the whitelisted issuance path used to
+          seed reserved labels at zero base cost. Restricted to whitelisted callers and the owner;
+          it skips the PoP price check and the escrow deposit, but reuses the same commit-reveal
+          pipeline so the same anti-front-running guarantees apply.
         </p>
         <DocParamTable
           :params="[
@@ -181,43 +173,37 @@
           ]"
         />
         <DocCallout variant="warning" title="Reverts when">
-          Name is not reserved for the caller, or the reservation has expired.
+          The caller is not whitelisted or the owner (NotWhiteListedOrOwner), the label is
+          non-canonical (InvalidLabel), the name is not available (NameNotAvailable), or the
+          commitment is missing, too new, or expired.
         </DocCallout>
       </div>
 
       <div class="space-y-2">
         <div class="flex items-center gap-2">
           <h3 class="text-base font-semibold text-dot-text-primary font-mono">
-            minCommitmentAge()
+            isWhiteListed(who)
           </h3>
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Returns the minimum number of seconds that must pass between a commit and the
-          corresponding register call.
+          Checks if the given address is whitelisted to call
+          <code
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+            >registerReserved</code
+          >.
         </p>
-        <DocReturnsTable
-          :returns="[{ name: 'age', type: 'uint256', description: 'Minimum wait time in seconds' }]"
+        <DocParamTable
+          :params="[
+            { name: 'who', type: 'address', description: 'The address to check', required: true },
+          ]"
         />
-      </div>
-
-      <div class="space-y-2">
-        <div class="flex items-center gap-2">
-          <h3 class="text-base font-semibold text-dot-text-primary font-mono">
-            maxCommitmentAge()
-          </h3>
-          <DocBadge variant="read-only">read-only</DocBadge>
-        </div>
-        <p class="text-sm text-dot-text-secondary">
-          Returns the maximum number of seconds after which a commitment expires and can no longer
-          be used to register.
-        </p>
         <DocReturnsTable
           :returns="[
             {
-              name: 'age',
-              type: 'uint256',
-              description: 'Maximum wait time in seconds before commitment expires',
+              name: 'isWhiteListed',
+              type: 'bool',
+              description: 'True if the address is whitelisted',
             },
           ]"
         />

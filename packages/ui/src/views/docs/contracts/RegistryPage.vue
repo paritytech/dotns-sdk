@@ -28,14 +28,7 @@
           <h3 class="text-base font-semibold text-dot-text-primary font-mono">owner(node)</h3>
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
-        <p class="text-sm text-dot-text-secondary">
-          Returns the owner address for the given node. Returns
-          <code
-            class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
-            >address(0)</code
-          >
-          if the node does not exist.
-        </p>
+        <p class="text-sm text-dot-text-secondary">Returns the owner of a node.</p>
         <DocParamTable
           :params="[
             {
@@ -62,9 +55,7 @@
           <h3 class="text-base font-semibold text-dot-text-primary font-mono">resolver(node)</h3>
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
-        <p class="text-sm text-dot-text-secondary">
-          Returns the resolver address set for the given node.
-        </p>
+        <p class="text-sm text-dot-text-secondary">Returns the resolver of a node.</p>
         <DocParamTable
           :params="[
             {
@@ -94,8 +85,10 @@
           <DocBadge variant="transaction">transaction</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Creates or updates a subdomain record. Only callable by the parent name owner or an
-          authorised operator.
+          Creates or reassigns a subnode and assigns its owner. Callable only by the current owner
+          of the parent node. Subnodes are parent-sovereign: the parent owner may reassign a subnode
+          or rotate its resolver at any time without the prior subnode owner's consent. On
+          reassignment the resolver pointer is reset to the protocol default reverse resolver.
         </p>
         <DocParamTable
           :params="[
@@ -114,7 +107,9 @@
           ]"
         />
         <DocCallout variant="warning" title="Reverts when">
-          Caller is not the owner of the parent node.
+          The caller is not the current owner of the parent node (NotAuthorised), the new owner is
+          the zero address (NotAllowed), the sublabel is not a canonical DNS label (InvalidLabel),
+          or the parent label does not match the parent node (ParentLabelMismatch).
         </DocCallout>
       </div>
 
@@ -126,12 +121,16 @@
           <DocBadge variant="transaction">transaction</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Transfers ownership of a node to a new address. To change the resolver, call
+          Creates or resets a node record for a tokenised base registration. Restricted to the
+          registrar's controllers, called on fresh registration and on every reclaim from escrow.
+          The new owner must match the ERC-721 owner reported by the registrar; the record stores a
+          zero-address sentinel so reads delegate to
           <code
             class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
-            >setResolver</code
+            >IDotnsRegistrar.ownerOf</code
           >
-          separately.
+          and ERC-721 transfers stay authoritative. Each call also rewrites the resolver to the
+          protocol default reverse resolver so a prior owner's resolver cannot be inherited.
         </p>
         <DocParamTable
           :params="[
@@ -142,15 +141,16 @@
               required: true,
             },
             {
-              name: 'owner',
+              name: 'newOwner',
               type: 'address',
-              description: 'The new owner address',
+              description: 'The new owner address; must match the registrar ERC-721 owner',
               required: true,
             },
           ]"
         />
         <DocCallout variant="warning" title="Reverts when">
-          Caller is not the current owner of the node.
+          The caller is not one of the registrar's controllers, or the new owner is zero or does not
+          match the registrar's ERC-721 owner (NotAuthorised / NotAllowed).
         </DocCallout>
       </div>
 
@@ -162,7 +162,10 @@
           <DocBadge variant="transaction">transaction</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Updates the resolver address for a node. Only callable by the node owner.
+          Sets or clears the resolver for a node. Callable only by the current node owner; for
+          tokenised nodes authorisation falls back to the ERC-721 owner, an approved address, or an
+          operator-for-all via the registrar. The registry does not validate the resolver address,
+          so consumers must verify resolver shape before trusting reads.
         </p>
         <DocParamTable
           :params="[
@@ -173,15 +176,16 @@
               required: true,
             },
             {
-              name: 'resolver',
+              name: 'resolverAddr',
               type: 'address',
-              description: 'The new resolver contract address',
+              description: 'Resolver contract address (zero clears)',
               required: true,
             },
           ]"
         />
         <DocCallout variant="warning" title="Reverts when">
-          Caller is not the current owner of the node.
+          The caller is not the current node owner, nor an ERC-721 owner, approved address, or
+          operator-for-all for a tokenised node (NotAuthorised).
         </DocCallout>
       </div>
 
@@ -192,14 +196,7 @@
           </h3>
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
-        <p class="text-sm text-dot-text-secondary">
-          Returns
-          <code
-            class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
-            >true</code
-          >
-          if a record exists for the given node (i.e., the owner is not the zero address).
-        </p>
+        <p class="text-sm text-dot-text-secondary">Returns whether a node exists.</p>
         <DocParamTable
           :params="[
             { name: 'node', type: 'bytes32', description: 'The namehash to check', required: true },
@@ -210,7 +207,43 @@
             {
               name: 'exists',
               type: 'bool',
-              description: 'True if the node has a registered owner',
+              description: 'True if the node has been explicitly created',
+            },
+          ]"
+        />
+      </div>
+
+      <div class="space-y-2">
+        <div class="flex items-center gap-2">
+          <h3 class="text-base font-semibold text-dot-text-primary font-mono">
+            isAuthorised(node, account)
+          </h3>
+          <DocBadge variant="read-only">read-only</DocBadge>
+        </div>
+        <p class="text-sm text-dot-text-secondary">
+          Returns whether an account is authorised to manage a node. For subnodes, authority is the
+          explicit stored owner. For tokenised nodes it is the ERC-721 owner, an address approved
+          for the token, or an operator approved for all of the owner's tokens via the registrar.
+          This is the canonical authorisation check the registry enforces on owner-gated entry
+          points. Returns false for a node that does not exist.
+        </p>
+        <DocParamTable
+          :params="[
+            { name: 'node', type: 'bytes32', description: 'Node identifier', required: true },
+            {
+              name: 'account',
+              type: 'address',
+              description: 'Address whose authority is being checked',
+              required: true,
+            },
+          ]"
+        />
+        <DocReturnsTable
+          :returns="[
+            {
+              name: 'authorisedFlag',
+              type: 'bool',
+              description: 'True when account may manage node',
             },
           ]"
         />

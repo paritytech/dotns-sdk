@@ -29,20 +29,13 @@
           <h3 class="text-base font-semibold text-dot-text-primary font-mono">addressOf(node)</h3>
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
-        <p class="text-sm text-dot-text-secondary">
-          Returns the address that the given node resolves to. Returns
-          <code
-            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
-            >address(0)</code
-          >
-          if no address has been set.
-        </p>
+        <p class="text-sm text-dot-text-secondary">Returns the resolved address for a node.</p>
         <DocParamTable
           :params="[
             {
               name: 'node',
               type: 'bytes32',
-              description: 'The namehash of the .dot name',
+              description: 'The node identifier',
               required: true,
             },
           ]"
@@ -50,9 +43,9 @@
         <DocReturnsTable
           :returns="[
             {
-              name: 'addr',
+              name: 'value',
               type: 'address',
-              description: 'The resolved address, or zero address if unset',
+              description: 'The resolved address, or zero if unset',
             },
           ]"
         />
@@ -66,27 +59,31 @@
           <DocBadge variant="transaction">transaction</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Sets the address that a node resolves to. Only callable by the node owner or an approved
-          operator.
+          Sets the resolved address for a node. The caller must be the current owner of the node in
+          the forward registry, otherwise the call reverts with
+          <code
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+            >NotAuthorised</code
+          >.
         </p>
         <DocParamTable
           :params="[
             {
               name: 'node',
               type: 'bytes32',
-              description: 'The namehash of the .dot name',
+              description: 'The node identifier',
               required: true,
             },
             {
               name: 'value',
               type: 'address',
-              description: 'The address this name should resolve to',
+              description: 'The address to associate with the node',
               required: true,
             },
           ]"
         />
         <DocCallout variant="warning" title="Reverts when">
-          Caller is not the node owner or an approved operator.
+          The caller is not the current owner of the node in the forward registry.
         </DocCallout>
       </div>
     </div>

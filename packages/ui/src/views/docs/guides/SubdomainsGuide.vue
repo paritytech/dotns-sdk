@@ -41,15 +41,10 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Create a Subdomain</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Creating a subdomain calls
-        <span class="font-mono text-dot-accent">setSubnodeOwner</span> on the
-        <RouterLink
-          to="/docs/contracts/registry"
-          class="text-dot-accent hover:text-dot-accent-hover"
-          >Registry</RouterLink
-        >
-        contract with the parent node, subdomain label hash, and the new owner address. This is a
-        single transaction. You can use the CLI, SDK, or the DotNS web interface.
+        In practice this is a single
+        <span class="font-mono text-dot-accent">setSubnodeOwner</span> transaction carrying the
+        parent node, the subdomain label, and the new owner address. You can send it from the CLI,
+        the SDK, or the DotNS web interface.
       </p>
     </div>
 
@@ -107,9 +102,10 @@
       </p>
       <DocCodeBlock :code="subdomainContent" lang="bash" filename="Terminal" />
       <p class="text-dot-text-secondary leading-relaxed">
-        The dweb gateway resolves subdomains the same way it resolves base domains. Visit
-        <code class="text-dot-accent">blog.alice.paseo.li</code> and it serves whatever content hash
-        is set on that subname's node.
+        dot.li resolves subdomains the same way it resolves base domains. Open
+        <code class="text-dot-accent">blog.alice.dot.li</code> (or
+        <code class="text-dot-accent">blog.alice.paseo.dot.li</code> on Paseo) and it renders
+        whatever content hash is set on that subname's node.
       </p>
     </div>
 

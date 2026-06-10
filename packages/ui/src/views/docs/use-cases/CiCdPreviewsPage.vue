@@ -80,15 +80,17 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Content-Addressable Caching</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Because Bulletin uses content-addressed storage, the same file always produces the same CID.
-        The deploy workflow checks which blocks already exist on-chain and skips them. This makes
-        incremental deploys fast &mdash; only new or changed files are uploaded.
+        Because Bulletin uses content-addressed storage, the same build always produces the same
+        CID. The deploy workflow hashes the build output and keys a deployment cache on it, scoped
+        to the target environment. When a build matches a previous deploy, the upload and the
+        content-hash update are both skipped entirely &mdash; no wasted transactions.
       </p>
-      <DocCodeBlock :code="cachingExample" lang="text" filename="incremental deploy output" />
+      <DocCodeBlock :code="cachingExample" lang="text" filename="cached deploy output" />
       <DocCallout variant="tip" title="Cost savings">
-        Content-addressable caching reduces Bulletin transaction costs for incremental deploys. If
-        only a few files change between deploys, only those files incur upload costs. Static assets
-        like images and fonts are uploaded once and reused indefinitely.
+        The deployment cache avoids re-uploading unchanged builds. Rebuilding identical code on a
+        re-run, or re-triggering a workflow without source changes, reuses the cached CID and incurs
+        no Bulletin transaction costs. Pass
+        <span class="font-mono">skip-cache: true</span> to force a fresh upload.
       </DocCallout>
     </div>
 
@@ -119,10 +121,10 @@
     <DocCallout variant="info" title="Full workflow reference">
       For complete documentation on workflow inputs, secrets, and configuration options, see the
       <RouterLink
-        to="/docs/dweb/deploy-workflow"
+        to="/docs/guides/deploy-with-ci"
         class="text-dot-accent hover:text-dot-accent-hover"
       >
-        Deploy Workflow
+        Deploy with CI
       </RouterLink>
       page.
     </DocCallout>
@@ -162,7 +164,7 @@ const cicdFlow = [
   {
     title: "Output uploaded to Bulletin",
     description:
-      "The build output is uploaded to Bulletin chain. Content-addressable caching skips existing blocks.",
+      "The build output is uploaded to the Bulletin chain. If an identical build was already deployed for this environment, the deployment cache skips the upload entirely.",
   },
   {
     title: "Preview subname created",
@@ -213,13 +215,24 @@ on:
     types: [opened, synchronize]
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci && npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build
+          path: dist/
+
   deploy:
+    needs: build
     uses: paritytech/dotns-sdk/.github/workflows/deploy.yml@main
     with:
       basename: myapp
       mode: preview
-      subname-format: "pr{number}"
-      parallel: 4
+      artifact-name: build
+      subname-format: pr-number
     secrets:
       dotns-mnemonic: \${{ secrets.DOTNS_MNEMONIC }}
       bulletin-mnemonic: \${{ secrets.BULLETIN_MNEMONIC }}`;
@@ -230,26 +243,33 @@ on:
     branches: [main]
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci && npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build
+          path: dist/
+
   deploy:
+    needs: build
     uses: paritytech/dotns-sdk/.github/workflows/deploy.yml@main
     with:
       basename: myapp
       mode: production
-      parallel: 8
+      artifact-name: build
     secrets:
       dotns-mnemonic: \${{ secrets.DOTNS_MNEMONIC }}
       bulletin-mnemonic: \${{ secrets.BULLETIN_MNEMONIC }}`;
 
-const cachingExample = `Scanning directory: 24 files (3.4 MB)
-Checking existing blocks on Bulletin...
+const cachingExample = `Hashing build output: 24 files (3.4 MB)
+Deployment cache key: deploy-paseo-v2-next-1f3c9ab2
 
-  index.html          - CHANGED  → uploading (2.1 KB)
-  assets/app-x9k2.js  - CHANGED  → uploading (142 KB)
-  assets/style-m3n1.css - CHANGED → uploading (18 KB)
-  assets/logo.svg     - EXISTS   → skipping
-  assets/fonts/inter.woff2 - EXISTS → skipping
-  ... 19 more files unchanged
+Cache hit — reusing CID: bafybeif2uyxcrahg5kkjramreslhmssp4dkexumd7vqp5dmhtrxqjxngle
+Skipping Bulletin upload (build unchanged for this environment)
+Skipping content-hash update (already current)
 
-Uploaded 3 new blocks (162 KB), skipped 21 existing blocks (3.2 MB)
-Root CID: bafybeif2uyxcrahg5kkjramreslhmssp4dkexumd7vqp5dmhtrxqjxngle`;
+Deploy complete in 4s — no transactions submitted`;
 </script>

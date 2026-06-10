@@ -4,7 +4,7 @@ import { checksumAddress, isAddress, zeroAddress, type Address } from "viem";
 import { ReviveClientWrapper } from "../client/polkadotClient";
 import { CONTRACTS, DOTNS_REGISTRAR_ABI } from "../utils/constants";
 import { validateDomainLabel } from "../utils/validation";
-import { formatErrorMessage, formatWeiAsEther, convertWeiToNative } from "../utils/formatting";
+import { formatErrorMessage, formatWeiAsEther, convertWeiToNativeCeil } from "../utils/formatting";
 import {
   computeDomainTokenId,
   performContractCall,
@@ -144,7 +144,7 @@ export async function transferDomain(
     "quoteTransferFee",
     [tokenId, toC],
   );
-  const feeNative = convertWeiToNative(feeWei, nativeTokenDecimals);
+  const feeNative = convertWeiToNativeCeil(feeWei, nativeTokenDecimals);
   feeSpinner.succeed(
     feeWei === 0n
       ? `Fee: free (same-tier or upward transfer)`

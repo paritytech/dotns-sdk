@@ -1,6 +1,5 @@
-import { Binary } from "@polkadot-api/substrate-bindings";
 import { promises as fs } from "node:fs";
-import { createClient as createPolkadotClient } from "polkadot-api";
+import { createClient as createPolkadotClient, Binary } from "polkadot-api";
 import type { PolkadotClient } from "polkadot-api";
 import { getWsProvider } from "polkadot-api/ws-provider";
 import { withPolkadotSdkCompat } from "polkadot-api/polkadot-sdk-compat";
@@ -14,6 +13,7 @@ import {
   saveManifest,
 } from "./uploadManifest";
 import { isReconnectRequiredUploadError, isRetryableUploadError } from "./uploadRetry";
+import { ensureError, formatDispatchError } from "../utils/formatting";
 import type {
   HashingEnumVariant,
   StoreContentParameters,
@@ -27,11 +27,12 @@ import type {
   UploadWaveSummary,
 } from "../types/types";
 
-const MAXIMUM_TRANSACTION_SIZE = 8 * 1024 * 1024;
+// Chain TransactionStorage MaxTransactionSize; larger store data reverts BadDataSize.
+const MAXIMUM_TRANSACTION_SIZE = 2 * 1024 * 1024;
 const MAX_IN_FLIGHT_BYTES = 8 * 1024 * 1024;
 const MIN_CHUNK_SIZE_BYTES = 256 * 1024;
-const DEFAULT_CHUNK_SIZE_BYTES = 2 * 1024 * 1024;
-const MAX_CHUNK_SIZE_BYTES = 2 * 1024 * 1024;
+const DEFAULT_CHUNK_SIZE_BYTES = MAXIMUM_TRANSACTION_SIZE;
+const MAX_CHUNK_SIZE_BYTES = MAXIMUM_TRANSACTION_SIZE;
 const ADAPTIVE_WINDOW_MIN = 1;
 const ADAPTIVE_WINDOW_START = 1;
 const ADAPTIVE_WINDOW_DEFAULT_MAX = 4;
@@ -98,27 +99,6 @@ type ManifestState = {
   completedBlocks: Map<number, UploadManifestCompletedBlock>;
   rootCid?: string;
 };
-
-function formatDispatchError(dispatchError: { type: string; value?: unknown }): string {
-  if (dispatchError.type === "Module") {
-    const moduleError = dispatchError.value as {
-      type: string;
-      value?: { type: string };
-    };
-    return `Module error: ${moduleError.type}.${moduleError.value?.type || "Unknown"}`;
-  }
-  return dispatchError.type;
-}
-
-function ensureError(error: unknown): Error {
-  if (error instanceof Error) return error;
-  if (typeof error === "string") return new Error(error);
-  try {
-    return new Error(JSON.stringify(error));
-  } catch {
-    return new Error(String(error));
-  }
-}
 
 function isBenignClientDestroyError(error: unknown): boolean {
   const message = ensureError(error).message.toLowerCase();
@@ -507,7 +487,7 @@ async function storeContentOnBulletin(
 
   if (contentBytes.length > MAXIMUM_TRANSACTION_SIZE) {
     throw new Error(
-      `Content size ${contentBytes.length} bytes exceeds maximum transaction size of 8MB`,
+      `Content size ${contentBytes.length} bytes exceeds the chain's maximum transaction size of ${MAXIMUM_TRANSACTION_SIZE} bytes`,
     );
   }
 
@@ -533,10 +513,6 @@ async function storeContentOnBulletin(
   if (nonce !== undefined) {
     transactionOptions.nonce = nonce;
   }
-
-  console.error(
-    `[store-debug] storeContentOnBulletin: cid=${contentCid.slice(0, 16)}… codec=${codecValue} hash=${hashCodeValue} nonce=${nonce ?? "auto"} bytes=${contentBytes.length}`,
-  );
 
   return new Promise((resolve, reject) => {
     let settled = false;

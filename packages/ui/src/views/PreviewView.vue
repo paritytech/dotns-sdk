@@ -7,6 +7,7 @@ import ErrorDisplay from "../components/preview/ErrorDisplay.vue";
 import LandingPage from "../components/preview/LandingPage.vue";
 import { decodeFromPreview } from "@/lib/preview";
 import { destroySharedHeliaClient } from "@/lib/heliaClient";
+import { formatBytes } from "@/lib/bulletinUpload";
 import {
   fetchCidFromP2P,
   fetchCidFromGateways,
@@ -40,12 +41,6 @@ function detectMimeType(data: Uint8Array): string {
     console.warn("[PreviewView] UTF-8 detection failed, treating as binary:", error);
     return "application/octet-stream";
   }
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 const route = useRoute();

@@ -224,11 +224,8 @@ dotns text set alice twitter "@alice"
 dotns text set alice github "alice"
 dotns text set alice url "https://alice.dev"`;
 
-const reverseResolutionCode = `# Enable reverse resolution during domain registration
+const reverseResolutionCode = `# Set the reverse record at registration time with -r (--reverse)
 dotns register domain --name alice -r
-
-# If you already own the name, re-register with the -r flag
-# to set the reverse record for your address.
 
 # Verify your name resolves correctly
 dotns lookup name alice

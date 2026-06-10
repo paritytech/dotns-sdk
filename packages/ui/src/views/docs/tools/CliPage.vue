@@ -184,10 +184,10 @@
 
     <div class="border-t border-dot-border pt-6 flex justify-between text-sm">
       <RouterLink
-        to="/docs/dweb/deploy-workflow"
+        to="/docs/dotli/bulletin"
         class="text-dot-text-tertiary hover:text-dot-text-primary"
       >
-        &larr; Deploy Workflow
+        &larr; Bulletin Chain
       </RouterLink>
       <RouterLink to="/docs/tools/ui" class="text-dot-accent hover:text-dot-accent-hover">
         Web UI &rarr;
@@ -495,7 +495,7 @@ const commandReference: CmdGroup[] = [
           { flag: "--force-chunked", description: "Force chunked upload (DAG-PB)" },
           {
             flag: "--concurrency <n>",
-            description: "Adaptive scheduler max window (default: 4, max: 4)",
+            description: "Adaptive scheduler max window (default: 16, max: 64)",
           },
           {
             flag: "--max-retries <n>",
@@ -682,8 +682,8 @@ dotns text set alice email "alice@example.com"
 # Upload to Bulletin
 dotns bulletin upload ./dist
 
-# Upload a directory with concurrency
-dotns bulletin upload ./dist --concurrency 4
+# Upload a directory with a higher concurrency window
+dotns bulletin upload ./dist --concurrency 32
 
 # Upload and cache the CID in your on-chain Store contract
 dotns bulletin upload ./dist --cache

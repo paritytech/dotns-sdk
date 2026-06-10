@@ -43,19 +43,6 @@
     </div>
 
     <div class="space-y-4">
-      <h2 class="text-xl font-semibold text-dot-text-primary">Registration Sequence</h2>
-      <p class="text-dot-text-secondary text-sm leading-relaxed">
-        The full registration flow across all contracts. Each arrow represents an on-chain call or
-        return value.
-      </p>
-      <DocDiagramImage
-        src="/diagrams/registration.png"
-        alt="Registration sequence diagram showing commit-reveal flow across Controller, PopRules, Registrar, Registry, and Store contracts"
-        caption="Registration Sequence"
-      />
-    </div>
-
-    <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Making a Commitment</h2>
       <p class="text-dot-text-secondary leading-relaxed">
         The
@@ -165,10 +152,9 @@
         contract.
       </p>
       <p class="text-dot-text-secondary leading-relaxed">
-        The whitelist ensures that reserved names are allocated through a governance process. Only
-        addresses explicitly approved by the protocol can register reserved names. Whitelisted
-        addresses bypass pricing and Proof of Personhood checks, since they have already been
-        verified through governance.
+        Only addresses explicitly approved by the protocol can register reserved names, which keeps
+        their allocation under governance. Whitelisted addresses bypass pricing and Proof of
+        Personhood checks, since governance has already vetted them.
       </p>
       <p class="text-dot-text-secondary leading-relaxed">
         To check whether your address is whitelisted, use the CLI:
@@ -216,7 +202,6 @@
 <script setup lang="ts">
 import DocCallout from "@/components/docs/DocCallout.vue";
 import DocCodeBlock from "@/components/docs/DocCodeBlock.vue";
-import DocDiagramImage from "@/components/docs/DocDiagramImage.vue";
 
 const steps = [
   {
@@ -264,7 +249,7 @@ const registerCode = `function register(Registration calldata registration) exte
     // 3. Require msg.value >= price
     // 4. Mint ERC721 via Registrar
     // 5. Set owner + resolver in Registry
-    // 6. Write registration record to Store
+    // 6. Write the label to the owner's LabelStore
 }`;
 
 const registrationStructCode = `struct Registration {

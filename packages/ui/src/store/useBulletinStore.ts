@@ -528,7 +528,9 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
         const typedApi = bulletinClient.getTypedApi(bulletin);
 
         const result = await withUploadWorker((uploadWorker) =>
-          uploadChunkedFile(file, typedApi, signer, uploadWorker),
+          getUploadApprovalPlan(file.size).needsChunking
+            ? uploadChunkedFile(file, typedApi, signer, uploadWorker)
+            : uploadSingleBlock(file, typedApi, signer, uploadWorker),
         );
 
         await verifyAndCacheUpload(result.cid, options);
@@ -537,6 +539,30 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
         return result;
       },
     );
+  }
+
+  async function uploadSingleBlock(
+    file: File,
+    typedApi: TypedApi<Bulletin>,
+    signer: PolkadotSigner,
+    uploadWorker: BulletinUploadWorkerClient,
+  ): Promise<BulletinUploadResult> {
+    chunksTotal.value = 1;
+    chunksCompleted.value = 0;
+    const prepared = await storePreparedBytes(
+      typedApi,
+      signer,
+      "preparing",
+      "signing",
+      `Preparing ${formatBytes(file.size)} for upload...`,
+      "Approve the upload in your wallet",
+      90,
+      CODEC_RAW,
+      () => uploadWorker.prepareSlice(file, 0, file.size, CODEC_RAW),
+    );
+    chunksCompleted.value = 1;
+    uploadedCid.value = prepared.cid;
+    return { cid: prepared.cid };
   }
 
   async function uploadChunkedFile(

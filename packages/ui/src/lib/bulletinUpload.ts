@@ -4,7 +4,8 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import type { PreparedBlock } from "./bulletinUploadWorkerProtocol";
 
 export const BULLETIN_RPC = "wss://paseo-bulletin-next-rpc.polkadot.io";
-export const MAX_TX_SIZE = 8 * 1024 * 1024;
+// Chain MaxTransactionSize; larger files are split into CHUNK_SIZE blocks.
+export const MAX_TX_SIZE = 2 * 1024 * 1024;
 export const CHUNK_SIZE = 2 * 1024 * 1024;
 export const MAX_BROWSER_UPLOAD_SIZE = 5 * 1024 * 1024;
 export const CODEC_RAW = 0x55;
@@ -20,9 +21,6 @@ export type CompletedChunk = {
 export type UploadApprovalPlan = {
   needsChunking: boolean;
   chunkCount: number;
-  contentApprovalCount: number;
-  rootApprovalCount: number;
-  storeApprovalCount: number;
   totalApprovalCount: number;
 };
 
@@ -54,17 +52,11 @@ export function getFileKey(file: File): string {
 export function getUploadApprovalPlan(fileSize: number): UploadApprovalPlan {
   const needsChunking = fileSize > MAX_TX_SIZE;
   const chunkCount = needsChunking ? Math.ceil(fileSize / CHUNK_SIZE) : 0;
-  const contentApprovalCount = needsChunking ? chunkCount : 1;
-  const rootApprovalCount = needsChunking ? 1 : 0;
-  const storeApprovalCount = 1;
-
+  const contentApprovals = needsChunking ? chunkCount + 1 : 1;
   return {
     needsChunking,
     chunkCount,
-    contentApprovalCount,
-    rootApprovalCount,
-    storeApprovalCount,
-    totalApprovalCount: contentApprovalCount + rootApprovalCount + storeApprovalCount,
+    totalApprovalCount: contentApprovals + 1,
   };
 }
 

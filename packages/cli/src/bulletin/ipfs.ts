@@ -16,8 +16,8 @@ const PUBLIC_FALLBACK_GATEWAYS = [
 
 /**
  * Resolve the IPFS HTTP gateway base URL for the active environment. Throws
- * with a clear message when the active environment does not operate a gateway —
- * callers can catch and either pass `--gateway` or skip the verification step.
+ * with a clear message when the active environment does not operate a gateway.
+ * Callers can catch and either pass `--gateway` or skip the verification step.
  */
 function requireActiveGateway(): string {
   const environment = getActiveDotnsEnvironment();

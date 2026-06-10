@@ -38,7 +38,6 @@ export {
   validateENSName,
   normalizeDomainName,
   filterDotNames,
-  canRegisterWithStatus,
   extractBytes,
   unwrap,
 } from "./lib/domain";
@@ -60,6 +59,7 @@ export {
   DECIMALS,
   NATIVE_TO_ETH_RATIO,
   convertWeiToNative,
+  convertWeiToNativeCeil,
   convertNativeToWei,
   formatNativeBalance,
   formatWeiAsEther,

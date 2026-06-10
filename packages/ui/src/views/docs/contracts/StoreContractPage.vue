@@ -32,18 +32,21 @@
           <DocBadge variant="transaction">transaction</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Claims a Store contract for the caller. Each address can only claim one Store. Reverts if
-          the caller already has a Store.
+          The caller claims their UserStore beacon-proxy. Self-claim only: the resulting store owner
+          is always the caller, regardless of who pays gas. One store per caller, forever.
         </p>
         <DocReturnsTable
           :returns="[
             {
               name: 'store',
               type: 'address',
-              description: 'The address of the claimed Store contract',
+              description: 'The deployed store address',
             },
           ]"
         />
+        <DocCallout variant="warning" title="Reverts when">
+          The caller already has a UserStore (AlreadyDeployed).
+        </DocCallout>
       </div>
 
       <div class="space-y-2">
@@ -54,19 +57,14 @@
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Returns the UserStore address claimed by a given user. Returns
-          <code
-            class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
-            >address(0)</code
-          >
-          if no UserStore has been claimed.
+          Returns the UserStore address bound to a user, or the zero address if none.
         </p>
         <DocParamTable
           :params="[
             {
               name: 'user',
               type: 'address',
-              description: 'The user address to look up',
+              description: 'The user to look up',
               required: true,
             },
           ]"
@@ -76,7 +74,7 @@
             {
               name: 'store',
               type: 'address',
-              description: 'UserStore address, or the zero address if none claimed',
+              description: 'The bound store address, or zero',
             },
           ]"
         />
@@ -90,22 +88,22 @@
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Returns the LabelStore address for a user, or the zero address if none has been deployed.
-          LabelStores are deployed by the protocol during registration, not claimed by users.
+          Returns the LabelStore address bound to a user, or the zero address if none. LabelStores
+          are deployed by the protocol during registration, not claimed by users.
         </p>
         <DocParamTable
           :params="[
             {
               name: 'user',
               type: 'address',
-              description: 'The user address to look up',
+              description: 'The user to look up',
               required: true,
             },
           ]"
         />
         <DocReturnsTable
           :returns="[
-            { name: 'store', type: 'address', description: 'LabelStore address, or zero' },
+            { name: 'store', type: 'address', description: 'The bound store address, or zero' },
           ]"
         />
       </div>
@@ -118,24 +116,28 @@
           <DocBadge variant="transaction">transaction</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Deploys a LabelStore for a user. Called by the protocol during the first registration; not
-          a user-facing action.
+          Deploys a LabelStore beacon-proxy bound to a user. Callable by the factory owner or any
+          address currently registered in the protocol registry; called by the protocol during
+          registration, not a user-facing action. The user must not already have a LabelStore.
         </p>
         <DocParamTable
           :params="[
             {
               name: 'user',
               type: 'address',
-              description: 'The user to deploy a LabelStore for',
+              description: 'The user the store is bound to forever',
               required: true,
             },
           ]"
         />
         <DocReturnsTable
-          :returns="[
-            { name: 'store', type: 'address', description: 'The deployed LabelStore address' },
-          ]"
+          :returns="[{ name: 'store', type: 'address', description: 'The deployed store address' }]"
         />
+        <DocCallout variant="warning" title="Reverts when">
+          The caller is neither the factory owner nor a protocol-registered address (NotAuthorised),
+          the user is the zero address (InvalidUser), or the user already has a LabelStore
+          (AlreadyDeployed).
+        </DocCallout>
       </div>
 
       <div class="space-y-2">
@@ -170,7 +172,8 @@
       <p class="text-sm text-dot-text-secondary">
         A UserStore is your personal key/value store for custom data such as content CIDs. Keys are
         <code class="text-xs font-mono text-dot-accent">bytes32</code> and values are arbitrary
-        bytes; each key keeps an append-only history. Writes are restricted to the store owner.
+        bytes. Writes are restricted to the store owner, and prior values are snapshotted into a
+        per-key history on every write.
       </p>
 
       <div class="space-y-2">
@@ -181,14 +184,24 @@
           <DocBadge variant="transaction">transaction</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Sets the value at a key. Owner only. Writing empty bytes clears the key.
+          Sets the current value for a key. Callable only by the bound owner. If a non-empty prior
+          value existed it is pushed into the per-key history list with the block timestamp; empty
+          prior values produce no history entry.
         </p>
         <DocParamTable
           :params="[
-            { name: 'key', type: 'bytes32', description: 'The storage key', required: true },
-            { name: 'value', type: 'bytes', description: 'The value to store', required: true },
+            { name: 'key', type: 'bytes32', description: 'The key to write', required: true },
+            {
+              name: 'value',
+              type: 'bytes',
+              description: 'The new current value (may be empty)',
+              required: true,
+            },
           ]"
         />
+        <DocCallout variant="warning" title="Reverts when">
+          The caller is not the bound owner (NotOwner), or the key is zero (InvalidKey).
+        </DocCallout>
       </div>
 
       <div class="space-y-2">
@@ -197,22 +210,20 @@
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Returns the value stored at a key, or empty bytes if unset.
+          Returns the current value under a key, or empty bytes if unset.
         </p>
         <DocParamTable
           :params="[
             {
               name: 'key',
               type: 'bytes32',
-              description: 'The storage key to look up',
+              description: 'The key to read',
               required: true,
             },
           ]"
         />
         <DocReturnsTable
-          :returns="[
-            { name: 'value', type: 'bytes', description: 'The stored value, or empty bytes' },
-          ]"
+          :returns="[{ name: 'value', type: 'bytes', description: 'The current value' }]"
         />
       </div>
 
@@ -222,16 +233,8 @@
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Returns whether a key currently holds a value.
+          Returns true if and only if the current value under a key has non-zero length.
         </p>
-        <DocParamTable
-          :params="[
-            { name: 'key', type: 'bytes32', description: 'The storage key', required: true },
-          ]"
-        />
-        <DocReturnsTable
-          :returns="[{ name: 'present', type: 'bool', description: 'True if the key is set' }]"
-        />
       </div>
 
       <div class="space-y-2">
@@ -250,16 +253,16 @@
 
       <div class="space-y-2">
         <div class="flex items-center gap-2">
-          <h3 class="text-base font-semibold text-dot-text-primary font-mono">History</h3>
+          <h3 class="text-base font-semibold text-dot-text-primary font-mono">History and owner</h3>
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Every key retains its prior values.
+          Each key keeps an append-only history:
           <code class="text-xs font-mono text-dot-accent">getHistoryCount(key)</code>,
           <code class="text-xs font-mono text-dot-accent">getHistoryAt(key, index)</code> and
-          <code class="text-xs font-mono text-dot-accent">getHistory(key, offset, limit)</code>
-          read the append-only entries for a key.
-          <code class="text-xs font-mono text-dot-accent">owner()</code> returns the store owner.
+          <code class="text-xs font-mono text-dot-accent">getHistory(key, offset, limit)</code> read
+          prior values. <code class="text-xs font-mono text-dot-accent">owner()</code> returns the
+          store owner.
         </p>
       </div>
     </div>
@@ -269,8 +272,9 @@
       <p class="text-sm text-dot-text-secondary">
         A LabelStore is the read-oriented index of the .dot names an account holds. The protocol
         writes to it during registration through
-        <code class="text-xs font-mono text-dot-accent">storeLabel</code> (registry-gated, not
-        user-callable); you do not write custom data here. Entries are keyed by labelhash.
+        <code class="text-xs font-mono text-dot-accent">storeLabel</code>, which is gated to
+        addresses currently registered in the protocol registry and records a label under its
+        labelhash, locking the slot permanently on first write. You do not write custom data here.
       </p>
 
       <div class="space-y-2">
@@ -280,21 +284,21 @@
           </h3>
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
-        <p class="text-sm text-dot-text-secondary">Returns the stored label for a labelhash.</p>
+        <p class="text-sm text-dot-text-secondary">
+          Returns the stored label for a labelhash, or the empty string if none.
+        </p>
         <DocParamTable
           :params="[
             {
               name: 'labelhash',
               type: 'bytes32',
-              description: 'keccak256 of the label',
+              description: 'The labelhash to look up',
               required: true,
             },
           ]"
         />
         <DocReturnsTable
-          :returns="[
-            { name: 'label', type: 'string', description: 'The label, or empty if unset' },
-          ]"
+          :returns="[{ name: 'label', type: 'string', description: 'The stored label string' }]"
         />
       </div>
 
@@ -306,10 +310,10 @@
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          <code class="text-xs font-mono text-dot-accent">hasLabel(labelhash)</code> returns whether
-          a label is stored;
-          <code class="text-xs font-mono text-dot-accent">isLocked(labelhash)</code> returns whether
-          it is locked. Both take a single
+          <code class="text-xs font-mono text-dot-accent">hasLabel(labelhash)</code> returns true if
+          and only if a label has been stored under the labelhash;
+          <code class="text-xs font-mono text-dot-accent">isLocked(labelhash)</code> returns true if
+          and only if the slot for the labelhash is permanently locked. Both take a single
           <code class="text-xs font-mono text-dot-accent">bytes32</code> labelhash.
         </p>
       </div>
@@ -351,8 +355,8 @@
       >
         &larr; PoP Rules
       </RouterLink>
-      <RouterLink to="/docs/dweb/overview" class="text-dot-accent hover:text-dot-accent-hover">
-        dWeb Overview &rarr;
+      <RouterLink to="/docs/dotli/overview" class="text-dot-accent hover:text-dot-accent-hover">
+        The dot.li Browser &rarr;
       </RouterLink>
     </div>
   </div>

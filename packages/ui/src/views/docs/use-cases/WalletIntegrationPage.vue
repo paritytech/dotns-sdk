@@ -265,7 +265,9 @@ const REVERSE_RESOLVER = "0x259B9D8199c29d2EF132264ad05f8F74F3115A2E";
 // Given an address from a governance vote or transaction
 const voterAddress = "0xa1b2b939E82b2ecE55Bd8a0E283818BfC1CA6CDc";
 
-// Reverse-resolve to get the primary .dot name
+// Reverse-resolve to get the primary .dot name.
+// nameOf returns the full name including the ".dot" suffix,
+// or an empty string if no reverse record is set.
 const name = await client.readContract({
   address: REVERSE_RESOLVER,
   abi: reverseResolverAbi,
@@ -276,7 +278,7 @@ const name = await client.readContract({
 // Display in your UI
 if (name) {
   // Show: "alice.dot voted Yes"
-  console.log(\`\${name}.dot voted Yes\`);
+  console.log(\`\${name} voted Yes\`);
 } else {
   // Fallback: show truncated address
   console.log(\`\${voterAddress.slice(0, 6)}...\${voterAddress.slice(-4)} voted Yes\`);

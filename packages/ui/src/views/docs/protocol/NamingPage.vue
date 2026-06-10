@@ -4,9 +4,9 @@
       <p class="text-sm font-medium text-dot-accent mb-2">Protocol</p>
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">The .dot Namespace</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
-        Every <span class="text-dot-text-primary font-medium">.dot</span> name is turned into a
-        unique identifier through a repeatable hashing process. Understanding labels, nodes, and
-        namehashes is the foundation for working with DotNS at the contract level.
+        Every <span class="text-dot-text-primary font-medium">.dot</span> name maps to a unique
+        identifier through a deterministic hash. Labels, nodes, and namehashes are the foundation
+        for working with DotNS at the contract level.
       </p>
     </div>
 
@@ -56,9 +56,8 @@
       <p class="text-dot-text-secondary leading-relaxed">
         The <span class="font-mono text-dot-text-primary">labelhash</span> is
         <span class="font-mono text-dot-accent">keccak256(label)</span> &mdash; a one-way hash of
-        the label string. It is used to compute the full node and as an input to registration
-        functions. The ERC721 <span class="font-mono text-dot-text-primary">tokenId</span> is the
-        <span class="font-mono text-dot-text-primary">uint256</span> cast of the node.
+        the label string. It feeds the node calculation above and is also passed directly to
+        registration functions.
       </p>
     </div>
 

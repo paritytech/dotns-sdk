@@ -41,6 +41,18 @@ export function convertWeiToNative(weiValue: bigint): bigint {
 }
 
 /**
+ * Converts EVM wei to native units, rounding up. Use when the native value must
+ * fully cover a wei-denominated required fee: flooring a fee that is not a whole
+ * number of native units underpays and reverts on-chain.
+ *
+ * @param weiValue - Value in EVM wei units (18 decimals)
+ * @returns Smallest native unit value whose wei equivalent is at least weiValue
+ */
+export function convertWeiToNativeCeil(weiValue: bigint): bigint {
+  return (weiValue + NATIVE_TO_ETH_RATIO - 1n) / NATIVE_TO_ETH_RATIO;
+}
+
+/**
  * Converts native substrate units to EVM wei units.
  *
  * @param nativeValue - Value in native substrate units (12 decimals)

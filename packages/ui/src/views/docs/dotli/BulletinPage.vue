@@ -1,12 +1,13 @@
 <template>
   <div class="space-y-8">
     <div>
-      <p class="text-sm font-medium text-dot-accent mb-2">Decentralised Web</p>
+      <p class="text-sm font-medium text-dot-accent mb-2">dot.li</p>
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">Bulletin Chain</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
         Bulletin is Polkadot's on-chain IPFS block storage &mdash; a parachain purpose-built for
-        storing content-addressed data directly on the network. Unlike traditional IPFS pinning,
-        content stored on Bulletin is available as long as the chain is live.
+        storing content-addressed data directly on the network. Content stored on Bulletin remains
+        available for the chain's retention period (about 14 days by default) and must be renewed to
+        persist longer.
       </p>
     </div>
 
@@ -18,8 +19,10 @@
         (Content Identifier) &mdash; and can be retrieved by any node connected to the chain.
       </p>
       <p class="text-dot-text-secondary leading-relaxed">
-        This makes Bulletin the ideal storage backend for DotNS websites: content is permanent,
-        verifiable, and does not depend on external pinning services or gateways staying online.
+        This makes Bulletin a strong storage backend for DotNS websites: content is verifiable and
+        does not depend on external pinning services or gateways staying online. The upload flow
+        stores for the retention window and does not auto-renew, so content must be renewed to
+        persist longer.
       </p>
     </div>
 
@@ -52,8 +55,7 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Single Block Upload</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        For files under the block size limit (approximately 256 KB), the entire file is stored as a
-        single IPFS block in one extrinsic.
+        For files up to 2 MiB, the entire file is stored as a single IPFS block in one extrinsic.
       </p>
       <DocCodeBlock :code="singleBlockCode" lang="bash" filename="terminal" />
     </div>
@@ -91,8 +93,12 @@
         storage transactions. A chain administrator calls
         <span class="font-mono text-dot-accent">TransactionStorage.authorize_account</span> to grant
         an account permission to store a specific number of bytes. Authorisation lasts for a fixed
-        period (7 days on Polkadot Bulletin). There are no transaction fees &mdash; the Bulletin
+        period (14 days on Polkadot Bulletin). There are no transaction fees &mdash; the Bulletin
         chain operates with no currency.
+      </p>
+      <p class="text-dot-text-secondary leading-relaxed">
+        The <span class="font-mono text-dot-accent">authorize_account</span> call takes three
+        parameters.
       </p>
       <div class="overflow-x-auto">
         <table class="w-full text-sm border border-dot-border rounded-lg overflow-hidden">
@@ -110,10 +116,30 @@
           </tbody>
         </table>
       </div>
-      <DocCallout variant="warning" title="Separate mnemonic">
-        Bulletin transactions require a Substrate account (SS58 address), not an EVM account. The
-        DotNS CLI and deploy workflow accept a separate
-        <span class="font-mono">bulletin-mnemonic</span> secret for this purpose.
+      <p class="text-dot-text-secondary leading-relaxed">
+        The following limits are not call arguments. They are set at the chain level as runtime
+        configuration and genesis state.
+      </p>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm border border-dot-border rounded-lg overflow-hidden">
+          <thead>
+            <tr class="bg-dot-surface-secondary">
+              <th class="text-left px-4 py-3 text-dot-text-tertiary font-medium">Setting</th>
+              <th class="text-left px-4 py-3 text-dot-text-tertiary font-medium">Description</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-dot-border">
+            <tr v-for="item in chainConfig" :key="item.name" class="bg-dot-surface">
+              <td class="px-4 py-3 font-mono text-dot-accent text-xs">{{ item.name }}</td>
+              <td class="px-4 py-3 text-dot-text-secondary">{{ item.description }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <DocCallout variant="warning" title="Substrate signer">
+        Bulletin transactions require a Substrate account (SS58 address), not an EVM account. Sign
+        them with the CLI's standard signer flags
+        <span class="font-mono">--mnemonic</span> or <span class="font-mono">--key-uri</span>.
       </DocCallout>
     </div>
 
@@ -128,13 +154,13 @@
 
     <div class="border-t border-dot-border pt-6 flex justify-between text-sm">
       <RouterLink
-        to="/docs/dweb/hosting"
+        to="/docs/dotli/publishing"
         class="text-dot-text-tertiary hover:text-dot-text-primary"
       >
-        &larr; Host a Website
+        &larr; Publishing for dot.li
       </RouterLink>
-      <RouterLink to="/docs/dweb/gateway" class="text-dot-accent hover:text-dot-accent-hover">
-        Gateway &rarr;
+      <RouterLink to="/docs/tools/cli" class="text-dot-accent hover:text-dot-accent-hover">
+        CLI &rarr;
       </RouterLink>
     </div>
   </div>
@@ -148,14 +174,14 @@ const uploadModes = [
   {
     title: "Single Block",
     description:
-      "For small files under 256 KB. The entire file is stored as a single IPFS block in one transaction.",
+      "For files up to 2 MiB. The entire file is stored as a single IPFS block in one transaction.",
     sizeHint: "Best for: individual files, small assets, configuration data",
   },
   {
     title: "Chunked DAG-PB",
     description:
       "For larger files. Content is split into chunks, linked together in a Merkle tree, and submitted as multiple transactions.",
-    sizeHint: "Best for: large files, images, bundles over 256 KB",
+    sizeHint: "Best for: large files, images, bundles over 2 MiB",
   },
   {
     title: "Directory",
@@ -167,17 +193,28 @@ const uploadModes = [
 
 const authParams = [
   {
-    name: "account",
+    name: "who",
     description:
       "Substrate account (SS58 format) that is authorised to submit storage transactions",
   },
   {
+    name: "transactions",
+    description: "Number of boost-tier transactions the account may submit (u32 allowance)",
+  },
+  {
+    name: "bytes",
+    description: "Number of bytes the account may store (u64 allowance)",
+  },
+];
+
+const chainConfig = [
+  {
     name: "authorization_period",
-    description: "Duration an account's authorisation remains valid (7 days on Polkadot Bulletin)",
+    description: "Duration an account's authorisation remains valid (14 days on Polkadot Bulletin)",
   },
   {
     name: "max_transaction_size",
-    description: "Maximum data size per transaction (8 MB on Polkadot Bulletin)",
+    description: "Maximum data size per transaction (2 MiB on Polkadot Bulletin)",
   },
   {
     name: "max_block_transactions",
@@ -186,7 +223,7 @@ const authParams = [
   {
     name: "retention_period",
     description:
-      "Duration data is stored on-chain, configured at the chain level via runtime migration",
+      "Duration data is stored on-chain before removal (about 14 days by default), set at the chain level",
   },
 ];
 

@@ -30,15 +30,16 @@
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Returns the primary .dot name for the given address. Returns an empty string if no reverse
-          record has been set.
+          Returns the reverse name for an address, fail-closed against current ownership. Returns
+          the empty string when no record is set, when the record is malformed, or when the address
+          no longer owns the name pointed to by the stored record.
         </p>
         <DocParamTable
           :params="[
             {
               name: 'addr',
               type: 'address',
-              description: 'The address to look up',
+              description: 'The address to query',
               required: true,
             },
           ]"
@@ -48,10 +49,46 @@
             {
               name: 'name',
               type: 'string',
-              description: 'The primary .dot name, or empty string if unset',
+              description: 'The reverse name associated with addr, or the empty string',
             },
           ]"
         />
+      </div>
+
+      <div class="space-y-2">
+        <div class="flex items-center gap-2">
+          <h3 class="text-base font-semibold text-dot-text-primary font-mono">
+            claimReverseRecord(label)
+          </h3>
+          <DocBadge variant="transaction">transaction</DocBadge>
+        </div>
+        <p class="text-sm text-dot-text-secondary">
+          Self-service claim: associates
+          <code
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+            >msg.sender</code
+          >
+          with
+          <code
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+            >&lt;label&gt;.dot</code
+          >. The caller must currently own the NFT for the label per the configured registrar,
+          otherwise it reverts with
+          <code
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+            >NotNameOwner</code
+          >. It overwrites any existing record for the caller. Transferring the name away does not
+          eagerly clear the record;
+          <code
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+            >nameOf</code
+          >
+          fails closed at read time when the stored record no longer matches current ownership.
+        </p>
+        <DocParamTable :params="claimReverseParams" />
+        <DocCallout variant="warning" title="Reverts when">
+          The caller does not currently own the name for the given label.
+        </DocCallout>
       </div>
 
       <div class="space-y-2">
@@ -62,12 +99,21 @@
           <DocBadge variant="transaction">transaction</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Sets the primary .dot name for an address. Only callable by the address itself (self-set
-          only).
+          Associates an address with a reverse name record. Callable only by the configured
+          registrar or its controller, otherwise it reverts with
+          <code
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+            >NotRegistrarController</code
+          >. It overwrites any existing reverse record for the address. End users should call
+          <code
+            class="text-xs bg-dot-surface-secondary px-1.5 py-0.5 rounded border border-dot-border font-mono"
+            >claimReverseRecord</code
+          >
+          instead.
         </p>
         <DocParamTable :params="setReverseParams" />
         <DocCallout variant="warning" title="Reverts when">
-          Caller is not the address being set (only self-set is allowed).
+          The caller is not the configured registrar or its controller.
         </DocCallout>
       </div>
     </div>
@@ -115,17 +161,26 @@ import DocCodeBlock from "@/components/docs/DocCodeBlock.vue";
 import DocCallout from "@/components/docs/DocCallout.vue";
 import DocBadge from "@/components/docs/DocBadge.vue";
 
+const claimReverseParams = [
+  {
+    name: "label",
+    type: "string",
+    description: "The label (without .dot) the caller is claiming a reverse record for",
+    required: true,
+  },
+];
+
 const setReverseParams = [
   {
     name: "addr",
     type: "address",
-    description: "The address to set the reverse record for",
+    description: "The address for which the reverse name is being set",
     required: true,
   },
   {
     name: "name",
     type: "string",
-    description: "The .dot name to associate with this address (e.g. alice.dot)",
+    description: "The human-readable name associated with the address",
     required: true,
   },
 ];
@@ -143,11 +198,8 @@ const reverseResolverAbi = [
   },
   {
     type: "function",
-    name: "setReverseName",
-    inputs: [
-      { name: "addr", type: "address" },
-      { name: "name", type: "string" },
-    ],
+    name: "claimReverseRecord",
+    inputs: [{ name: "label", type: "string" }],
     outputs: [],
     stateMutability: "nonpayable",
   },
@@ -180,7 +232,8 @@ if (name) {
   console.log("Resolves to:", name);
 }
 
-// Set your primary .dot name (requires wallet client)
+// Claim your primary .dot name (requires wallet client).
+// The caller must currently own the name; pass the bare label.
 const walletClient = createWalletClient({
   chain: paseoAssetHub,
   transport: custom(window.ethereum),
@@ -189,7 +242,7 @@ const walletClient = createWalletClient({
 await walletClient.writeContract({
   address: REVERSE_RESOLVER,
   abi: reverseResolverAbi,
-  functionName: "setReverseName",
-  args: [walletClient.account.address, "alice.dot"],
+  functionName: "claimReverseRecord",
+  args: ["alice"],
 });`;
 </script>

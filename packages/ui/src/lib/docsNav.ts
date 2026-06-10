@@ -47,13 +47,13 @@ export const docsNav: DocNavGroup[] = [
     ],
   },
   {
-    title: "Decentralized Web",
+    title: "dot.li",
     items: [
-      { title: "Overview", path: "/docs/dweb/overview" },
-      { title: "Host a Website", path: "/docs/dweb/hosting" },
-      { title: "Bulletin Chain", path: "/docs/dweb/bulletin" },
-      { title: "Gateway", path: "/docs/dweb/gateway" },
-      { title: "Deploy Workflow", path: "/docs/dweb/deploy-workflow" },
+      { title: "The dot.li Browser", path: "/docs/dotli/overview" },
+      { title: "How Resolution Works", path: "/docs/dotli/resolution" },
+      { title: "Rendering and Verification", path: "/docs/dotli/rendering" },
+      { title: "Publishing for dot.li", path: "/docs/dotli/publishing" },
+      { title: "Bulletin Chain", path: "/docs/dotli/bulletin" },
     ],
   },
   {

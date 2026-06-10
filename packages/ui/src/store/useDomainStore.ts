@@ -1,13 +1,5 @@
 import { defineStore } from "pinia";
-import {
-  keccak256,
-  toBytes,
-  hexToBigInt,
-  zeroHash,
-  type Address,
-  type Hash,
-  zeroAddress,
-} from "viem";
+import { zeroHash, type Address, type Hash, zeroAddress } from "viem";
 import { createContract, type AbiEntry } from "@parity/product-sdk-contracts";
 import {
   getContract,
@@ -24,6 +16,7 @@ import {
   computeSubnode,
   convertNativeToWei,
   convertWeiToNative,
+  convertWeiToNativeCeil,
   formatNativeBalance,
   formatWeiAsEther,
   normalizeDomainName,
@@ -68,25 +61,6 @@ const PERSONHOOD_ABI: AbiEntry[] = [
 
 export const useDomainStore = defineStore("useDomainStore", () => {
   const walletStore = useWalletStore();
-
-  function extractLabel(domain: string): string {
-    try {
-      return domain.replace(".dot", "").split(".")[0] ?? "";
-    } catch (error) {
-      console.warn("[DomainStore:extractLabel]", error);
-      throw new Error("Failed to extract label from domain");
-    }
-  }
-
-  function calculateTokenId(label: string): bigint {
-    try {
-      if (!label || typeof label !== "string") throw new Error("Invalid label");
-      return hexToBigInt(keccak256(toBytes(label)));
-    } catch (error) {
-      console.warn("[DomainStore:calculateTokenId]", error);
-      throw new Error("Failed to calculate token ID");
-    }
-  }
 
   // Common onStatus relay for tx writes. Forwarded to walletStore so the
   // existing TransactionTimeline UI ticks through signing/broadcast/included/finalized
@@ -217,21 +191,6 @@ export const useDomainStore = defineStore("useDomainStore", () => {
     }
   }
 
-  async function isAvailable(domain: string): Promise<boolean> {
-    if (!domain || typeof domain !== "string") throw new Error("Invalid domain name");
-    return withContractRecovery(async () => {
-      const registrar = await getContract("@dotns/registrar");
-      const label = extractLabel(domain);
-      const tokenId = calculateTokenId(label);
-      const result = await registrar.available!.query(tokenId, { origin: ZERO_SUBSTRATE_ADDRESS });
-      if (!result.success) return false;
-      return Boolean(result.value);
-    }).catch((error) => {
-      console.warn("[DomainStore:isAvailable]", error);
-      throw new Error("Failed to check domain availability");
-    });
-  }
-
   async function getMinCommitmentAge(): Promise<bigint> {
     return withContractRecovery(async () => {
       const controller = await getContract("@dotns/registrar-controller");
@@ -321,11 +280,15 @@ export const useDomainStore = defineStore("useDomainStore", () => {
     try {
       const registrar = await getContract("@dotns/registrar");
       const tokenId = computeDomainTokenId(normalizeDomainName(domain));
+      const feeQuote = await registrar.quoteTransferFee!.query(tokenId, newOwner, {
+        origin: ZERO_SUBSTRATE_ADDRESS,
+      });
+      const feeNative = convertWeiToNativeCeil(feeQuote.success ? (feeQuote.value as bigint) : 0n);
       const result = await registrar.safeTransferFrom!.tx(
         walletStore.evmAddress as Address,
         newOwner,
         tokenId,
-        { ...WRITE_TX_DEFAULTS, onStatus: relayStatus },
+        { ...WRITE_TX_DEFAULTS, value: feeNative, onStatus: relayStatus },
       );
       if (!result.ok) {
         throw new Error(`Transfer reverted: ${JSON.stringify(result.dispatchError ?? "unknown")}`);
@@ -455,15 +418,12 @@ export const useDomainStore = defineStore("useDomainStore", () => {
     commitRegistration,
     registerDomain,
     registerReserved,
-    isAvailable,
     getMinCommitmentAge,
     registerSubDomain,
     priceWithoutCheck,
     userPopStatus,
     classifyName,
     recordExists,
-    extractLabel,
-    calculateTokenId,
     transferDomain,
     setNameDelegate,
     getNameDelegate,

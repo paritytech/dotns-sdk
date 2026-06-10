@@ -30,22 +30,19 @@
           <h3 class="text-base font-semibold text-dot-text-primary font-mono">text(node, key)</h3>
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
-        <p class="text-sm text-dot-text-secondary">
-          Returns the text record value for a given node and key. Returns an empty string if the
-          record does not exist.
-        </p>
+        <p class="text-sm text-dot-text-secondary">Returns a text record for a node.</p>
         <DocParamTable
           :params="[
             {
               name: 'node',
               type: 'bytes32',
-              description: 'The namehash of the .dot name',
+              description: 'The node to query',
               required: true,
             },
             {
               name: 'key',
               type: 'string',
-              description: 'The record key to look up',
+              description: 'Text record key',
               required: true,
             },
           ]"
@@ -55,7 +52,7 @@
             {
               name: 'value',
               type: 'string',
-              description: 'The text record value, or empty string if unset',
+              description: 'Stored text value, or empty string if unset',
             },
           ]"
         />
@@ -69,14 +66,11 @@
           <DocBadge variant="transaction">transaction</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Sets a text record for the given node. Common keys include
+          Sets a text record for a node. The caller must own the node in the DotNS registry or be an
+          approved operator. Text records are arbitrary key/value strings, for example
           <code
             class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
-            >com.twitter</code
-          >,
-          <code
-            class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
-            >com.github</code
+            >avatar</code
           >,
           <code
             class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
@@ -89,7 +83,7 @@
         </p>
         <DocParamTable :params="setTextParams" />
         <DocCallout variant="warning" title="Reverts when">
-          Caller is not the node owner or an approved operator.
+          The caller does not own the node in the registry and is not an approved operator.
         </DocCallout>
       </div>
 
@@ -99,15 +93,14 @@
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Returns the content hash for a given node. Returns empty bytes if no content hash has been
-          set.
+          Returns the content hash associated with a node.
         </p>
         <DocParamTable
           :params="[
             {
               name: 'node',
               type: 'bytes32',
-              description: 'The namehash of the .dot name',
+              description: 'The node to query',
               required: true,
             },
           ]"
@@ -117,7 +110,7 @@
             {
               name: 'hash',
               type: 'bytes',
-              description: 'The content hash (e.g. IPFS CID), or empty bytes if unset',
+              description: 'The stored content hash bytes, or empty if unset',
             },
           ]"
         />
@@ -131,27 +124,28 @@
           <DocBadge variant="transaction">transaction</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Sets the content hash for a name. This is usually an IPFS CID that points to a
-          decentralised website or application.
+          Sets the content hash for a node. The caller must own the node in the DotNS registry or be
+          an approved operator. Content hashes are opaque bytes, for example an IPFS CID; the
+          resolver stores them as-is and never interprets the payload.
         </p>
         <DocParamTable
           :params="[
             {
               name: 'node',
               type: 'bytes32',
-              description: 'The namehash of the .dot name',
+              description: 'The node whose content hash is being set',
               required: true,
             },
             {
               name: 'hash',
               type: 'bytes',
-              description: 'The content hash (e.g. IPFS CID encoded as bytes)',
+              description: 'Opaque content hash bytes',
               required: true,
             },
           ]"
         />
         <DocCallout variant="warning" title="Reverts when">
-          Caller is not the node owner or an approved operator.
+          The caller does not own the node in the registry and is not an approved operator.
         </DocCallout>
       </div>
 
@@ -163,21 +157,20 @@
           <DocBadge variant="read-only">read-only</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Returns whether the operator is approved to manage all content records for the given
-          owner.
+          Query if an address is an approved operator for another address.
         </p>
         <DocParamTable
           :params="[
             {
               name: 'owner',
               type: 'address',
-              description: 'The record owner address',
+              description: 'The owner of the nodes',
               required: true,
             },
             {
               name: 'operator',
               type: 'address',
-              description: 'The operator address to check',
+              description: 'The address acting on behalf of the owner',
               required: true,
             },
           ]"
@@ -187,7 +180,7 @@
             {
               name: 'approved',
               type: 'bool',
-              description: 'True if the operator is approved for all records',
+              description: 'True if operator is approved, false otherwise',
             },
           ]"
         />
@@ -201,16 +194,18 @@
           <DocBadge variant="transaction">transaction</DocBadge>
         </div>
         <p class="text-sm text-dot-text-secondary">
-          Grants or revokes permission for an operator to manage all of the caller's content
-          records. Useful for letting a dApp or automated deployment pipeline update records on your
-          behalf.
+          Enable or disable approval for a third party ("operator") to manage all of
+          <code
+            class="text-xs font-mono text-dot-accent bg-dot-surface-secondary px-1 py-0.5 rounded"
+            >msg.sender</code
+          >'s nodes.
         </p>
         <DocParamTable
           :params="[
             {
               name: 'operator',
               type: 'address',
-              description: 'The address to grant or revoke operator permissions',
+              description: 'Address to authorise or revoke',
               required: true,
             },
             {
@@ -266,9 +261,19 @@ import DocCallout from "@/components/docs/DocCallout.vue";
 import DocBadge from "@/components/docs/DocBadge.vue";
 
 const setTextParams = [
-  { name: "node", type: "bytes32", description: "The namehash of the .dot name", required: true },
-  { name: "key", type: "string", description: "The record key (e.g. com.twitter)", required: true },
-  { name: "value", type: "string", description: "The record value (e.g. @alice)", required: true },
+  {
+    name: "node",
+    type: "bytes32",
+    description: "The node whose text record is being set",
+    required: true,
+  },
+  {
+    name: "key",
+    type: "string",
+    description: 'Text record key (e.g. "ipfs", "avatar")',
+    required: true,
+  },
+  { name: "value", type: "string", description: "Text record value", required: true },
 ];
 
 const exampleCode = `import { createPublicClient, createWalletClient, custom, defineChain, http, namehash } from "viem";
