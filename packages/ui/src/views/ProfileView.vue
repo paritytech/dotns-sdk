@@ -511,7 +511,7 @@
       </div>
 
       <div v-else key="escrow">
-        <EscrowTab :tlds="tlds" />
+        <EscrowTab />
       </div>
     </Transition>
 

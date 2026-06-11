@@ -4,14 +4,21 @@ import ora from "ora";
 import type { Address } from "viem";
 import {
   viewEscrowPosition,
+  listAccountPositions,
+  totalEscrowAmount,
+  formatPositionStatus,
+  formatPositionsTable,
+  cooldownRemainingSeconds,
   releaseDomain,
   withdrawDomain,
   claimWithdrawal,
+  getPendingWithdrawal,
   listRefunds,
   claimRefund,
   claimRefundsBatch,
   formatRefundEntryLine,
 } from "../../commands/escrow";
+import { listStoreNames } from "../../commands/storeManagement";
 import { addAuthOptions } from "./authOptions";
 import { prepareContext } from "../context";
 import { prepareReadOnlyContext } from "./lookup";
@@ -81,6 +88,10 @@ export function attachEscrowCommands(root: Command) {
             );
             console.log(chalk.gray("  released:  ") + chalk.white(String(position.released)));
             console.log(chalk.gray("  claimed:   ") + chalk.white(String(position.claimed)));
+            const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
+            console.log(
+              chalk.gray("  status:    ") + chalk.white(formatPositionStatus(position, nowSeconds)),
+            );
             if (position.withdrawAvailableAt > 0n) {
               const t = new Date(Number(position.withdrawAvailableAt) * 1000).toISOString();
               console.log(chalk.gray("  withdraw:  ") + chalk.white(t));
@@ -94,6 +105,105 @@ export function attachEscrowCommands(root: Command) {
       }
     },
   );
+
+  // escrow balance
+  const balanceCommand = escrowCommand
+    .command("balance")
+    .description("Show the caller's claimable pull-payment balance")
+    .option("--recipient <address>", "Recipient EVM address (defaults to caller)")
+    .option("--json", "Output result as JSON (suppresses all other output)", false);
+  addAuthOptions(balanceCommand).action(async (options: RefundListOptions, command: Command) => {
+    const jsonOutput = getJsonFlag(command);
+    try {
+      const mergedOptions = getMergedOptions(command, options);
+      const context = await maybeQuiet(jsonOutput, () =>
+        prepareReadOnlyContext(mergedOptions as any),
+      );
+
+      const recipient = (options.recipient ?? context.evmAddress) as Address;
+
+      if (!jsonOutput) console.log(chalk.bold("\n▶ Escrow balance\n"));
+      const spinner = ora();
+
+      const balance = await maybeQuiet(jsonOutput, () =>
+        getPendingWithdrawal(context.clientWrapper!, context.account.address, recipient, spinner),
+      );
+
+      if (!emitJsonResult(jsonOutput, { recipient, balance: balance.toString() })) {
+        console.log(chalk.gray("  claimable: ") + chalk.green(formatWeiAsEther(balance) + " PAS"));
+        console.log(chalk.green("\n✓ Complete\n"));
+      }
+      process.exit(0);
+    } catch (error) {
+      handleCommandError(jsonOutput, error);
+    }
+  });
+
+  // escrow positions
+  const positionsCommand = escrowCommand
+    .command("positions")
+    .description("List all escrow positions for the caller and the total locked")
+    .option("--recipient <address>", "Recipient EVM address (defaults to caller)")
+    .option("--json", "Output result as JSON (suppresses all other output)", false);
+  addAuthOptions(positionsCommand).action(async (options: RefundListOptions, command: Command) => {
+    const jsonOutput = getJsonFlag(command);
+    try {
+      const mergedOptions = getMergedOptions(command, options);
+      const context = await maybeQuiet(jsonOutput, () =>
+        prepareReadOnlyContext(mergedOptions as any),
+      );
+
+      const recipient = (options.recipient ?? context.evmAddress) as Address;
+
+      if (!jsonOutput) console.log(chalk.bold("\n▶ Escrow positions\n"));
+      const spinner = ora();
+
+      const names = await maybeQuiet(jsonOutput, () =>
+        listStoreNames(context.clientWrapper!, context.account.address, recipient),
+      );
+      const positions = await maybeQuiet(jsonOutput, () =>
+        listAccountPositions(
+          context.clientWrapper!,
+          context.account.address,
+          recipient,
+          names,
+          spinner,
+        ),
+      );
+      const total = totalEscrowAmount(positions);
+      const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
+
+      const handled = emitJsonResult(jsonOutput, {
+        recipient,
+        total: total.toString(),
+        positions: positions.map((position) => ({
+          domain: position.domain,
+          tokenId: position.tokenId.toString(),
+          amount: position.amount.toString(),
+          released: position.released,
+          claimed: position.claimed,
+          withdrawAvailableAt: position.withdrawAvailableAt.toString(),
+          status: formatPositionStatus(position, nowSeconds),
+          cooldownSeconds: cooldownRemainingSeconds(position, nowSeconds).toString(),
+        })),
+      });
+
+      if (!handled) {
+        if (positions.length === 0) {
+          console.log(chalk.gray("  no escrow positions"));
+        } else {
+          for (const line of formatPositionsTable(positions, nowSeconds)) console.log("  " + line);
+        }
+        console.log(
+          chalk.gray("\n  total in escrow: ") + chalk.green(formatWeiAsEther(total) + " PAS"),
+        );
+        console.log(chalk.green("\n✓ Complete\n"));
+      }
+      process.exit(0);
+    } catch (error) {
+      handleCommandError(jsonOutput, error);
+    }
+  });
 
   // escrow release <name>
   const releaseCommand = escrowCommand
@@ -189,6 +299,23 @@ export function attachEscrowCommands(root: Command) {
         if (!jsonOutput) console.log(chalk.bold("\n▶ Escrow claim-withdrawal\n"));
         const spinner = ora();
 
+        const balance = await maybeQuiet(jsonOutput, () =>
+          getPendingWithdrawal(
+            context.clientWrapper!,
+            context.substrateAddress,
+            context.evmAddress as Address,
+            spinner,
+          ),
+        );
+
+        if (balance === 0n) {
+          if (!emitJsonResult(jsonOutput, { ok: true, txHash: null, balance: "0" })) {
+            console.log(chalk.gray("  nothing to claim; pull-payment balance is 0"));
+            console.log(chalk.green("\n✓ Complete\n"));
+          }
+          process.exit(0);
+        }
+
         const txHash = await maybeQuiet(jsonOutput, () =>
           claimWithdrawal(
             context.clientWrapper!,
@@ -198,7 +325,7 @@ export function attachEscrowCommands(root: Command) {
           ),
         );
 
-        if (!emitJsonResult(jsonOutput, { ok: true, txHash })) {
+        if (!emitJsonResult(jsonOutput, { ok: true, txHash, balance: balance.toString() })) {
           console.log(chalk.gray("  tx: ") + chalk.blue(txHash));
           console.log(chalk.green("\n✓ Complete\n"));
         }
@@ -242,7 +369,7 @@ export function attachEscrowCommands(root: Command) {
           throw new Error(`limit must be between 1 and ${MAX_REFUND_PAGE_SIZE}`);
         }
 
-        const recipient = (options.recipient ?? context.account.address) as Address;
+        const recipient = (options.recipient ?? context.evmAddress) as Address;
 
         if (!jsonOutput) console.log(chalk.bold("\n▶ Refund ledger\n"));
         const spinner = ora();

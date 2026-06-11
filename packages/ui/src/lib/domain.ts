@@ -92,6 +92,16 @@ export function isSameDotName(a: string | null | undefined, b: string | null | u
 }
 
 /**
+ * True for a registrable second-level name (one label under .dot, e.g. "alice"
+ * or "alice.dot"), false for subdomains ("sub.alice") or empty input. Only these
+ * names can hold an escrow deposit, so it filters which names are worth a
+ * position lookup.
+ */
+export function isRegistrableDotName(name: string): boolean {
+  return normalizeDomainName(name.trim().toLowerCase()).split(".").filter(Boolean).length === 1;
+}
+
+/**
  * Filter an array to only include valid .dot domain names
  *
  * @param values - Array of values to filter
