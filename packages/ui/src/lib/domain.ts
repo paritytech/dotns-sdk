@@ -76,6 +76,22 @@ export function normalizeDomainName(name: string): string {
 }
 
 /**
+ * Compare two .dot names for equality, ignoring case, surrounding whitespace,
+ * and an optional trailing .dot suffix.
+ *
+ * @returns false if either name is empty/missing
+ */
+export function isSameDotName(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  const strip = (name: string) =>
+    name
+      .trim()
+      .toLowerCase()
+      .replace(/\.dot$/, "");
+  return strip(a) === strip(b);
+}
+
+/**
  * Filter an array to only include valid .dot domain names
  *
  * @param values - Array of values to filter

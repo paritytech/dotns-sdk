@@ -191,7 +191,10 @@
                   class="hover:bg-dot-surface-secondary transition-colors duration-150"
                 >
                   <td class="px-4 py-2.5 font-medium text-dot-text-primary whitespace-nowrap">
-                    {{ domain.name }}
+                    <span class="inline-flex items-center gap-2">
+                      {{ domain.name }}
+                      <PrimaryNameBadge :name="domain.name" :primary-name="primaryName" />
+                    </span>
                   </td>
 
                   <td class="px-4 py-2.5">
@@ -562,6 +565,7 @@ import { zeroHash, type Address } from "viem";
 import { useRouter } from "vue-router";
 import { useToast } from "vue-toastification";
 import { dotliViewUrls } from "@/lib/dotli";
+import PrimaryNameBadge from "@/components/PrimaryNameBadge.vue";
 import { useResolverStore } from "@/store/useResolverStore";
 import { useUserStoreManager } from "@/store/useUserStoreManager";
 import { useDomainStore } from "@/store/useDomainStore";
@@ -577,6 +581,9 @@ import { encodeForPreview } from "@/lib/preview";
 const wallet = useWalletStore();
 const isLoading = ref(true);
 const allDomains = ref<MyDomain[]>([]);
+// The account's reverse record: the one name that resolves back to it, shown as
+// "Primary" and highlighted in the domains list.
+const primaryName = ref<string | null>(null);
 const searchQuery = ref("");
 const showAddModal = ref<any>(null);
 const showTransferModal = ref(false);
@@ -793,6 +800,10 @@ async function loadDomains() {
   isLoading.value = true;
 
   try {
+    primaryName.value = wallet.evmAddress
+      ? await resolverStore.resolveAddressToName(wallet.evmAddress as Address)
+      : null;
+
     const names = await userStoreManager.getSubdomains();
     if (names.length === 0) {
       allDomains.value = [];

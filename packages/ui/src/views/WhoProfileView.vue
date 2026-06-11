@@ -323,6 +323,10 @@
             <p class="text-dot-text-tertiary text-xs">Parent</p>
             <p class="text-dot-text-secondary text-xs mt-0.5">{{ parent || "dot" }}</p>
           </div>
+          <div v-if="ownerPopStatus !== null">
+            <p class="text-dot-text-tertiary text-xs">Proof of Personhood</p>
+            <PopStatusBadge :status="ownerPopStatus" class="mt-1" />
+          </div>
         </div>
       </section>
 
@@ -405,7 +409,10 @@
                   class="hover:bg-dot-surface-secondary"
                 >
                   <td class="px-4 py-2.5 font-medium text-dot-text-primary text-xs">
-                    {{ domain.name || "Unknown" }}
+                    <span class="inline-flex items-center gap-2">
+                      {{ domain.name || "Unknown" }}
+                      <PrimaryNameBadge :name="domain.name" :primary-name="primaryName" />
+                    </span>
                   </td>
                   <td class="px-4 py-2.5">
                     <span
@@ -476,12 +483,15 @@ import { zeroAddress, zeroHash, getAddress, type Address } from "viem";
 import makeBlockie from "ethereum-blockies-base64";
 import EditRecordsModal from "../components/EditRecordsModal.vue";
 import TransactionStatus from "../components/TransactionStatus.vue";
-import type { ProfileRecord, TransactionResult, MyDomain } from "@/type";
+import { PopStatus, type ProfileRecord, type TransactionResult, type MyDomain } from "@/type";
 import { useNetworkStore } from "@/store/useNetworkStore";
 import { useUserStoreManager } from "@/store/useUserStoreManager";
 import { useResolverStore } from "@/store/useResolverStore";
+import { useDomainStore } from "@/store/useDomainStore";
 import { useMulticallOwnership } from "@/composables";
 import Button from "@/components/ui/Button.vue";
+import PopStatusBadge from "@/components/PopStatusBadge.vue";
+import PrimaryNameBadge from "@/components/PrimaryNameBadge.vue";
 import TablePagination from "@/components/ui/TablePagination.vue";
 import { safeHttpUrl, socialHandle } from "@/lib/safeLink";
 import { useToast } from "vue-toastification";
@@ -492,6 +502,7 @@ const wallet = useWalletStore();
 const networkStore = useNetworkStore();
 const userStore = useUserStoreManager();
 const resolverStore = useResolverStore();
+const domainStore = useDomainStore();
 const { batchVerifyOwnership } = useMulticallOwnership();
 
 const name = ref((route.params.name as string) || "");
@@ -501,6 +512,10 @@ if (name.value && !name.value.includes(".dot")) {
 
 const isLoading = ref(true);
 const owner = ref<string | null>(null);
+const ownerPopStatus = ref<PopStatus | null>(null);
+// The account's reverse record: the one name that resolves back to it, marked
+// with a "Primary" pill in the domains list.
+const primaryName = ref<string | null>(null);
 const parent = ref("dot");
 const twitter = ref<string | null>(null);
 const github = ref<string | null>(null);
@@ -624,6 +639,14 @@ onBeforeMount(async () => {
 
     const ownerAddress = await resolverStore.getOwnerOfDomain(name.value);
     owner.value = ownerAddress;
+    ownerPopStatus.value =
+      ownerAddress && ownerAddress !== zeroAddress
+        ? await domainStore.userPopStatus(getAddress(ownerAddress) as Address)
+        : null;
+    primaryName.value =
+      ownerAddress && ownerAddress !== zeroAddress
+        ? await resolverStore.resolveAddressToName(getAddress(ownerAddress) as Address)
+        : null;
 
     if (ownerAddress && ownerAddress !== zeroAddress) {
       const keys = ["com.x", "com.github", "description", "url"];

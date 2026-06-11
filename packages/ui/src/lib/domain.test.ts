@@ -1,5 +1,27 @@
 import { describe, it, expect } from "bun:test";
-import { isCanonicalLabel } from "./domain";
+import { isCanonicalLabel, isSameDotName } from "./domain";
+
+describe("isSameDotName", () => {
+  it("matches names regardless of the .dot suffix", () => {
+    expect(isSameDotName("alice.dot", "alice")).toBe(true);
+    expect(isSameDotName("pr158.dotns.dot", "pr158.dotns")).toBe(true);
+  });
+
+  it("matches regardless of case and surrounding whitespace", () => {
+    expect(isSameDotName("Alice.DOT", "  alice.dot ")).toBe(true);
+  });
+
+  it("does not match different names", () => {
+    expect(isSameDotName("alice.dot", "bob.dot")).toBe(false);
+    expect(isSameDotName("pr158.dotns.dot", "dotns.dot")).toBe(false);
+  });
+
+  it("returns false when either name is empty or missing", () => {
+    expect(isSameDotName(null, "alice.dot")).toBe(false);
+    expect(isSameDotName("alice.dot", undefined)).toBe(false);
+    expect(isSameDotName("", "")).toBe(false);
+  });
+});
 
 describe("isCanonicalLabel", () => {
   it("accepts lowercase letters, digits and internal hyphens", () => {
