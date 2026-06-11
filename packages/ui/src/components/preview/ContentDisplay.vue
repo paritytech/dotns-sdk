@@ -316,7 +316,7 @@ watch(() => props.blob, loadTextContent);
             </svg>
           </div>
           <iframe
-            :src="gatewayUrl"
+            :src="url"
             class="w-full h-[50vh] sm:h-[70vh]"
             :class="{ 'bg-white': isHtml }"
             :title="isPdf ? 'PDF Preview' : 'HTML Preview'"

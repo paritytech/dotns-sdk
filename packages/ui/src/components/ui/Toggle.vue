@@ -46,7 +46,7 @@ const computedClass = computed(() =>
 const thumbClass = computed(() =>
   cn(
     "pointer-events-none block h-4 w-4 rounded-full bg-dot-bg shadow-sm transition-transform duration-200",
-    props.modelValue ? "translate-x-5" : "translate-x-1",
+    props.modelValue ? "translate-x-6" : "translate-x-1",
   ),
 );
 </script>

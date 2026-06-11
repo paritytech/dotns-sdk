@@ -136,24 +136,17 @@
             </div>
 
             <div class="text-left mb-6">
-              <label class="flex items-center gap-3 cursor-pointer group">
-                <div class="relative">
-                  <input
-                    v-model="isReserved"
-                    type="checkbox"
-                    class="sr-only peer"
-                    :disabled="isFetching || isRegistering"
-                  />
-                  <div
-                    class="w-11 h-6 bg-dot-border-strong rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-dot-accent/20 transition-colors"
-                  ></div>
-                  <div
-                    class="absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform peer-checked:translate-x-5"
-                  ></div>
-                </div>
+              <div class="flex items-center gap-3">
+                <Toggle
+                  v-model="isReserved"
+                  :disabled="isFetching || isRegistering"
+                  aria-labelledby="reverse-record-label"
+                />
                 <div class="flex-1">
                   <div class="flex items-center gap-2">
-                    <span class="text-sm font-semibold text-dot-text-secondary"
+                    <span
+                      id="reverse-record-label"
+                      class="text-sm font-semibold text-dot-text-secondary"
                       >Set as Reverse Record</span
                     >
                     <div class="relative group/tooltip">
@@ -176,7 +169,7 @@
                     Use this name as your primary identity when resolvers query your address
                   </p>
                 </div>
-              </label>
+              </div>
             </div>
 
             <div class="text-left mb-8">
@@ -244,6 +237,7 @@ import { ref, watch, computed, onUnmounted } from "vue";
 import { useWalletStore } from "../store/useWalletStore";
 import Icon from "@/components/ui/Icon.vue";
 import Button from "@/components/ui/Button.vue";
+import Toggle from "@/components/ui/Toggle.vue";
 import { PopStatus, PopStatusLabels, type NameRequirement, type Registration } from "../type";
 import { useDomainStore } from "@/store/useDomainStore";
 import { formatEther, zeroHash, parseEther } from "viem";

@@ -10,6 +10,7 @@ import TransactionStatus from "@/components/TransactionStatus.vue";
 import UploadApprovalStepper from "./UploadApprovalStepper.vue";
 import { useUserStoreManager } from "@/store/useUserStoreManager";
 import { encodeForPreview } from "@/lib/preview";
+import { setPreviewContent } from "@/lib/previewCache";
 import type { TransactionResult } from "@/type";
 import type { ApprovalStep, PendingUploadInfo } from "@/lib/bulletinUploadWorkerProtocol";
 
@@ -321,8 +322,15 @@ async function executeUpload(): Promise<void> {
   if (!selectedFile.value) return;
 
   try {
-    const result = await bulletinStore.uploadFile(selectedFile.value, {
+    const file = selectedFile.value;
+    const result = await bulletinStore.uploadFile(file, {
       cacheToStore: cacheToStore.value,
+    });
+    // We still hold the uploaded bytes — hand them to the preview so the
+    // /preview/<cid> navigation renders locally instead of refetching.
+    setPreviewContent(result.cid, {
+      blob: file,
+      contentType: file.type || "application/octet-stream",
     });
     emit("upload-complete", result.cid);
   } catch (error) {

@@ -1,9 +1,10 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { getPreimageManager } from "@parity/product-sdk-host";
+import { getPreimageManager, type HexString } from "@parity/product-sdk-host";
 import { useUserStoreManager } from "./useUserStoreManager";
 import type { BulletinUploadResult } from "@/type";
-import { verifyCidWithGateways, type CidVerificationResult } from "@/lib/ipfs";
+import type { CidVerificationResult } from "@/lib/ipfs";
+import { lookupPreimage, blockMatchesCid } from "@/lib/hostPreimage";
 import {
   CHUNK_SIZE,
   CODEC_RAW,
@@ -96,6 +97,14 @@ function yieldToBrowser(): Promise<void> {
   });
 }
 
+// Internal result of a completed store: the public BulletinUploadResult exposes
+// only `cid`, but verification needs the host preimage key of the final block
+// (single block, or the DAG-PB root for chunked uploads).
+type StoredUpload = {
+  cid: string;
+  key: HexString;
+};
+
 const RESUME_STORAGE_KEY = "dotns.bulletin.resume";
 
 interface ResumeState {
@@ -183,16 +192,6 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
     window.onbeforeunload = null;
   }
 
-  function getGatewayHost(gatewayUrl: string): string {
-    if (!gatewayUrl.includes("://")) return gatewayUrl;
-    try {
-      return new URL(gatewayUrl).host;
-    } catch (error) {
-      console.warn("[BulletinStore] Failed to parse gateway URL:", gatewayUrl, error);
-      return gatewayUrl;
-    }
-  }
-
   function setStage(stage: UploadStage, message: string, progress: number): void {
     uploadStage.value = stage;
     statusMessage.value = message;
@@ -232,27 +231,31 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
     "resource temporarily unavailable",
   ];
 
-  async function verifyUploadedCid(cid: string): Promise<boolean> {
-    setStage("verifying", "Verifying content is retrievable from IPFS gateways...", 95);
+  // Verify via the host: look up the stored block by its submit key and confirm
+  // it hashes to the CID. Runs over the host's own connection, so it triggers no
+  // per-domain sandbox prompts (the gateway/libp2p fan-out is gone). For a
+  // chunked upload `key` is the DAG-PB root's key, so this confirms the root
+  // block is stored and intact — matching the prior single-block verify.
+  async function verifyUploadedCid(cid: string, key: HexString): Promise<boolean> {
+    setStage("verifying", "Verifying content is retrievable via the host...", 95);
 
-    const gatewayResult = await verifyCidWithGateways(cid).catch(
-      (): CidVerificationResult => ({ cid, gateway: "", url: "", resolvable: false }),
-    );
+    // Tactic 1: verify with the key submit() handed back (no CID→key derivation),
+    // then confirm the returned block actually hashes to the CID (integrity).
+    const bytes = await lookupPreimage(key).catch((error) => {
+      console.warn("[BulletinStore] Host verification failed:", error);
+      return null;
+    });
 
-    if (gatewayResult.resolvable) {
-      uploadVerification.value = gatewayResult;
-      setStage(
-        "verifying",
-        `Verified — content retrievable via ${getGatewayHost(gatewayResult.gateway)}`,
-        96,
-      );
+    if (bytes && blockMatchesCid(bytes, cid)) {
+      uploadVerification.value = { cid, gateway: "host", url: `host://${cid}`, resolvable: true };
+      setStage("verifying", "Verified — content stored and retrievable via the host", 96);
       return true;
     }
 
-    uploadVerification.value = { cid, gateway: "", url: "", resolvable: false };
+    uploadVerification.value = { cid, gateway: "host", url: "", resolvable: false };
     setStage(
       "verifying",
-      "Content stored on Bulletin but not yet retrievable from IPFS gateways. " +
+      "Content stored on Bulletin but not yet retrievable. " +
         "It may take time to propagate, or run: dotns bulletin verify " +
         cid,
       96,
@@ -262,9 +265,10 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
 
   async function verifyAndCacheUpload(
     cid: string,
+    key: HexString,
     options: { cacheToStore?: boolean },
   ): Promise<void> {
-    const verified = await verifyUploadedCid(cid);
+    const verified = await verifyUploadedCid(cid, key);
 
     if (verified && options.cacheToStore) {
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -295,19 +299,20 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
   // account (provisioned from BulletinAllowance on first use). The papp never
   // signs — the product account holds no storage authorization. The host drives
   // the PreimageSubmit + store-data prompts itself on first submit per session.
-  async function storeContent(contentBytes: Uint8Array): Promise<void> {
+  async function storeContent(contentBytes: Uint8Array): Promise<HexString> {
     const manager = await getPreimageManager();
     if (!manager) {
       throw new Error("Host storage unavailable — open dotNS inside a Polkadot host.");
     }
-    await manager.submit(contentBytes);
+    // submit() returns the preimage-storage key (blake2b-256 digest of the
+    // stored bytes), which we keep to verify the block via the host.
+    return manager.submit(contentBytes);
   }
 
-  async function storeWithRetries(contentBytes: Uint8Array): Promise<void> {
+  async function storeWithRetries(contentBytes: Uint8Array): Promise<HexString> {
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        await storeContent(contentBytes);
-        return;
+        return await storeContent(contentBytes);
       } catch (err) {
         if (!isRetryableError(err) || attempt === MAX_RETRIES) throw err;
 
@@ -315,6 +320,8 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
         await sleep(delay + Math.floor(Math.random() * 100));
       }
     }
+    // Unreachable: the final attempt either returns or throws above.
+    throw new Error("Store failed after retries.");
   }
 
   async function withUploadWorker<T>(
@@ -350,12 +357,12 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
     }
 
     setStage(storeStage, storeMessage, progress);
-    await storeWithRetries(bytes);
+    const key = await storeWithRetries(bytes);
     bytes = null;
 
     await yieldToBrowser();
 
-    return { cid: cidString, length: byteLength };
+    return { cid: cidString, length: byteLength, key };
   }
 
   async function withUploadLifecycle<T>(
@@ -413,10 +420,10 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
             : uploadSingleBlock(file, uploadWorker),
         );
 
-        await verifyAndCacheUpload(result.cid, options);
+        await verifyAndCacheUpload(result.cid, result.key, options);
 
         setStage("done", "Upload complete!", 100);
-        return result;
+        return { cid: result.cid };
       },
     );
   }
@@ -424,7 +431,7 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
   async function uploadSingleBlock(
     file: File,
     uploadWorker: BulletinUploadWorkerClient,
-  ): Promise<BulletinUploadResult> {
+  ): Promise<StoredUpload> {
     chunksTotal.value = 1;
     chunksCompleted.value = 0;
     const prepared = await storePreparedBytes(
@@ -437,13 +444,13 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
     );
     chunksCompleted.value = 1;
     uploadedCid.value = prepared.cid;
-    return { cid: prepared.cid };
+    return { cid: prepared.cid, key: prepared.key };
   }
 
   async function uploadChunkedFile(
     file: File,
     uploadWorker: BulletinUploadWorkerClient,
-  ): Promise<BulletinUploadResult> {
+  ): Promise<StoredUpload> {
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     chunksTotal.value = totalChunks;
 
@@ -505,7 +512,7 @@ export const useBulletinStore = defineStore("useBulletinStore", () => {
 
     clearResumeState();
     uploadedCid.value = preparedRoot.cid;
-    return { cid: preparedRoot.cid };
+    return { cid: preparedRoot.cid, key: preparedRoot.key };
   }
 
   function cleanup(): void {

@@ -1,3 +1,4 @@
+import type { HexString } from "@parity/product-sdk-host";
 import type { CompletedChunk } from "./bulletinUpload";
 
 export type PreparedBlock = {
@@ -67,6 +68,9 @@ export type BulletinUploadWorkerSuccessResponse =
 export type StorePreparedResult = {
   cid: string;
   length: number;
+  // Host preimage-storage key returned by manager.submit(); used to verify the
+  // stored block via the host (see hostPreimage.lookupCidBlock).
+  key: HexString;
 };
 
 export type PendingUploadInfo = {

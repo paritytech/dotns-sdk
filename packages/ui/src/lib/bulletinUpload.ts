@@ -3,7 +3,6 @@ import { create as createMultihashDigest } from "multiformats/hashes/digest";
 import { blake2b } from "@noble/hashes/blake2.js";
 import type { PreparedBlock } from "./bulletinUploadWorkerProtocol";
 
-export const BULLETIN_RPC = "wss://paseo-bulletin-next-rpc.polkadot.io";
 // Chain MaxTransactionSize; larger files are split into CHUNK_SIZE blocks.
 export const MAX_TX_SIZE = 2 * 1024 * 1024;
 export const CHUNK_SIZE = 2 * 1024 * 1024;

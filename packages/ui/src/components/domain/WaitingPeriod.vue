@@ -73,7 +73,7 @@
                   <span
                     v-for="i in 3"
                     :key="i"
-                    class="w-2 h-2 bg-white rounded-full opacity-70 animate-bounce-dot"
+                    class="w-2 h-2 bg-current rounded-full opacity-70 animate-bounce-dot"
                     :style="{ animationDelay: `${(i - 1) * 0.25}s` }"
                   ></span>
                 </span>

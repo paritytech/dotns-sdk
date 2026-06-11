@@ -28,7 +28,6 @@
         "@multiformats/blake2": "^2.0.2",
         "@multiformats/multiaddr": "^13.0.1",
         "@noble/hashes": "^2.0.1",
-        "@polkadot-api/descriptors": "file:.papi/descriptors",
         "@polkadot-labs/hdkd": "^0.0.26",
         "@polkadot-labs/hdkd-helpers": "^0.0.27",
         "@polkadot/keyring": "^14.0.1",
@@ -44,6 +43,7 @@
         "viem": "^2.43.1",
       },
       "devDependencies": {
+        "@polkadot-api/descriptors": "file:.papi/descriptors",
         "@types/bun": "^1.2.6",
         "@types/ora": "^3.2.0",
         "@typescript-eslint/eslint-plugin": "^8.0.0",
@@ -58,15 +58,8 @@
       "name": "dotns-ui",
       "version": "0.6.7",
       "dependencies": {
-        "@chainsafe/libp2p-noise": "^17.0.0",
-        "@chainsafe/libp2p-yamux": "^8.0.1",
         "@dedot/chaintypes": "^0.187.0",
-        "@helia/unixfs": "^7.1.0",
-        "@ipld/car": "^5.4.2",
         "@ipld/dag-pb": "^4.1.5",
-        "@libp2p/websockets": "^10.1.6",
-        "@multiformats/blake2": "^2.0.2",
-        "@multiformats/multiaddr": "^13.0.1",
         "@noble/hashes": "^2.0.1",
         "@parity/product-sdk": "^0.10.0",
         "@parity/product-sdk-address": "^0.1.1",
@@ -85,9 +78,7 @@
         "clear": "^0.1.0",
         "clsx": "^2.1.1",
         "ethereum-blockies-base64": "^1.0.2",
-        "helia": "^6.0.22",
         "ipfs-unixfs": "^12.0.0",
-        "ipfs-unixfs-importer": "^16.0.2",
         "multiformats": "^13.4.2",
         "pinia": "^2.1.4",
         "polkadot-api": "^2.1.5",
@@ -419,8 +410,6 @@
     "@img/sharp-win32-ia32": ["@img/sharp-win32-ia32@0.34.5", "", { "os": "win32", "cpu": "ia32" }, "sha512-FV9m/7NmeCmSHDD5j4+4pNI8Cp3aW+JvLoXcTUo0IqyjSfAZJ8dIUmijx1qaJsIiU+Hosw6xM5KijAWRJCSgNg=="],
 
     "@img/sharp-win32-x64": ["@img/sharp-win32-x64@0.34.5", "", { "os": "win32", "cpu": "x64" }, "sha512-+29YMsqY2/9eFEiW93eqWnuLcWcufowXewwSNIT6UwZdUUCrM3oFjMWH/Z6/TMmb4hlFenmfAVbpWeup2jryCw=="],
-
-    "@ipld/car": ["@ipld/car@5.4.2", "", { "dependencies": { "@ipld/dag-cbor": "^9.0.7", "cborg": "^4.0.5", "multiformats": "^13.0.0", "varint": "^6.0.0" } }, "sha512-gfyrJvePyXnh2Fbj8mPg4JYvEZ3izhk8C9WgAle7xIYbrJNSXmNQ6BxAls8Gof97vvGbCROdxbTWRmHJtTCbcg=="],
 
     "@ipld/dag-cbor": ["@ipld/dag-cbor@9.2.5", "", { "dependencies": { "cborg": "^4.0.0", "multiformats": "^13.1.0" } }, "sha512-84wSr4jv30biui7endhobYhXBQzQE4c/wdoWlFrKcfiwH+ofaPg8fwsM8okX9cOzkkrsAsNdDyH3ou+kiLquwQ=="],
 
@@ -2747,8 +2736,6 @@
     "uuid": ["uuid@8.3.2", "", { "bin": { "uuid": "dist/bin/uuid" } }, "sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg=="],
 
     "validate-npm-package-license": ["validate-npm-package-license@3.0.4", "", { "dependencies": { "spdx-correct": "^3.0.0", "spdx-expression-parse": "^3.0.0" } }, "sha512-DpKm2Ui/xN7/HQKCtpZxoRWBhZ9Z0kqtygG8XCgNQ8ZlDnxuQmWhj566j8fN4Cu3/JmbhsDo7fcAJq4s9h27Ew=="],
-
-    "varint": ["varint@6.0.0", "", {}, "sha512-cXEIW6cfr15lFv563k4GuVuW/fiwjknytD37jIOLSdSWuOI6WnO/oKwmP2FQTU2l01LP8/M5TSAJpzUaGe3uWg=="],
 
     "vary": ["vary@1.1.2", "", {}, "sha512-BNGbWLfd0eUPabhkXUVm0j8uuvREyTh5ovRa/dyow/BqAbZJyC+5fU+IzQOzmAKzYqYRAISoRhdQr3eIZ/PXqg=="],
 
