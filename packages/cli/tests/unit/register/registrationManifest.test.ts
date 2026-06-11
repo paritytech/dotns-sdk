@@ -5,12 +5,14 @@ import path from "node:path";
 import {
   saveCommitmentRecord,
   loadCommitmentRecords,
+  loadCommitmentRecordsForClear,
   findCommitmentRecord,
   latestCommitmentRecord,
   deleteCommitmentRecord,
   decryptCommitmentSecret,
   resolveManifestCredential,
 } from "../../../src/commands/registrationManifest";
+import { ENV as CLI_ENV } from "../../../src/cli/env";
 
 const ENV = "paseo-v2";
 const CALLER = "0x1111111111111111111111111111111111111111" as const;
@@ -117,6 +119,24 @@ describe("registration manifest persistence", () => {
     expect(loadCommitmentRecords(ENV, CALLER)).toEqual([]);
     expect(latestCommitmentRecord(ENV, CALLER)).toBeNull();
   });
+
+  test("clear record selection scopes to a requested label", () => {
+    save("alpha", "2026-06-01T09:00:00.000Z");
+    save("beta", "2026-06-03T09:00:00.000Z");
+
+    const records = loadCommitmentRecordsForClear(ENV, CALLER, "alpha");
+
+    expect(records.map((record) => record.label)).toEqual(["alpha"]);
+  });
+
+  test("clear record selection errors when a requested label is missing", () => {
+    save("beta", "2026-06-03T09:00:00.000Z");
+
+    expect(() => loadCommitmentRecordsForClear(ENV, CALLER, "alpha")).toThrow(
+      "No cached commitment for alpha.",
+    );
+    expect(loadCommitmentRecords(ENV, CALLER).map((record) => record.label)).toEqual(["beta"]);
+  });
 });
 
 describe("resolveManifestCredential", () => {
@@ -129,9 +149,40 @@ describe("resolveManifestCredential", () => {
   });
 
   test("returns null when no credential is available", () => {
-    const saved = process.env.DOTNS_KEYSTORE_PASSWORD;
-    delete process.env.DOTNS_KEYSTORE_PASSWORD;
-    expect(resolveManifestCredential({})).toBeNull();
-    if (saved !== undefined) process.env.DOTNS_KEYSTORE_PASSWORD = saved;
+    const savedPassword = process.env[CLI_ENV.KEYSTORE_PASSWORD];
+    const savedMnemonic = process.env[CLI_ENV.MNEMONIC];
+    const savedKeyUri = process.env[CLI_ENV.KEY_URI];
+    delete process.env[CLI_ENV.KEYSTORE_PASSWORD];
+    delete process.env[CLI_ENV.MNEMONIC];
+    delete process.env[CLI_ENV.KEY_URI];
+    try {
+      expect(resolveManifestCredential({})).toBeNull();
+    } finally {
+      if (savedPassword !== undefined) process.env[CLI_ENV.KEYSTORE_PASSWORD] = savedPassword;
+      if (savedMnemonic !== undefined) process.env[CLI_ENV.MNEMONIC] = savedMnemonic;
+      if (savedKeyUri !== undefined) process.env[CLI_ENV.KEY_URI] = savedKeyUri;
+    }
+  });
+
+  test("uses env mnemonic and key URI for registration cache encryption", () => {
+    const savedPassword = process.env[CLI_ENV.KEYSTORE_PASSWORD];
+    const savedMnemonic = process.env[CLI_ENV.MNEMONIC];
+    const savedKeyUri = process.env[CLI_ENV.KEY_URI];
+    delete process.env[CLI_ENV.KEYSTORE_PASSWORD];
+    try {
+      process.env[CLI_ENV.MNEMONIC] = "env mnemonic";
+      process.env[CLI_ENV.KEY_URI] = "//EnvAlice";
+      expect(resolveManifestCredential({})).toBe("env mnemonic");
+
+      delete process.env[CLI_ENV.MNEMONIC];
+      expect(resolveManifestCredential({})).toBe("//EnvAlice");
+    } finally {
+      if (savedPassword === undefined) delete process.env[CLI_ENV.KEYSTORE_PASSWORD];
+      else process.env[CLI_ENV.KEYSTORE_PASSWORD] = savedPassword;
+      if (savedMnemonic === undefined) delete process.env[CLI_ENV.MNEMONIC];
+      else process.env[CLI_ENV.MNEMONIC] = savedMnemonic;
+      if (savedKeyUri === undefined) delete process.env[CLI_ENV.KEY_URI];
+      else process.env[CLI_ENV.KEY_URI] = savedKeyUri;
+    }
   });
 });

@@ -224,9 +224,9 @@
         {{ showFullDescription ? "View less" : "View more" }}
       </button>
 
-      <div v-if="url">
+      <div v-if="safeProfileUrl">
         <a
-          :href="url"
+          :href="safeProfileUrl"
           target="_blank"
           rel="noopener noreferrer"
           class="text-dot-accent hover:text-dot-accent-hover hover:underline text-sm block mb-2"
@@ -270,23 +270,35 @@
         <h2 class="text-sm font-semibold mb-2 text-dot-text-primary">Accounts</h2>
         <div class="flex flex-wrap gap-3">
           <a
-            v-if="twitter"
-            :href="`https://x.com/${twitter}`"
+            v-if="xHandle"
+            :href="`https://x.com/${xHandle}`"
             target="_blank"
             rel="noopener noreferrer"
+            class="px-3 py-1 rounded-full bg-dot-surface-secondary text-dot-text-secondary text-sm font-medium"
+          >
+            @{{ xHandle }}
+          </a>
+          <span
+            v-else-if="twitter"
             class="px-3 py-1 rounded-full bg-dot-surface-secondary text-dot-text-secondary text-sm font-medium"
           >
             @{{ twitter }}
-          </a>
+          </span>
           <a
-            v-if="github"
-            :href="`https://github.com/${github}`"
+            v-if="githubHandle"
+            :href="`https://github.com/${githubHandle}`"
             target="_blank"
             rel="noopener noreferrer"
             class="px-3 py-1 rounded-full bg-dot-surface-secondary text-dot-text-secondary text-sm font-medium"
           >
-            {{ github }}
+            {{ githubHandle }}
           </a>
+          <span
+            v-else-if="github"
+            class="px-3 py-1 rounded-full bg-dot-surface-secondary text-dot-text-secondary text-sm font-medium"
+          >
+            {{ github }}
+          </span>
           <p v-if="!twitter && !github" class="text-dot-text-tertiary text-sm italic">
             No linked accounts.
           </p>
@@ -323,7 +335,7 @@
             class="px-3 py-1 rounded bg-dot-surface-secondary text-dot-text-secondary text-xs sm:text-sm font-mono truncate max-w-full"
           >
             <span class="font-semibold text-dot-accent mr-1">{{ key }}:</span>
-            <template v-if="key === 'com.x'">
+            <template v-if="key === 'com.x' && socialHandle(value, 'x')">
               <a
                 :href="`https://x.com/${value}`"
                 target="_blank"
@@ -333,7 +345,7 @@
                 @{{ value }}
               </a>
             </template>
-            <template v-else-if="key === 'com.github'">
+            <template v-else-if="key === 'com.github' && socialHandle(value, 'github')">
               <a
                 :href="`https://github.com/${value}`"
                 target="_blank"
@@ -471,7 +483,10 @@ import { useResolverStore } from "@/store/useResolverStore";
 import { useMulticallOwnership } from "@/composables";
 import Button from "@/components/ui/Button.vue";
 import TablePagination from "@/components/ui/TablePagination.vue";
+import { safeHttpUrl, socialHandle } from "@/lib/safeLink";
+import { useToast } from "vue-toastification";
 
+const toast = useToast();
 const route = useRoute();
 const wallet = useWalletStore();
 const networkStore = useNetworkStore();
@@ -492,6 +507,10 @@ const github = ref<string | null>(null);
 const url = ref<string | null>(null);
 const description = ref<string | null>(null);
 const records = ref<Record<string, string>>({});
+
+const safeProfileUrl = computed(() => safeHttpUrl(url.value));
+const xHandle = computed(() => socialHandle(twitter.value, "x"));
+const githubHandle = computed(() => socialHandle(github.value, "github"));
 const allDomains = ref<MyDomain[]>([]);
 const isVerifyingDomains = ref(false);
 const whoisPage = ref(1);
@@ -706,9 +725,9 @@ async function handleSave(updated: ProfileRecord): Promise<void> {
       await loadDomains(getAddress(owner.value) as Address);
     }
   } catch (e) {
-    console.warn("Failed to save:", e);
     transaction.value = { hash: zeroHash, status: false };
     showTxStatus.value = true;
+    toast.error(e instanceof Error ? e.message : "Failed to save profile");
   } finally {
     showEditModal.value = false;
   }

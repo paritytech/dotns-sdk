@@ -25,6 +25,15 @@ function resolveRpcEnvironment(options: any): string | undefined {
   return options.env ?? options.network;
 }
 
+function warnIfDefaultSigner(resolvedFrom: string): void {
+  if (resolvedFrom === "default") {
+    console.warn(
+      "Warning: no account configured, signing with the shared public dev account that anyone can control. " +
+        "Set DOTNS_MNEMONIC / DOTNS_KEY_URI or run 'dotns auth set'.",
+    );
+  }
+}
+
 export async function getBalanceStatus(
   client: PolkadotApiClient,
   substrateAddress: string,
@@ -115,6 +124,7 @@ export async function prepareAssetHubContext(options: any): Promise<AssetHubCont
     }),
   );
 
+  warnIfDefaultSigner(auth.resolvedFrom);
   const account = await step("Loading keypair", async () =>
     createAccountFromSource(auth.source, auth.isKeyUri),
   );
@@ -205,6 +215,7 @@ export async function prepareBulletinContext(options: any): Promise<BulletinCont
     }),
   );
 
+  warnIfDefaultSigner(auth.resolvedFrom);
   const account = await step("Loading keypair", async () =>
     createAccountFromSource(auth.source, auth.isKeyUri),
   );

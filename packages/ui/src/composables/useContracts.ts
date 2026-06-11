@@ -152,3 +152,13 @@ export async function withContractRecovery<T>(fn: () => Promise<T>): Promise<T> 
     }
   }
 }
+
+// A read that must never reject: runs `fn` through withContractRecovery and, if
+// it still fails, logs under `label` and returns `fallback`. The canonical shape
+// for every non-throwing on-chain read.
+export function safeRead<T>(label: string, fallback: T, fn: () => Promise<T>): Promise<T> {
+  return withContractRecovery(fn).catch((error) => {
+    console.warn(label, error);
+    return fallback;
+  });
+}

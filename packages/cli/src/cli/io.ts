@@ -1,4 +1,12 @@
 import { ENV } from "./env";
+import { MIN_KEYSTORE_PASSWORD_LENGTH } from "../utils/constants";
+
+export function validateNewKeystorePassword(password: string): string {
+  if (password.length < MIN_KEYSTORE_PASSWORD_LENGTH) {
+    throw new Error(`Password too short (min ${MIN_KEYSTORE_PASSWORD_LENGTH} chars)`);
+  }
+  return password;
+}
 
 export async function readSecret(promptText: string): Promise<string> {
   const stdin = process.stdin;
@@ -79,7 +87,7 @@ export async function readLine(promptText: string): Promise<string> {
 export async function promptNewPassword(): Promise<string> {
   const p1 = await readSecret("Keystore password: ");
   const p2 = await readSecret("Confirm password: ");
-  if (p1.length < 5) throw new Error("Password too short (min 5 chars)");
+  validateNewKeystorePassword(p1);
   if (p1 !== p2) throw new Error("Passwords do not match");
   return p1;
 }

@@ -23,9 +23,12 @@ export async function readKeystoreFile(keystorePath: string): Promise<DotnsKeyst
 }
 
 export async function writeKeystoreFile(keystorePath: string, ks: DotnsKeystore): Promise<void> {
-  await fsp.mkdir(path.dirname(keystorePath), { recursive: true });
+  const dir = path.dirname(keystorePath);
+  await fsp.mkdir(dir, { recursive: true, mode: 0o700 });
+  await fsp.chmod(dir, 0o700);
   const tmp = `${keystorePath}.tmp`;
   await fsp.writeFile(tmp, JSON.stringify(ks, null, 2), { mode: 0o600 });
+  await fsp.chmod(tmp, 0o600);
   await fsp.rename(tmp, keystorePath);
 }
 

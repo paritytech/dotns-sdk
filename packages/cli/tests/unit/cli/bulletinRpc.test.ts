@@ -1,9 +1,11 @@
 import { afterEach, expect, test } from "bun:test";
 import { setActiveDotnsEnvironment } from "../../../src/utils/constants";
 import { ENV, resolveBulletinRpc } from "../../../src/cli/env";
+import { resolveBulletinCacheAssetHubRpc } from "../../../src/cli/commands/bulletin";
 
 const originalDotnsEnv = process.env[ENV.DOTNS_ENV];
 const originalBulletinRpc = process.env[ENV.BULLETIN_RPC];
+const originalRpc = process.env[ENV.RPC];
 
 afterEach(() => {
   if (originalDotnsEnv === undefined) delete process.env[ENV.DOTNS_ENV];
@@ -11,6 +13,9 @@ afterEach(() => {
 
   if (originalBulletinRpc === undefined) delete process.env[ENV.BULLETIN_RPC];
   else process.env[ENV.BULLETIN_RPC] = originalBulletinRpc;
+
+  if (originalRpc === undefined) delete process.env[ENV.RPC];
+  else process.env[ENV.RPC] = originalRpc;
 
   setActiveDotnsEnvironment("paseo-v2");
 });
@@ -63,4 +68,59 @@ test("throws when nothing is configured (synthetic case)", () => {
   } finally {
     active.bulletinRpc = originalBulletinRpcConfig;
   }
+});
+
+test("bulletin cache Asset Hub RPC uses merged CLI rpc before DOTNS_RPC", () => {
+  process.env[ENV.RPC] = "wss://stale-env-asset-hub.example";
+
+  expect(
+    resolveBulletinCacheAssetHubRpc({
+      rpc: "wss://explicit-asset-hub.example",
+      env: "paseo-v2",
+    }),
+  ).toBe("wss://explicit-asset-hub.example");
+});
+
+test("bulletin cache Asset Hub RPC uses selected environment when no rpc override exists", () => {
+  delete process.env[ENV.RPC];
+
+  expect(resolveBulletinCacheAssetHubRpc({ env: "previewnet" })).toBe(
+    "wss://previewnet.substrate.dev/asset-hub",
+  );
+});
+
+test("bulletin cache rejects custom Bulletin env override without matching target", () => {
+  delete process.env[ENV.DOTNS_ENV];
+  delete process.env[ENV.RPC];
+  process.env[ENV.BULLETIN_RPC] = "wss://custom-bulletin.example";
+
+  expect(() => resolveBulletinCacheAssetHubRpc({})).toThrow("custom Bulletin RPC requires");
+});
+
+test("bulletin cache accepts custom Bulletin override with explicit environment", () => {
+  process.env[ENV.RPC] = "wss://stale-env-asset-hub.example";
+  process.env[ENV.BULLETIN_RPC] = "wss://custom-bulletin.example";
+
+  expect(resolveBulletinCacheAssetHubRpc({ env: "paseo-v2" })).toBe(
+    "wss://paseo-asset-hub-next-rpc.polkadot.io",
+  );
+});
+
+test("bulletin cache custom Bulletin with DOTNS_ENV ignores stale DOTNS_RPC", () => {
+  process.env[ENV.DOTNS_ENV] = "paseo-v2";
+  process.env[ENV.RPC] = "wss://stale-env-asset-hub.example";
+  process.env[ENV.BULLETIN_RPC] = "wss://custom-bulletin.example";
+
+  expect(resolveBulletinCacheAssetHubRpc({})).toBe("wss://paseo-asset-hub-next-rpc.polkadot.io");
+});
+
+test("bulletin cache accepts custom Bulletin override with explicit Asset Hub RPC", () => {
+  delete process.env[ENV.DOTNS_ENV];
+  process.env[ENV.BULLETIN_RPC] = "wss://custom-bulletin.example";
+
+  expect(
+    resolveBulletinCacheAssetHubRpc({
+      rpc: "wss://explicit-asset-hub.example",
+    }),
+  ).toBe("wss://explicit-asset-hub.example");
 });

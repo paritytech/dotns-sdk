@@ -4,12 +4,11 @@ import { createContract, type AbiEntry } from "@parity/product-sdk-contracts";
 import {
   getContract,
   getContractManager,
+  safeRead,
   withContractRecovery,
-  WRITE_TX_DEFAULTS,
 } from "@/composables/useContracts";
 import { signerManager, useWalletStore } from "./useWalletStore";
-import type { TxStatus } from "@parity/product-sdk-tx";
-import { mapTxStatus } from "@/lib/txStatus";
+import { useContractWrite } from "@/lib/contractWrite";
 import {
   computeDomainTokenId,
   computeDotLabelNode,
@@ -65,13 +64,7 @@ const PERSONHOOD_ABI: AbiEntry[] = [
 
 export const useDomainStore = defineStore("useDomainStore", () => {
   const walletStore = useWalletStore();
-
-  // Common onStatus relay for tx writes. Forwarded to walletStore so the
-  // existing TransactionTimeline UI ticks through signing/broadcast/included/finalized
-  // exactly as before.
-  function relayStatus(s: TxStatus): void {
-    walletStore.setTransactionStatus(mapTxStatus(s));
-  }
+  const { withWrite, submitWrite, txOptions } = useContractWrite();
 
   async function makeCommitment(
     name: string,
@@ -115,102 +108,57 @@ export const useDomainStore = defineStore("useDomainStore", () => {
     if (!commitment || typeof commitment !== "string" || !commitment.startsWith("0x")) {
       throw new Error("Invalid commitment hash");
     }
-    await walletStore.ensureSignerReady();
-    try {
+    return withWrite(async () => {
       const controller = await getContract("@dotns/registrar-controller");
-      const result = await controller.commit!.tx(commitment as Hash, {
-        ...WRITE_TX_DEFAULTS,
-        onStatus: relayStatus,
-      });
-      if (!result.ok) {
-        throw new Error(`Commit reverted: ${JSON.stringify(result.dispatchError ?? "unknown")}`);
-      }
-      const hash = result.txHash as Hash;
-      if (!hash || hash === zeroHash) throw new Error("Transaction failed to submit");
-      return hash;
-    } catch (error) {
-      console.warn("[DomainStore:commitRegistration]", error);
-      throw new Error(error instanceof Error ? error.message : "Failed to commit registration");
-    } finally {
-      walletStore.setTransactionStatus("idle");
-    }
+      return submitWrite(controller.commit!.tx(commitment as Hash, txOptions()), "Commit");
+    });
   }
 
   async function registerDomain(registration: Registration): Promise<TransactionResult> {
     if (!registration?.label || !registration?.owner) {
       throw new Error("Invalid registration data");
     }
-    await walletStore.ensureSignerReady();
-    try {
+    return withWrite(async () => {
       const controller = await getContract("@dotns/registrar-controller");
       const price = await priceWithoutCheck(registration.label);
       const bufferedPaymentWei = (price.price * 110n) / 100n;
       const bufferedPaymentNative = convertWeiToNative(bufferedPaymentWei);
 
-      const result = await controller.register!.tx(registration, {
-        ...WRITE_TX_DEFAULTS,
-        value: bufferedPaymentNative,
-        onStatus: relayStatus,
-      });
-      if (!result.ok) {
-        throw new Error(`Register reverted: ${JSON.stringify(result.dispatchError ?? "unknown")}`);
-      }
-      const hash = result.txHash as Hash;
-      if (!hash || hash === zeroHash) throw new Error("Registration transaction failed");
+      const hash = await submitWrite(
+        controller.register!.tx(registration, txOptions({ value: bufferedPaymentNative })),
+        "Registration",
+      );
       return { hash, status: true };
-    } catch (error) {
-      console.warn("[DomainStore:registerDomain]", error);
-      throw new Error(error instanceof Error ? error.message : "Failed to register domain");
-    } finally {
-      walletStore.setTransactionStatus("idle");
-    }
+    });
   }
 
   async function registerReserved(registration: Registration): Promise<TransactionResult> {
     if (!registration?.label || !registration?.owner) {
       throw new Error("Invalid registration data");
     }
-    await walletStore.ensureSignerReady();
-    try {
+    return withWrite(async () => {
       const controller = await getContract("@dotns/registrar-controller");
-      const result = await controller.registerReserved!.tx(registration, {
-        ...WRITE_TX_DEFAULTS,
-        onStatus: relayStatus,
-      });
-      if (!result.ok) {
-        throw new Error(
-          `RegisterReserved reverted: ${JSON.stringify(result.dispatchError ?? "unknown")}`,
-        );
-      }
-      const hash = result.txHash as Hash;
-      if (!hash || hash === zeroHash) throw new Error("Reserved registration transaction failed");
-      return { hash, status: true };
-    } catch (error) {
-      console.warn("[DomainStore:registerReserved]", error);
-      throw new Error(
-        error instanceof Error ? error.message : "Failed to register reserved domain",
+      const hash = await submitWrite(
+        controller.registerReserved!.tx(registration, txOptions()),
+        "Reserved registration",
       );
-    } finally {
-      walletStore.setTransactionStatus("idle");
-    }
+      return { hash, status: true };
+    });
   }
 
   async function getMinCommitmentAge(): Promise<bigint> {
-    return withContractRecovery(async () => {
+    return safeRead("[DomainStore:getMinCommitmentAge]", 60n, async () => {
       const controller = await getContract("@dotns/registrar-controller");
       const result = await controller.minCommitmentAge!.query({ origin: ZERO_SUBSTRATE_ADDRESS });
       if (!result.success) return 60n;
       const minCommitmentAge = result.value as bigint;
       // Add 2s buffer; default to 8s if chain returned 0n (matches prior behavior).
       return minCommitmentAge === 0n ? 8n : minCommitmentAge + 2n;
-    }).catch((error) => {
-      console.warn("[DomainStore:getMinCommitmentAge]", error);
-      return 60n;
     });
   }
 
   async function userPopStatus(user: Address): Promise<PopStatus> {
-    return withContractRecovery(async () => {
+    return safeRead("[DomainStore:userPopStatus]", PopStatus.NoStatus, async () => {
       const m = await getContractManager();
       const personhood = createContract(
         m.getRuntime(),
@@ -224,55 +172,39 @@ export const useDomainStore = defineStore("useDomainStore", () => {
       if (!result.success) return PopStatus.NoStatus;
       const info = result.value as { status: number | bigint };
       return Number(info.status) as PopStatus;
-    }).catch((error) => {
-      console.warn("[DomainStore:userPopStatus]", error);
-      return PopStatus.NoStatus;
     });
   }
 
   async function classifyName(name: string): Promise<NameRequirement> {
     if (!name || typeof name !== "string") throw new Error("Invalid domain name");
-    return withContractRecovery(async () => {
+    const fallback = { requirement: PopStatus.NoStatus, message: UNCLASSIFIABLE_MESSAGE };
+    return safeRead("[DomainStore:classifyName]", fallback, async () => {
       const popRules = await getContract("@dotns/pop-rules");
       const result = await popRules.classifyName!.query(name, { origin: ZERO_SUBSTRATE_ADDRESS });
-      if (!result.success) {
-        return { requirement: PopStatus.NoStatus, message: UNCLASSIFIABLE_MESSAGE };
-      }
+      if (!result.success) return fallback;
       // classifyName has two named outputs (requirement, message), so viem
       // decodes to an object rather than a tuple.
       const decoded = result.value as { requirement: number | bigint; message: string };
       return { requirement: Number(decoded.requirement) as PopStatus, message: decoded.message };
-    }).catch((error) => {
-      console.warn("[DomainStore:classifyName]", error);
-      return { requirement: PopStatus.NoStatus, message: UNCLASSIFIABLE_MESSAGE };
     });
   }
 
   async function priceWithoutCheck(name: string): Promise<PriceWithMeta> {
     if (!name || typeof name !== "string") throw new Error("Invalid domain name");
     walletStore.ensureWalletConnected();
-    return withContractRecovery(async () => {
+    const fallback: PriceWithMeta = {
+      price: 0n,
+      status: PopStatus.NoStatus,
+      userStatus: walletStore.userPopState ?? PopStatus.NoStatus,
+      message: "Error fetching price",
+    };
+    return safeRead("[DomainStore:priceWithoutCheck]", fallback, async () => {
       const popRules = await getContract("@dotns/pop-rules");
       const result = await popRules.priceWithoutCheck!.query(name, walletStore.evmAddress!, {
         origin: ZERO_SUBSTRATE_ADDRESS,
       });
-      if (!result.success) {
-        return {
-          price: 0n,
-          status: PopStatus.NoStatus,
-          userStatus: walletStore.userPopState ?? PopStatus.NoStatus,
-          message: "Error fetching price",
-        };
-      }
+      if (!result.success) return fallback;
       return result.value as PriceWithMeta;
-    }).catch((error) => {
-      console.warn("[DomainStore:priceWithoutCheck]", error);
-      return {
-        price: 0n,
-        status: PopStatus.NoStatus,
-        userStatus: walletStore.userPopState ?? PopStatus.NoStatus,
-        message: "Error fetching price",
-      };
     });
   }
 
@@ -280,60 +212,38 @@ export const useDomainStore = defineStore("useDomainStore", () => {
     if (!newOwner || newOwner === zeroAddress) {
       throw new Error("Invalid recipient address");
     }
-    await walletStore.ensureSignerReady();
-    try {
+    return withWrite(async () => {
       const registrar = await getContract("@dotns/registrar");
       const tokenId = computeDomainTokenId(normalizeDomainName(domain));
       const feeQuote = await registrar.quoteTransferFee!.query(tokenId, newOwner, {
         origin: ZERO_SUBSTRATE_ADDRESS,
       });
       const feeNative = convertWeiToNativeCeil(feeQuote.success ? (feeQuote.value as bigint) : 0n);
-      const result = await registrar.safeTransferFrom!.tx(
-        walletStore.evmAddress as Address,
-        newOwner,
-        tokenId,
-        { ...WRITE_TX_DEFAULTS, value: feeNative, onStatus: relayStatus },
+      return submitWrite(
+        registrar.safeTransferFrom!.tx(
+          walletStore.evmAddress as Address,
+          newOwner,
+          tokenId,
+          txOptions({ value: feeNative }),
+        ),
+        "Transfer",
       );
-      if (!result.ok) {
-        throw new Error(`Transfer reverted: ${JSON.stringify(result.dispatchError ?? "unknown")}`);
-      }
-      return result.txHash as Hash;
-    } catch (error) {
-      console.warn("[DomainStore:transferDomain]", error);
-      throw error;
-    } finally {
-      walletStore.setTransactionStatus("idle");
-    }
+    });
   }
 
-  // Delegate full control of a single name to `delegate` via the registrar's
-  // ERC-721 single-token approval. The delegate can manage and transfer this
-  // name until revoked, and ERC-721 clears the approval automatically on any
-  // transfer. Pass the zero address to revoke.
+  // Lets `delegate` manage and transfer this one name until revoked; the approval
+  // also clears automatically when the name is transferred. Zero address revokes.
   async function setNameDelegate(domain: string, delegate: Address): Promise<Hash> {
-    await walletStore.ensureSignerReady();
-    try {
+    return withWrite(async () => {
       const registrar = await getContract("@dotns/registrar");
       const tokenId = computeDomainTokenId(normalizeDomainName(domain));
-      const result = await registrar.approve!.tx(delegate, tokenId, {
-        ...WRITE_TX_DEFAULTS,
-        onStatus: relayStatus,
-      });
-      if (!result.ok) {
-        throw new Error(`approve reverted: ${JSON.stringify(result.dispatchError ?? "unknown")}`);
-      }
-      return result.txHash as Hash;
-    } catch (error) {
-      console.warn("[DomainStore:setNameDelegate]", error);
-      throw error;
-    } finally {
-      walletStore.setTransactionStatus("idle");
-    }
+      return submitWrite(registrar.approve!.tx(delegate, tokenId, txOptions()), "Delegate name");
+    });
   }
 
   // The address currently delegated full control of `domain`, or null if none.
   async function getNameDelegate(domain: string): Promise<Address | null> {
-    return withContractRecovery(async () => {
+    return safeRead("[DomainStore:getNameDelegate]", null, async () => {
       const registrar = await getContract("@dotns/registrar");
       const tokenId = computeDomainTokenId(normalizeDomainName(domain));
       const result = await registrar.getApproved!.query(tokenId, {
@@ -342,32 +252,19 @@ export const useDomainStore = defineStore("useDomainStore", () => {
       if (!result.success) return null;
       const delegate = result.value as Address;
       return !delegate || delegate === zeroAddress ? null : delegate;
-    }).catch(() => null);
+    });
   }
 
-  // Delegate (or revoke) record editing across ALL your names via the content
-  // resolver's operator approval. Account-wide and record-scoped: the operator
-  // can set text and contenthash but cannot transfer or change ownership.
+  // Lets `operator` edit text and contenthash records across all your names (but
+  // never transfer or change ownership). Set approved=false to revoke.
   async function setRecordDelegate(operator: Address, approved: boolean): Promise<Hash> {
-    await walletStore.ensureSignerReady();
-    try {
+    return withWrite(async () => {
       const resolver = await getContract("@dotns/content-resolver");
-      const result = await resolver.setApprovalForAll!.tx(operator, approved, {
-        ...WRITE_TX_DEFAULTS,
-        onStatus: relayStatus,
-      });
-      if (!result.ok) {
-        throw new Error(
-          `setApprovalForAll reverted: ${JSON.stringify(result.dispatchError ?? "unknown")}`,
-        );
-      }
-      return result.txHash as Hash;
-    } catch (error) {
-      console.warn("[DomainStore:setRecordDelegate]", error);
-      throw error;
-    } finally {
-      walletStore.setTransactionStatus("idle");
-    }
+      return submitWrite(
+        resolver.setApprovalForAll!.tx(operator, approved, txOptions()),
+        "Update record delegate",
+      );
+    });
   }
 
   async function registerSubDomain(
@@ -375,28 +272,16 @@ export const useDomainStore = defineStore("useDomainStore", () => {
     subname: string,
     owner: Address,
   ): Promise<Hash> {
-    await walletStore.ensureSignerReady();
-    try {
+    return withWrite(async () => {
       const registry = await getContract("@dotns/registry");
       const parentLabel = normalizeDomainName(parentName).trim();
       const parentNode = computeDotLabelNode(parentLabel);
       const subLabel = subname.trim();
-      const result = await registry.setSubnodeOwner!.tx(
-        { parentNode, subLabel, parentLabel, owner },
-        { ...WRITE_TX_DEFAULTS, onStatus: relayStatus },
+      return submitWrite(
+        registry.setSubnodeOwner!.tx({ parentNode, subLabel, parentLabel, owner }, txOptions()),
+        "Subdomain registration",
       );
-      if (!result.ok) {
-        throw new Error(
-          `setSubnodeOwner reverted: ${JSON.stringify(result.dispatchError ?? "unknown")}`,
-        );
-      }
-      return result.txHash as Hash;
-    } catch (error) {
-      console.warn("[DomainStore:registerSubDomain]", error);
-      throw error;
-    } finally {
-      walletStore.setTransactionStatus("idle");
-    }
+    });
   }
 
   async function recordExists(parentName: string, subname: string): Promise<boolean> {

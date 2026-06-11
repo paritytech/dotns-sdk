@@ -22,9 +22,12 @@ import MobileMenu from "./components/layout/MobileMenu.vue";
 import { AppInitializer } from "./services/AppInitializer";
 import TopProgress from "./components/LoadingBar.vue";
 import TransactionTimeline from "./components/TransactionTimeline.vue";
+import { useChainConnection } from "./composables/useChainConnection";
 
 const isMobileMenuOpen = ref(false);
 const toggleMobileMenu = () => (isMobileMenuOpen.value = !isMobileMenuOpen.value);
+
+useChainConnection();
 
 onBeforeMount(async () => {
   await AppInitializer.initialize();

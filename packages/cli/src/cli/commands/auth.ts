@@ -4,7 +4,13 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { ENV, resolveKeystorePath } from "../env";
 import { formatErrorMessage } from "../../utils/formatting";
-import { readLine, readSecret, promptNewPassword, getPasswordForDecrypt } from "../io";
+import {
+  readLine,
+  readSecret,
+  promptNewPassword,
+  getPasswordForDecrypt,
+  validateNewKeystorePassword,
+} from "../io";
 import { normalizeAccountName } from "../keystore/payload";
 import {
   pathExists,
@@ -32,10 +38,10 @@ const AUTH_TYPE_UNKNOWN: AuthType = "unknown";
 
 function resolvePasswordForCreate(options: CommandOptions): Promise<string> | string {
   const fromCli = String(options.password ?? "").trim();
-  if (fromCli) return fromCli;
+  if (fromCli) return validateNewKeystorePassword(fromCli);
 
   const fromEnv = String(process.env[ENV.KEYSTORE_PASSWORD] ?? "").trim();
-  if (fromEnv) return fromEnv;
+  if (fromEnv) return validateNewKeystorePassword(fromEnv);
 
   return promptNewPassword();
 }
@@ -49,7 +55,8 @@ function getKeystoreDirFromOptions(maybeKeystorePath: string | undefined): strin
 }
 
 async function ensureKeystoreDirExists(keystoreDir: string): Promise<void> {
-  await fs.mkdir(keystoreDir, { recursive: true });
+  await fs.mkdir(keystoreDir, { recursive: true, mode: 0o700 });
+  await fs.chmod(keystoreDir, 0o700);
 }
 
 async function readDefaultAccountName(keystoreDir: string): Promise<string | undefined> {
@@ -65,7 +72,8 @@ async function readDefaultAccountName(keystoreDir: string): Promise<string | und
 
 async function writeDefaultAccountName(keystoreDir: string, accountName: string): Promise<void> {
   const pointerFilePath = path.join(keystoreDir, DEFAULT_ACCOUNT_POINTER_FILE);
-  await fs.writeFile(pointerFilePath, `${accountName}\n`, "utf8");
+  await fs.writeFile(pointerFilePath, `${accountName}\n`, { encoding: "utf8", mode: 0o600 });
+  await fs.chmod(pointerFilePath, 0o600);
 }
 
 async function clearDefaultAccountName(keystoreDir: string): Promise<void> {

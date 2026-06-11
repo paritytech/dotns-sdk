@@ -1,5 +1,4 @@
-// ----------------------------------------------------------------------------
-// Ownership verification — MultiCall3-backed batch reads
+// Ownership verification, via MultiCall3-backed batch reads.
 //
 // Batches DotnsRegistrar.ownerOf / DotnsRegistry.owner across all names in a
 // profile into a single MultiCall3.aggregate3 dry-run (one chain round-trip
@@ -12,7 +11,6 @@
 // `allowFailure: true` means a reverting ownerOf (nonexistent token) comes back
 // as `{ success: false }` rather than bubbling — preserving the per-name default
 // behaviour (2LD miss → not owned; subname miss → owned by default).
-// ----------------------------------------------------------------------------
 
 import {
   decodeFunctionResult,

@@ -22,6 +22,7 @@ import {
   loadCommitmentRecords,
   findCommitmentRecord,
   latestCommitmentRecord,
+  loadCommitmentRecordsForClear,
   deleteCommitmentRecord,
   decryptCommitmentSecret,
   resolveManifestCredential,
@@ -49,7 +50,7 @@ import { resolveTransferRecipient, transferDomain } from "../transfer";
 type PersistContext = {
   env: string;
   caller: Address;
-  credential: string | null;
+  credential: string;
 };
 
 function requireEnvironment(environment: string | undefined): string {
@@ -141,8 +142,8 @@ async function registerWithRetries(params: {
         ),
       );
       try {
-        const record = credential ? findCommitmentRecord(env, caller, params.label) : null;
-        if (record && credential) {
+        const record = findCommitmentRecord(env, caller, params.label);
+        if (record) {
           await resumeRegistration(params.context, record, credential, params.commitmentBuffer);
         } else {
           await params.attempt();
@@ -233,7 +234,10 @@ export async function executeRegistration(
     clientWrapper.ensureAccountMapped(substrateAddress, signer),
   );
 
-  const credential = resolveManifestCredential(options);
+  const credential = context.auth.credential ?? resolveManifestCredential(options);
+  if (!credential) {
+    throw new Error("Could not resolve a credential for the registration retry cache.");
+  }
   const persistContext: PersistContext = {
     env: requireEnvironment(context.environment),
     caller: evmAddress as Address,
@@ -350,7 +354,6 @@ function persistCommitment(
     transferDestination?: string;
   },
 ): void {
-  if (!persistContext.credential) return;
   try {
     saveCommitmentRecord({
       env: persistContext.env,
@@ -769,8 +772,11 @@ export async function resumeRegistration(
   };
 }
 
-function requireManifestCredential(options: Partial<RegisterActionOptions>): string {
-  const credential = resolveManifestCredential(options);
+function requireManifestCredential(
+  context: Awaited<ReturnType<typeof prepareAssetHubContext>>,
+  options: Partial<RegisterActionOptions>,
+): string {
+  const credential = context.auth.credential ?? resolveManifestCredential(options);
   if (!credential) {
     throw new Error(
       "A credential is required to decrypt the cached commitment: pass --password, --mnemonic, or --key-uri.",
@@ -783,7 +789,7 @@ export async function executeRetry(
   options: Partial<RegisterActionOptions> = {},
 ): Promise<DomainRegistrationResult> {
   const context = await prepareAssetHubContext(options);
-  const credential = requireManifestCredential(options);
+  const credential = requireManifestCredential(context, options);
   const caller = context.evmAddress as Address;
   const env = requireEnvironment(context.environment);
 
@@ -843,7 +849,7 @@ export async function executeClear(
   const caller = context.evmAddress as Address;
   const env = requireEnvironment(context.environment);
 
-  const records = loadCommitmentRecords(env, caller);
+  const records = loadCommitmentRecordsForClear(env, caller, options.name);
 
   const summary: ClearSummary = {
     ok: true as const,
@@ -900,7 +906,7 @@ export async function executeClear(
     return summary;
   }
 
-  const credential = requireManifestCredential(options);
+  const credential = requireManifestCredential(context, options);
   for (const record of pending) {
     await resumeRegistration(context, record, credential, options.commitmentBuffer);
     summary.resumed.push(record.label);

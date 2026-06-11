@@ -1,6 +1,14 @@
 import os from "node:os";
 import path from "node:path";
-import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import {
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+  existsSync,
+  chmodSync,
+} from "node:fs";
 import chalk from "chalk";
 import type { Address, Hex } from "viem";
 import { encryptKeystorePayload, decryptKeystorePayload } from "../cli/keystore/crypto";
@@ -65,9 +73,9 @@ function belongsTo(record: CommitmentRecord, env: string, caller: Address): bool
 }
 
 /**
- * Resolve the passphrase used to lock the stored secret: the keystore password
- * when present, otherwise the dev mnemonic or key URI. Returns null when the
- * caller provided no credential (persistence is then skipped).
+ * Resolve the passphrase used to lock the stored secret from raw command/env
+ * options. Registration flows prefer the credential attached to the resolved
+ * auth source so keystore account selection and cache encryption stay aligned.
  */
 export function resolveManifestCredential(options: {
   password?: string;
@@ -79,6 +87,8 @@ export function resolveManifestCredential(options: {
     process.env.DOTNS_KEYSTORE_PASSWORD ||
     options.mnemonic ||
     options.keyUri ||
+    process.env.DOTNS_MNEMONIC ||
+    process.env.DOTNS_KEY_URI ||
     null
   );
 }
@@ -111,12 +121,12 @@ export function saveCommitmentRecord(params: {
     encryptedSecret: encryptKeystorePayload({ secret: params.secret }, params.credential),
   };
 
-  mkdirSync(getManifestDirectory(), { recursive: true });
-  writeFileSync(
-    recordPath(recordId(params.env, params.caller, params.label)),
-    JSON.stringify(record, null, 2),
-    "utf8",
-  );
+  const dir = getManifestDirectory();
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  chmodSync(dir, 0o700);
+  const filePath = recordPath(recordId(params.env, params.caller, params.label));
+  writeFileSync(filePath, JSON.stringify(record, null, 2), { encoding: "utf8", mode: 0o600 });
+  chmodSync(filePath, 0o600);
 }
 
 /** All records for the given env + caller, newest commit first. */
@@ -166,6 +176,21 @@ export function findCommitmentRecord(
 
 export function latestCommitmentRecord(env: string, caller: Address): CommitmentRecord | null {
   return loadCommitmentRecords(env, caller)[0] ?? null;
+}
+
+export function loadCommitmentRecordsForClear(
+  env: string,
+  caller: Address,
+  label?: string,
+): CommitmentRecord[] {
+  if (!label) return loadCommitmentRecords(env, caller);
+
+  const record = findCommitmentRecord(env, caller, label);
+  if (!record) {
+    throw new Error(`No cached commitment for ${label}.`);
+  }
+
+  return [record];
 }
 
 export function deleteCommitmentRecord(env: string, caller: Address, label: string): void {

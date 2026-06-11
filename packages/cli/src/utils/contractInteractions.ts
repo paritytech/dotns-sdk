@@ -41,6 +41,14 @@ export function buildRevertError(data: Hex, abi: Abi): Error {
   return new Error(`Contract reverted: ${revertReason}`);
 }
 
+export function decodeContractRevertError(data: Hex, abi: Abi, context: string): Error {
+  if (data === "0x") {
+    return new Error(`${context} reverted with empty data. ${UNMAPPED_ORIGIN_REVERT_HINT}`);
+  }
+
+  return buildRevertError(data, abi);
+}
+
 export async function performContractCall<T>(
   clientWrapper: ReviveClientWrapper,
   originSubstrateAddress: string,
@@ -136,21 +144,13 @@ export async function submitContractTransaction(
     );
   } catch (error) {
     if (error instanceof Error && error.message.includes("would revert: 0x")) {
-      const hexMatch = error.message.match(/0x[0-9a-fA-F]+/);
+      const hexMatch = error.message.match(/0x[0-9a-fA-F]*/);
       if (hexMatch) {
-        try {
-          const decoded = decodeErrorResult({
-            abi: contractAbi,
-            data: hexMatch[0] as Hex,
-          });
-          const reason = decoded.args
-            ? `${decoded.errorName}(${decoded.args.map(String).join(", ")})`
-            : decoded.errorName;
-          throw new Error(`Contract reverted: ${reason}`);
-        } catch (decodeError) {
-          if (decodeError instanceof Error && decodeError.message.startsWith("Contract reverted:"))
-            throw decodeError;
-        }
+        throw decodeContractRevertError(
+          hexMatch[0] as Hex,
+          contractAbi,
+          operationName || functionName,
+        );
       }
     }
     throw error;

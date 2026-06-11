@@ -80,6 +80,14 @@
             <p class="text-dot-text-primary font-medium text-sm mb-1">
               {{ searchQuery }}.dot is already taken
             </p>
+            <div
+              v-if="ownerPopStatus !== null"
+              class="flex items-center justify-center gap-2 text-xs text-dot-text-tertiary mb-1"
+              @click.stop
+            >
+              <span>Owner's Proof of Personhood:</span>
+              <PopStatusBadge :status="ownerPopStatus" />
+            </div>
             <p
               class="text-dot-text-tertiary text-xs group-hover:text-dot-text-secondary transition-colors"
             >
@@ -95,14 +103,18 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { useRouter } from "vue-router";
-import type { DotNSStatus } from "@/type";
+import { PopStatus, type DotNSStatus } from "@/type";
 import { useUserStoreManager } from "@/store/useUserStoreManager";
+import { useDomainStore } from "@/store/useDomainStore";
 import Icon from "@/components/ui/Icon.vue";
+import PopStatusBadge from "@/components/PopStatusBadge.vue";
 
 const router = useRouter();
 const storeManager = useUserStoreManager();
+const domainStore = useDomainStore();
 const searchQuery = ref("");
 const status = ref<DotNSStatus | null>(null);
+const ownerPopStatus = ref<PopStatus | null>(null);
 const isLoading = ref(false);
 const isFocused = ref(false);
 const isNavigating = ref(false);
@@ -118,6 +130,7 @@ const iconClass = computed(() => {
 function handleInput() {
   clearTimeout(debounceTimer);
   status.value = null;
+  ownerPopStatus.value = null;
   if (!searchQuery.value.trim()) {
     isLoading.value = false;
     return;
@@ -135,9 +148,15 @@ async function checkName() {
     const available = await storeManager.checkHandleAvailability(searchQuery.value);
     status.value = available.available ? "available" : "taken";
     searchQuery.value = available.name ?? searchQuery.value;
+    ownerPopStatus.value = available.available
+      ? null
+      : available.owner
+        ? await domainStore.userPopStatus(available.owner)
+        : PopStatus.NoStatus;
   } catch (error) {
     console.warn("Whois check failed:", error);
     status.value = null;
+    ownerPopStatus.value = null;
   } finally {
     isLoading.value = false;
   }

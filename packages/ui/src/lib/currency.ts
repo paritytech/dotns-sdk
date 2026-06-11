@@ -20,21 +20,11 @@ export const DECIMALS = 10n;
 export const NATIVE_TO_ETH_RATIO = 100_000_000n;
 
 /**
- * Converts EVM wei units to native substrate units.
+ * Converts EVM wei units to native substrate units. Use this when passing a value
+ * read from a contract call (wei) into a transaction submission (native units).
  *
  * @param weiValue - Value in EVM wei units (18 decimals)
- * @returns Value in native substrate units (12 decimals)
- *
- * @remarks
- * **CRITICAL**: Use this when taking values from contract calls (which return wei)
- * and passing them to transaction submissions (which expect native units).
- *
- * @example
- * ```typescript
- * const priceWei = await price(label); // Returns wei from contract
- * const priceNative = convertWeiToNative(priceWei); // Convert for transaction
- * await registerDomain(registration, priceNative);
- * ```
+ * @returns Value in native substrate units (10 decimals)
  */
 export function convertWeiToNative(weiValue: bigint): bigint {
   return weiValue / NATIVE_TO_ETH_RATIO;
@@ -55,14 +45,8 @@ export function convertWeiToNativeCeil(weiValue: bigint): bigint {
 /**
  * Converts native substrate units to EVM wei units.
  *
- * @param nativeValue - Value in native substrate units (12 decimals)
+ * @param nativeValue - Value in native substrate units (10 decimals)
  * @returns Value in EVM wei units (18 decimals)
- *
- * @example
- * ```typescript
- * const nativeAmount = 1_000_000_000_000n; // 1.0 PAS
- * const weiAmount = convertNativeToWei(nativeAmount); // 1.0 in wei
- * ```
  */
 export function convertNativeToWei(nativeValue: bigint): bigint {
   return nativeValue * NATIVE_TO_ETH_RATIO;
@@ -71,14 +55,8 @@ export function convertNativeToWei(nativeValue: bigint): bigint {
 /**
  * Formats a native substrate balance for display.
  *
- * @param valueInNativeUnits - Balance in native substrate units (12 decimals)
+ * @param valueInNativeUnits - Balance in native substrate units (10 decimals)
  * @returns Formatted string with full decimal expansion
- *
- * @example
- * ```typescript
- * formatNativeBalance(1_000_000_000_000n); // "1.000000000000"
- * formatNativeBalance(8_000_000_000n);     // "0.008000000000"
- * ```
  */
 export function formatNativeBalance(valueInNativeUnits: bigint): string {
   const divisor = 10n ** DECIMALS;
@@ -99,11 +77,6 @@ export function formatNativeBalance(valueInNativeUnits: bigint): string {
  *
  * @param weiValue - Value in wei (18 decimals)
  * @returns Human-readable string in ether units
- *
- * @example
- * ```typescript
- * formatWeiAsEther(8_000_000_000_000_000n); // "0.008"
- * ```
  */
 export function formatWeiAsEther(weiValue: bigint): string {
   const divisor = 10n ** 18n;

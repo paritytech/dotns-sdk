@@ -37,7 +37,9 @@ bun run build
 
 ## Authentication
 
-All write operations require authentication. The CLI supports three methods:
+All write operations require an explicit signing account. The CLI refuses to sign transactions with
+the shared public dev account; configure one of these methods before registering, transferring,
+delegating, publishing, or changing records:
 
 ```bash
 # Keystore
@@ -61,6 +63,18 @@ dotns register domain --account karim --name coolname42
 dotns content set dotns bafybei... --account karim
 dotns pop status --account karim
 ```
+
+Read-only commands can run without configured credentials. In that case the CLI uses a shared dev
+account only as the origin for read calls.
+
+Auth precedence is explicit: command-line `--mnemonic` / `--key-uri` wins first. If you pass
+`--account`, `--keystore-path`, or `--password`, the CLI uses the encrypted keystore and will not
+let ambient `DOTNS_MNEMONIC` / `DOTNS_KEY_URI` shadow the selected account. Without keystore hints,
+env auth is used before the default keystore.
+
+New keystore passwords supplied interactively, with `--password`, or with
+`DOTNS_KEYSTORE_PASSWORD` must be at least 6 characters. Decryption remains compatible with
+existing keystores.
 
 ## Environment Variables
 
@@ -129,7 +143,7 @@ Registration is a two-step commit-reveal: the commit lands on-chain, then after 
 minimum commitment age the reveal completes the mint. If the reveal is interrupted
 (crash, network drop, closed terminal), the commitment is cached locally so it can be
 resumed rather than restarted. The reveal secret is encrypted at rest with your
-credential (keystore password, mnemonic, or key URI); the rest of the record is
+credential (keystore password, CLI/env mnemonic, or CLI/env key URI); the rest of the record is
 plaintext so it can be listed and cleared without unlocking.
 
 Records live under `~/.dotns/registrations/` (override with `DOTNS_REGISTRATION_DIR`).
@@ -147,12 +161,25 @@ dotns register list
 # Review cached commitments: purges completed ones, then prompts for any pending
 dotns --password test-password register clear --account default
 
+# Review one cached commitment by name
+dotns --password test-password register clear coolname42 --account default
+
 # Non-interactively discard pending commitments
 dotns register clear --discard
 
+# Non-interactively discard one pending commitment
+dotns register clear coolname42 --discard
+
 # Non-interactively complete pending commitments
 dotns --password test-password register clear --register --account default
+
+# Non-interactively complete one pending commitment
+dotns --password test-password register clear coolname42 --register --account default
 ```
+
+Unnamed `register clear --discard` and `register clear --register` intentionally apply to every
+pending cached commitment for the selected account and environment. Passing a name scopes the action
+to that one commitment.
 
 ### Register Subnames
 
@@ -291,6 +318,12 @@ dotns --password test-password bulletin upload ./image.png --bulletin-rpc wss://
 # Skip history
 dotns --password test-password bulletin upload ./image.png --no-history --account default
 ```
+
+`bulletin upload --cache` writes the uploaded CID to your on-chain Store on the selected DotNS
+Asset Hub environment. When overriding Bulletin with `--bulletin-rpc` or `DOTNS_BULLETIN_RPC`,
+also pass the matching `--env` or `DOTNS_ENV`, and, when needed, `--rpc` for the Asset Hub Store
+write. In this custom-Bulletin mode, `--env` / `DOTNS_ENV` uses that environment's configured
+Asset Hub RPC and ignores ambient `DOTNS_RPC`; pass `--rpc` to override it deliberately.
 
 ### Bulletin History
 

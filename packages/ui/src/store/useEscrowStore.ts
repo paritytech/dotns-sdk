@@ -1,15 +1,8 @@
 import { defineStore } from "pinia";
 import { zeroAddress, type Address, type Hash } from "viem";
-import {
-  getContract,
-  getEscrowContract,
-  withContractRecovery,
-  WRITE_TX_DEFAULTS,
-} from "@/composables/useContracts";
+import { getContract, getEscrowContract, withContractRecovery } from "@/composables/useContracts";
 import { NAME_ESCROW_ADDRESS } from "@/lib/abis/nameEscrow";
-import { useWalletStore } from "./useWalletStore";
-import type { TxStatus } from "@parity/product-sdk-tx";
-import { mapTxStatus } from "@/lib/txStatus";
+import { useContractWrite } from "@/lib/contractWrite";
 import { computeDomainTokenId, normalizeDomainName, ZERO_SUBSTRATE_ADDRESS } from "../utils";
 
 export type EscrowPosition = {
@@ -53,11 +46,7 @@ type RawRefund = {
 };
 
 export const useEscrowStore = defineStore("useEscrowStore", () => {
-  const walletStore = useWalletStore();
-
-  function relayStatus(status: TxStatus): void {
-    walletStore.setTransactionStatus(mapTxStatus(status));
-  }
+  const { txOptions, withWrite, submitWrite } = useContractWrite();
 
   function tokenIdFor(domain: string): bigint {
     return computeDomainTokenId(normalizeDomainName(domain));
@@ -121,30 +110,6 @@ export const useEscrowStore = defineStore("useEscrowStore", () => {
       }));
       return { total, entries };
     });
-  }
-
-  function txOptions() {
-    return { ...WRITE_TX_DEFAULTS, onStatus: relayStatus };
-  }
-
-  async function withWrite(run: () => Promise<Hash>): Promise<Hash> {
-    await walletStore.ensureSignerReady();
-    try {
-      return await run();
-    } finally {
-      walletStore.setTransactionStatus("idle");
-    }
-  }
-
-  async function submitWrite(
-    tx: Promise<{ ok: boolean; txHash: string; dispatchError?: unknown }>,
-    label: string,
-  ): Promise<Hash> {
-    const result = await tx;
-    if (!result.ok) {
-      throw new Error(`${label} reverted: ${JSON.stringify(result.dispatchError ?? "unknown")}`);
-    }
-    return result.txHash as Hash;
   }
 
   // Caller must own the name: approve the escrow on the registrar, then release.

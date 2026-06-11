@@ -31,7 +31,6 @@ export const signerManager = new SignerManager({
   },
 });
 
-// ----------------------------------------------------------------------------
 // Resource-allowance request, cached per product-account h160 across reloads.
 //
 // Requested lazily on the first write (via ensureSignerReady), NOT on connect,
@@ -50,7 +49,6 @@ export const signerManager = new SignerManager({
 // granted", and ChainSubmit is now requested fresh at connect regardless.
 //   v3 (2026-05-19): force re-grant after desktop cache-clear drift.
 //   v4 (2026-06-08): lazy-on-write + ChainSubmit folded into the bundle.
-// ----------------------------------------------------------------------------
 const PERMISSION_STORAGE_PREFIX = "dotns-ui:permissions:v4:";
 
 function permissionStorageKey(h160: string): string {

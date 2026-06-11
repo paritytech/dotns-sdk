@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { encodeErrorResult } from "viem";
 import {
   buildRevertError,
+  decodeContractRevertError,
   isRevertFlag,
   UNMAPPED_ORIGIN_REVERT_HINT,
 } from "../../../src/utils/contractInteractions";
@@ -37,6 +38,26 @@ describe("buildRevertError", () => {
     const unknownData = "0xdeadbeef";
     expect(buildRevertError(unknownData, POP_RULES_ABI).message).toBe(
       `Contract reverted: ${unknownData}`,
+    );
+  });
+});
+
+describe("decodeContractRevertError", () => {
+  test("empty data includes operation context", () => {
+    const error = decodeContractRevertError("0x", POP_RULES_ABI, "Registration");
+    expect(error.message).toContain("Registration reverted with empty data");
+    expect(error.message).toContain(UNMAPPED_ORIGIN_REVERT_HINT);
+  });
+
+  test("non-empty data decodes against the ABI", () => {
+    const data = encodeErrorResult({
+      abi: POP_RULES_ABI,
+      errorName: "OwnableUnauthorizedAccount",
+      args: ["0x000000000000000000000000000000000000dead"],
+    });
+
+    expect(decodeContractRevertError(data, POP_RULES_ABI, "Registration").message).toContain(
+      "OwnableUnauthorizedAccount",
     );
   });
 });

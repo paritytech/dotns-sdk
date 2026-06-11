@@ -13,6 +13,8 @@ import {
   createKeystorePathsForTest,
 } from "../../_helpers/testPaths";
 import { DEFAULT_MNEMONIC } from "../../../src/utils/constants";
+import { ENV } from "../../../src/cli/env";
+import { resolveAuthSource } from "../../../src/commands/auth";
 
 const createdTestTemporaryDirectoryPaths: string[] = [];
 let testFileTemporaryRootDirectoryPath: string | undefined;
@@ -222,4 +224,93 @@ test("auth clear deletes all accounts", async () => {
 
   const keystore = await readKeystoreDirectory(keystoreDirectoryPath, TEST_PASSWORD);
   expect(Object.keys(keystore.accounts)).toHaveLength(0);
+});
+
+test("resolveAuthSource prefers selected keystore account over ambient env mnemonic", async () => {
+  const { keystoreDirectoryPath } = createPathsForTest("auth_prefers_account_over_env_mnemonic");
+  await setupDefaultAndAliceAccounts(keystoreDirectoryPath);
+
+  const previousMnemonic = process.env[ENV.MNEMONIC];
+  process.env[ENV.MNEMONIC] = DEFAULT_MNEMONIC;
+  try {
+    const resolved = await resolveAuthSource({
+      keystorePath: keystoreDirectoryPath,
+      password: TEST_PASSWORD,
+      account: "alice",
+    });
+
+    expect(resolved.resolvedFrom).toBe("keystore");
+    expect(resolved.account).toBe("alice");
+    expect(resolved.source).toBe(ALICE_KEY_URI);
+    expect(resolved.isKeyUri).toBe(true);
+    expect(resolved.credential).toBe(TEST_PASSWORD);
+  } finally {
+    if (previousMnemonic === undefined) delete process.env[ENV.MNEMONIC];
+    else process.env[ENV.MNEMONIC] = previousMnemonic;
+  }
+});
+
+test("resolveAuthSource prefers selected keystore account over ambient env key URI", async () => {
+  const { keystoreDirectoryPath } = createPathsForTest("auth_prefers_account_over_env_key_uri");
+  await setupDefaultAccount(keystoreDirectoryPath);
+
+  const previousKeyUri = process.env[ENV.KEY_URI];
+  process.env[ENV.KEY_URI] = ALICE_KEY_URI;
+  try {
+    const resolved = await resolveAuthSource({
+      keystorePath: keystoreDirectoryPath,
+      password: TEST_PASSWORD,
+      account: "default",
+    });
+
+    expect(resolved.resolvedFrom).toBe("keystore");
+    expect(resolved.account).toBe("default");
+    expect(resolved.source).toBe(DEFAULT_MNEMONIC);
+    expect(resolved.isKeyUri).toBe(false);
+    expect(resolved.credential).toBe(TEST_PASSWORD);
+  } finally {
+    if (previousKeyUri === undefined) delete process.env[ENV.KEY_URI];
+    else process.env[ENV.KEY_URI] = previousKeyUri;
+  }
+});
+
+test("auth set rejects weak password supplied by flag for new keystore", async () => {
+  const { keystoreDirectoryPath } = createPathsForTest("auth_rejects_weak_cli_password");
+
+  const result = await runDotnsCli([
+    "--keystore-path",
+    keystoreDirectoryPath,
+    "--password",
+    "abc",
+    "auth",
+    "set",
+    "--account",
+    "default",
+    "--mnemonic",
+    DEFAULT_MNEMONIC,
+  ]);
+
+  expect(result.exitCode).toBe(1);
+  expect(result.combinedOutput).toContain("Password too short");
+});
+
+test("auth set rejects weak password supplied by env for new keystore", async () => {
+  const { keystoreDirectoryPath } = createPathsForTest("auth_rejects_weak_env_password");
+
+  const result = await runDotnsCli(
+    [
+      "--keystore-path",
+      keystoreDirectoryPath,
+      "auth",
+      "set",
+      "--account",
+      "default",
+      "--mnemonic",
+      DEFAULT_MNEMONIC,
+    ],
+    { [ENV.KEYSTORE_PASSWORD]: "abc" },
+  );
+
+  expect(result.exitCode).toBe(1);
+  expect(result.combinedOutput).toContain("Password too short");
 });

@@ -43,15 +43,95 @@ function toSafeAccountFilename(accountName: string): string {
 function resolveAuthSourceFromEnv(account: string): ResolvedAuthSource | undefined {
   const envMnemonic = process.env[ENV.MNEMONIC];
   if (envMnemonic && envMnemonic.length > 0) {
-    return { source: envMnemonic, isKeyUri: false, resolvedFrom: "env", account };
+    return {
+      source: envMnemonic,
+      isKeyUri: false,
+      resolvedFrom: "env",
+      account,
+      credential: envMnemonic,
+    };
   }
 
   const envKeyUri = process.env[ENV.KEY_URI];
   if (envKeyUri && envKeyUri.length > 0) {
-    return { source: envKeyUri, isKeyUri: true, resolvedFrom: "env", account };
+    return {
+      source: envKeyUri,
+      isKeyUri: true,
+      resolvedFrom: "env",
+      account,
+      credential: envKeyUri,
+    };
   }
 
   return undefined;
+}
+
+function hasKeystoreSelectionHint(opts: AuthSource): boolean {
+  return Boolean(
+    (opts.account != null && String(opts.account).trim().length > 0) ||
+    (opts.keystorePath != null && String(opts.keystorePath).trim().length > 0) ||
+    (opts.password != null && String(opts.password).trim().length > 0),
+  );
+}
+
+async function resolveAuthSourceFromKeystore(
+  opts: AuthSource,
+  accountName: string,
+  requireKeystore: boolean,
+): Promise<ResolvedAuthSource | undefined> {
+  const keystoreDirectoryPath = resolveKeystorePath(opts.keystorePath);
+
+  if (!(await pathExists(keystoreDirectoryPath))) {
+    if (requireKeystore) {
+      throw new Error(`Keystore directory not found: ${keystoreDirectoryPath}`);
+    }
+    return undefined;
+  }
+
+  const password = await getPasswordForDecrypt(opts.password);
+
+  const defaultAccount = await readDefaultAccountName(keystoreDirectoryPath);
+  const selectedAccountName =
+    accountName === "default" && defaultAccount ? defaultAccount : accountName;
+
+  const accountFilePath = path.join(
+    keystoreDirectoryPath,
+    toSafeAccountFilename(selectedAccountName),
+  );
+
+  if (!(await pathExists(accountFilePath))) {
+    throw new Error(`Account not found in keystore: ${selectedAccountName}`);
+  }
+
+  const encryptedAccount = await readKeystoreFile(accountFilePath);
+  const decryptedAccount = decryptKeystorePayload(
+    encryptedAccount,
+    password,
+  ) as AccountKeystorePayload;
+
+  const auth = decryptedAccount.auth;
+  const actualAccountName = decryptedAccount.account || selectedAccountName;
+
+  if (auth?.keyUri?.length) {
+    return {
+      source: auth.keyUri,
+      isKeyUri: true,
+      resolvedFrom: "keystore",
+      account: actualAccountName,
+      credential: password,
+    };
+  }
+  if (auth?.mnemonic?.length) {
+    return {
+      source: auth.mnemonic,
+      isKeyUri: false,
+      resolvedFrom: "keystore",
+      account: actualAccountName,
+      credential: password,
+    };
+  }
+
+  throw new Error(`No valid auth found in account: ${actualAccountName}`);
 }
 
 export async function resolveAuthSourceReadOnly(): Promise<ResolvedAuthSource> {
@@ -66,65 +146,48 @@ export async function resolveAuthSourceReadOnly(): Promise<ResolvedAuthSource> {
   };
 }
 
+function warnArgvSecret(flag: string): void {
+  console.warn(
+    `Warning: ${flag} puts a secret on the command line, where it is visible in ` +
+      `process listings and shell history. Prefer DOTNS_MNEMONIC / DOTNS_KEY_URI or an ` +
+      `encrypted keystore (dotns auth set).`,
+  );
+}
+
 export async function resolveAuthSource(opts: AuthSource): Promise<ResolvedAuthSource> {
   const accountName = normalizeAccountName(opts.account);
 
   if (opts.mnemonic) {
-    return { source: opts.mnemonic, isKeyUri: false, resolvedFrom: "cli", account: accountName };
+    warnArgvSecret("--mnemonic");
+    return {
+      source: opts.mnemonic,
+      isKeyUri: false,
+      resolvedFrom: "cli",
+      account: accountName,
+      credential: opts.mnemonic,
+    };
   }
   if (opts.keyUri) {
-    return { source: opts.keyUri, isKeyUri: true, resolvedFrom: "cli", account: accountName };
+    warnArgvSecret("--key-uri");
+    return {
+      source: opts.keyUri,
+      isKeyUri: true,
+      resolvedFrom: "cli",
+      account: accountName,
+      credential: opts.keyUri,
+    };
+  }
+
+  const preferKeystore = hasKeystoreSelectionHint(opts);
+  if (preferKeystore) {
+    return (await resolveAuthSourceFromKeystore(opts, accountName, true))!;
   }
 
   const fromEnv = resolveAuthSourceFromEnv(accountName);
   if (fromEnv) return fromEnv;
 
-  const keystoreDirectoryPath = resolveKeystorePath(opts.keystorePath);
-
-  if (await pathExists(keystoreDirectoryPath)) {
-    const password = await getPasswordForDecrypt(opts.password);
-
-    const defaultAccount = await readDefaultAccountName(keystoreDirectoryPath);
-    const selectedAccountName =
-      accountName === "default" && defaultAccount ? defaultAccount : accountName;
-
-    const accountFilePath = path.join(
-      keystoreDirectoryPath,
-      toSafeAccountFilename(selectedAccountName),
-    );
-
-    if (!(await pathExists(accountFilePath))) {
-      throw new Error(`Account not found in keystore: ${selectedAccountName}`);
-    }
-
-    const encryptedAccount = await readKeystoreFile(accountFilePath);
-    const decryptedAccount = decryptKeystorePayload(
-      encryptedAccount,
-      password,
-    ) as AccountKeystorePayload;
-
-    const auth = decryptedAccount.auth;
-    const actualAccountName = decryptedAccount.account || selectedAccountName;
-
-    if (auth?.keyUri?.length) {
-      return {
-        source: auth.keyUri,
-        isKeyUri: true,
-        resolvedFrom: "keystore",
-        account: actualAccountName,
-      };
-    }
-    if (auth?.mnemonic?.length) {
-      return {
-        source: auth.mnemonic,
-        isKeyUri: false,
-        resolvedFrom: "keystore",
-        account: actualAccountName,
-      };
-    }
-
-    throw new Error(`No valid auth found in account: ${actualAccountName}`);
-  }
+  const fromKeystore = await resolveAuthSourceFromKeystore(opts, accountName, false);
+  if (fromKeystore) return fromKeystore;
 
   return {
     source: DEFAULT_MNEMONIC,

@@ -772,8 +772,9 @@ async function saveResolve(hash: string) {
       const [production, paseo] = dotliViewUrls(selectedDomain.value);
       toast.success(`Content set. View on dot.li:\n${production}\n${paseo}`);
     }
-  } catch {
+  } catch (error) {
     transaction.value = { hash: zeroHash, status: false };
+    toast.error(error instanceof Error ? error.message : "Failed to set content hash");
   }
 }
 

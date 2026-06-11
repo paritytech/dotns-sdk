@@ -176,6 +176,8 @@ export type ResolvedAuthSource = {
   resolvedFrom: ResolveSource;
   /** The account name that was used */
   account: string;
+  /** Credential used to encrypt local retry secrets for this resolved signer */
+  credential?: string;
 };
 
 export type CommitmentResults = {

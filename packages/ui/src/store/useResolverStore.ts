@@ -1,23 +1,20 @@
 import { defineStore } from "pinia";
 import { namehash, type Hash, type Address, zeroAddress, zeroHash } from "viem";
 import { CID } from "multiformats/cid";
-import { getContract, withContractRecovery, WRITE_TX_DEFAULTS } from "@/composables/useContracts";
+import { getContract, safeRead, WRITE_TX_DEFAULTS } from "@/composables/useContracts";
 import { getChainClient } from "@/composables/useTypedAPI";
 import { useWalletStore } from "./useWalletStore";
-import { batchSubmitAndWatch, type BatchApi, type TxStatus } from "@parity/product-sdk-tx";
-import { mapTxStatus } from "@/lib/txStatus";
+import { batchSubmitAndWatch, type BatchApi } from "@parity/product-sdk-tx";
+import { useContractWrite } from "@/lib/contractWrite";
 import { computeDomainTokenId, normalizeDomainName, ZERO_SUBSTRATE_ADDRESS } from "../utils";
 import type { TextRecord, TransactionResult } from "@/type";
 
 export const useResolverStore = defineStore("useResolverStore", () => {
   const walletStore = useWalletStore();
-
-  function relayStatus(s: TxStatus): void {
-    walletStore.setTransactionStatus(mapTxStatus(s));
-  }
+  const { txOptions, batchOptions, withWrite, submitWrite } = useContractWrite();
 
   async function getText(domain: string, key: string): Promise<string | null> {
-    return withContractRecovery(async () => {
+    return safeRead("[ResolverStore:getText]", null, async () => {
       const resolver = await getContract("@dotns/content-resolver");
       const node = namehash(`${normalizeDomainName(domain)}.dot`);
       const result = await resolver.text!.query(node, key, { origin: ZERO_SUBSTRATE_ADDRESS });
@@ -29,36 +26,19 @@ export const useResolverStore = defineStore("useResolverStore", () => {
       return decoded && decoded !== "" && decoded !== "true" && decoded !== "false"
         ? decoded
         : null;
-    }).catch((error) => {
-      console.warn("[ResolverStore:getText]", error);
-      return null;
     });
   }
 
   async function setText(domain: string, key: string, value: string): Promise<Hash> {
-    await walletStore.ensureSignerReady();
-    try {
+    return withWrite(async () => {
       const resolver = await getContract("@dotns/content-resolver");
       const node = namehash(`${normalizeDomainName(domain)}.dot`);
-      const result = await resolver.setText!.tx(node, key, value, {
-        ...WRITE_TX_DEFAULTS,
-        onStatus: relayStatus,
-      });
-      if (!result.ok) {
-        throw new Error(`setText reverted: ${JSON.stringify(result.dispatchError ?? "unknown")}`);
-      }
-      return result.txHash as Hash;
-    } catch (error) {
-      console.warn("[ResolverStore:setText]", error);
-      throw error;
-    } finally {
-      walletStore.setTransactionStatus("idle");
-    }
+      return submitWrite(resolver.setText!.tx(node, key, value, txOptions()), "Set record");
+    });
   }
 
   async function setContentHash(domain: string, ipfsCid: string): Promise<TransactionResult> {
-    await walletStore.ensureSignerReady();
-    try {
+    return withWrite(async () => {
       const resolver = await getContract("@dotns/content-resolver");
       const node = namehash(`${normalizeDomainName(domain)}.dot`);
 
@@ -69,21 +49,12 @@ export const useResolverStore = defineStore("useResolverStore", () => {
         .join("");
       const contentHash: `0x${string}` = `0xe301${hex}`;
 
-      const result = await resolver.setContenthash!.tx(node, contentHash, {
-        ...WRITE_TX_DEFAULTS,
-        onStatus: relayStatus,
-      });
-      if (!result.ok) {
-        return { hash: zeroHash, status: false };
-      }
-      const hash = result.txHash as Hash;
-      return hash && hash !== zeroHash ? { hash, status: true } : { hash: zeroHash, status: false };
-    } catch (error) {
-      console.warn("[ResolverStore:setContentHash]", error);
-      throw error;
-    } finally {
-      walletStore.setTransactionStatus("idle");
-    }
+      const hash = await submitWrite(
+        resolver.setContenthash!.tx(node, contentHash, txOptions()),
+        "Set content hash",
+      );
+      return { hash, status: true };
+    });
   }
 
   // Multi-record profile updates with one signing prompt: each record is
@@ -95,10 +66,9 @@ export const useResolverStore = defineStore("useResolverStore", () => {
     domain: string,
     records: TextRecord[],
   ): Promise<TransactionResult> {
-    await walletStore.ensureSignerReady();
     const validRecords = records.filter((r) => r.value && r.value.length > 0);
     if (validRecords.length === 0) return { status: false, hash: zeroHash };
-    try {
+    return withWrite(async () => {
       const resolver = await getContract("@dotns/content-resolver");
       const node = namehash(`${normalizeDomainName(domain)}.dot`);
       const calls = await Promise.all(
@@ -110,39 +80,27 @@ export const useResolverStore = defineStore("useResolverStore", () => {
       );
       const chain = await getChainClient();
       const signer = walletStore.getInjected();
-      const result = await batchSubmitAndWatch(
-        calls,
-        chain.assetHub as unknown as BatchApi,
-        signer,
-        { waitFor: WRITE_TX_DEFAULTS.waitFor, onStatus: relayStatus },
+      const hash = await submitWrite(
+        batchSubmitAndWatch(calls, chain.assetHub as unknown as BatchApi, signer, batchOptions()),
+        "Profile update",
       );
-      if (!result.ok) return { hash: zeroHash, status: false };
-      const hash = result.txHash as Hash;
-      return hash && hash !== zeroHash ? { hash, status: true } : { hash: zeroHash, status: false };
-    } catch (error) {
-      console.warn("[ResolverStore:setProfileRecordsMulticall]", error);
-      return { status: false, hash: zeroHash };
-    } finally {
-      walletStore.setTransactionStatus("idle");
-    }
+      return { hash, status: true };
+    });
   }
 
   async function resolveNameToAddress(username: string): Promise<Address | null> {
-    return withContractRecovery(async () => {
+    return safeRead("[ResolverStore:resolveNameToAddress]", null, async () => {
       const resolver = await getContract("@dotns/resolver");
       const node = namehash(`${normalizeDomainName(username)}.dot`);
       const result = await resolver.addressOf!.query(node, { origin: ZERO_SUBSTRATE_ADDRESS });
       if (!result.success) return null;
       const resolved = result.value as Address;
       return !resolved || resolved === zeroAddress ? null : resolved;
-    }).catch((error) => {
-      console.warn("[ResolverStore:resolveNameToAddress]", error);
-      return null;
     });
   }
 
   async function getOwnerOfDomain(domain: string): Promise<Address | null> {
-    return withContractRecovery(async () => {
+    return safeRead("[ResolverStore:getOwnerOfDomain]", null, async () => {
       const registrar = await getContract("@dotns/registrar");
       const tokenId = computeDomainTokenId(normalizeDomainName(domain));
       const availableResult = await registrar.available!.query(tokenId, {
@@ -157,28 +115,22 @@ export const useResolverStore = defineStore("useResolverStore", () => {
       if (!ownerResult.success) return null;
       const owner = ownerResult.value as Address;
       return !owner || owner === zeroAddress ? null : owner;
-    }).catch((error) => {
-      console.warn("[ResolverStore:getOwnerOfDomain]", error);
-      return null;
     });
   }
 
   async function getOwnerOfSubname(fullName: string): Promise<Address | null> {
-    return withContractRecovery(async () => {
+    return safeRead("[ResolverStore:getOwnerOfSubname]", null, async () => {
       const registry = await getContract("@dotns/registry");
       const node = namehash(fullName.endsWith(".dot") ? fullName : `${fullName}.dot`);
       const result = await registry.owner!.query(node, { origin: ZERO_SUBSTRATE_ADDRESS });
       if (!result.success) return null;
       const owner = result.value as Address;
       return !owner || owner === zeroAddress ? null : owner;
-    }).catch((error) => {
-      console.warn("[ResolverStore:getOwnerOfSubname]", error);
-      return null;
     });
   }
 
   async function resolveAddressToName(targetAddress: Address): Promise<string | null> {
-    return withContractRecovery(async () => {
+    return safeRead("[ResolverStore:resolveAddressToName]", null, async () => {
       const reverse = await getContract("@dotns/reverse-resolver");
       const result = await reverse.nameOf!.query(targetAddress, {
         origin: ZERO_SUBSTRATE_ADDRESS,
@@ -186,9 +138,6 @@ export const useResolverStore = defineStore("useResolverStore", () => {
       if (!result.success) return null;
       const name = result.value as string;
       return name && name !== "" ? name : null;
-    }).catch((error) => {
-      console.warn("[ResolverStore:resolveAddressToName]", error);
-      return null;
     });
   }
 

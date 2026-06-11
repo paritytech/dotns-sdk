@@ -10,14 +10,8 @@ import {
   type Hex,
   isAddress,
 } from "viem";
-import {
-  getContract,
-  getProxyContract,
-  withContractRecovery,
-  WRITE_TX_DEFAULTS,
-} from "@/composables/useContracts";
-import type { TxStatus } from "@parity/product-sdk-tx";
-import { mapTxStatus } from "@/lib/txStatus";
+import { getContract, getProxyContract, withContractRecovery } from "@/composables/useContracts";
+import { useContractWrite } from "@/lib/contractWrite";
 import { isValidSubstrateAddress, normalizeDomainName, ZERO_SUBSTRATE_ADDRESS } from "../utils";
 import type { DotnsAvailability } from "@/type";
 import { useResolverStore } from "./useResolverStore";
@@ -25,8 +19,7 @@ import { useWalletStore } from "./useWalletStore";
 
 // Maximum store entries enumerated per page. A user with more than 256 entries
 // would need a paginated read; treat as a soft cap (shared by both stores).
-const LABEL_STORE_PAGE = 256n;
-const USER_STORE_PAGE = 256n;
+const STORE_PAGE_SIZE = 256n;
 
 const ZERO: Address = zeroAddress;
 
@@ -39,51 +32,35 @@ function userStoreKey(value: string): Hash {
 export const useUserStoreManager = defineStore("userStoreManager", () => {
   const walletStore = useWalletStore();
   const resolverStore = useResolverStore();
+  const { txOptions, withWrite, submitWrite } = useContractWrite();
 
   // LabelStore is protocol-deployed when a name is registered and holds the
   // user's labels. UserStore is user-claimed via claimUserStore and holds
   // arbitrary key/value data including Bulletin CIDs; ensureUserStore claims it
   // on first write.
-  async function getLabelStore(evm: Address): Promise<Address> {
+  function readFactoryAddress(method: "getLabelStore" | "getUserStore", evm: Address) {
     return withContractRecovery(async () => {
       const factory = await getContract("@dotns/store-factory");
-      const result = await factory.getLabelStore!.query(evm, { origin: ZERO_SUBSTRATE_ADDRESS });
-      if (!result.success) return ZERO;
-      return (result.value as Address) ?? ZERO;
-    });
-  }
-
-  async function getUserStore(evm: Address): Promise<Address> {
-    return withContractRecovery(async () => {
-      const factory = await getContract("@dotns/store-factory");
-      const result = await factory.getUserStore!.query(evm, { origin: ZERO_SUBSTRATE_ADDRESS });
+      const result = await factory[method]!.query(evm, { origin: ZERO_SUBSTRATE_ADDRESS });
       return result.success ? ((result.value as Address) ?? ZERO) : ZERO;
     });
   }
 
-  function relayStatus(s: TxStatus): void {
-    walletStore.setTransactionStatus(mapTxStatus(s));
+  async function getLabelStore(evm: Address): Promise<Address> {
+    return readFactoryAddress("getLabelStore", evm);
+  }
+
+  async function getUserStore(evm: Address): Promise<Address> {
+    return readFactoryAddress("getUserStore", evm);
   }
 
   // Claim the caller's UserStore (StoreFactory.claimUserStore). Required once
   // before any write to user data; returns the claim transaction hash.
   async function claimUserStore(): Promise<Hash> {
-    await walletStore.ensureSignerReady();
-    try {
+    return withWrite(async () => {
       const factory = await getContract("@dotns/store-factory");
-      const result = await factory.claimUserStore!.tx({
-        ...WRITE_TX_DEFAULTS,
-        onStatus: relayStatus,
-      });
-      if (!result.ok) {
-        throw new Error(
-          `claimUserStore reverted: ${JSON.stringify(result.dispatchError ?? "unknown")}`,
-        );
-      }
-      return result.txHash as Hash;
-    } finally {
-      walletStore.setTransactionStatus("idle");
-    }
+      return submitWrite(factory.claimUserStore!.tx(txOptions()), "Claim store");
+    });
   }
 
   // Resolve the caller's UserStore, claiming it first if they have none. This is
@@ -104,7 +81,7 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
       const labelStore = await getLabelStore(evm);
       if (labelStore === ZERO) return [];
       const store = await getProxyContract("@dotns/label-store", labelStore);
-      const result = await store.getLabels!.query(0n, LABEL_STORE_PAGE, {
+      const result = await store.getLabels!.query(0n, STORE_PAGE_SIZE, {
         origin: ZERO_SUBSTRATE_ADDRESS,
       });
       if (!result.success) return [];
@@ -169,19 +146,10 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
   // they have none. The single canonical write path for user data.
   async function setUserStoreValue(key: Hash, value: Hex): Promise<Hash> {
     const store = await ensureUserStore();
-    try {
+    return withWrite(async () => {
       const proxy = await getProxyContract("@dotns/user-store", store);
-      const result = await proxy.setValue!.tx(key, value, {
-        ...WRITE_TX_DEFAULTS,
-        onStatus: relayStatus,
-      });
-      if (!result.ok) {
-        throw new Error(`setValue reverted: ${JSON.stringify(result.dispatchError ?? "unknown")}`);
-      }
-      return result.txHash as Hash;
-    } finally {
-      walletStore.setTransactionStatus("idle");
-    }
+      return submitWrite(proxy.setValue!.tx(key, value, txOptions()), "Save");
+    });
   }
 
   // Persist a Bulletin CID. Key/value encoding matches the CLI so
@@ -204,7 +172,7 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
       if (store === ZERO) return [];
 
       const proxy = await getProxyContract("@dotns/user-store", store);
-      const keysResult = await proxy.getKeys!.query(0n, USER_STORE_PAGE, {
+      const keysResult = await proxy.getKeys!.query(0n, STORE_PAGE_SIZE, {
         origin: ZERO_SUBSTRATE_ADDRESS,
       });
       if (!keysResult.success) return [];

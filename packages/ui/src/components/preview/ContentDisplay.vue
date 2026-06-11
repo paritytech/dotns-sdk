@@ -320,8 +320,9 @@ watch(() => props.blob, loadTextContent);
             class="w-full h-[50vh] sm:h-[70vh]"
             :class="{ 'bg-white': isHtml }"
             :title="isPdf ? 'PDF Preview' : 'HTML Preview'"
+            :sandbox="isPdf ? 'allow-same-origin' : 'allow-scripts'"
             :allow="isHtml ? 'fullscreen' : undefined"
-            :referrerpolicy="isHtml ? 'no-referrer' : undefined"
+            referrerpolicy="no-referrer"
             @load="onIframeLoad"
             @error="onIframeError"
           />

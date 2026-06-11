@@ -62,7 +62,7 @@ function cleanupHeliaAndExit(code: number): never {
 import { normalizeUploadMaxRetries } from "../../bulletin/uploadRetry";
 import { addAuthOptions } from "./authOptions";
 import { prepareContext } from "../context";
-import { resolveBulletinRpc, resolveDotnsEnvironment } from "../env";
+import { ENV, resolveBulletinRpc, resolveDotnsEnvironment, resolveRpc } from "../env";
 import {
   DEFAULT_CHUNK_SIZE_BYTES,
   DEFAULT_UPLOAD_MAX_RETRIES,
@@ -104,6 +104,44 @@ export function buildDefaultProfileOutputPath(sourcePath: string, fingerprint: s
     "upload-profiles",
     `${timestamp}-${basename}-${fingerprint}.json`,
   );
+}
+
+export function resolveBulletinCacheAssetHubRpc(options: {
+  rpc?: string;
+  env?: string;
+  network?: string;
+  bulletinRpc?: string;
+}): string {
+  const bulletinOverridden = Boolean(
+    (options.bulletinRpc != null && String(options.bulletinRpc).trim().length > 0) ||
+    (process.env[ENV.BULLETIN_RPC] != null &&
+      String(process.env[ENV.BULLETIN_RPC]).trim().length > 0),
+  );
+  const hasExplicitAssetHubRpc = options.rpc != null && String(options.rpc).trim().length > 0;
+  const hasExplicitEnvironment = Boolean(
+    (options.env != null && String(options.env).trim().length > 0) ||
+    (options.network != null && String(options.network).trim().length > 0) ||
+    (process.env[ENV.DOTNS_ENV] != null && String(process.env[ENV.DOTNS_ENV]).trim().length > 0),
+  );
+
+  if (bulletinOverridden && !hasExplicitAssetHubRpc && !hasExplicitEnvironment) {
+    throw new Error(
+      "bulletin upload --cache with a custom Bulletin RPC requires --env, DOTNS_ENV, or --rpc " +
+        "so the on-chain Store write targets the matching DotNS Asset Hub environment.",
+    );
+  }
+
+  if (bulletinOverridden && hasExplicitEnvironment && !hasExplicitAssetHubRpc) {
+    const environment = resolveDotnsEnvironment(options.env ?? options.network);
+    if (!environment.rpc) {
+      throw new Error(
+        `Environment '${environment.id}' has no Asset Hub RPC configured. Set --rpc for the Store write.`,
+      );
+    }
+    return environment.rpc;
+  }
+
+  return resolveRpc(options.rpc, options.env ?? options.network);
 }
 
 export function createUploadProfiler(options: UploadProfilerOptions): UploadProfiler {
@@ -473,7 +511,14 @@ export function attachBulletinCommands(root: Command): void {
           console.log(chalk.gray("  rpc:          ") + chalk.white(bulletinRpc));
           console.log(chalk.gray("  transactions: ") + chalk.white(transactions.toLocaleString()));
           console.log(chalk.gray("  bytes:        ") + chalk.white(formatBytes(bytes)));
-          console.log(chalk.gray("  signer:       ") + chalk.yellow(signerKeyUri));
+          console.log(
+            chalk.gray("  signer:       ") +
+              chalk.yellow(
+                signerKeyUri === DEFAULT_BULLETIN_AUTHORIZER_KEY_URI
+                  ? signerKeyUri
+                  : "(provided via --key-uri)",
+              ),
+          );
         }
 
         await withBulletinHumanOutput(reporterMode, () =>
@@ -987,9 +1032,7 @@ export function attachBulletinCommands(root: Command): void {
             const { getWsProvider } = await import("polkadot-api/ws-provider");
             const { paseo } = await import("@polkadot-api/descriptors");
             const { ReviveClientWrapper } = await import("../../client/polkadotClient");
-            const { resolveRpc } = await import("../env");
-
-            const rpc = resolveRpc(process.env.DOTNS_RPC);
+            const rpc = resolveBulletinCacheAssetHubRpc(mergedOptions);
             const typedApi = createClient(getWsProvider(rpc)).getTypedApi(paseo);
             const clientWrapper = new ReviveClientWrapper(typedApi as any);
             const evmAddress = await clientWrapper.getEvmAddress(context.substrateAddress);

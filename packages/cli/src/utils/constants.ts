@@ -49,6 +49,8 @@ export const DEFAULT_MNEMONIC =
 
 export const DEFAULT_SUDO_KEY_URI = "//Alice";
 
+export const MIN_KEYSTORE_PASSWORD_LENGTH = 6;
+
 // The Bulletin Authorizer that grants storage quota. //Eve is seeded into
 // AllowedAuthorizers on the bulletin testnet and dev runtimes (the same key the
 // Bulletin console faucet signs with). //Alice is sudo and a storage account,

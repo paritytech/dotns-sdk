@@ -49,9 +49,10 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Authentication</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Every command that signs a transaction needs a key. The CLI supports three methods, passed
-        as flags or resolved from environment variables. The encrypted keystore is the recommended
-        approach for local work.
+        Every command that signs a transaction needs an explicit key. The CLI refuses to sign write
+        operations with the shared public dev account; configure one of these methods before
+        registering, transferring, delegating, publishing, or changing records. The encrypted
+        keystore is the recommended approach for local work.
       </p>
       <div class="overflow-x-auto">
         <table class="w-full text-sm border border-dot-border rounded-lg overflow-hidden">
@@ -83,6 +84,38 @@
         <span class="font-mono">dotns auth set</span> to store a mnemonic or key-uri, then the CLI
         picks it up automatically on every command. No need to pass
         <span class="font-mono">-m</span> or <span class="font-mono">-k</span> each time.
+      </DocCallout>
+      <DocCallout variant="warning" title="Write commands require explicit auth">
+        Read-only commands can run without configured credentials. Write commands fail closed unless
+        you provide <span class="font-mono">DOTNS_MNEMONIC</span>,
+        <span class="font-mono">DOTNS_KEY_URI</span>, or an encrypted keystore account.
+      </DocCallout>
+      <DocCallout variant="tip" title="Auth precedence">
+        Command-line <span class="font-mono">--mnemonic</span> and
+        <span class="font-mono">--key-uri</span> win first. When you pass
+        <span class="font-mono">--account</span>, <span class="font-mono">--keystore-path</span>, or
+        <span class="font-mono">--password</span>, the CLI uses the encrypted keystore and does not
+        let ambient env secrets shadow the selected account.
+      </DocCallout>
+    </div>
+
+    <div class="space-y-4">
+      <h2 class="text-xl font-semibold text-dot-text-primary">Resumable Registrations</h2>
+      <p class="text-dot-text-secondary leading-relaxed">
+        Registration uses a commit and reveal flow. If the terminal closes after the commit but
+        before the reveal, the CLI stores a local encrypted commitment record so you can finish or
+        discard it later. The reveal secret is encrypted with the keystore password, CLI mnemonic,
+        env mnemonic, CLI key URI, or env key URI used for the registration.
+      </p>
+      <DocCodeBlock
+        :code="resumableRegistrationExamples"
+        lang="bash"
+        filename="registration cache"
+      />
+      <DocCallout variant="warning" title="Bulk clear">
+        Without a name, <span class="font-mono">register clear --register</span> and
+        <span class="font-mono">register clear --discard</span> apply to every pending commitment
+        for the selected account and environment. Pass a name to affect only that commitment.
       </DocCallout>
     </div>
 
@@ -227,7 +260,7 @@ const authMethods = [
     flag: "--account <name>",
     env: "DOTNS_KEYSTORE_PATH",
     description:
-      "Encrypted keystore file managed by dotns auth. The CLI decrypts it at runtime. Recommended for local development.",
+      "Encrypted keystore file managed by dotns auth. New passwords must be at least 6 characters. Recommended for local development.",
   },
   {
     name: "Mnemonic",
@@ -352,6 +385,15 @@ const commandReference: CmdGroup[] = [
             flag: "--to <destination>",
             description: "Transfer destination (EVM address, SS58, or domain label)",
           },
+        ],
+      },
+      {
+        usage: "register clear [name]",
+        description:
+          "Review cached commitments. Without a name, --register and --discard apply to every pending commitment; with a name, they apply only to that commitment.",
+        options: [
+          { flag: "--register", description: "Complete pending cached commitment(s)" },
+          { flag: "--discard", description: "Delete pending cached commitment(s)" },
         ],
       },
       {
@@ -486,7 +528,7 @@ const commandReference: CmdGroup[] = [
           {
             flag: "--cache",
             description:
-              "Write the uploaded CID to the user's on-chain Store contract after upload",
+              "Write the uploaded CID to the user's on-chain Store on the selected DotNS Asset Hub environment. Custom Bulletin RPCs require a matching --env, DOTNS_ENV, or --rpc; env-based targeting ignores ambient DOTNS_RPC unless --rpc is passed.",
           },
           {
             flag: "--chunk-size <bytes>",
@@ -652,6 +694,20 @@ dotns register domain --name myname
 # Key URI for dev/test
 dotns lookup name alice -k "//Alice"`;
 
+const resumableRegistrationExamples = `# Resume the most recent interrupted registration
+dotns register retry --account default
+
+# Resume a specific cached commitment
+dotns register retry coolname42 --account default
+
+# Review cached commitments
+dotns register list
+dotns register clear --account default
+
+# Complete or discard one cached commitment
+dotns register clear coolname42 --register --account default
+dotns register clear coolname42 --discard`;
+
 const quickReference = `# Register a new .dot name
 dotns register domain --name myname
 
@@ -687,6 +743,9 @@ dotns bulletin upload ./dist --concurrency 32
 
 # Upload and cache the CID in your on-chain Store contract
 dotns bulletin upload ./dist --cache
+
+# Cache with explicit matching Bulletin and Asset Hub targets
+dotns bulletin upload ./dist --cache --env paseo-v2 --bulletin-rpc wss://... --rpc wss://...
 
 # Resume an interrupted upload
 dotns bulletin upload ./dist --resume
