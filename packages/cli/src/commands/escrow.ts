@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import type { Ora } from "ora";
-import { type Address } from "viem";
+import { getAddress, type Address } from "viem";
 import type { PolkadotSigner } from "polkadot-api";
 import type { ReviveClientWrapper } from "../client/polkadotClient";
 import { CONTRACTS, DOTNS_NAME_ESCROW_ABI, DOTNS_REGISTRAR_ABI } from "../utils/constants";
@@ -59,15 +59,14 @@ type RawRefundEntry = {
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as Address;
 
-/// Reads the current release position for a name. Returns null when the slot is empty.
-export async function viewEscrowPosition(
+/// Reads one release position by name (no spinner). Returns null when the slot is empty.
+async function readPositionForName(
   clientWrapper: ReviveClientWrapper,
   originSubstrateAddress: string,
-  label: string,
-  spinner: Ora,
+  name: string,
 ): Promise<EscrowPositionView | null> {
+  const label = name.replace(/\.dot$/, "");
   const tokenId = computeDomainTokenId(label);
-  spinner.start(`Reading escrow position for ${chalk.cyan(label + ".dot")}`);
 
   const raw = await performContractCall<RawReleasePosition>(
     clientWrapper,
@@ -79,11 +78,8 @@ export async function viewEscrowPosition(
   );
 
   if (raw.recipient === ZERO_ADDRESS && raw.amount === 0n && !raw.released) {
-    spinner.succeed(`No escrow position for ${chalk.cyan(label + ".dot")}`);
     return null;
   }
-
-  spinner.succeed(`Position for ${chalk.cyan(label + ".dot")}`);
 
   return {
     domain: label,
@@ -95,6 +91,137 @@ export async function viewEscrowPosition(
     released: raw.released,
     claimed: raw.claimed,
   };
+}
+
+/// Reads the current release position for a name. Returns null when the slot is empty.
+export async function viewEscrowPosition(
+  clientWrapper: ReviveClientWrapper,
+  originSubstrateAddress: string,
+  label: string,
+  spinner: Ora,
+): Promise<EscrowPositionView | null> {
+  spinner.start(`Reading escrow position for ${chalk.cyan(label + ".dot")}`);
+  const position = await readPositionForName(clientWrapper, originSubstrateAddress, label);
+  spinner.succeed(
+    position === null
+      ? `No escrow position for ${chalk.cyan(label + ".dot")}`
+      : `Position for ${chalk.cyan(label + ".dot")}`,
+  );
+  return position;
+}
+
+/// All release positions belonging to `recipient`, across the names they hold. Labels
+/// are mirror-on-transfer and never deleted, so a released name still resolves through
+/// the caller's own label set; the recipient filter drops names transferred away.
+export async function listAccountPositions(
+  clientWrapper: ReviveClientWrapper,
+  originSubstrateAddress: string,
+  recipient: Address,
+  names: string[],
+  spinner: Ora,
+): Promise<EscrowPositionView[]> {
+  spinner.start(`Reading escrow positions for ${chalk.white(recipient)}`);
+  const me = getAddress(recipient);
+
+  const positions: EscrowPositionView[] = [];
+  for (const name of names) {
+    const position = await readPositionForName(clientWrapper, originSubstrateAddress, name).catch(
+      () => null,
+    );
+    if (position !== null && getAddress(position.recipient) === me) {
+      positions.push(position);
+    }
+  }
+
+  spinner.succeed(`Found ${positions.length} position(s)`);
+  return positions;
+}
+
+/// Total still locked across positions. Withdrawn positions carry amount 0 (the contract
+/// zeroes it on withdraw), so they fall out of the sum naturally.
+export function totalEscrowAmount(positions: readonly { amount: bigint }[]): bigint {
+  return positions.reduce((sum, position) => sum + position.amount, 0n);
+}
+
+/// Seconds left on a released position's cooldown before it becomes withdrawable.
+export function cooldownRemainingSeconds(
+  position: Pick<EscrowPositionView, "withdrawAvailableAt">,
+  nowSeconds: bigint,
+): bigint {
+  const remaining = position.withdrawAvailableAt - nowSeconds;
+  return remaining > 0n ? remaining : 0n;
+}
+
+export function formatCooldown(seconds: bigint): string {
+  if (seconds <= 0n) return "0s";
+  const total = Number(seconds);
+  const minutes = Math.floor(total / 60);
+  const rest = total % 60;
+  return minutes > 0 ? `${minutes}m ${rest}s` : `${rest}s`;
+}
+
+/// Plain status text for a position, embedding the live cooldown countdown while a
+/// released name waits out its cooldown.
+export function formatPositionStatus(position: EscrowPositionView, nowSeconds: bigint): string {
+  if (position.claimed) return "claimed";
+  if (!position.released) return "held";
+  const remaining = cooldownRemainingSeconds(position, nowSeconds);
+  return remaining > 0n ? `cooldown ${formatCooldown(remaining)}` : "claimable";
+}
+
+function colorPositionStatus(status: string): string {
+  if (status === "claimable") return chalk.green(status);
+  if (status.startsWith("cooldown")) return chalk.yellow(status);
+  if (status === "held") return chalk.cyan(status);
+  return chalk.gray(status);
+}
+
+/// Renders positions as an aligned NAME / DEPOSIT / STATUS table. Empty input yields no
+/// lines so the caller can print its own "no positions" message.
+export function formatPositionsTable(
+  positions: readonly EscrowPositionView[],
+  nowSeconds: bigint,
+): string[] {
+  if (positions.length === 0) return [];
+
+  const rows = positions.map((position) => ({
+    name: `${position.domain}.dot`,
+    deposit: `${formatWeiAsEther(position.amount)} PAS`,
+    status: formatPositionStatus(position, nowSeconds),
+  }));
+  const nameWidth = Math.max("NAME".length, ...rows.map((row) => row.name.length));
+  const depositWidth = Math.max("DEPOSIT".length, ...rows.map((row) => row.deposit.length));
+
+  const header = `${chalk.bold("NAME".padEnd(nameWidth))}  ${chalk.bold("DEPOSIT".padEnd(depositWidth))}  ${chalk.bold("STATUS")}`;
+  return [
+    header,
+    ...rows.map(
+      (row) =>
+        `${chalk.cyan(row.name.padEnd(nameWidth))}  ${chalk.green(row.deposit.padEnd(depositWidth))}  ${colorPositionStatus(row.status)}`,
+    ),
+  ];
+}
+
+/// Reads the caller's pull-payment ledger balance (withdrawn deposits plus
+/// registration-overpayment refunds). This is what `claimWithdrawal` drains and is
+/// independent of any open release position.
+export async function getPendingWithdrawal(
+  clientWrapper: ReviveClientWrapper,
+  originSubstrateAddress: string,
+  recipient: Address,
+  spinner: Ora,
+): Promise<bigint> {
+  spinner.start(`Reading pull-payment balance for ${chalk.white(recipient)}`);
+  const balance = await performContractCall<bigint>(
+    clientWrapper,
+    originSubstrateAddress,
+    CONTRACTS.DOTNS_NAME_ESCROW,
+    DOTNS_NAME_ESCROW_ABI,
+    "pendingWithdrawal",
+    [recipient],
+  );
+  spinner.succeed(`Pull-payment balance: ${chalk.green(formatWeiAsEther(balance))} PAS`);
+  return balance;
 }
 
 /// Approves the escrow on the registrar then calls `release`. The caller must own the NFT.

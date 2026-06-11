@@ -9,6 +9,7 @@ import Button from "@/components/ui/Button.vue";
 import TransactionStatus from "@/components/TransactionStatus.vue";
 import UploadApprovalStepper from "./UploadApprovalStepper.vue";
 import { useUserStoreManager } from "@/store/useUserStoreManager";
+import { useCopyToClipboard } from "@/composables";
 import { encodeForPreview } from "@/lib/preview";
 import { setPreviewContent } from "@/lib/previewCache";
 import type { TransactionResult } from "@/type";
@@ -23,6 +24,7 @@ const RELEASES_URL = "https://github.com/paritytech/dotns-sdk/releases";
 
 const router = useRouter();
 const toast = useToast();
+const { copy } = useCopyToClipboard();
 const bulletinStore = useBulletinStore();
 const walletStore = useWalletStore();
 const userStoreManager = useUserStoreManager();
@@ -110,15 +112,11 @@ const authorizeCommand = computed(() => {
 });
 
 async function copyAuthorizeCommand(): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(authorizeCommand.value);
-    copiedAuthorize.value = true;
-    setTimeout(() => {
-      copiedAuthorize.value = false;
-    }, 2000);
-  } catch (error) {
-    console.warn("[FileUpload] Clipboard write failed:", error);
-  }
+  if (!(await copy(authorizeCommand.value))) return;
+  copiedAuthorize.value = true;
+  setTimeout(() => {
+    copiedAuthorize.value = false;
+  }, 2000);
 }
 
 const isWalletConnected = computed(() => walletStore.isConnected);

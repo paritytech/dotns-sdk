@@ -13,10 +13,29 @@ test("escrow help shows the subcommand description and subcommands", async () =>
 
   expect(result.combinedOutput).toContain("Manage NoStatus deposits");
   expect(result.combinedOutput).toContain("status");
+  expect(result.combinedOutput).toContain("balance");
+  expect(result.combinedOutput).toContain("positions");
   expect(result.combinedOutput).toContain("release");
   expect(result.combinedOutput).toContain("withdraw");
   expect(result.combinedOutput).toContain("claim-withdrawal");
   expect(result.combinedOutput).toContain("refunds");
+});
+
+test("escrow balance help describes the claimable pull-payment balance", async () => {
+  const result = await runDotnsCli(["escrow", "balance", "--help"]);
+  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
+
+  expect(result.combinedOutput).toContain("claimable pull-payment balance");
+  expect(result.combinedOutput).toContain("--recipient");
+});
+
+test("escrow positions help describes the list and total", async () => {
+  const result = await runDotnsCli(["escrow", "positions", "--help"]);
+  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
+
+  expect(result.combinedOutput).toContain("List all escrow positions");
+  expect(result.combinedOutput).toContain("total");
+  expect(result.combinedOutput).toContain("--recipient");
 });
 
 test("escrow status help describes the read-only position lookup", async () => {

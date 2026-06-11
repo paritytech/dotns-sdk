@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { zeroAddress, type Address, type Hash } from "viem";
+import { getAddress, zeroAddress, type Address, type Hash } from "viem";
 import { getContract, getEscrowContract, withContractRecovery } from "@/composables/useContracts";
 import { NAME_ESCROW_ADDRESS } from "@/lib/abis/nameEscrow";
 import { useContractWrite } from "@/lib/contractWrite";
@@ -77,6 +77,25 @@ export const useEscrowStore = defineStore("useEscrowStore", () => {
     });
   }
 
+  // All escrow positions belonging to `recipient`, across the names they hold.
+  // Labels are mirror-on-transfer and never deleted, so a released name (now held
+  // by the escrow contract) still resolves through the caller's own label set;
+  // the recipient filter drops names transferred away whose position rebound to
+  // someone else.
+  async function listAccountPositions(
+    recipient: Address,
+    domains: string[],
+  ): Promise<EscrowPosition[]> {
+    const me = getAddress(recipient);
+    const results = await Promise.all(
+      domains.map((domain) => getPosition(domain).catch(() => null)),
+    );
+    return results.filter(
+      (position): position is EscrowPosition =>
+        position !== null && getAddress(position.recipient) === me,
+    );
+  }
+
   // pendingRefunds returns ids and entries together, so one read covers the page.
   async function listRefunds(
     recipient: Address,
@@ -126,19 +145,15 @@ export const useEscrowStore = defineStore("useEscrowStore", () => {
     });
   }
 
-  async function withdraw(domain: string): Promise<Hash> {
-    return withWrite(async () =>
-      submitWrite(
-        (await getEscrowContract()).withdraw!.tx(tokenIdFor(domain), txOptions()),
-        "Withdraw",
-      ),
-    );
-  }
-
-  async function claimWithdrawal(): Promise<Hash> {
-    return withWrite(async () =>
-      submitWrite((await getEscrowContract()).claimWithdrawal!.tx(txOptions()), "Claim withdrawal"),
-    );
+  // Per-name claim: withdraw the released deposit onto the pull-payment ledger,
+  // then drain it to the caller in the same signing session. withdraw requires
+  // the cooldown to have elapsed; callers gate on the withdrawable state.
+  async function withdrawAndClaim(domain: string): Promise<Hash> {
+    return withWrite(async () => {
+      const escrow = await getEscrowContract();
+      await submitWrite(escrow.withdraw!.tx(tokenIdFor(domain), txOptions()), "Withdraw");
+      return submitWrite(escrow.claimWithdrawal!.tx(txOptions()), "Claim");
+    });
   }
 
   async function claimRefund(entryId: bigint): Promise<Hash> {
@@ -160,11 +175,10 @@ export const useEscrowStore = defineStore("useEscrowStore", () => {
   }
 
   return {
-    getPosition,
+    listAccountPositions,
     listRefunds,
     release,
-    withdraw,
-    claimWithdrawal,
+    withdrawAndClaim,
     claimRefund,
     claimRefundsBatch,
   };

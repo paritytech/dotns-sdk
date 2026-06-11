@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, watch } from "vue";
+import { useCopyToClipboard } from "@/composables";
 
 const MAX_TEXT_PREVIEW_BYTES = 1 * 1024 * 1024;
 
@@ -12,6 +13,7 @@ const props = defineProps<{
   previewUnavailableReason?: string | null;
 }>();
 
+const { copy } = useCopyToClipboard();
 const textContent = ref<string | null>(null);
 const copiedLink = ref(false);
 const copiedCid = ref(false);
@@ -62,7 +64,7 @@ function handleDownload() {
 }
 
 async function copyToClipboard(text: string, target: "link" | "cid") {
-  await navigator.clipboard.writeText(text);
+  if (!(await copy(text))) return;
   if (target === "link") {
     copiedLink.value = true;
     setTimeout(() => (copiedLink.value = false), 2000);

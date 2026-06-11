@@ -58,6 +58,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from "vue";
+import { useCopyToClipboard } from "@/composables";
 
 interface Props {
   code: string;
@@ -69,6 +70,7 @@ const props = withDefaults(defineProps<Props>(), {
   lang: "typescript",
 });
 
+const { copy } = useCopyToClipboard();
 const highlighted = ref<string>("");
 const copied = ref(false);
 
@@ -87,8 +89,8 @@ async function highlight() {
 onMounted(highlight);
 watch(() => props.code, highlight);
 
-function copyCode() {
-  navigator.clipboard.writeText(props.code);
+async function copyCode() {
+  if (!(await copy(props.code))) return;
   copied.value = true;
   setTimeout(() => {
     copied.value = false;

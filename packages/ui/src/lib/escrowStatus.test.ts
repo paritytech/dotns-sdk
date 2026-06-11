@@ -1,7 +1,50 @@
 import { describe, it, expect } from "bun:test";
-import { isWithdrawable, positionStatusLabel, isRefundClaimable } from "./escrowStatus";
+import {
+  isWithdrawable,
+  positionStatusLabel,
+  isRefundClaimable,
+  totalEscrowAmount,
+  cooldownRemainingSeconds,
+  formatCooldown,
+} from "./escrowStatus";
 
 const NOW = 1_000n;
+
+describe("totalEscrowAmount", () => {
+  it("is zero for no positions", () => {
+    expect(totalEscrowAmount([])).toBe(0n);
+  });
+
+  it("sums position amounts", () => {
+    expect(totalEscrowAmount([{ amount: 3n }, { amount: 7n }, { amount: 0n }])).toBe(10n);
+  });
+});
+
+describe("cooldownRemainingSeconds", () => {
+  const base = { amount: 1n, released: true, claimed: false };
+
+  it("returns the seconds left before the cooldown elapses", () => {
+    expect(cooldownRemainingSeconds({ ...base, withdrawAvailableAt: NOW + 45n }, NOW)).toBe(45n);
+  });
+
+  it("clamps to zero once the cooldown has passed", () => {
+    expect(cooldownRemainingSeconds({ ...base, withdrawAvailableAt: NOW - 10n }, NOW)).toBe(0n);
+  });
+});
+
+describe("formatCooldown", () => {
+  it("formats sub-minute durations as seconds", () => {
+    expect(formatCooldown(45n)).toBe("45s");
+  });
+
+  it("formats longer durations as minutes and seconds", () => {
+    expect(formatCooldown(90n)).toBe("1m 30s");
+  });
+
+  it("renders zero for elapsed cooldowns", () => {
+    expect(formatCooldown(0n)).toBe("0s");
+  });
+});
 
 describe("isWithdrawable", () => {
   it("is false while the name is still held", () => {

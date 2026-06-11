@@ -1,5 +1,23 @@
 import { describe, it, expect } from "bun:test";
-import { isCanonicalLabel, isSameDotName } from "./domain";
+import { isCanonicalLabel, isSameDotName, isRegistrableDotName } from "./domain";
+
+describe("isRegistrableDotName", () => {
+  it("accepts second-level names with or without the suffix", () => {
+    expect(isRegistrableDotName("alice")).toBe(true);
+    expect(isRegistrableDotName("alice.dot")).toBe(true);
+    expect(isRegistrableDotName(" Alice.DOT ")).toBe(true);
+  });
+
+  it("rejects subdomains", () => {
+    expect(isRegistrableDotName("sub.alice.dot")).toBe(false);
+    expect(isRegistrableDotName("a.b.c.dot")).toBe(false);
+  });
+
+  it("rejects empty input", () => {
+    expect(isRegistrableDotName("")).toBe(false);
+    expect(isRegistrableDotName(".dot")).toBe(false);
+  });
+});
 
 describe("isSameDotName", () => {
   it("matches names regardless of the .dot suffix", () => {

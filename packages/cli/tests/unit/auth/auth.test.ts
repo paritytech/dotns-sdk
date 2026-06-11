@@ -13,7 +13,7 @@ import {
   createKeystorePathsForTest,
 } from "../../_helpers/testPaths";
 import { DEFAULT_MNEMONIC } from "../../../src/utils/constants";
-import { ENV } from "../../../src/cli/env";
+import { ENV, resolveKeystorePath } from "../../../src/cli/env";
 import { resolveAuthSource } from "../../../src/commands/auth";
 
 const createdTestTemporaryDirectoryPaths: string[] = [];
@@ -244,6 +244,24 @@ test("resolveAuthSource prefers selected keystore account over ambient env mnemo
     expect(resolved.source).toBe(ALICE_KEY_URI);
     expect(resolved.isKeyUri).toBe(true);
     expect(resolved.credential).toBe(TEST_PASSWORD);
+  } finally {
+    if (previousMnemonic === undefined) delete process.env[ENV.MNEMONIC];
+    else process.env[ENV.MNEMONIC] = previousMnemonic;
+  }
+});
+
+test("resolveAuthSource resolves from env mnemonic when only the default keystore path is given", async () => {
+  // Mirrors `dotns account address` in CI: credentials arrive via DOTNS_MNEMONIC with
+  // no --account/--password, and the command passes the pre-resolved default keystore
+  // path. That default path must not force keystore mode or demand a keystore on disk.
+  const previousMnemonic = process.env[ENV.MNEMONIC];
+  process.env[ENV.MNEMONIC] = DEFAULT_MNEMONIC;
+  try {
+    const resolved = await resolveAuthSource({ keystorePath: resolveKeystorePath(undefined) });
+
+    expect(resolved.resolvedFrom).toBe("env");
+    expect(resolved.source).toBe(DEFAULT_MNEMONIC);
+    expect(resolved.isKeyUri).toBe(false);
   } finally {
     if (previousMnemonic === undefined) delete process.env[ENV.MNEMONIC];
     else process.env[ENV.MNEMONIC] = previousMnemonic;

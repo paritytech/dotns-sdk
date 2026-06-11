@@ -17,13 +17,16 @@
           <p class="text-dot-text-tertiary text-xs">
             Release a name to start its cooldown, withdraw the deposit, then claim your balance.
           </p>
+          <p class="text-dot-text-secondary text-xs mt-1">
+            Total in escrow:
+            <span class="text-dot-text-primary font-medium">
+              {{ formatWeiAsEther(totalInEscrow) }} PAS
+            </span>
+          </p>
         </div>
-        <div class="flex gap-2">
+        <div class="flex items-center gap-2">
           <Button size="sm" variant="secondary" :disabled="isLoadingPositions" @click="refresh">
             {{ isLoadingPositions ? "Refreshing..." : "Refresh" }}
-          </Button>
-          <Button size="sm" :disabled="busyId === 'withdrawal'" @click="onClaimWithdrawal">
-            {{ busyId === "withdrawal" ? "Claiming..." : "Claim balance" }}
           </Button>
         </div>
       </div>
@@ -103,13 +106,17 @@
                   >
                     {{ busyId === p.domain ? "Releasing..." : "Release" }}
                   </Button>
+                  <span v-else-if="p.claimed" class="text-xs text-dot-text-tertiary">Claimed</span>
+                  <span v-else-if="!isWithdrawable(p)" class="text-xs text-dot-text-tertiary">
+                    Claimable in {{ cooldownText(p) }}
+                  </span>
                   <Button
                     v-else
                     size="sm"
-                    :disabled="busyId === p.domain || !isWithdrawable(p)"
-                    @click="onWithdraw(p.domain)"
+                    :disabled="busyId === p.domain"
+                    @click="onClaim(p.domain)"
                   >
-                    {{ busyId === p.domain ? "Withdrawing..." : "Withdraw" }}
+                    {{ busyId === p.domain ? "Claiming..." : "Claim" }}
                   </Button>
                 </td>
               </tr>
@@ -228,24 +235,29 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { useToast } from "vue-toastification";
 import Button from "@/components/ui/Button.vue";
 import Icon from "@/components/ui/Icon.vue";
 import TablePagination from "@/components/ui/TablePagination.vue";
 import { useWalletStore } from "@/store/useWalletStore";
 import { useEscrowStore, type EscrowPosition, type RefundEntry } from "@/store/useEscrowStore";
+import { useUserStoreManager } from "@/store/useUserStoreManager";
+import { type Address } from "viem";
 import { formatWeiAsEther } from "@/utils";
+import { isRegistrableDotName } from "@/lib/domain";
 import {
   isWithdrawable as isWithdrawableAt,
   positionStatusLabel as positionStatusLabelAt,
   isRefundClaimable as isRefundClaimableAt,
+  cooldownRemainingSeconds,
+  formatCooldown,
+  totalEscrowAmount,
 } from "@/lib/escrowStatus";
-
-const props = defineProps<{ tlds: string[] }>();
 
 const wallet = useWalletStore();
 const escrow = useEscrowStore();
+const userStore = useUserStoreManager();
 const toast = useToast();
 
 const isLoadingPositions = ref(false);
@@ -257,16 +269,33 @@ const refundTotal = ref<bigint>(0n);
 const refundPage = ref(1);
 const refundPageSize = ref(10);
 
-function nowSeconds(): bigint {
-  return BigInt(Math.floor(Date.now() / 1000));
+// Ticks every second so cooldown countdowns and status labels stay live.
+const now = ref(0n);
+let cooldownTimer: ReturnType<typeof setInterval> | undefined;
+
+function syncNow(): void {
+  now.value = BigInt(Math.floor(Date.now() / 1000));
 }
 
+onMounted(() => {
+  syncNow();
+  cooldownTimer = setInterval(syncNow, 1000);
+});
+
+onUnmounted(() => {
+  if (cooldownTimer) clearInterval(cooldownTimer);
+});
+
 function isWithdrawable(position: EscrowPosition): boolean {
-  return isWithdrawableAt(position, nowSeconds());
+  return isWithdrawableAt(position, now.value);
 }
 
 function positionStatusLabel(position: EscrowPosition): string {
-  return positionStatusLabelAt(position, nowSeconds());
+  return positionStatusLabelAt(position, now.value);
+}
+
+function cooldownText(position: EscrowPosition): string {
+  return formatCooldown(cooldownRemainingSeconds(position, now.value));
 }
 
 function positionStatusClass(position: EscrowPosition): string {
@@ -281,7 +310,7 @@ function refundKey(entry: RefundEntry): string {
 }
 
 function isRefundClaimable(entry: RefundEntry): boolean {
-  return isRefundClaimableAt(entry, nowSeconds());
+  return isRefundClaimableAt(entry, now.value);
 }
 
 function refundStatusLabel(entry: RefundEntry): string {
@@ -296,13 +325,21 @@ const claimableEntryIds = computed(() =>
   refunds.value.filter(isRefundClaimable).map((entry) => entry.entryId),
 );
 
+const totalInEscrow = computed(() => totalEscrowAmount(positions.value));
+
 async function loadPositions(): Promise<void> {
+  const recipient = wallet.evmAddress as Address | undefined;
+  if (!recipient) {
+    positions.value = [];
+    return;
+  }
   isLoadingPositions.value = true;
   try {
-    const results = await Promise.all(
-      props.tlds.map((name) => escrow.getPosition(name).catch(() => null)),
+    const names = await userStore.getSubdomainsForAddress(recipient);
+    positions.value = await escrow.listAccountPositions(
+      recipient,
+      names.filter(isRegistrableDotName),
     );
-    positions.value = results.filter((position): position is EscrowPosition => position !== null);
   } finally {
     isLoadingPositions.value = false;
   }
@@ -328,6 +365,7 @@ async function loadRefunds(): Promise<void> {
 
 async function refresh(): Promise<void> {
   if (!wallet.isConnected) return;
+  syncNow();
   try {
     await Promise.all([loadPositions(), loadRefunds()]);
   } catch (error) {
@@ -359,16 +397,8 @@ function onRelease(domain: string): void {
   void runAction(domain, () => escrow.release(domain), "Name released into escrow.");
 }
 
-function onWithdraw(domain: string): void {
-  void runAction(
-    domain,
-    () => escrow.withdraw(domain),
-    "Withdrawn. Claim your balance to receive funds.",
-  );
-}
-
-function onClaimWithdrawal(): void {
-  void runAction("withdrawal", () => escrow.claimWithdrawal(), "Balance claimed.");
+function onClaim(domain: string): void {
+  void runAction(domain, () => escrow.withdrawAndClaim(domain), "Deposit claimed.");
 }
 
 function onClaimRefund(entryId: bigint): void {
@@ -381,6 +411,6 @@ function onClaimBatch(): void {
   void runAction("batch", () => escrow.claimRefundsBatch(ids), "Refunds claimed.");
 }
 
-watch([() => props.tlds, () => wallet.evmAddress], refresh, { immediate: true });
+watch(() => wallet.evmAddress, refresh, { immediate: true });
 watch([refundPage, refundPageSize], loadRefunds);
 </script>

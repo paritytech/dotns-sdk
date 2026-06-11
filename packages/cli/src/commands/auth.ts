@@ -66,10 +66,15 @@ function resolveAuthSourceFromEnv(account: string): ResolvedAuthSource | undefin
   return undefined;
 }
 
+function isExplicitKeystorePath(keystorePath: string | undefined): boolean {
+  if (keystorePath == null || keystorePath.trim().length === 0) return false;
+  return resolveKeystorePath(keystorePath) !== resolveKeystorePath(undefined);
+}
+
 function hasKeystoreSelectionHint(opts: AuthSource): boolean {
   return Boolean(
     (opts.account != null && String(opts.account).trim().length > 0) ||
-    (opts.keystorePath != null && String(opts.keystorePath).trim().length > 0) ||
+    isExplicitKeystorePath(opts.keystorePath) ||
     (opts.password != null && String(opts.password).trim().length > 0),
   );
 }

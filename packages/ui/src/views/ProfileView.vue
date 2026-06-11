@@ -2,6 +2,15 @@
   <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16 font-sans text-dot-text-primary">
     <div class="mb-8 text-center">
       <h1 class="text-4xl font-serif font-extrabold text-dot-text-primary mb-4">Profile</h1>
+      <button
+        v-if="wallet.substrateAddress"
+        type="button"
+        class="mx-auto block max-w-full font-mono text-sm text-dot-text-secondary hover:text-dot-accent transition-colors break-all cursor-pointer"
+        :title="`Copy ${wallet.substrateAddress}`"
+        @click="copyAddress"
+      >
+        {{ wallet.substrateAddress }}
+      </button>
     </div>
 
     <div class="mb-8 flex border-b border-dot-border">
@@ -511,7 +520,7 @@
       </div>
 
       <div v-else key="escrow">
-        <EscrowTab :tlds="tlds" />
+        <EscrowTab />
       </div>
     </Transition>
 
@@ -571,7 +580,12 @@ import { useUserStoreManager } from "@/store/useUserStoreManager";
 import { useDomainStore } from "@/store/useDomainStore";
 import { PopStatusLabels } from "@/type";
 import { popStatusBadgeClass } from "@/lib/uiHelpers";
-import { useTooltip, useTooltipManager, useMulticallOwnership } from "@/composables";
+import {
+  useTooltip,
+  useTooltipManager,
+  useMulticallOwnership,
+  useCopyToClipboard,
+} from "@/composables";
 import Icon from "@/components/ui/Icon.vue";
 import Button from "@/components/ui/Button.vue";
 import TablePagination from "@/components/ui/TablePagination.vue";
@@ -579,6 +593,7 @@ import EscrowTab from "../components/profile/EscrowTab.vue";
 import { encodeForPreview } from "@/lib/preview";
 
 const wallet = useWalletStore();
+const { copy } = useCopyToClipboard();
 const isLoading = ref(true);
 const allDomains = ref<MyDomain[]>([]);
 // The account's reverse record: the one name that resolves back to it, shown as
@@ -615,11 +630,15 @@ const paginatedUploads = computed(() => {
 });
 
 async function copyCid(cid: string) {
-  await navigator.clipboard.writeText(cid);
+  if (!(await copy(cid))) return;
   cidCopied.value = cid;
   setTimeout(() => {
     if (cidCopied.value === cid) cidCopied.value = null;
   }, 2000);
+}
+
+function copyAddress(): void {
+  if (wallet.substrateAddress) void copy(wallet.substrateAddress, "Address copied");
 }
 
 function isValidCid(value: string): boolean {
