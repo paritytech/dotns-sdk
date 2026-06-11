@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import FileUpload from "./FileUpload.vue";
+import { useCopyToClipboard } from "@/composables";
+
+const { copy } = useCopyToClipboard();
 const activeTab = ref<"file" | "folder">("file");
 const copiedCommand = ref<string | null>(null);
 const selectedPm = ref<"npm" | "yarn" | "bun-mac" | "bun-win">("npm");
@@ -34,15 +37,11 @@ function getCommand(key: CommandKey): string {
 }
 
 async function copyToClipboard(key: CommandKey) {
-  try {
-    await navigator.clipboard.writeText(getCommand(key));
-    copiedCommand.value = key;
-    setTimeout(() => {
-      copiedCommand.value = null;
-    }, 2000);
-  } catch {
-    console.error("Failed to copy");
-  }
+  if (!(await copy(getCommand(key)))) return;
+  copiedCommand.value = key;
+  setTimeout(() => {
+    copiedCommand.value = null;
+  }, 2000);
 }
 
 function handleUploadComplete() {}

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { useCopyToClipboard } from "@/composables";
 
 defineProps<{
   message: string;
@@ -10,11 +11,12 @@ const emit = defineEmits<{
   retry: [];
 }>();
 
+const { copy } = useCopyToClipboard();
 const copiedCid = ref(false);
 const retrying = ref(false);
 
 async function copyCid(text: string) {
-  await navigator.clipboard.writeText(text);
+  if (!(await copy(text))) return;
   copiedCid.value = true;
   setTimeout(() => (copiedCid.value = false), 2000);
 }
