@@ -25,6 +25,13 @@ export function isRefundClaimable(entry: RefundState, nowSeconds: bigint): boole
   return entry.availableAt <= nowSeconds;
 }
 
+// A position is the user's escrow deposit only while it holds a refundable amount.
+// Zero-amount entries are PopFull/PopLite lifecycle markers or already-withdrawn
+// slots, not deposits the user has staked.
+export function isRefundableDeposit(position: { amount: bigint }): boolean {
+  return position.amount > 0n;
+}
+
 // Total still locked across positions. Withdrawn positions carry amount 0 (the
 // contract zeroes it on withdraw), so they fall out of the sum naturally.
 export function totalEscrowAmount(positions: readonly { amount: bigint }[]): bigint {

@@ -99,7 +99,7 @@ export async function prepareReadOnlyContext(
   await ensureAccountMappedWhenAuthenticated(clientWrapper, keypair, auth.resolvedFrom);
 
   const evmAddress = await step("Resolving EVM address", async () =>
-    clientWrapper.getEvmAddress(keypair.address),
+    clientWrapper.resolveOwnEvmAddress(keypair.address),
   );
 
   console.log(chalk.gray("\n  RPC:     ") + chalk.white(rpc));

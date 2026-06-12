@@ -1,8 +1,10 @@
 import { defineStore } from "pinia";
-import { getAddress, zeroAddress, type Address, type Hash } from "viem";
+import { zeroAddress, type Address, type Hash } from "viem";
 import { getContract, getEscrowContract, withContractRecovery } from "@/composables/useContracts";
 import { NAME_ESCROW_ADDRESS } from "@/lib/abis/nameEscrow";
 import { useContractWrite } from "@/lib/contractWrite";
+import { isRefundableDeposit } from "@/lib/escrowStatus";
+import { isSameEvmAddress } from "@/lib/address";
 import { computeDomainTokenId, normalizeDomainName, ZERO_SUBSTRATE_ADDRESS } from "../utils";
 
 export type EscrowPosition = {
@@ -86,13 +88,14 @@ export const useEscrowStore = defineStore("useEscrowStore", () => {
     recipient: Address,
     domains: string[],
   ): Promise<EscrowPosition[]> {
-    const me = getAddress(recipient);
     const results = await Promise.all(
       domains.map((domain) => getPosition(domain).catch(() => null)),
     );
     return results.filter(
       (position): position is EscrowPosition =>
-        position !== null && getAddress(position.recipient) === me,
+        position !== null &&
+        isSameEvmAddress(position.recipient, recipient) &&
+        isRefundableDeposit(position),
     );
   }
 

@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import type { Ora } from "ora";
-import { getAddress, type Address } from "viem";
+import { type Address } from "viem";
 import type { PolkadotSigner } from "polkadot-api";
 import type { ReviveClientWrapper } from "../client/polkadotClient";
 import { CONTRACTS, DOTNS_NAME_ESCROW_ABI, DOTNS_REGISTRAR_ABI } from "../utils/constants";
@@ -10,6 +10,7 @@ import {
   submitContractTransaction,
 } from "../utils/contractInteractions";
 import { formatWeiAsEther } from "../utils/formatting";
+import { isSameEvmAddress } from "../utils/address";
 
 /// On-chain release position for a token.
 export type EscrowPositionView = {
@@ -121,20 +122,29 @@ export async function listAccountPositions(
   spinner: Ora,
 ): Promise<EscrowPositionView[]> {
   spinner.start(`Reading escrow positions for ${chalk.white(recipient)}`);
-  const me = getAddress(recipient);
 
   const positions: EscrowPositionView[] = [];
   for (const name of names) {
     const position = await readPositionForName(clientWrapper, originSubstrateAddress, name).catch(
       () => null,
     );
-    if (position !== null && getAddress(position.recipient) === me) {
+    if (
+      position !== null &&
+      isSameEvmAddress(position.recipient, recipient) &&
+      isRefundableDeposit(position)
+    ) {
       positions.push(position);
     }
   }
 
   spinner.succeed(`Found ${positions.length} position(s)`);
   return positions;
+}
+
+/// A position is the user's escrow deposit only while it holds a refundable amount. Zero-amount
+/// entries are PopFull/PopLite lifecycle markers or already-withdrawn slots, not staked deposits.
+export function isRefundableDeposit(position: { amount: bigint }): boolean {
+  return position.amount > 0n;
 }
 
 /// Total still locked across positions. Withdrawn positions carry amount 0 (the contract

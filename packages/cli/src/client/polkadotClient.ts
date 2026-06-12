@@ -1,5 +1,6 @@
 import type { Paseo } from "@polkadot-api/descriptors";
 import { Binary, type PolkadotSigner, type TypedApi } from "polkadot-api";
+import { decodeAddress } from "@polkadot/util-crypto";
 import { isAddress, type Address, type Hash } from "viem";
 import type { ReviveCallResult, SubstrateWeight, TransactionStatus } from "../types/types";
 import { ensureError, formatDispatchError } from "../utils/formatting";
@@ -100,6 +101,18 @@ function unwrapExecutionResult(rawResult: any): {
   return { ok: null, err: rawResult, successFlag: null };
 }
 
+// Compares two SS58 addresses by their decoded public key, so a differing network
+// prefix does not register as a different account.
+function isSameSubstrateAccount(a: string, b: string): boolean {
+  try {
+    const decodedA = decodeAddress(a);
+    const decodedB = decodeAddress(b);
+    return decodedA.length === decodedB.length && decodedA.every((byte, i) => byte === decodedB[i]);
+  } catch {
+    return a === b;
+  }
+}
+
 export class ReviveClientWrapper {
   public client: PolkadotApiClient;
   private mappedAccounts: Set<string> = new Set();
@@ -123,6 +136,25 @@ export class ReviveClientWrapper {
 
   async getSubstrateAddress(evmAddress: Address): Promise<string> {
     return await this.client.apis.ReviveApi.account_id(Binary.fromHex(evmAddress));
+  }
+
+  // Resolves the caller's own EVM address and confirms it round-trips back to the
+  // same account. An account that is not address-mapped resolves to a colliding or
+  // fallback H160 owned by someone else; querying it would silently return another
+  // account's data, so fail loudly instead.
+  async resolveOwnEvmAddress(substrateAddress: string): Promise<Address> {
+    const evmAddress = await this.getEvmAddress(substrateAddress);
+    if (isAddress(substrateAddress)) return evmAddress;
+
+    const roundTrip = await this.getSubstrateAddress(evmAddress);
+    if (!isSameSubstrateAccount(roundTrip, substrateAddress)) {
+      throw new Error(
+        `Account ${substrateAddress} is not address-mapped on this chain: its EVM address ` +
+          `${evmAddress} belongs to ${roundTrip}. Run \`dotns account map\` for this account ` +
+          `before reading its on-chain data.`,
+      );
+    }
+    return evmAddress;
   }
 
   async performDryRunCall(

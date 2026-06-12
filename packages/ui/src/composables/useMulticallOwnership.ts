@@ -15,7 +15,6 @@
 import {
   decodeFunctionResult,
   encodeFunctionData,
-  getAddress,
   namehash,
   zeroAddress,
   type Address,
@@ -27,6 +26,7 @@ import {
   getContractManager,
   withContractRecovery,
 } from "@/composables/useContracts";
+import { isSameEvmAddress } from "@/lib/address";
 import { computeDomainTokenId, normalizeDomainName, ZERO_SUBSTRATE_ADDRESS } from "@/utils";
 
 function isSubname(value: string): boolean {
@@ -42,7 +42,6 @@ export function useMulticallOwnership() {
     if (names.length === 0) return new Map();
 
     return withContractRecovery(async () => {
-      const checksummedOwner = getAddress(ownerAddress);
       const manager = await getContractManager();
       const multicall = await getContract("@dotns/multicall3");
 
@@ -104,7 +103,7 @@ export function useMulticallOwnership() {
           }) as Address;
           ownership.set(
             plan.name,
-            !owner || owner === zeroAddress ? true : getAddress(owner) === checksummedOwner,
+            !owner || owner === zeroAddress ? true : isSameEvmAddress(owner, ownerAddress),
           );
           return;
         }
@@ -117,7 +116,7 @@ export function useMulticallOwnership() {
         }) as Address;
         ownership.set(
           plan.name,
-          !owner || owner === zeroAddress ? false : getAddress(owner) === checksummedOwner,
+          !owner || owner === zeroAddress ? false : isSameEvmAddress(owner, ownerAddress),
         );
       });
 

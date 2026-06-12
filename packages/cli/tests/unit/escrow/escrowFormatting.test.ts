@@ -3,6 +3,7 @@ import type { Address } from "viem";
 import {
   formatRefundEntryLine,
   totalEscrowAmount,
+  isRefundableDeposit,
   cooldownRemainingSeconds,
   formatCooldown,
   formatPositionStatus,
@@ -102,6 +103,13 @@ describe("totalEscrowAmount", () => {
         makePosition({ amount: 0n }),
       ]),
     ).toBe(10n);
+  });
+});
+
+describe("isRefundableDeposit", () => {
+  test("is true only when the position holds an amount", () => {
+    expect(isRefundableDeposit({ amount: 10n })).toBe(true);
+    expect(isRefundableDeposit({ amount: 0n })).toBe(false);
   });
 });
 

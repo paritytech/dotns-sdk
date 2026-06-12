@@ -494,6 +494,7 @@ import PopStatusBadge from "@/components/PopStatusBadge.vue";
 import PrimaryNameBadge from "@/components/PrimaryNameBadge.vue";
 import TablePagination from "@/components/ui/TablePagination.vue";
 import { safeHttpUrl, socialHandle } from "@/lib/safeLink";
+import { isSameEvmAddress } from "@/lib/address";
 import { useToast } from "vue-toastification";
 
 const toast = useToast();
@@ -546,15 +547,7 @@ const storeError = ref("");
 
 const explorer = computed(() => networkStore.currentNetwork?.blockExplorerUrls?.[0] || "");
 
-const isOwner = computed(() => {
-  if (!wallet.evmAddress || !owner.value) return false;
-  if (owner.value === zeroAddress) return false;
-  try {
-    return getAddress(wallet.evmAddress) === getAddress(owner.value);
-  } catch {
-    return false;
-  }
-});
+const isOwner = computed(() => isSameEvmAddress(wallet.evmAddress, owner.value));
 
 const blockieSrc = computed(() => {
   if (!owner.value || owner.value === zeroAddress) {

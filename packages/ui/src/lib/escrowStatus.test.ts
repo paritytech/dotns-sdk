@@ -4,11 +4,19 @@ import {
   positionStatusLabel,
   isRefundClaimable,
   totalEscrowAmount,
+  isRefundableDeposit,
   cooldownRemainingSeconds,
   formatCooldown,
 } from "./escrowStatus";
 
 const NOW = 1_000n;
+
+describe("isRefundableDeposit", () => {
+  it("is true only when the position holds an amount", () => {
+    expect(isRefundableDeposit({ amount: 10n })).toBe(true);
+    expect(isRefundableDeposit({ amount: 0n })).toBe(false);
+  });
+});
 
 describe("totalEscrowAmount", () => {
   it("is zero for no positions", () => {
