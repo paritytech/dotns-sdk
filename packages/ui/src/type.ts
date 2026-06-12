@@ -30,6 +30,7 @@ export type ProfileRecord = {
   github: string;
   description: string;
   url: string;
+  custom: TextRecord[];
 };
 
 export type ResolverStatus = {

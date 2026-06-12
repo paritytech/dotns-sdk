@@ -10,6 +10,7 @@ import {
   STORE_FACTORY_ABI,
   LABEL_STORE_ABI,
   DOTNS_REGISTRAR_ABI,
+  DOTNS_POP_RESOLVER_ABI,
 } from "../utils/constants";
 import { stripTrailingDigits } from "../utils/validation";
 import { computeDomainTokenId, performContractCall } from "../utils/contractInteractions";
@@ -36,6 +37,7 @@ export async function performDomainLookup(
     resolvedAddress: null,
     ownerBalance: null,
     baseNameReservation: null,
+    chatKey: null,
   };
 
   const spinner = ora("Reading registry").start();
@@ -182,6 +184,23 @@ export async function performDomainLookup(
     );
   } catch {
     console.log(chalk.gray("  balance: ") + chalk.yellow("unavailable"));
+  }
+  console.log();
+
+  console.log("▶ Proof of Personhood (DotnsPopResolver)");
+  try {
+    const chatKey = await performContractCall<string>(
+      clientWrapper,
+      originSubstrateAddress,
+      CONTRACTS.DOTNS_POP_RESOLVER,
+      DOTNS_POP_RESOLVER_ABI,
+      "chatKey",
+      [namehashNode],
+    );
+    result.chatKey = chatKey && chatKey !== "0x" ? chatKey : null;
+    console.log(chalk.gray("  chatKey: ") + chalk.white(result.chatKey ?? "(not set)"));
+  } catch {
+    console.log(chalk.gray("  chatKey: ") + chalk.yellow("lookup failed"));
   }
   console.log();
 

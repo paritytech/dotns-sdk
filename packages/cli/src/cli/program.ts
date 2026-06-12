@@ -12,6 +12,7 @@ import { banner } from "./ui";
 import { attachStoreCommands } from "./commands/store";
 import { attachEscrowCommands } from "./commands/escrow";
 import { attachDelegateCommands } from "./commands/delegate";
+import { attachPrimaryCommands } from "./commands/primary";
 import { ENV } from "./env";
 
 export function createProgram() {
@@ -32,6 +33,7 @@ export function createProgram() {
   attachStoreCommands(program);
   attachEscrowCommands(program);
   attachDelegateCommands(program);
+  attachPrimaryCommands(program);
 
   if (!process.argv.includes("--json")) banner();
 

@@ -5,13 +5,57 @@
       <button
         v-if="wallet.substrateAddress"
         type="button"
-        class="mx-auto block max-w-full font-mono text-sm text-dot-text-secondary hover:text-dot-accent transition-colors break-all cursor-pointer"
-        :title="`Copy ${wallet.substrateAddress}`"
+        class="group mx-auto flex max-w-full items-center gap-2 rounded-lg border border-dot-border bg-dot-surface-secondary px-3 py-1.5 text-dot-text-secondary hover:text-dot-text-primary transition-colors cursor-pointer"
+        :title="addressCopied ? 'Copied!' : 'Copy address'"
         @click="copyAddress"
       >
-        {{ wallet.substrateAddress }}
+        <span class="font-mono text-sm break-all">{{ wallet.substrateAddress }}</span>
+        <svg
+          v-if="!addressCopied"
+          class="w-4 h-4 shrink-0 text-dot-text-tertiary group-hover:text-dot-text-primary"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+          />
+        </svg>
+        <svg
+          v-else
+          class="w-4 h-4 shrink-0 text-success"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M5 13l4 4L19 7"
+          />
+        </svg>
       </button>
+
+      <div v-if="wallet.isConnected" class="mt-3 flex flex-wrap items-center justify-center gap-2">
+        <PopStatusBadge :status="myPopStatus" />
+        <WhitelistBadge :whitelisted="whitelisted" />
+      </div>
+
+      <div
+        v-if="myChatKey"
+        class="mx-auto mt-2 flex max-w-full items-center justify-center gap-1 text-xs text-dot-text-tertiary"
+      >
+        <span class="shrink-0">Chat key:</span>
+        <span class="font-mono break-all text-dot-text-secondary">{{ myChatKey }}</span>
+        <CopyButton :value="myChatKey" label="Copy chat key" />
+      </div>
     </div>
+
+    <PendingClaimsBanner />
 
     <div class="mb-8 flex border-b border-dot-border">
       <button
@@ -304,6 +348,19 @@
                       >
                         Delegate
                       </Button>
+                      <Button
+                        v-if="
+                          domain.isOwner &&
+                          getType(domain.name) === 'TLD' &&
+                          !isPrimaryName(domain.name)
+                        "
+                        size="sm"
+                        variant="secondary"
+                        :disabled="settingPrimary === domain.name"
+                        @click="setPrimary(domain.name)"
+                      >
+                        {{ settingPrimary === domain.name ? "Setting..." : "Set Primary" }}
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -519,6 +576,10 @@
         </div>
       </div>
 
+      <div v-else-if="activeTab === 'store'" key="store">
+        <StoreTab />
+      </div>
+
       <div v-else key="escrow">
         <EscrowTab />
       </div>
@@ -575,10 +636,15 @@ import { useRouter } from "vue-router";
 import { useToast } from "vue-toastification";
 import { dotliViewUrls } from "@/lib/dotli";
 import PrimaryNameBadge from "@/components/PrimaryNameBadge.vue";
+import PopStatusBadge from "@/components/PopStatusBadge.vue";
+import WhitelistBadge from "@/components/WhitelistBadge.vue";
+import PendingClaimsBanner from "@/components/PendingClaimsBanner.vue";
+import CopyButton from "@/components/ui/CopyButton.vue";
+import { isSameDotName } from "@/lib/domain";
 import { useResolverStore } from "@/store/useResolverStore";
 import { useUserStoreManager } from "@/store/useUserStoreManager";
 import { useDomainStore } from "@/store/useDomainStore";
-import { PopStatusLabels } from "@/type";
+import { PopStatusLabels, type PopStatus } from "@/type";
 import { popStatusBadgeClass } from "@/lib/uiHelpers";
 import {
   useTooltip,
@@ -590,6 +656,7 @@ import Icon from "@/components/ui/Icon.vue";
 import Button from "@/components/ui/Button.vue";
 import TablePagination from "@/components/ui/TablePagination.vue";
 import EscrowTab from "../components/profile/EscrowTab.vue";
+import StoreTab from "../components/profile/StoreTab.vue";
 import { encodeForPreview } from "@/lib/preview";
 
 const wallet = useWalletStore();
@@ -599,6 +666,9 @@ const allDomains = ref<MyDomain[]>([]);
 // The account's reverse record: the one name that resolves back to it, shown as
 // "Primary" and highlighted in the domains list.
 const primaryName = ref<string | null>(null);
+const myPopStatus = ref<PopStatus | null>(null);
+const whitelisted = ref(false);
+const myChatKey = ref<string | null>(null);
 const searchQuery = ref("");
 const showAddModal = ref<any>(null);
 const showTransferModal = ref(false);
@@ -608,15 +678,17 @@ const transaction = ref<TransactionResult>({ hash: zeroHash, status: false });
 const currentPage = ref(1);
 const itemsPerPage = ref(10);
 const tlds = ref<string[]>([]);
-const activeTab = ref<"domains" | "bulletin" | "escrow">("domains");
+const activeTab = ref<"domains" | "bulletin" | "store" | "escrow">("domains");
 const tabs = [
   { id: "domains" as const, label: "My Domains" },
   { id: "bulletin" as const, label: "Bulletin Uploads" },
+  { id: "store" as const, label: "Store" },
   { id: "escrow" as const, label: "Escrow" },
 ];
 const bulletinUploads = ref<string[]>([]);
 const isLoadingUploads = ref(false);
 const cidCopied = ref<string | null>(null);
+const addressCopied = ref(false);
 const bulletinPage = ref(1);
 const bulletinPageSize = ref(10);
 const showAddCidForm = ref(false);
@@ -637,8 +709,12 @@ async function copyCid(cid: string) {
   }, 2000);
 }
 
-function copyAddress(): void {
-  if (wallet.substrateAddress) void copy(wallet.substrateAddress, "Address copied");
+async function copyAddress(): Promise<void> {
+  if (!wallet.substrateAddress || !(await copy(wallet.substrateAddress))) return;
+  addressCopied.value = true;
+  setTimeout(() => {
+    addressCopied.value = false;
+  }, 2000);
 }
 
 function isValidCid(value: string): boolean {
@@ -719,6 +795,26 @@ function openDelegateModal(name: string) {
 function handleDelegated() {
   showDelegateModal.value = false;
   loadDomains();
+}
+
+const settingPrimary = ref<string | null>(null);
+
+function isPrimaryName(name: string): boolean {
+  return isSameDotName(name, primaryName.value);
+}
+
+async function setPrimary(name: string) {
+  settingPrimary.value = name;
+  try {
+    await resolverStore.setPrimaryName(name);
+    primaryName.value = name;
+    toast.success(`${name} is now your primary name`);
+  } catch (error) {
+    console.warn("[ProfileView] Failed to set primary name:", error);
+    toast.error("Failed to set primary name");
+  } finally {
+    settingPrimary.value = null;
+  }
 }
 
 function parseDotName(name: string): { parts: string[]; tldLabel: string } {
@@ -819,9 +915,22 @@ async function loadDomains() {
   isLoading.value = true;
 
   try {
-    primaryName.value = wallet.evmAddress
-      ? await resolverStore.resolveAddressToName(wallet.evmAddress as Address)
-      : null;
+    if (wallet.evmAddress) {
+      const evm = wallet.evmAddress as Address;
+      [primaryName.value, myPopStatus.value, whitelisted.value] = await Promise.all([
+        resolverStore.resolveAddressToName(evm),
+        domainStore.userPopStatus(evm),
+        domainStore.isWhitelisted(evm),
+      ]);
+      myChatKey.value = primaryName.value
+        ? await resolverStore.getChatKey(primaryName.value)
+        : null;
+    } else {
+      primaryName.value = null;
+      myPopStatus.value = null;
+      whitelisted.value = false;
+      myChatKey.value = null;
+    }
 
     const names = await userStoreManager.getSubdomains();
     if (names.length === 0) {

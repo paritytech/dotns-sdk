@@ -13,6 +13,8 @@ import cdmJsonRaw from "../../cdm.json" with { type: "json" };
 import { labelStoreAbi } from "@/lib/abis/labelStore";
 import { userStoreAbi } from "@/lib/abis/userStore";
 import { nameEscrowAbi, NAME_ESCROW_ADDRESS } from "@/lib/abis/nameEscrow";
+import { popControllerAbi, POP_CONTROLLER_ADDRESS } from "@/lib/abis/popController";
+import { popResolverAbi, POP_RESOLVER_ADDRESS } from "@/lib/abis/popResolver";
 import { getChainClient } from "@/composables/useTypedAPI";
 import { useNetworkStore } from "@/store/useNetworkStore";
 import { signerManager } from "@/store/useWalletStore";
@@ -113,6 +115,21 @@ export async function getProxyContract(
 export async function getEscrowContract(): Promise<Contract<ContractDef>> {
   const m = await getContractManager();
   return createContract(m.getRuntime(), NAME_ESCROW_ADDRESS, nameEscrowAbi, { signerManager });
+}
+
+// PoP controller and resolver are absent from the CDM meta-registry; both are
+// wired by explicit address + vendored ABI, the same approach used for the name
+// escrow and the personhood precompile.
+export async function getPopControllerContract(): Promise<Contract<ContractDef>> {
+  const m = await getContractManager();
+  return createContract(m.getRuntime(), POP_CONTROLLER_ADDRESS, popControllerAbi, {
+    signerManager,
+  });
+}
+
+export async function getPopResolverContract(): Promise<Contract<ContractDef>> {
+  const m = await getContractManager();
+  return createContract(m.getRuntime(), POP_RESOLVER_ADDRESS, popResolverAbi, { signerManager });
 }
 
 export function getAbi(library: string): AbiEntry[] {

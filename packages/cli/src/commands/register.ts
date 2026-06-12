@@ -37,6 +37,7 @@ import {
   computeDomainTokenId,
 } from "../utils/contractInteractions";
 import { formatWeiAsEther, convertWeiToNative, withTimeout } from "../utils/formatting";
+import { isSameEvmAddress } from "../utils/address";
 
 function redactSecret(secret: Hex): string {
   if (secret.length <= 10) return "0x" + "*".repeat(secret.length - 2);
@@ -440,7 +441,9 @@ export async function getPriceAndValidateEligibility(
   originSubstrateAddress: string,
   label: string,
   ownerAddress: Address,
+  callerAddress: Address = ownerAddress,
 ): Promise<PricingAndEligibility> {
+  const registeringForOther = !isSameEvmAddress(callerAddress, ownerAddress);
   const spinner = ora("Pricing via PopRules.price").start();
 
   try {
@@ -525,11 +528,18 @@ export async function getPriceAndValidateEligibility(
       "price",
     );
     const noStatusLabel = ProofOfPersonhoodStatus[ProofOfPersonhoodStatus.NoStatus];
-    console.log(chalk.gray("  name tier: ") + chalk.white(ProofOfPersonhoodStatus[requiredStatus]));
-    console.log(chalk.gray("  your tier: ") + chalk.white(ProofOfPersonhoodStatus[userStatus]));
-    console.log(chalk.gray("  message:   ") + chalk.white(message));
     console.log(
-      chalk.gray("  price (you):       ") +
+      chalk.gray("  name tier:  ") + chalk.white(ProofOfPersonhoodStatus[requiredStatus]),
+    );
+    if (registeringForOther) {
+      console.log(chalk.gray("  owner:      ") + chalk.white(ownerAddress));
+      console.log(chalk.gray("  owner tier: ") + chalk.white(ProofOfPersonhoodStatus[userStatus]));
+    } else {
+      console.log(chalk.gray("  your tier:  ") + chalk.white(ProofOfPersonhoodStatus[userStatus]));
+    }
+    console.log(chalk.gray("  message:    ") + chalk.white(message));
+    console.log(
+      chalk.gray(`  price (${registeringForOther ? "owner" : "you"}):       `) +
         chalk.green(`${formatWeiAsEther(resolvedPriceWei)} PAS`),
     );
     console.log(
@@ -591,6 +601,9 @@ export async function finalizeRegularRegistration(
 
   try {
     const totalChargedWei = priceWei > frictionWei ? priceWei : frictionWei;
+    // A 10% headroom is sent as msg.value so a small price movement between
+    // quote and execution cannot revert the transaction; the controller refunds
+    // any unused amount, so the actual cost is totalChargedWei, not the buffer.
     const bufferedPaymentWei = (totalChargedWei * 110n) / 100n;
     const bufferedPaymentNative = convertWeiToNative(bufferedPaymentWei, nativeTokenDecimals);
 
@@ -601,7 +614,7 @@ export async function finalizeRegularRegistration(
       );
     }
     console.log(
-      chalk.gray("  paying:    ") + chalk.green(formatWeiAsEther(bufferedPaymentWei) + " PAS"),
+      chalk.gray("  paying:    ") + chalk.green(formatWeiAsEther(totalChargedWei) + " PAS"),
     );
 
     const transactionHash = await submitContractTransaction(
@@ -619,7 +632,13 @@ export async function finalizeRegularRegistration(
 
     console.log(chalk.gray("  tx:        ") + chalk.blue(transactionHash));
     console.log(
-      chalk.gray("  paid:      ") + chalk.green(formatWeiAsEther(bufferedPaymentWei) + " PAS"),
+      chalk.gray("  paid:      ") + chalk.green(formatWeiAsEther(totalChargedWei) + " PAS"),
+    );
+    console.log(
+      chalk.gray("  note:      ") +
+        chalk.gray(
+          `sent ${formatWeiAsEther(bufferedPaymentWei)} PAS with a 10% buffer; the unused amount is refunded`,
+        ),
     );
   } catch (error) {
     spinner.fail("Registration failed");
@@ -762,6 +781,37 @@ async function readLabelStore(
 }
 
 type PendingClaim = { label: string; mintedAt: bigint };
+
+// Governance whitelist authorising registerReserved. Independent of the account's
+// PoP tier: a whitelisted address may register Reserved names regardless of its
+// own personhood status.
+export async function getWhitelistStatus(
+  clientWrapper: ReviveClientWrapper,
+  originSubstrateAddress: string,
+  address: Address,
+): Promise<boolean> {
+  return await withTimeout(
+    performContractCall<boolean>(
+      clientWrapper,
+      originSubstrateAddress,
+      CONTRACTS.DOTNS_REGISTRAR_CONTROLLER,
+      DOTNS_REGISTRAR_CONTROLLER_ABI,
+      "isWhiteListed",
+      [address],
+    ),
+    30000,
+    "isWhiteListed",
+  );
+}
+
+export async function getPendingClaimLabels(
+  clientWrapper: ReviveClientWrapper,
+  originSubstrateAddress: string,
+  address: Address,
+): Promise<string[]> {
+  const claims = await readPendingClaims(clientWrapper, originSubstrateAddress, address);
+  return claims.map((claim) => claim.label);
+}
 
 async function readPendingClaims(
   clientWrapper: ReviveClientWrapper,

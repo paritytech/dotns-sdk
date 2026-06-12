@@ -455,6 +455,7 @@ async function finalizeRegularReveal(params: {
       params.substrateAddress,
       params.label,
       params.ownerEvmAddress,
+      params.evmAddress,
     ),
   );
 

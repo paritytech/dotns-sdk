@@ -310,22 +310,45 @@
         <div class="grid sm:grid-cols-2 gap-2">
           <div>
             <p class="text-dot-text-tertiary text-xs">Owner</p>
-            <a
-              :href="`${explorer}/account/${owner}`"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="font-mono text-dot-accent hover:text-dot-accent-hover text-sm break-all mt-1 hover:underline block"
-            >
-              {{ owner || "Unknown" }}
-            </a>
+            <div class="mt-1 flex items-start gap-1">
+              <a
+                :href="`${explorer}/account/${owner}`"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="font-mono text-dot-accent hover:text-dot-accent-hover text-sm break-all hover:underline"
+              >
+                {{ owner || "Unknown" }}
+              </a>
+              <CopyButton v-if="owner" :value="owner" label="Copy owner address" />
+            </div>
           </div>
           <div>
             <p class="text-dot-text-tertiary text-xs">Parent</p>
             <p class="text-dot-text-secondary text-xs mt-0.5">{{ parent || "dot" }}</p>
           </div>
-          <div v-if="ownerPopStatus !== null">
-            <p class="text-dot-text-tertiary text-xs">Proof of Personhood</p>
-            <PopStatusBadge :status="ownerPopStatus" class="mt-1" />
+        </div>
+      </section>
+
+      <section
+        v-if="ownerPopStatus !== null"
+        class="bg-dot-surface border border-dot-border rounded-xl shadow-sm p-3 text-left"
+      >
+        <h2 class="text-sm font-semibold mb-2 text-dot-text-primary">Proof of Personhood</h2>
+        <div class="grid sm:grid-cols-2 gap-3">
+          <div>
+            <p class="text-dot-text-tertiary text-xs">Status</p>
+            <div class="mt-1 flex flex-wrap items-center gap-2">
+              <PopStatusBadge :status="ownerPopStatus" />
+              <WhitelistBadge :whitelisted="ownerWhitelisted" />
+            </div>
+          </div>
+          <div class="sm:col-span-2">
+            <p class="text-dot-text-tertiary text-xs">Chat key</p>
+            <div v-if="chatKey" class="mt-1 flex items-start gap-1">
+              <p class="font-mono text-dot-text-secondary text-xs break-all">{{ chatKey }}</p>
+              <CopyButton :value="chatKey" label="Copy chat key" />
+            </div>
+            <p v-else class="text-dot-text-tertiary text-xs italic mt-1">Not set</p>
           </div>
         </div>
       </section>
@@ -460,6 +483,7 @@
       :github="github || ''"
       :description="description || ''"
       :url="url || ''"
+      :custom="customRecordList"
       :name="name || ''"
       @close="showEditModal = false"
       @save="handleSave"
@@ -483,7 +507,13 @@ import { zeroAddress, zeroHash, getAddress, type Address } from "viem";
 import makeBlockie from "ethereum-blockies-base64";
 import EditRecordsModal from "../components/EditRecordsModal.vue";
 import TransactionStatus from "../components/TransactionStatus.vue";
-import { PopStatus, type ProfileRecord, type TransactionResult, type MyDomain } from "@/type";
+import {
+  PopStatus,
+  type ProfileRecord,
+  type TextRecord,
+  type TransactionResult,
+  type MyDomain,
+} from "@/type";
 import { useNetworkStore } from "@/store/useNetworkStore";
 import { useUserStoreManager } from "@/store/useUserStoreManager";
 import { useResolverStore } from "@/store/useResolverStore";
@@ -491,6 +521,8 @@ import { useDomainStore } from "@/store/useDomainStore";
 import { useMulticallOwnership } from "@/composables";
 import Button from "@/components/ui/Button.vue";
 import PopStatusBadge from "@/components/PopStatusBadge.vue";
+import WhitelistBadge from "@/components/WhitelistBadge.vue";
+import CopyButton from "@/components/ui/CopyButton.vue";
 import PrimaryNameBadge from "@/components/PrimaryNameBadge.vue";
 import TablePagination from "@/components/ui/TablePagination.vue";
 import { safeHttpUrl, socialHandle } from "@/lib/safeLink";
@@ -514,6 +546,8 @@ if (name.value && !name.value.includes(".dot")) {
 const isLoading = ref(true);
 const owner = ref<string | null>(null);
 const ownerPopStatus = ref<PopStatus | null>(null);
+const ownerWhitelisted = ref(false);
+const chatKey = ref<string | null>(null);
 // The account's reverse record: the one name that resolves back to it, marked
 // with a "Primary" pill in the domains list.
 const primaryName = ref<string | null>(null);
@@ -523,6 +557,15 @@ const github = ref<string | null>(null);
 const url = ref<string | null>(null);
 const description = ref<string | null>(null);
 const records = ref<Record<string, string>>({});
+
+// Keys surfaced through dedicated profile fields; everything else is a custom record.
+const RESERVED_RECORD_KEYS = ["com.x", "com.github", "description", "url"];
+
+const customRecordList = computed<TextRecord[]>(() =>
+  Object.entries(records.value)
+    .filter(([key]) => !RESERVED_RECORD_KEYS.includes(key))
+    .map(([key, value]) => ({ key, value })),
+);
 
 const safeProfileUrl = computed(() => safeHttpUrl(url.value));
 const xHandle = computed(() => socialHandle(twitter.value, "x"));
@@ -654,6 +697,11 @@ onBeforeMount(async () => {
       if (twitter.value) records.value["com.x"] = twitter.value;
       if (github.value) records.value["com.github"] = github.value;
 
+      [ownerWhitelisted.value, chatKey.value] = await Promise.all([
+        domainStore.isWhitelisted(getAddress(ownerAddress) as Address),
+        resolverStore.getChatKey(name.value),
+      ]);
+
       await loadDomains(ownerAddress);
     }
 
@@ -723,6 +771,7 @@ async function handleSave(updated: ProfileRecord): Promise<void> {
       { key: "com.github", value: updated.github || "" },
       { key: "description", value: updated.description || "" },
       { key: "url", value: updated.url || "" },
+      ...updated.custom,
     ];
 
     const tx = await resolverStore.setProfileRecordsMulticall(name.value, data);
@@ -737,6 +786,9 @@ async function handleSave(updated: ProfileRecord): Promise<void> {
       records.value = {};
       if (twitter.value) records.value["com.x"] = twitter.value;
       if (github.value) records.value["com.github"] = github.value;
+      for (const record of updated.custom) {
+        if (record.value) records.value[record.key] = record.value;
+      }
 
       await loadDomains(getAddress(owner.value) as Address);
     }

@@ -65,29 +65,15 @@ export function useAddressResolver(
     isResolving.value = true;
 
     try {
-      // Domain name or non-address input
-      if (value.endsWith(".dot") || (!value.startsWith("0x") && !value.startsWith("5"))) {
-        const normalizedName = normalizeDomainName(value);
-        const address = await resolverStore.getOwnerOfDomain(normalizedName);
-
-        if (!address) {
-          error.value = "Domain not found or not registered";
-          return;
-        }
-
-        resolvedAddress.value = address;
-        wasResolved.value = true;
-        return;
-      }
-
-      // Direct EVM address
+      // Classify in priority order: EVM address, then SS58 address, then .dot label.
+      // SS58 must be matched before the label branch because an SS58 string is not
+      // reliably distinguishable from a label by prefix (the network prefix varies).
       if (isAddress(value)) {
         resolvedAddress.value = value as Address;
         wasResolved.value = false;
         return;
       }
 
-      // Substrate address - needs conversion
       if (isValidSubstrateAddress(value)) {
         const evmAddr = await walletStore.convertToEVM(value);
         resolvedAddress.value = evmAddr;
@@ -95,7 +81,14 @@ export function useAddressResolver(
         return;
       }
 
-      error.value = "Invalid address format";
+      const normalizedName = normalizeDomainName(value);
+      const address = await resolverStore.getOwnerOfDomain(normalizedName);
+      if (!address) {
+        error.value = "Domain not found or not registered";
+        return;
+      }
+      resolvedAddress.value = address;
+      wasResolved.value = true;
     } catch (err) {
       console.warn("Address resolution error:", err);
       error.value = "Failed to resolve address";

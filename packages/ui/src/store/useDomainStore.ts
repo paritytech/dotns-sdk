@@ -4,11 +4,13 @@ import { createContract, type AbiEntry } from "@parity/product-sdk-contracts";
 import {
   getContract,
   getContractManager,
+  getPopControllerContract,
   safeRead,
   withContractRecovery,
 } from "@/composables/useContracts";
 import { signerManager, useWalletStore } from "./useWalletStore";
 import { useContractWrite } from "@/lib/contractWrite";
+import { isSameEvmAddress } from "@/lib/address";
 import {
   computeDomainTokenId,
   computeDotLabelNode,
@@ -120,9 +122,17 @@ export const useDomainStore = defineStore("useDomainStore", () => {
     }
     return withWrite(async () => {
       const controller = await getContract("@dotns/registrar-controller");
-      const price = await priceWithoutCheck(registration.label);
-      const bufferedPaymentWei = (price.price * 110n) / 100n;
-      const bufferedPaymentNative = convertWeiToNative(bufferedPaymentWei);
+      const caller = walletStore.evmAddress as Address;
+      // Price and eligibility are keyed on the owner, not the caller. When the
+      // caller mints for a different owner, the controller charges the greater of
+      // the price and the cross-tier transfer floor; mirror that so msg.value covers it.
+      const price = await priceWithoutCheck(registration.label, registration.owner);
+      let totalWei = price.price;
+      if (!isSameEvmAddress(registration.owner, caller)) {
+        const friction = await quoteTransferFloor(registration.label, caller, registration.owner);
+        if (friction > totalWei) totalWei = friction;
+      }
+      const bufferedPaymentNative = convertWeiToNative((totalWei * 110n) / 100n);
 
       const hash = await submitWrite(
         controller.register!.tx(registration, txOptions({ value: bufferedPaymentNative })),
@@ -175,6 +185,44 @@ export const useDomainStore = defineStore("useDomainStore", () => {
     });
   }
 
+  // Governance whitelist authorising registerReserved. Independent of the
+  // account's PoP tier: a whitelisted address may register Reserved names
+  // regardless of its own personhood status.
+  async function isWhitelisted(user: Address): Promise<boolean> {
+    return safeRead("[DomainStore:isWhitelisted]", false, async () => {
+      const controller = await getContract("@dotns/registrar-controller");
+      const result = await controller.isWhiteListed!.query(user, {
+        origin: ZERO_SUBSTRATE_ADDRESS,
+      });
+      return result.success ? (result.value as boolean) : false;
+    });
+  }
+
+  // Names parked in the PoP controller after registration, awaiting settlement
+  // into the user's LabelStore via syncLabelStore.
+  async function getPendingClaims(user: Address): Promise<string[]> {
+    return safeRead("[DomainStore:getPendingClaims]", [], async () => {
+      const controller = await getPopControllerContract();
+      const result = await controller.pendingClaims!.query(user, {
+        origin: ZERO_SUBSTRATE_ADDRESS,
+      });
+      if (!result.success) return [];
+      const claims = (result.value as { label: string }[]) ?? [];
+      return claims.map((claim) => claim.label);
+    });
+  }
+
+  async function syncLabelStore(): Promise<TransactionResult> {
+    return withWrite(async () => {
+      const controller = await getPopControllerContract();
+      const hash = await submitWrite(
+        controller.claimLabelStore!.tx(txOptions()),
+        "Sync label store",
+      );
+      return { hash, status: true };
+    });
+  }
+
   async function classifyName(name: string): Promise<NameRequirement> {
     if (!name || typeof name !== "string") throw new Error("Invalid domain name");
     const fallback = { requirement: PopStatus.NoStatus, message: UNCLASSIFIABLE_MESSAGE };
@@ -189,9 +237,13 @@ export const useDomainStore = defineStore("useDomainStore", () => {
     });
   }
 
-  async function priceWithoutCheck(name: string): Promise<PriceWithMeta> {
+  // Price and eligibility for `name` as seen by `owner` (defaults to the connected
+  // wallet). The returned userStatus is the owner's PoP tier, so callers can gate
+  // on userStatus >= status before paying.
+  async function priceWithoutCheck(name: string, owner?: Address): Promise<PriceWithMeta> {
     if (!name || typeof name !== "string") throw new Error("Invalid domain name");
     walletStore.ensureWalletConnected();
+    const target = owner ?? (walletStore.evmAddress as Address);
     const fallback: PriceWithMeta = {
       price: 0n,
       status: PopStatus.NoStatus,
@@ -200,11 +252,23 @@ export const useDomainStore = defineStore("useDomainStore", () => {
     };
     return safeRead("[DomainStore:priceWithoutCheck]", fallback, async () => {
       const popRules = await getContract("@dotns/pop-rules");
-      const result = await popRules.priceWithoutCheck!.query(name, walletStore.evmAddress!, {
+      const result = await popRules.priceWithoutCheck!.query(name, target, {
         origin: ZERO_SUBSTRATE_ADDRESS,
       });
       if (!result.success) return fallback;
       return result.value as PriceWithMeta;
+    });
+  }
+
+  // Cross-tier friction the caller pays to register `name` for a different owner,
+  // in wei. Zero when the owner already meets the name's tier and is no downgrade.
+  async function quoteTransferFloor(name: string, from: Address, to: Address): Promise<bigint> {
+    return safeRead("[DomainStore:quoteTransferFloor]", 0n, async () => {
+      const popRules = await getContract("@dotns/pop-rules");
+      const result = await popRules.transferFloor!.query(name, from, to, {
+        origin: ZERO_SUBSTRATE_ADDRESS,
+      });
+      return result.success ? (result.value as bigint) : 0n;
     });
   }
 
@@ -310,7 +374,11 @@ export const useDomainStore = defineStore("useDomainStore", () => {
     getMinCommitmentAge,
     registerSubDomain,
     priceWithoutCheck,
+    quoteTransferFloor,
     userPopStatus,
+    isWhitelisted,
+    getPendingClaims,
+    syncLabelStore,
     classifyName,
     recordExists,
     transferDomain,

@@ -3,7 +3,7 @@ import ora from "ora";
 import { checksumAddress, isAddress, zeroAddress, type Address } from "viem";
 import { ReviveClientWrapper } from "../client/polkadotClient";
 import { CONTRACTS, DOTNS_REGISTRAR_ABI } from "../utils/constants";
-import { validateDomainLabel } from "../utils/validation";
+import { validateDomainLabel, isValidSubstrateAddress } from "../utils/validation";
 import { formatErrorMessage, formatWeiAsEther, convertWeiToNativeCeil } from "../utils/formatting";
 import {
   computeDomainTokenId,
@@ -48,7 +48,16 @@ export async function resolveTransferRecipient(
 ): Promise<Address> {
   const input = recipientIdentifier.trim();
 
+  // Classify in priority order; an SS58 address must be matched before the label
+  // branch because its lowercased form is all [a-z0-9] and would pass isLabelLike.
   if (isAddress(input)) return toChecksummed(input as Address);
+
+  if (isValidSubstrateAddress(input)) {
+    const spinner = ora(`Resolving ${chalk.white(input)} to EVM address`).start();
+    const evmAddress = await clientWrapper.getEvmAddress(input);
+    spinner.succeed(`${chalk.white(input)} → ${chalk.white(toChecksummed(evmAddress))}`);
+    return toChecksummed(evmAddress);
+  }
 
   const label = asDotLabel(input);
   if (isLabelLike(label)) {
@@ -65,10 +74,9 @@ export async function resolveTransferRecipient(
     return toChecksummed(ownerAddress);
   }
 
-  const spinner = ora(`Resolving recipient address`).start();
-  const evmAddress = await clientWrapper.getEvmAddress(input);
-  spinner.succeed(`${chalk.white(input)} → ${chalk.white(toChecksummed(evmAddress))}`);
-  return toChecksummed(evmAddress);
+  throw new Error(
+    `Unrecognised recipient "${input}" — expected an EVM address, SS58 address, or .dot label.`,
+  );
 }
 
 export async function transferDomain(

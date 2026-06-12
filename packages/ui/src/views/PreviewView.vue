@@ -49,7 +49,6 @@ const resolvedGatewayUrl = ref<string | null>(null);
 const previewUnavailableReason = ref<string | null>(null);
 let previewRequestId = 0;
 let activeFetchController: AbortController | null = null;
-let mountTimer: ReturnType<typeof setTimeout> | null = null;
 
 const encodedParam = computed(() => route.params.encoded as string | undefined);
 
@@ -79,13 +78,6 @@ function resetResolvedContent(): void {
   previewUnavailableReason.value = null;
 }
 
-function clearMountTimer(): void {
-  if (mountTimer) {
-    clearTimeout(mountTimer);
-    mountTimer = null;
-  }
-}
-
 function abortActiveFetch(): void {
   if (activeFetchController) {
     activeFetchController.abort();
@@ -94,12 +86,13 @@ function abortActiveFetch(): void {
 }
 
 function cleanupPreviewTransport(): void {
-  clearMountTimer();
   abortActiveFetch();
 }
 
 async function fetchContent() {
   if (!cid.value) {
+    error.value = "This preview link is malformed.";
+    isLoading.value = false;
     return;
   }
 
@@ -181,22 +174,23 @@ async function fetchContent() {
 }
 
 function handleRetry() {
-  clearMountTimer();
   fetchContent();
 }
 
+// immediate so the fetch runs on first mount AND when the param changes on a
+// reused component instance (e.g. /upload → /preview/:encoded), which onMounted
+// alone would miss.
 watch(
   encodedParam,
   () => {
     if (encodedParam.value) {
-      clearMountTimer();
       fetchContent();
     } else {
       cleanupPreviewTransport();
       resetResolvedContent();
     }
   },
-  { immediate: false },
+  { immediate: true },
 );
 
 function handlePageHide(): void {
@@ -205,13 +199,6 @@ function handlePageHide(): void {
 
 onMounted(() => {
   window.addEventListener("pagehide", handlePageHide);
-  if (encodedParam.value) {
-    mountTimer = setTimeout(() => {
-      mountTimer = null;
-      fetchContent();
-    }, 800);
-    isLoading.value = true;
-  }
 });
 
 onBeforeUnmount(() => {
@@ -246,6 +233,14 @@ onBeforeUnmount(() => {
         :gateway-url="gatewayUrl"
         :preview-unavailable-reason="previewUnavailableReason"
         key="content"
+      />
+
+      <ErrorDisplay
+        v-else-if="encodedParam"
+        :message="error || 'Preview unavailable.'"
+        :cid="cid || ''"
+        key="fallback"
+        @retry="handleRetry"
       />
     </Transition>
   </div>

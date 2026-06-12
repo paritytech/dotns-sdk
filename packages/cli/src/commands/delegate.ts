@@ -2,7 +2,7 @@ import type { Ora } from "ora";
 import { zeroAddress, type Address } from "viem";
 import type { PolkadotSigner } from "polkadot-api";
 import type { ReviveClientWrapper } from "../client/polkadotClient";
-import { CONTRACTS, DOTNS_REGISTRAR_ABI } from "../utils/constants";
+import { CONTRACTS, DOTNS_REGISTRAR_ABI, DOTNS_CONTENT_RESOLVER_ABI } from "../utils/constants";
 import {
   computeDomainTokenId,
   performContractCall,
@@ -13,6 +13,12 @@ import { validateDomainLabel } from "../utils/validation";
 export type DelegateResult = {
   name: string;
   delegate: Address;
+  txHash: string;
+};
+
+export type RecordDelegateResult = {
+  operator: Address;
+  approved: boolean;
   txHash: string;
 };
 
@@ -110,4 +116,52 @@ export async function getNameDelegate(
   spinner.succeed(`Delegate for ${label}.dot`);
 
   return !delegate || delegate === zeroAddress ? null : delegate;
+}
+
+export async function setRecordDelegate(
+  clientWrapper: ReviveClientWrapper,
+  originSubstrateAddress: string,
+  signer: PolkadotSigner,
+  operator: Address,
+  approved: boolean,
+  spinner: Ora,
+): Promise<RecordDelegateResult> {
+  const action = approved ? "Delegating record control to" : "Revoking record control from";
+  spinner.start(`${action} ${operator}`);
+  const txHash = await submitContractTransaction(
+    clientWrapper,
+    CONTRACTS.DOTNS_CONTENT_RESOLVER,
+    0n,
+    DOTNS_CONTENT_RESOLVER_ABI,
+    "setApprovalForAll",
+    [operator, approved],
+    originSubstrateAddress,
+    signer,
+    spinner,
+    action,
+  );
+
+  return { operator, approved, txHash };
+}
+
+export async function getRecordDelegate(
+  clientWrapper: ReviveClientWrapper,
+  originSubstrateAddress: string,
+  operator: Address,
+  spinner: Ora,
+): Promise<boolean> {
+  const owner = await clientWrapper.getEvmAddress(originSubstrateAddress);
+
+  spinner.start(`Reading record delegation for ${operator}`);
+  const approved = await performContractCall<boolean>(
+    clientWrapper,
+    originSubstrateAddress,
+    CONTRACTS.DOTNS_CONTENT_RESOLVER,
+    DOTNS_CONTENT_RESOLVER_ABI,
+    "isApprovedForAll",
+    [owner, operator],
+  );
+  spinner.succeed(`Record delegation for ${operator}`);
+
+  return approved;
 }

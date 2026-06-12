@@ -164,6 +164,34 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
     return setUserStoreValue(userStoreKey(cid), "0x");
   }
 
+  // Arbitrary string key/value access mirroring the CLI `store get/set/delete`.
+  // Keys are hashed (keccak256(toHex(key))), so they are write/lookup only and
+  // cannot be enumerated back to their original string.
+  async function setStringValue(key: string, value: string): Promise<Hash> {
+    return setUserStoreValue(userStoreKey(key), stringToHex(value));
+  }
+
+  async function deleteStringValue(key: string): Promise<Hash> {
+    return setUserStoreValue(userStoreKey(key), "0x");
+  }
+
+  async function getStringValue(key: string): Promise<string | null> {
+    return withContractRecovery(async () => {
+      const evm = walletStore.evmAddress as Address | undefined;
+      if (!evm) return null;
+      const store = await getUserStore(evm);
+      if (store === ZERO) return null;
+      const proxy = await getProxyContract("@dotns/user-store", store);
+      const result = await proxy.getValue!.query(userStoreKey(key), {
+        origin: ZERO_SUBSTRATE_ADDRESS,
+      });
+      if (!result.success) return null;
+      const raw = result.value as Hex;
+      if (!raw || raw === "0x") return null;
+      return hexToString(raw) || null;
+    });
+  }
+
   async function getBulletinUploads(): Promise<string[]> {
     return withContractRecovery(async () => {
       const evm = walletStore.evmAddress as Address | undefined;
@@ -201,5 +229,8 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
     writeCidToStore,
     deleteCidFromStore,
     getBulletinUploads,
+    setStringValue,
+    getStringValue,
+    deleteStringValue,
   };
 });

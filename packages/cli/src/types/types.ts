@@ -726,6 +726,8 @@ export type DomainLookupResult = {
   } | null;
   /** PopRules reservation status for the base name, or null if the label has no trailing digits. */
   baseNameReservation: BaseNameReservation | null;
+  /** The name's chat key from the PoP resolver (hex), or null if none is set. */
+  chatKey: string | null;
 };
 
 export type ChainContext = AssetHubContext | BulletinContext;

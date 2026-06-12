@@ -1,7 +1,12 @@
 import { defineStore } from "pinia";
 import { namehash, type Hash, type Address, zeroAddress, zeroHash } from "viem";
 import { CID } from "multiformats/cid";
-import { getContract, safeRead, WRITE_TX_DEFAULTS } from "@/composables/useContracts";
+import {
+  getContract,
+  getPopResolverContract,
+  safeRead,
+  WRITE_TX_DEFAULTS,
+} from "@/composables/useContracts";
 import { getChainClient } from "@/composables/useTypedAPI";
 import { useWalletStore } from "./useWalletStore";
 import { batchSubmitAndWatch, type BatchApi } from "@parity/product-sdk-tx";
@@ -129,6 +134,27 @@ export const useResolverStore = defineStore("useResolverStore", () => {
     });
   }
 
+  // The name's chat key: a 65-byte ECDH public key set on the PoP resolver at
+  // PoP-Full registration, returned as hex (null when none is set).
+  async function getChatKey(domain: string): Promise<string | null> {
+    return safeRead("[ResolverStore:getChatKey]", null, async () => {
+      const resolver = await getPopResolverContract();
+      const node = namehash(`${normalizeDomainName(domain)}.dot`);
+      const result = await resolver.chatKey!.query(node, { origin: ZERO_SUBSTRATE_ADDRESS });
+      if (!result.success) return null;
+      const key = result.value as string;
+      return key && key !== "0x" ? key : null;
+    });
+  }
+
+  async function setPrimaryName(name: string): Promise<Hash> {
+    return withWrite(async () => {
+      const reverse = await getContract("@dotns/reverse-resolver");
+      const label = normalizeDomainName(name);
+      return submitWrite(reverse.claimReverseRecord!.tx(label, txOptions()), "Set primary name");
+    });
+  }
+
   async function resolveAddressToName(targetAddress: Address): Promise<string | null> {
     return safeRead("[ResolverStore:resolveAddressToName]", null, async () => {
       const reverse = await getContract("@dotns/reverse-resolver");
@@ -150,5 +176,7 @@ export const useResolverStore = defineStore("useResolverStore", () => {
     getOwnerOfDomain,
     getOwnerOfSubname,
     setProfileRecordsMulticall,
+    setPrimaryName,
+    getChatKey,
   };
 });

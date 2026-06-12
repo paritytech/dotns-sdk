@@ -4,6 +4,8 @@ import DotnsRegistry from "../../abis/DotnsRegistry.json" assert { type: "json" 
 import DotnsRegistrar from "../../abis/DotnsRegistrar.json" assert { type: "json" };
 import DotnsContentResolver from "../../abis/DotnsContentResolver.json" assert { type: "json" };
 import DotnsResolver from "../../abis/DotnsResolver.json" assert { type: "json" };
+import DotnsReverseResolver from "../../abis/DotnsReverseResolver.json" assert { type: "json" };
+import DotnsPopResolver from "../../abis/DotnsPopResolver.json" assert { type: "json" };
 import DotnsNameEscrow from "../../abis/DotnsNameEscrow.json" assert { type: "json" };
 import PopRules from "../../abis/PopRules.json" assert { type: "json" };
 import StoreFactory from "../../abis/StoreFactory.json" assert { type: "json" };
@@ -77,6 +79,8 @@ export const DOTNS_REGISTRY_ABI = DotnsRegistry as Abi;
 export const DOTNS_REGISTRAR_ABI = DotnsRegistrar as Abi;
 export const DOTNS_CONTENT_RESOLVER_ABI = DotnsContentResolver as Abi;
 export const DOTNS_RESOLVER_ABI = DotnsResolver as Abi;
+export const DOTNS_REVERSE_RESOLVER_ABI = DotnsReverseResolver as Abi;
+export const DOTNS_POP_RESOLVER_ABI = DotnsPopResolver as Abi;
 export const DOTNS_NAME_ESCROW_ABI = DotnsNameEscrow as Abi;
 export const POP_RULES_ABI = PopRules as Abi;
 export const STORE_FACTORY_ABI = StoreFactory as Abi;
@@ -156,6 +160,12 @@ export type DotnsContractAddresses = {
   /** Forward resolution resolver */
   DOTNS_RESOLVER: Address;
 
+  /** Reverse resolution resolver - maps an address to its primary name */
+  DOTNS_REVERSE_RESOLVER: Address;
+
+  /** PoP resolver - holds per-node chat keys set at PoP-Full registration */
+  DOTNS_POP_RESOLVER: Address;
+
   /** Content hash resolver - stores IPFS CIDs */
   DOTNS_CONTENT_RESOLVER: Address;
 
@@ -223,6 +233,8 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
       DOTNS_REGISTRAR_CONTROLLER: "0x674b705268DAE369F0a7BE9cbaCDb928b8BA38C2" as Address,
       DOTNS_REGISTRY: "0xa1b2b939E82b2ecE55Bd8a0E283818BfC1CA6CDc" as Address,
       DOTNS_RESOLVER: "0xA8988eA083174ea94Ed1D686f0F073a10f65598D" as Address,
+      DOTNS_REVERSE_RESOLVER: "0x259B9D8199c29d2EF132264ad05f8F74F3115A2E" as Address,
+      DOTNS_POP_RESOLVER: "0xC9D511Eb80fD8B745DC5Be59aCF5d700271bC01e" as Address,
       DOTNS_CONTENT_RESOLVER: "0x8A26480b0B5Df3d4D9b95adc24a5Ecb33A5b8F64" as Address,
       STORE_FACTORY: "0x692047C1477a017F287488E1c85F96Ca28C23fD8" as Address,
       DOTNS_RULES: "0x4909bFb3f4Fd86244abD6430fDfA0Ce5C91aD0c4" as Address,
@@ -245,6 +257,8 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
       DOTNS_REGISTRAR_CONTROLLER: "0xC0c21ca6302884572E61d69D5bf3E271Acf39B23" as Address,
       DOTNS_REGISTRY: "0x5622CA75C75726Da13ae46C69127C07c87538633" as Address,
       DOTNS_RESOLVER: "0x823f39E7a4126669be53211FFbCF27e55b3274C6" as Address,
+      DOTNS_REVERSE_RESOLVER: "0xA347059298aA171b3E744538F7043e9AAaAa95E0" as Address,
+      DOTNS_POP_RESOLVER: "0xeD11Bb5064fAAcb0A91e52dac2272E89856F2F6a" as Address,
       DOTNS_CONTENT_RESOLVER: "0xBD003d5Dd04E68aC60d529a46AEfBdEf8941868C" as Address,
       STORE_FACTORY: "0x4BEFaB5de968183524b1eBd2FAec9C68Cdc696Fd" as Address,
       DOTNS_RULES: "0xF209a15e8a10D208bb4d3e3c56D9EB73a5934C26" as Address,

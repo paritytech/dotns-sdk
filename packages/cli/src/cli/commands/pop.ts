@@ -1,6 +1,10 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { getUserProofOfPersonhoodStatus } from "../../commands/register";
+import {
+  getUserProofOfPersonhoodStatus,
+  getWhitelistStatus,
+  getPendingClaimLabels,
+} from "../../commands/register";
 import { addAuthOptions } from "./authOptions";
 import type { CommandOptions } from "../../types/types";
 import { ProofOfPersonhoodStatus } from "../../types/types";
@@ -18,6 +22,8 @@ export type PopInfoResult = {
   substrate: string;
   evm: string;
   status: ProofOfPersonhoodStatus;
+  whitelisted: boolean;
+  pendingClaims: string[];
 };
 
 function formatPopStatus(status: ProofOfPersonhoodStatus): "none" | "lite" | "full" | "reserved" {
@@ -36,16 +42,19 @@ function formatPopStatus(status: ProofOfPersonhoodStatus): "none" | "lite" | "fu
 
 async function readPopInfo(options: CommandOptions): Promise<PopInfoResult> {
   const context = await prepareReadOnlyContext(options as any);
-  const status = await getUserProofOfPersonhoodStatus(
-    context.clientWrapper!,
-    context.account.address,
-    context.evmAddress as Address,
-  );
+  const evm = context.evmAddress as Address;
+  const [status, whitelisted, pendingClaims] = await Promise.all([
+    getUserProofOfPersonhoodStatus(context.clientWrapper!, context.account.address, evm),
+    getWhitelistStatus(context.clientWrapper!, context.account.address, evm),
+    getPendingClaimLabels(context.clientWrapper!, context.account.address, evm),
+  ]);
 
   return {
     substrate: context.account.address,
     evm: context.evmAddress!,
     status,
+    whitelisted,
+    pendingClaims,
   };
 }
 
@@ -72,12 +81,27 @@ export function attachPopCommands(root: Command): void {
           evm: info.evm,
           status: formatPopStatus(info.status),
           statusCode: info.status,
+          whitelisted: info.whitelisted,
+          pendingClaims: info.pendingClaims,
         })
       ) {
         console.log(chalk.bold("\n📋 ProofOfPersonhood Status\n"));
-        console.log(chalk.gray("  substrate: ") + chalk.white(info.substrate));
-        console.log(chalk.gray("  evm:       ") + chalk.white(info.evm));
-        console.log(chalk.gray("  status:    ") + chalk.white(formatPopStatus(info.status)));
+        console.log(chalk.gray("  substrate:  ") + chalk.white(info.substrate));
+        console.log(chalk.gray("  evm:        ") + chalk.white(info.evm));
+        console.log(chalk.gray("  status:     ") + chalk.white(formatPopStatus(info.status)));
+        console.log(
+          chalk.gray("  whitelisted:") +
+            " " +
+            (info.whitelisted
+              ? chalk.green("yes (may register governance-reserved names)")
+              : chalk.gray("no")),
+        );
+        if (info.pendingClaims.length > 0) {
+          console.log(
+            chalk.gray("  pending:    ") +
+              chalk.yellow(`${info.pendingClaims.join(", ")} (run "dotns store sync" to settle)`),
+          );
+        }
         console.log(chalk.green("\n✓ PoP Status Retrieved\n"));
       }
 

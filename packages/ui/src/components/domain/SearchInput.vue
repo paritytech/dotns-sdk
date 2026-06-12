@@ -190,6 +190,7 @@ const showTransaction = ref(false);
 const waitingDuration = ref(0);
 const pendingRegistration = ref<Registration | null>(null);
 const pendingDuration = ref<bigint>(0n);
+const pendingGovernance = ref(false);
 const transaction = ref<TransactionResult>({ hash: zeroHash, status: false });
 
 let debounceTimer: ReturnType<typeof setTimeout>;
@@ -272,18 +273,25 @@ function registerHandle() {
   showModal.value = true;
 }
 
-function openWaitingModal(duration: bigint, waitTime: bigint, registration: Registration) {
+function openWaitingModal(
+  duration: bigint,
+  waitTime: bigint,
+  registration: Registration,
+  governance: boolean,
+) {
   showModal.value = false;
   waitingDuration.value = Number(waitTime);
   pendingDuration.value = BigInt(duration);
   pendingRegistration.value = registration;
+  pendingGovernance.value = governance;
   setTimeout(() => (showWaiting.value = true), 400);
 }
 
 async function finalizeRegistration() {
   try {
-    const hash = await domainStore.registerDomain(pendingRegistration.value!);
-    return hash;
+    return pendingGovernance.value
+      ? await domainStore.registerReserved(pendingRegistration.value!)
+      : await domainStore.registerDomain(pendingRegistration.value!);
   } catch (error) {
     console.warn("Finalize registration failed:", error);
     return { status: false, hash: zeroHash };
