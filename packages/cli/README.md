@@ -86,7 +86,6 @@ existing keystores.
 | `DOTNS_RPC`               | Asset Hub RPC endpoint                             |
 | `DOTNS_MNEMONIC`          | BIP39 mnemonic phrase                              |
 | `DOTNS_KEY_URI`           | Substrate key URI                                  |
-| `DOTNS_MIN_BALANCE_PAS`   | Minimum balance in PAS                             |
 
 Select an environment with either an environment variable or a per-command option:
 
@@ -112,29 +111,29 @@ dotns account whitelist 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY --env p
 All registration commands require authentication.
 
 ```bash
-# Register a base domain
-dotns --password test-password register domain --account default --name coolname42
+# Register a NoStatus name (stem ≥ 9, open to all)
+dotns --password test-password register domain --account default --name coolwebsite
 
-# Register a name that requires PoP Lite
-dotns --password test-password register domain --account default --name alice99
+# Register a name that requires PoP Lite (stem 6-8 + 2-digit suffix)
+dotns --password test-password register domain --account default --name premium12
 
-# Register a name that requires PoP Full
+# Register a name that requires PoP Full (stem 6-8, no suffix)
 dotns --password test-password register domain --account default --name premium
 
-# Governance registration (≤5 chars, reserved names)
+# Governance registration (stem ≤ 5, reserved names)
 dotns --password test-password register domain --account default --name short --governance
 
 # Register for another owner
-dotns --password test-password register domain --account default --name coolname42 --owner 0x000000000000000000000000000000000000dEaD
+dotns --password test-password register domain --account default --name coolwebsite --owner 0x000000000000000000000000000000000000dEaD
 
 # Register and transfer
-dotns --password test-password register domain --account default --name coolname42 --transfer --to 0x000000000000000000000000000000000000dEaD
+dotns --password test-password register domain --account default --name coolwebsite --transfer --to 0x000000000000000000000000000000000000dEaD
 
 # With reverse record
-dotns --password test-password register domain --account default --name coolname42 --reverse
+dotns --password test-password register domain --account default --name coolwebsite --reverse
 
 # Auto-retry on failure, resuming from the cached commitment (here, up to 3 times)
-dotns --password test-password register domain --account default --name coolname42 --retry 3
+dotns --password test-password register domain --account default --name coolwebsite --retry 3
 ```
 
 ### Resume and manage commitments
@@ -263,8 +262,10 @@ echo "https://alice.dev" | dotns --password test-password text set alice url --a
 
 The CLI reads PoP status directly from the personhood precompile at
 `0x000000000000000000000000000000000a010000` using the `bytes32("dotns")`
-context. Returned tiers are `none`, `lite`, or `full`; DotNS does not set this
-status.
+context. Returned tiers are `none`, `lite`, `full`, or `reserved`; DotNS does
+not set this status. `pop info` also reports whether the account is whitelisted
+for governance-reserved registrations (independent of the PoP tier) and any
+names pending settlement into the Label Store (run `store sync` to settle them).
 
 ```bash
 # Check PoP status from the personhood precompile
@@ -273,7 +274,7 @@ dotns pop status --password test-password --account default
 dotns pop --mnemonic "bottom drive obey lake curtain smoke basket hold race lonely fit walk" status
 dotns pop --key-uri //Alice status
 
-# View account info
+# Full info: status, whitelist eligibility, and pending names
 dotns pop --password test-password --account default info
 dotns pop --mnemonic "bottom drive obey lake curtain smoke basket hold race lonely fit walk" info
 dotns pop --key-uri //Alice info
@@ -456,14 +457,92 @@ dotns --password test-password store sync --account default
 dotns --password test-password store info --json --account default
 ```
 
+### Delegate
+
+Grant another account control of your names. Per-name delegation surrenders full
+control of a single name; record delegation lets an operator edit records across
+all your names. Operators may be an EVM address, SS58 address, or `.dot` label.
+
+```bash
+# Delegate full control of one name
+dotns --password test-password delegate set coolname42 alice --account default
+
+# Revoke the delegate on a name
+dotns --password test-password delegate revoke coolname42 --account default
+
+# Show the current delegate for a name (no auth)
+dotns delegate status coolname42
+
+# Let an operator edit records on all your names
+dotns --password test-password delegate records alice --account default
+
+# Revoke record-editing access
+dotns --password test-password delegate records alice --revoke --account default
+
+# Show whether an operator may edit your records (no auth)
+dotns delegate records-status alice
+```
+
+### Set Primary Name
+
+Set the primary (reverse) name resolvers return for your account. You can only
+set a name you own; there is no on-chain "clear" beyond pointing it at a
+different name or transferring the current one away.
+
+```bash
+# Set one of your names as the primary
+dotns --password test-password primary set coolname42 --account default
+
+# Show the primary name for an account (defaults to your own, no auth)
+dotns primary status
+dotns primary status 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
+```
+
+### Escrow
+
+Names registered without PoP verification (NoStatus) hold a refundable deposit
+in escrow. Release a name to start its cooldown, withdraw the deposit onto the
+pull-payment ledger, then claim your balance.
+
+```bash
+# Show the escrow position for a name (no auth)
+dotns escrow status coolwebsite
+
+# List all your positions and the total locked
+dotns --password test-password escrow positions --account default
+
+# Show your claimable pull-payment balance
+dotns --password test-password escrow balance --account default
+
+# Release a name to start its refund cooldown
+dotns --password test-password escrow release coolwebsite --account default
+
+# After cooldown, move the released deposit onto the pull-payment ledger
+dotns --password test-password escrow withdraw coolwebsite --account default
+
+# Drain the pull-payment ledger
+dotns --password test-password escrow claim-withdrawal --account default
+
+# List entries in the time-locked refund ledger
+dotns --password test-password escrow refunds list --account default
+
+# Claim a refund entry (or several) once its cooldown elapses
+dotns --password test-password escrow refunds claim <entryId> --account default
+dotns --password test-password escrow refunds claim-batch <id1> <id2> --account default
+```
+
 ## Domain Classification
 
-| Type     | Length               | Requirements      |
-| -------- | -------------------- | ----------------- |
-| Reserved | 5 chars or less      | Governance only   |
-| PoP Full | 6-8 chars            | Full verification |
-| PoP Lite | 6-8 chars + 2 digits | Lite verification |
-| NoStatus | 9+ chars + 2 digits  | Open registration |
+A name's tier is decided by its **stem length** — the label length excluding an
+optional trailing digit suffix. The suffix must be either absent or exactly two
+digits; any other trailing-digit count is rejected.
+
+| Type     | Stem length | Digit suffix | Requirement       |
+| -------- | ----------- | ------------ | ----------------- |
+| Reserved | ≤ 5         | none or 2    | Governance only   |
+| PoP Full | 6–8         | none         | Full verification |
+| PoP Lite | 6–8         | exactly 2    | Lite verification |
+| NoStatus | ≥ 9         | none or 2    | Open to all       |
 
 ## Transfer Recipients
 

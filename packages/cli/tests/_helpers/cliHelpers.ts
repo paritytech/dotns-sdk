@@ -16,6 +16,7 @@ import { attachStoreCommands } from "../../src/cli/commands/store";
 import { attachAccountCommands } from "../../src/cli/commands/info";
 import { attachEscrowCommands } from "../../src/cli/commands/escrow";
 import { attachDelegateCommands } from "../../src/cli/commands/delegate";
+import { attachPrimaryCommands } from "../../src/cli/commands/primary";
 import { generateRandomLabel } from "../../src/cli/labels";
 import { ProofOfPersonhoodStatus } from "../../src/types/types";
 
@@ -71,6 +72,7 @@ export function createDotnsTestProgram(): Command {
   attachAccountCommands(rootCommand);
   attachEscrowCommands(rootCommand);
   attachDelegateCommands(rootCommand);
+  attachPrimaryCommands(rootCommand);
   return rootCommand;
 }
 
