@@ -4,17 +4,12 @@ import type { PolkadotSigner } from "polkadot-api";
 import type { ReviveClientWrapper } from "../client/polkadotClient";
 import { CONTRACTS, DOTNS_REVERSE_RESOLVER_ABI } from "../utils/constants";
 import { performContractCall, submitContractTransaction } from "../utils/contractInteractions";
-import { validateDomainLabel } from "../utils/validation";
+import { validateDomainLabel, asLabel } from "../utils/validation";
 
 export type PrimaryNameResult = {
   name: string;
   txHash: string;
 };
-
-function asLabel(name: string): string {
-  const raw = name.trim().toLowerCase();
-  return raw.endsWith(".dot") ? raw.slice(0, -4) : raw;
-}
 
 export async function setPrimaryName(
   clientWrapper: ReviveClientWrapper,

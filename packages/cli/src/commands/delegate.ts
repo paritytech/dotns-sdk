@@ -8,7 +8,7 @@ import {
   performContractCall,
   submitContractTransaction,
 } from "../utils/contractInteractions";
-import { validateDomainLabel } from "../utils/validation";
+import { validateDomainLabel, asLabel } from "../utils/validation";
 
 export type DelegateResult = {
   name: string;
@@ -21,11 +21,6 @@ export type RecordDelegateResult = {
   approved: boolean;
   txHash: string;
 };
-
-function asLabel(name: string): string {
-  const raw = name.trim().toLowerCase();
-  return raw.endsWith(".dot") ? raw.slice(0, -4) : raw;
-}
 
 async function approveDelegate(
   clientWrapper: ReviveClientWrapper,

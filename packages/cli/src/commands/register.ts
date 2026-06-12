@@ -39,6 +39,22 @@ import {
 import { formatWeiAsEther, convertWeiToNative, withTimeout } from "../utils/formatting";
 import { isSameEvmAddress } from "../utils/address";
 
+// msg.value carries 10% over the charged amount so a price movement between quote
+// and execution cannot revert; the controller refunds the unused part.
+const PAYMENT_BUFFER_PERCENT = 110n;
+
+function chargedAmountWei(priceWei: bigint, frictionWei: bigint): bigint {
+  return priceWei > frictionWei ? priceWei : frictionWei;
+}
+
+function bufferedPaymentWei(chargedWei: bigint): bigint {
+  return (chargedWei * PAYMENT_BUFFER_PERCENT) / 100n;
+}
+
+function toNumber(value: bigint | number): number {
+  return typeof value === "bigint" ? Number(value) : value;
+}
+
 function redactSecret(secret: Hex): string {
   if (secret.length <= 10) return "0x" + "*".repeat(secret.length - 2);
   const prefix = secret.slice(0, 6);
@@ -247,11 +263,8 @@ export async function waitForMinimumCommitmentAge(
     ),
   ]);
 
-  const minimumAgeSeconds = typeof minimumAge === "bigint" ? Number(minimumAge) : minimumAge;
-  const initialCommitTime =
-    typeof initialCommitTimestamp === "bigint"
-      ? Number(initialCommitTimestamp)
-      : initialCommitTimestamp;
+  const minimumAgeSeconds = toNumber(minimumAge);
+  const initialCommitTime = toNumber(initialCommitTimestamp);
 
   if (initialCommitTime === 0) {
     checkSpinner.fail("Commitment not found on-chain");
@@ -295,8 +308,7 @@ export async function waitForMinimumCommitmentAge(
       [commitment],
     );
 
-    const polledCommitTime =
-      typeof polledTimestamp === "bigint" ? Number(polledTimestamp) : polledTimestamp;
+    const polledCommitTime = toNumber(polledTimestamp);
 
     // Prefer chain block.timestamp via Timestamp::Now; fall back to wall-clock
     // only if the pallet storage isn't available on this runtime (defensive —
@@ -360,9 +372,6 @@ export async function readCommitmentStatus(
   originSubstrateAddress: string,
   commitment: Hex,
 ): Promise<CommitmentStatus> {
-  const toNumber = (value: bigint | number): number =>
-    typeof value === "bigint" ? Number(value) : value;
-
   const [minAge, maxAge, committedAt] = await Promise.all([
     withTimeout(
       performContractCall<bigint | number>(
@@ -562,11 +571,9 @@ export async function getPriceAndValidateEligibility(
   }
 }
 
-// Quote the cross-payer friction charged by the registrar when msg.sender != owner.
-// The contract calls IPopRules.transferFloor(label, msg.sender, owner) and requires
-// msg.value >= max(price, friction); sending less reverts with InsufficientValue.
-// (The task brief called this "reachFee", but the on-chain register() path uses
-// transferFloor, which folds reach + sender-tier-downgrade into one floor.)
+// Cross-payer friction charged when msg.sender != owner. register() requires
+// msg.value >= max(price, transferFloor(label, msg.sender, owner)); underpaying
+// reverts with InsufficientValue.
 export async function quoteCrossPayerFriction(
   clientWrapper: ReviveClientWrapper,
   originSubstrateAddress: string,
@@ -600,12 +607,9 @@ export async function finalizeRegularRegistration(
   const spinner = ora(`Registering ${chalk.cyan(registration.label + ".dot")}`).start();
 
   try {
-    const totalChargedWei = priceWei > frictionWei ? priceWei : frictionWei;
-    // A 10% headroom is sent as msg.value so a small price movement between
-    // quote and execution cannot revert the transaction; the controller refunds
-    // any unused amount, so the actual cost is totalChargedWei, not the buffer.
-    const bufferedPaymentWei = (totalChargedWei * 110n) / 100n;
-    const bufferedPaymentNative = convertWeiToNative(bufferedPaymentWei, nativeTokenDecimals);
+    const totalChargedWei = chargedAmountWei(priceWei, frictionWei);
+    const bufferedWei = bufferedPaymentWei(totalChargedWei);
+    const bufferedPaymentNative = convertWeiToNative(bufferedWei, nativeTokenDecimals);
 
     console.log(chalk.gray("  cost:      ") + chalk.green(formatWeiAsEther(priceWei) + " PAS"));
     if (frictionWei > 0n) {
@@ -637,7 +641,7 @@ export async function finalizeRegularRegistration(
     console.log(
       chalk.gray("  note:      ") +
         chalk.gray(
-          `sent ${formatWeiAsEther(bufferedPaymentWei)} PAS with a 10% buffer; the unused amount is refunded`,
+          `sent ${formatWeiAsEther(bufferedWei)} PAS with a 10% buffer; the unused amount is refunded`,
         ),
     );
   } catch (error) {

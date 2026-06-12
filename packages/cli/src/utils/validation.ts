@@ -19,6 +19,12 @@ export function stripTrailingDigits(label: string): string {
   return label.replace(/\d+$/, "");
 }
 
+// Normalise a name or `name.dot` to its bare lowercase label.
+export function asLabel(name: string): string {
+  const raw = name.trim().toLowerCase();
+  return raw.endsWith(".dot") ? raw.slice(0, -4) : raw;
+}
+
 // A single canonical DNS label, mirroring the contract's StringUtils._isDnsLabel
 // (PopRules._requireCanonicalLabel / registry subnode rules): lowercase ASCII
 // letters, digits and hyphen only, no leading or trailing hyphen, length 1-63, no

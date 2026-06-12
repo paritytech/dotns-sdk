@@ -4,11 +4,10 @@ import { getWsProvider } from "polkadot-api/ws-provider";
 import { bulletin, paseo } from "@polkadot-api/descriptors";
 import { type Address } from "viem";
 import { ReviveClientWrapper, type PolkadotApiClient } from "../client/polkadotClient";
-import { parseNativeBalance, formatNativeBalance } from "../utils/formatting";
+import { formatNativeBalance } from "../utils/formatting";
 import {
   resolveRpc,
   resolveBulletinRpc,
-  resolveMinBalancePas,
   resolveKeystorePath,
   resolveDotnsEnvironment,
 } from "./env";
@@ -18,7 +17,7 @@ import {
   createAccountFromSource,
   createSubstrateSigner,
 } from "../commands/auth";
-import type { AssetHubContext, BulletinContext, ChainContext, BalanceStatus } from "../types/types";
+import type { AssetHubContext, BulletinContext, ChainContext } from "../types/types";
 import { DEFAULT_NATIVE_TOKEN_DECIMALS } from "../utils/constants";
 
 function resolveRpcEnvironment(options: any): string | undefined {
@@ -34,16 +33,24 @@ function warnIfDefaultSigner(resolvedFrom: string): void {
   }
 }
 
-export async function getBalanceStatus(
-  client: PolkadotApiClient,
+async function logFreeBalance(
+  client: any,
   substrateAddress: string,
-  minimumBalancePas: string,
-  nativeTokenDecimals: number = DEFAULT_NATIVE_TOKEN_DECIMALS,
-): Promise<BalanceStatus> {
-  const accountInfo = await (client as any).query.System.Account.getValue(substrateAddress);
-  const current = accountInfo.data.free as bigint;
-  const required = parseNativeBalance(minimumBalancePas, nativeTokenDecimals);
-  return { ok: current >= required, current, required };
+  nativeTokenDecimals: number,
+  nativeTokenSymbol: string,
+): Promise<void> {
+  try {
+    const accountInfo = await client.query.System.Account.getValue(substrateAddress);
+    const free = accountInfo?.data?.free as bigint | undefined;
+    console.log(
+      chalk.gray("  Balance:   ") +
+        (free !== undefined
+          ? chalk.white(`${formatNativeBalance(free, nativeTokenDecimals)} ${nativeTokenSymbol}`)
+          : chalk.yellow("(unavailable)")),
+    );
+  } catch {
+    console.log(chalk.gray("  Balance:   ") + chalk.yellow("(unavailable)"));
+  }
 }
 
 function firstPropertyValue(value: unknown): unknown {
@@ -100,16 +107,24 @@ export async function displayAccountInformation(
   );
 }
 
-export async function prepareAssetHubContext(options: any): Promise<AssetHubContext> {
-  const environment = resolveDotnsEnvironment(resolveRpcEnvironment(options));
-  const rpc = resolveRpc(options.rpc, environment.id);
-  const minBalancePas = resolveMinBalancePas(options.minBalance);
+type ConnectionAndAuth = {
+  keystorePath: string;
+  rawClient: PolkadotClient;
+  tokenInfo: { nativeTokenDecimals: number; nativeTokenSymbol: string };
+  auth: Awaited<ReturnType<typeof resolveAuthSource>>;
+  account: Awaited<ReturnType<typeof createAccountFromSource>>;
+  substrateAddress: string;
+  signer: ReturnType<typeof createSubstrateSigner>;
+};
+
+// Connect to `rpc`, read token metadata, resolve the account and build its signer:
+// the work shared by every chain context regardless of descriptor.
+async function connectAndAuthenticate(options: any, rpc: string): Promise<ConnectionAndAuth> {
   const keystorePath = resolveKeystorePath(options.keystorePath);
 
   const rawClient = await step(`Connecting RPC ${rpc}`, async () =>
     createClient(getWsProvider(rpc)),
   );
-  const client = rawClient.getTypedApi(paseo);
   const tokenInfo = await step("Reading chain token metadata", async () =>
     getChainTokenInfo(rawClient),
   );
@@ -129,55 +144,78 @@ export async function prepareAssetHubContext(options: any): Promise<AssetHubCont
     createAccountFromSource(auth.source, auth.isKeyUri),
   );
 
-  const substrateAddress = account.address;
-  const signer = createSubstrateSigner(account);
+  return {
+    keystorePath,
+    rawClient,
+    tokenInfo,
+    auth,
+    account,
+    substrateAddress: account.address,
+    signer: createSubstrateSigner(account),
+  };
+}
 
+function logConfiguration(params: {
+  environmentLabel: string;
+  rpc: string;
+  chainLabel: string;
+  tokenInfo: { nativeTokenDecimals: number; nativeTokenSymbol: string };
+  substrateAddress: string;
+  evmAddress?: string;
+  authResolvedFrom: string;
+  authAccount: string;
+}): void {
+  console.log(chalk.bold("\n📋 Configuration\n"));
+  console.log(chalk.gray("  Env:       ") + chalk.white(params.environmentLabel));
+  console.log(chalk.gray("  RPC:       ") + chalk.white(params.rpc));
+  console.log(chalk.gray("  Chain:     ") + chalk.white(params.chainLabel));
+  console.log(
+    chalk.gray("  Token:     ") +
+      chalk.white(
+        `${params.tokenInfo.nativeTokenSymbol} (${params.tokenInfo.nativeTokenDecimals} decimals)`,
+      ),
+  );
+  console.log(chalk.gray("  Substrate: ") + chalk.white(params.substrateAddress));
+  if (params.evmAddress) {
+    console.log(chalk.gray("  EVM:       ") + chalk.white(params.evmAddress));
+  }
+  console.log(chalk.gray("  Auth:      ") + chalk.white(params.authResolvedFrom));
+  console.log(chalk.gray("  Account:   ") + chalk.white(params.authAccount));
+}
+
+export async function prepareAssetHubContext(options: any): Promise<AssetHubContext> {
+  const environment = resolveDotnsEnvironment(resolveRpcEnvironment(options));
+  const rpc = resolveRpc(options.rpc, environment.id);
+  const { keystorePath, rawClient, tokenInfo, auth, account, substrateAddress, signer } =
+    await connectAndAuthenticate(options, rpc);
+
+  const client = rawClient.getTypedApi(paseo);
   const clientWrapper = new ReviveClientWrapper(client as PolkadotApiClient);
-
   const evmAddress = await step("Resolving EVM address", async () =>
     clientWrapper.getEvmAddress(substrateAddress),
   );
 
-  console.log(chalk.bold("\n📋 Configuration\n"));
-  console.log(chalk.gray("  Env:       ") + chalk.white(environment.label));
-  console.log(chalk.gray("  RPC:       ") + chalk.white(rpc));
-  console.log(chalk.gray("  Chain:     ") + chalk.white("Polkadot Hub TestNet"));
-  console.log(
-    chalk.gray("  Token:     ") +
-      chalk.white(`${tokenInfo.nativeTokenSymbol} (${tokenInfo.nativeTokenDecimals} decimals)`),
-  );
-  console.log(chalk.gray("  Substrate: ") + chalk.white(substrateAddress));
-  console.log(chalk.gray("  EVM:       ") + chalk.white(evmAddress));
-  console.log(chalk.gray("  Auth:      ") + chalk.white(auth.resolvedFrom));
-  console.log(chalk.gray("  Account:   ") + chalk.white(auth.account));
-
-  const balance = await step("Checking balance", async () =>
-    getBalanceStatus(
-      client as PolkadotApiClient,
-      substrateAddress,
-      minBalancePas,
-      tokenInfo.nativeTokenDecimals,
-    ),
-  );
-
-  if (!balance.ok) {
-    console.log(
-      chalk.yellow(
-        `⚠ Insufficient funds: ${formatNativeBalance(balance.current, tokenInfo.nativeTokenDecimals)} ${tokenInfo.nativeTokenSymbol} (required: ${formatNativeBalance(balance.required, tokenInfo.nativeTokenDecimals)} ${tokenInfo.nativeTokenSymbol})`,
-      ),
-    );
-    throw new Error("Insufficient funds for operation");
-  }
-
-  console.log(
-    `✔ Balance: ${chalk.green(`${formatNativeBalance(balance.current, tokenInfo.nativeTokenDecimals)} ${tokenInfo.nativeTokenSymbol}`)}`,
+  logConfiguration({
+    environmentLabel: environment.label,
+    rpc,
+    chainLabel: "Polkadot Hub TestNet",
+    tokenInfo,
+    substrateAddress,
+    evmAddress,
+    authResolvedFrom: auth.resolvedFrom,
+    authAccount: auth.account,
+  });
+  await logFreeBalance(
+    client,
+    substrateAddress,
+    tokenInfo.nativeTokenDecimals,
+    tokenInfo.nativeTokenSymbol,
   );
 
   return {
     useBulletin: false,
     environment: environment.id,
     rpc,
-    minBalancePas,
     keystorePath,
     auth,
     account,
@@ -194,67 +232,31 @@ export async function prepareAssetHubContext(options: any): Promise<AssetHubCont
 export async function prepareBulletinContext(options: any): Promise<BulletinContext> {
   const environment = resolveDotnsEnvironment(resolveRpcEnvironment(options));
   const rpc = resolveBulletinRpc(options.bulletinRpc ?? options.rpc, environment.id);
-  const minBalancePas = resolveMinBalancePas(options.minBalance);
-  const keystorePath = resolveKeystorePath(options.keystorePath);
+  const { keystorePath, rawClient, tokenInfo, auth, account, substrateAddress, signer } =
+    await connectAndAuthenticate(options, rpc);
 
-  const rawClient = await step(`Connecting RPC ${rpc}`, async () =>
-    createClient(getWsProvider(rpc)),
-  );
   const client = rawClient.getTypedApi(bulletin);
-  const tokenInfo = await step("Reading chain token metadata", async () =>
-    getChainTokenInfo(rawClient),
+
+  logConfiguration({
+    environmentLabel: environment.label,
+    rpc,
+    chainLabel: "Bulletin",
+    tokenInfo,
+    substrateAddress,
+    authResolvedFrom: auth.resolvedFrom,
+    authAccount: auth.account,
+  });
+  await logFreeBalance(
+    client,
+    substrateAddress,
+    tokenInfo.nativeTokenDecimals,
+    tokenInfo.nativeTokenSymbol,
   );
-
-  const auth = await step("Resolving account", async () =>
-    resolveAuthSource({
-      mnemonic: options.mnemonic,
-      keyUri: options.keyUri,
-      keystorePath,
-      account: options.account,
-      password: options.password,
-    }),
-  );
-
-  warnIfDefaultSigner(auth.resolvedFrom);
-  const account = await step("Loading keypair", async () =>
-    createAccountFromSource(auth.source, auth.isKeyUri),
-  );
-
-  const substrateAddress = account.address;
-  const signer = createSubstrateSigner(account);
-
-  console.log(chalk.bold("\n📋 Configuration\n"));
-  console.log(chalk.gray("  Env:       ") + chalk.white(environment.label));
-  console.log(chalk.gray("  RPC:       ") + chalk.white(rpc));
-  console.log(chalk.gray("  Chain:     ") + chalk.white("Bulletin"));
-  console.log(
-    chalk.gray("  Token:     ") +
-      chalk.white(`${tokenInfo.nativeTokenSymbol} (${tokenInfo.nativeTokenDecimals} decimals)`),
-  );
-  console.log(chalk.gray("  Substrate: ") + chalk.white(substrateAddress));
-  console.log(chalk.gray("  Auth:      ") + chalk.white(auth.resolvedFrom));
-  console.log(chalk.gray("  Account:   ") + chalk.white(auth.account));
-
-  try {
-    const accountInfo = await (client as any).query.System.Account.getValue(substrateAddress);
-    if (accountInfo?.data?.free !== undefined) {
-      const freeBalance = accountInfo.data.free as bigint;
-      console.log(
-        chalk.gray("  Balance:   ") +
-          chalk.white(
-            `${formatNativeBalance(freeBalance, tokenInfo.nativeTokenDecimals)} ${tokenInfo.nativeTokenSymbol}`,
-          ),
-      );
-    }
-  } catch {
-    console.log(chalk.gray("  Balance:   ") + chalk.yellow("(unavailable)"));
-  }
 
   return {
     useBulletin: true,
     environment: environment.id,
     rpc,
-    minBalancePas,
     keystorePath,
     auth,
     account,

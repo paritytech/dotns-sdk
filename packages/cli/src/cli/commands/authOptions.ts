@@ -8,7 +8,6 @@ export function addAuthOptions(cmd: Command): Command {
     .option("--network <environment>", "Alias for --env")
     .option("--rpc <wsUrl>", `WebSocket RPC endpoint (env: ${ENV.RPC})`)
     .option("--keystore-path <path>", `Keystore path (env: ${ENV.KEYSTORE_PATH})`)
-    .option("--min-balance <pas>", `Minimum balance in PAS (env: ${ENV.MIN_BALANCE_PAS})`)
     .option("--account <name>", "Keystore account name (default: keystore default)")
     .option("--password <pw>", `Keystore password (env: ${ENV.KEYSTORE_PASSWORD})`)
     .option("-m, --mnemonic <phrase>", `BIP39 mnemonic phrase (env: ${ENV.MNEMONIC})`)

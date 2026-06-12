@@ -14,7 +14,6 @@ export const ENV = {
   // Example: ~/.dotns/keystore/
   KEYSTORE_PATH: "DOTNS_KEYSTORE_PATH",
   KEYSTORE_PASSWORD: "DOTNS_KEYSTORE_PASSWORD",
-  MIN_BALANCE_PAS: "DOTNS_MIN_BALANCE_PAS",
   COMMITMENT_BUFFER: "DOTNS_COMMITMENT_BUFFER",
 } as const;
 
@@ -52,10 +51,6 @@ export function resolveBulletinRpc(maybeRpc?: string, maybeEnvironment?: string)
     );
   }
   return resolved;
-}
-
-export function resolveMinBalancePas(maybeMin?: string): string {
-  return maybeMin || process.env[ENV.MIN_BALANCE_PAS] || "0.1";
 }
 
 /**
