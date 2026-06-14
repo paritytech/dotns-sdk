@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Address } from "viem";
+import { decodeFunctionResult, encodeFunctionResult, type Address } from "viem";
 import {
   formatRefundEntryLine,
   totalEscrowAmount,
@@ -9,6 +9,7 @@ import {
   formatPositionStatus,
   formatPositionsTable,
 } from "../../../src/commands/escrow";
+import { DOTNS_NAME_ESCROW_ABI } from "../../../src/utils/constants";
 
 function stripAnsi(input: string): string {
   // forge-lint-equivalent: keep the ANSI assertions readable by stripping colour codes.
@@ -167,5 +168,56 @@ describe("formatPositionsTable", () => {
     expect(lines[0]).toContain("STATUS");
     expect(lines[1]).toContain("alice.dot");
     expect(lines[1]).toContain("cooldown 1m 0s");
+  });
+});
+
+const REFUND_RECIPIENT = "0x1111111111111111111111111111111111111111" as Address;
+
+// pendingRefunds has two outputs, so decodeFunctionResult yields a [ids, entries]
+// tuple; listRefunds depends on that shape.
+describe("pendingRefunds multi-output decode", () => {
+  test("decodes to a [ids, entries] tuple", () => {
+    const encoded = encodeFunctionResult({
+      abi: DOTNS_NAME_ESCROW_ABI,
+      functionName: "pendingRefunds",
+      result: [
+        [7n, 8n],
+        [
+          { recipient: REFUND_RECIPIENT, amount: 10n, availableAt: 0n, tokenId: 100n },
+          { recipient: REFUND_RECIPIENT, amount: 20n, availableAt: 0n, tokenId: 200n },
+        ],
+      ],
+    });
+
+    const [ids, entries] = decodeFunctionResult({
+      abi: DOTNS_NAME_ESCROW_ABI,
+      functionName: "pendingRefunds",
+      data: encoded,
+    }) as [
+      bigint[],
+      { recipient: Address; amount: bigint; availableAt: bigint; tokenId: bigint }[],
+    ];
+
+    expect(ids).toEqual([7n, 8n]);
+    expect(entries).toHaveLength(2);
+    expect(entries[0]!.amount).toBe(10n);
+    expect(entries[1]!.tokenId).toBe(200n);
+  });
+
+  test("decodes an empty ledger to a pair of empty arrays", () => {
+    const encoded = encodeFunctionResult({
+      abi: DOTNS_NAME_ESCROW_ABI,
+      functionName: "pendingRefunds",
+      result: [[], []],
+    });
+
+    const [ids, entries] = decodeFunctionResult({
+      abi: DOTNS_NAME_ESCROW_ABI,
+      functionName: "pendingRefunds",
+      data: encoded,
+    }) as [bigint[], unknown[]];
+
+    expect(ids).toEqual([]);
+    expect(entries).toEqual([]);
   });
 });

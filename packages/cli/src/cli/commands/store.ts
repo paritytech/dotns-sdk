@@ -6,6 +6,7 @@ import { prepareAssetHubContext } from "../context";
 import { prepareReadOnlyContext } from "./lookup";
 import { getJsonFlag, maybeQuiet } from "./jsonHelpers";
 import { formatErrorMessage } from "../../utils/formatting";
+import { isSecondLevelDotName } from "../../utils/validation";
 import {
   claimUserStore,
   getStoreInfo,
@@ -98,7 +99,7 @@ export function attachStoreCommands(root: Command): void {
 
   const listCommand = storeCommand
     .command("list")
-    .description("List all values in your Store")
+    .description("List all values in your UserStore")
     .option("--json", "Output result as JSON", false);
 
   addAuthOptions(listCommand).action(async (options: any, cmd: any) => {
@@ -128,7 +129,8 @@ export function attachStoreCommands(root: Command): void {
 
   const namesCommand = storeCommand
     .command("names")
-    .description("List all .dot names in your Store")
+    .description("List .dot names in your LabelStore (second-level names only by default)")
+    .option("--all", "Include subdomains (default: only second-level .dot names)", false)
     .option("--json", "Output result as JSON", false);
 
   addAuthOptions(namesCommand).action(async (options: any, cmd: any) => {
@@ -140,7 +142,8 @@ export function attachStoreCommands(root: Command): void {
         prepareReadOnlyContext(merged),
       );
 
-      const names = await listStoreNames(clientWrapper, account.address, evmAddress as Address);
+      const allNames = await listStoreNames(clientWrapper, account.address, evmAddress as Address);
+      const names = options.all ? allNames : allNames.filter(isSecondLevelDotName);
 
       if (jsonOutput) {
         console.log(JSON.stringify({ names }));

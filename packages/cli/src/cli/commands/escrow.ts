@@ -19,6 +19,7 @@ import {
   formatRefundEntryLine,
 } from "../../commands/escrow";
 import { listStoreNames } from "../../commands/storeManagement";
+import { resolveTransferRecipient } from "../transfer";
 import { addAuthOptions } from "./authOptions";
 import { prepareContext } from "../context";
 import { prepareReadOnlyContext } from "./lookup";
@@ -30,9 +31,21 @@ import {
   handleCommandError,
 } from "./jsonHelpers";
 import { formatWeiAsEther } from "../../utils/formatting";
+import type { ReadOnlyContext } from "../../types/types";
 
 const DEFAULT_REFUND_PAGE_SIZE = 50;
 const MAX_REFUND_PAGE_SIZE = 200;
+
+async function resolveRecipientOption(
+  jsonOutput: boolean,
+  context: ReadOnlyContext,
+  recipientOption: string | undefined,
+): Promise<Address> {
+  if (!recipientOption) return context.evmAddress as Address;
+  return maybeQuiet(jsonOutput, () =>
+    resolveTransferRecipient(context.clientWrapper, context.account.address, recipientOption),
+  );
+}
 
 interface EscrowCommonOptions {
   rpc?: string;
@@ -110,7 +123,10 @@ export function attachEscrowCommands(root: Command) {
   const balanceCommand = escrowCommand
     .command("balance")
     .description("Show the caller's claimable pull-payment balance")
-    .option("--recipient <address>", "Recipient EVM address (defaults to caller)")
+    .option(
+      "--recipient <address>",
+      "Recipient EVM address, SS58 address, or .dot label (defaults to caller)",
+    )
     .option("--json", "Output result as JSON (suppresses all other output)", false);
   addAuthOptions(balanceCommand).action(async (options: RefundListOptions, command: Command) => {
     const jsonOutput = getJsonFlag(command);
@@ -120,7 +136,7 @@ export function attachEscrowCommands(root: Command) {
         prepareReadOnlyContext(mergedOptions as any),
       );
 
-      const recipient = (options.recipient ?? context.evmAddress) as Address;
+      const recipient = await resolveRecipientOption(jsonOutput, context, options.recipient);
 
       if (!jsonOutput) console.log(chalk.bold("\n▶ Escrow balance\n"));
       const spinner = ora();
@@ -143,7 +159,10 @@ export function attachEscrowCommands(root: Command) {
   const positionsCommand = escrowCommand
     .command("positions")
     .description("List all escrow positions for the caller and the total locked")
-    .option("--recipient <address>", "Recipient EVM address (defaults to caller)")
+    .option(
+      "--recipient <address>",
+      "Recipient EVM address, SS58 address, or .dot label (defaults to caller)",
+    )
     .option("--json", "Output result as JSON (suppresses all other output)", false);
   addAuthOptions(positionsCommand).action(async (options: RefundListOptions, command: Command) => {
     const jsonOutput = getJsonFlag(command);
@@ -153,7 +172,7 @@ export function attachEscrowCommands(root: Command) {
         prepareReadOnlyContext(mergedOptions as any),
       );
 
-      const recipient = (options.recipient ?? context.evmAddress) as Address;
+      const recipient = await resolveRecipientOption(jsonOutput, context, options.recipient);
 
       if (!jsonOutput) console.log(chalk.bold("\n▶ Escrow positions\n"));
       const spinner = ora();
@@ -344,7 +363,10 @@ export function attachEscrowCommands(root: Command) {
   const refundsListCommand = refundsCommand
     .command("list")
     .description("List pending refund entries for the caller (or a specified recipient)")
-    .option("--recipient <address>", "Recipient EVM address (defaults to caller)")
+    .option(
+      "--recipient <address>",
+      "Recipient EVM address, SS58 address, or .dot label (defaults to caller)",
+    )
     .option("--offset <n>", "Page offset", "0")
     .option(
       "--limit <n>",
@@ -369,7 +391,7 @@ export function attachEscrowCommands(root: Command) {
           throw new Error(`limit must be between 1 and ${MAX_REFUND_PAGE_SIZE}`);
         }
 
-        const recipient = (options.recipient ?? context.evmAddress) as Address;
+        const recipient = await resolveRecipientOption(jsonOutput, context, options.recipient);
 
         if (!jsonOutput) console.log(chalk.bold("\n▶ Refund ledger\n"));
         const spinner = ora();

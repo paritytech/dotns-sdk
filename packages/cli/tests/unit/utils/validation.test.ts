@@ -4,6 +4,7 @@ import {
   validateGovernanceLabel,
   validateCanonicalLabel,
   isCanonicalLabel,
+  isSecondLevelDotName,
   countTrailingDigits,
   stripTrailingDigits,
 } from "../../../src/utils/validation";
@@ -30,6 +31,20 @@ describe("isCanonicalLabel", () => {
     expect(isCanonicalLabel("")).toBe(false);
     expect(isCanonicalLabel("a".repeat(63))).toBe(true);
     expect(isCanonicalLabel("a".repeat(64))).toBe(false);
+  });
+});
+
+describe("isSecondLevelDotName", () => {
+  test("accepts a single label, with or without the .dot suffix", () => {
+    expect(isSecondLevelDotName("alice")).toBe(true);
+    expect(isSecondLevelDotName("alice.dot")).toBe(true);
+    expect(isSecondLevelDotName("ALICE.DOT")).toBe(true);
+  });
+
+  test("rejects subdomains", () => {
+    expect(isSecondLevelDotName("sub.alice")).toBe(false);
+    expect(isSecondLevelDotName("sub.alice.dot")).toBe(false);
+    expect(isSecondLevelDotName("a.b.c.dot")).toBe(false);
   });
 });
 

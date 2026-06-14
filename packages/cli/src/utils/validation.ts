@@ -25,6 +25,11 @@ export function asLabel(name: string): string {
   return raw.endsWith(".dot") ? raw.slice(0, -4) : raw;
 }
 
+// True for a single label under .dot ("alice", "alice.dot"), false for subdomains ("sub.alice").
+export function isSecondLevelDotName(name: string): boolean {
+  return asLabel(name).split(".").filter(Boolean).length === 1;
+}
+
 // A single canonical DNS label, mirroring the contract's StringUtils._isDnsLabel
 // (PopRules._requireCanonicalLabel / registry subnode rules): lowercase ASCII
 // letters, digits and hyphen only, no leading or trailing hyphen, length 1-63, no
