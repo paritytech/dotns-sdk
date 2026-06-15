@@ -666,8 +666,11 @@ const commandReference: CmdGroup[] = [
       },
       {
         usage: "store names",
-        description: "List all .dot names held in your Store.",
-        options: [{ flag: "--json", description: "Output as JSON" }],
+        description: "List the .dot names held in your Store (second-level names only by default).",
+        options: [
+          { flag: "--all", description: "Include subdomains, not just second-level names" },
+          { flag: "--json", description: "Output as JSON" },
+        ],
       },
       {
         usage: "store cids",
@@ -774,7 +777,7 @@ dotns pop status
 # Store: write a key-value pair
 dotns store set my-key "my-value"
 
-# Store: list all .dot names
+# Store: list your second-level .dot names (add --all to include subdomains)
 dotns store names
 
 # Store: list all uploaded CIDs

@@ -446,8 +446,10 @@ dotns --password test-password store get mykey --account default
 dotns --password test-password store set mykey "my value" --account default
 dotns --password test-password store delete mykey --account default
 
-# List the .dot names in your Label Store, and cached CIDs
+# List the .dot names in your Label Store (second-level names only by default;
+# add --all to include subdomains), and cached CIDs
 dotns --password test-password store names --account default
+dotns --password test-password store names --all --account default
 dotns --password test-password store cids --account default
 
 # Settle any pending names from the PoP controller into your Label Store

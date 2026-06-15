@@ -351,16 +351,8 @@ export async function listRefunds(
     [recipient],
   );
 
-  const ids = await performContractCall<bigint[]>(
-    clientWrapper,
-    originSubstrateAddress,
-    CONTRACTS.DOTNS_NAME_ESCROW,
-    DOTNS_NAME_ESCROW_ABI,
-    "pendingRefundIds",
-    [recipient, BigInt(offset), BigInt(limit)],
-  );
-
-  const entries = await performContractCall<RawRefundEntry[]>(
+  // pendingRefunds has two outputs, so the call decodes to a [ids, entries] tuple.
+  const [ids, entries] = await performContractCall<[bigint[], RawRefundEntry[]]>(
     clientWrapper,
     originSubstrateAddress,
     CONTRACTS.DOTNS_NAME_ESCROW,

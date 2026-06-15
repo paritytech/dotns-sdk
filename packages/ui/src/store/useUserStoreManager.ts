@@ -17,11 +17,24 @@ import type { DotnsAvailability } from "@/type";
 import { useResolverStore } from "./useResolverStore";
 import { useWalletStore } from "./useWalletStore";
 
-// Maximum store entries enumerated per page. A user with more than 256 entries
-// would need a paginated read; treat as a soft cap (shared by both stores).
+// Store getters cap each getLabels/getKeys call at this size, so reads must page.
 const STORE_PAGE_SIZE = 256n;
 
 const ZERO: Address = zeroAddress;
+
+// Pages a store getter to completion; fetchPage returns one page, or null on query failure.
+async function readAllPages<T>(
+  fetchPage: (offset: bigint, limit: bigint) => Promise<readonly T[] | null>,
+): Promise<T[]> {
+  const items: T[] = [];
+  for (let offset = 0n; ; offset += STORE_PAGE_SIZE) {
+    const page = await fetchPage(offset, STORE_PAGE_SIZE);
+    if (!page) break;
+    items.push(...page);
+    if (page.length < Number(STORE_PAGE_SIZE)) break;
+  }
+  return items;
+}
 
 // UserStore keys are bytes32. To stay interoperable with the CLI (`dotns store`),
 // a plain string key is hashed exactly as the CLI does: keccak256(toHex(value)).
@@ -81,11 +94,12 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
       const labelStore = await getLabelStore(evm);
       if (labelStore === ZERO) return [];
       const store = await getProxyContract("@dotns/label-store", labelStore);
-      const result = await store.getLabels!.query(0n, STORE_PAGE_SIZE, {
-        origin: ZERO_SUBSTRATE_ADDRESS,
+      return readAllPages<string>(async (offset, limit) => {
+        const result = await store.getLabels!.query(offset, limit, {
+          origin: ZERO_SUBSTRATE_ADDRESS,
+        });
+        return result.success ? ((result.value as string[]) ?? []) : null;
       });
-      if (!result.success) return [];
-      return (result.value as string[]) ?? [];
     });
   }
 
@@ -200,11 +214,12 @@ export const useUserStoreManager = defineStore("userStoreManager", () => {
       if (store === ZERO) return [];
 
       const proxy = await getProxyContract("@dotns/user-store", store);
-      const keysResult = await proxy.getKeys!.query(0n, STORE_PAGE_SIZE, {
-        origin: ZERO_SUBSTRATE_ADDRESS,
+      const keys = await readAllPages<Hash>(async (offset, limit) => {
+        const keysResult = await proxy.getKeys!.query(offset, limit, {
+          origin: ZERO_SUBSTRATE_ADDRESS,
+        });
+        return keysResult.success ? ((keysResult.value as Hash[]) ?? []) : null;
       });
-      if (!keysResult.success) return [];
-      const keys = (keysResult.value as Hash[]) ?? [];
 
       const cids: string[] = [];
       for (const key of keys) {

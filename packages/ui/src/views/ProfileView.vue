@@ -80,19 +80,30 @@
     <Transition name="tab-fade" mode="out-in">
       <div v-if="activeTab === 'domains'" key="domains">
         <div class="mb-3 flex justify-between items-center flex-wrap gap-3">
-          <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="Search domains..."
-            class="border border-dot-border rounded-lg px-4 py-2 w-full sm:w-1/3 bg-dot-surface text-dot-text-primary placeholder:text-dot-text-tertiary focus:ring-2 focus:ring-dot-accent/20 focus:outline-none transition-colors"
-            :disabled="isLoading"
-          />
+          <div class="flex items-center gap-2 w-full sm:w-auto">
+            <input
+              v-model="searchQuery"
+              type="text"
+              placeholder="Search domains..."
+              class="border border-dot-border rounded-lg px-4 py-2 w-full sm:w-64 bg-dot-surface text-dot-text-primary placeholder:text-dot-text-tertiary focus:ring-2 focus:ring-dot-accent/20 focus:outline-none transition-colors"
+              :disabled="isLoading"
+            />
+            <select
+              v-model="nameFilter"
+              aria-label="Filter by name type"
+              class="border border-dot-border rounded-lg px-3 py-2 bg-dot-surface text-dot-text-primary focus:ring-2 focus:ring-dot-accent/20 focus:outline-none transition-colors"
+              :disabled="isLoading"
+            >
+              <option value="tld">TLDs only</option>
+              <option value="all">All names</option>
+            </select>
+          </div>
           <div v-if="tlds.length > 0" class="flex gap-3">
             <Button @click="openAddSubdomains" :disabled="isLoading">Add Subdomain</Button>
             <Button
               variant="secondary"
               @click="openTransferModal"
-              :disabled="isLoading || transferableTlds.length === 0"
+              :disabled="isLoading || tlds.length === 0"
             >
               Transfer Domain
             </Button>
@@ -595,7 +606,7 @@
     <TransferDomainModal
       :open="showTransferModal"
       @close="showTransferModal = false"
-      :domains="transferableTlds"
+      :domains="tlds"
       @transferred="handleDomainTransferred"
     />
 
@@ -670,6 +681,7 @@ const myPopStatus = ref<PopStatus | null>(null);
 const whitelisted = ref(false);
 const myChatKey = ref<string | null>(null);
 const searchQuery = ref("");
+const nameFilter = ref<"tld" | "all">("tld");
 const showAddModal = ref<any>(null);
 const showTransferModal = ref(false);
 const showTransaction = ref(false);
@@ -677,7 +689,6 @@ const selectedHandle = ref("");
 const transaction = ref<TransactionResult>({ hash: zeroHash, status: false });
 const currentPage = ref(1);
 const itemsPerPage = ref(10);
-const tlds = ref<string[]>([]);
 const activeTab = ref<"domains" | "bulletin" | "store" | "escrow">("domains");
 const tabs = [
   { id: "domains" as const, label: "My Domains" },
@@ -847,8 +858,16 @@ onBeforeMount(() => {
 });
 
 const filteredDomains = computed(() =>
-  allDomains.value.filter((d) => d.name.toLowerCase().includes(searchQuery.value.toLowerCase())),
+  allDomains.value.filter(
+    (d) =>
+      (nameFilter.value === "all" || d.type === "TLD") &&
+      d.name.toLowerCase().includes(searchQuery.value.toLowerCase()),
+  ),
 );
+
+watch([searchQuery, nameFilter], () => {
+  currentPage.value = 1;
+});
 
 const paginatedDomains = computed(() =>
   filteredDomains.value.slice(
@@ -857,7 +876,7 @@ const paginatedDomains = computed(() =>
   ),
 );
 
-const transferableTlds = computed(() =>
+const tlds = computed(() =>
   allDomains.value.filter((d) => d.type === "TLD" && d.isOwner).map((d) => d.name),
 );
 
@@ -935,7 +954,6 @@ async function loadDomains() {
     const names = await userStoreManager.getSubdomains();
     if (names.length === 0) {
       allDomains.value = [];
-      tlds.value = [];
       return;
     }
 
@@ -969,11 +987,9 @@ async function loadDomains() {
     }
 
     allDomains.value = verified;
-    tlds.value = verified.filter((d) => d.type === "TLD" && d.isOwner).map((d) => d.name);
   } catch (error) {
     console.warn("Failed to load domains:", error);
     allDomains.value = [];
-    tlds.value = [];
   } finally {
     isLoading.value = false;
   }

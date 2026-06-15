@@ -2,6 +2,11 @@ import { createRouter, createWebHashHistory } from "vue-router";
 import { lazyLoad, isChunkLoadError } from "@/lib/lazyLoad";
 import { formatErrorMessage } from "@/lib/errorHandling";
 
+// /upload and /preview share one component so Vue Router reuses the instance
+// between them; a separate lazyLoad() per route would unmount PreviewView on the
+// transition and discard the post-upload hand-off cache (blank preview).
+const previewView = lazyLoad(() => import("../views/PreviewView.vue"));
+
 const routes = [
   {
     path: "/",
@@ -27,12 +32,12 @@ const routes = [
   {
     path: "/upload",
     name: "Upload",
-    component: lazyLoad(() => import("../views/PreviewView.vue")),
+    component: previewView,
   },
   {
     path: "/preview/:encoded?",
     name: "PreviewEncoded",
-    component: lazyLoad(() => import("../views/PreviewView.vue")),
+    component: previewView,
   },
   {
     path: "/docs",
