@@ -5,6 +5,7 @@ import {
   isRefundClaimable,
   totalEscrowAmount,
   isRefundableDeposit,
+  isAccountPosition,
   cooldownRemainingSeconds,
   formatCooldown,
 } from "./escrowStatus";
@@ -15,6 +16,32 @@ describe("isRefundableDeposit", () => {
   it("is true only when the position holds an amount", () => {
     expect(isRefundableDeposit({ amount: 10n })).toBe(true);
     expect(isRefundableDeposit({ amount: 0n })).toBe(false);
+  });
+});
+
+describe("isAccountPosition", () => {
+  const recipient = "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd";
+  const other = "0x2222222222222222222222222222222222222222";
+
+  it("accepts a funded position whose recipient matches", () => {
+    expect(isAccountPosition({ recipient, amount: 5n }, recipient)).toBe(true);
+  });
+
+  it("ignores letter case in the recipient comparison", () => {
+    const upperBody = `0x${recipient.slice(2).toUpperCase()}`;
+    expect(isAccountPosition({ recipient: upperBody, amount: 5n }, recipient)).toBe(true);
+  });
+
+  it("rejects a null read so a missing or failed lookup never qualifies", () => {
+    expect(isAccountPosition(null, recipient)).toBe(false);
+  });
+
+  it("rejects a position that rebound to a different recipient", () => {
+    expect(isAccountPosition({ recipient: other, amount: 5n }, recipient)).toBe(false);
+  });
+
+  it("rejects a zero-amount position", () => {
+    expect(isAccountPosition({ recipient, amount: 0n }, recipient)).toBe(false);
   });
 });
 

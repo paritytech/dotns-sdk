@@ -1,4 +1,5 @@
 // Time-gated escrow rules kept pure and out of the component so they can be tested.
+import { isSameEvmAddress } from "./address";
 
 export type ReleaseState = {
   amount: bigint;
@@ -30,6 +31,21 @@ export function isRefundClaimable(entry: RefundState, nowSeconds: bigint): boole
 // slots, not deposits the user has staked.
 export function isRefundableDeposit(position: { amount: bigint }): boolean {
   return position.amount > 0n;
+}
+
+// A read position belongs to `recipient` when the escrow still names them as the
+// refund recipient and the deposit is refundable. A null read (missing or failed)
+// never qualifies. Shared by the UI store and mirrors the CLI's filter so both
+// surface the same set of positions.
+export function isAccountPosition<T extends { recipient: string; amount: bigint }>(
+  position: T | null,
+  recipient: string,
+): position is T {
+  return (
+    position !== null &&
+    isSameEvmAddress(position.recipient, recipient) &&
+    isRefundableDeposit(position)
+  );
 }
 
 // Total still locked across positions. Withdrawn positions carry amount 0 (the
