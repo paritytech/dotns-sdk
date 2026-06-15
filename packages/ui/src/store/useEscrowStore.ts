@@ -3,8 +3,7 @@ import { zeroAddress, type Address, type Hash } from "viem";
 import { getContract, getEscrowContract, withContractRecovery } from "@/composables/useContracts";
 import { NAME_ESCROW_ADDRESS } from "@/lib/abis/nameEscrow";
 import { useContractWrite } from "@/lib/contractWrite";
-import { isRefundableDeposit } from "@/lib/escrowStatus";
-import { isSameEvmAddress } from "@/lib/address";
+import { isAccountPosition } from "@/lib/escrowStatus";
 import { computeDomainTokenId, normalizeDomainName, ZERO_SUBSTRATE_ADDRESS } from "../utils";
 
 export type EscrowPosition = {
@@ -84,19 +83,25 @@ export const useEscrowStore = defineStore("useEscrowStore", () => {
   // by the escrow contract) still resolves through the caller's own label set;
   // the recipient filter drops names transferred away whose position rebound to
   // someone else.
+  //
+  // Reads run sequentially, mirroring the CLI. A parallel burst overruns the
+  // chainHead_follow subscription, and every read that then sees "No active
+  // follow" races to reset the shared client out from under the others, so the
+  // retries fail too and those positions silently vanish. Pacing the reads keeps
+  // the subscription alive and a single recovery serves the whole list.
   async function listAccountPositions(
     recipient: Address,
     domains: string[],
   ): Promise<EscrowPosition[]> {
-    const results = await Promise.all(
-      domains.map((domain) => getPosition(domain).catch(() => null)),
-    );
-    return results.filter(
-      (position): position is EscrowPosition =>
-        position !== null &&
-        isSameEvmAddress(position.recipient, recipient) &&
-        isRefundableDeposit(position),
-    );
+    const positions: EscrowPosition[] = [];
+    for (const domain of domains) {
+      const position = await getPosition(domain).catch((error) => {
+        console.warn(`[useEscrowStore] failed to read escrow position for ${domain}`, error);
+        return null;
+      });
+      if (isAccountPosition(position, recipient)) positions.push(position);
+    }
+    return positions;
   }
 
   // pendingRefunds returns ids and entries together, so one read covers the page.
