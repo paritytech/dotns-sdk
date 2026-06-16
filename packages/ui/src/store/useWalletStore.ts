@@ -6,6 +6,7 @@ import { SignerManager, HostProvider, type SignerAccount } from "@parity/product
 import { requestPermission, requestResourceAllocation } from "@parity/product-sdk-host";
 import { useUserStoreManager } from "./useUserStoreManager";
 import { getChainClient } from "@/composables/useTypedAPI";
+import { getSelfDotNs } from "@/lib/selfDotNs";
 import { PopStatus, type TransactionStatus } from "@/type";
 
 // Product-account signing is handled natively by HostProvider's `productAccount`
@@ -25,7 +26,7 @@ export const signerManager = new SignerManager({
       // so HostProvider's own auto-request stays off. Letting HostProvider
       // request it (true) would block account return on the prompt and delay
       // the header pill.
-      productAccount: { dotNsIdentifier: window.location.host },
+      productAccount: { dotNsIdentifier: getSelfDotNs() },
       requestChainSubmitPermission: false,
     });
   },
