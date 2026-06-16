@@ -18,6 +18,7 @@ export function isWithdrawable(position: ReleaseState, nowSeconds: bigint): bool
 
 export function positionStatusLabel(position: ReleaseState, nowSeconds: bigint): string {
   if (position.claimed) return "Claimed";
+  if (!position.released && !isRefundableDeposit(position)) return "Not refundable";
   if (!position.released) return "Held";
   return isWithdrawable(position, nowSeconds) ? "Withdrawable" : "Cooldown";
 }
@@ -33,19 +34,17 @@ export function isRefundableDeposit(position: { amount: bigint }): boolean {
   return position.amount > 0n;
 }
 
-// A read position belongs to `recipient` when the escrow still names them as the
-// refund recipient and the deposit is refundable. A null read (missing or failed)
-// never qualifies. Shared by the UI store and mirrors the CLI's filter so both
-// surface the same set of positions.
-export function isAccountPosition<T extends { recipient: string; amount: bigint }>(
+// A read position belongs to `recipient` when the escrow names them as the refund
+// recipient, regardless of the staked amount. A null read (missing or failed) never
+// qualifies. Zero-amount positions are kept so the UI can surface non-refundable
+// names (paid for by another account, or registered under a free personhood tier)
+// with a warning rather than hiding them; refundability is a display concern decided
+// by isRefundableDeposit, not a discovery filter.
+export function isAccountPosition<T extends { recipient: string }>(
   position: T | null,
   recipient: string,
 ): position is T {
-  return (
-    position !== null &&
-    isSameEvmAddress(position.recipient, recipient) &&
-    isRefundableDeposit(position)
-  );
+  return position !== null && isSameEvmAddress(position.recipient, recipient);
 }
 
 // Total still locked across positions. Withdrawn positions carry amount 0 (the

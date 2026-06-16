@@ -40,8 +40,8 @@ describe("isAccountPosition", () => {
     expect(isAccountPosition({ recipient: other, amount: 5n }, recipient)).toBe(false);
   });
 
-  it("rejects a zero-amount position", () => {
-    expect(isAccountPosition({ recipient, amount: 0n }, recipient)).toBe(false);
+  it("keeps a zero-amount position so non-refundable names can be surfaced", () => {
+    expect(isAccountPosition({ recipient, amount: 0n }, recipient)).toBe(true);
   });
 });
 
@@ -118,6 +118,10 @@ describe("positionStatusLabel", () => {
 
   it("labels a held deposit", () => {
     expect(positionStatusLabel(base, NOW)).toBe("Held");
+  });
+
+  it("labels a zero-amount unreleased position as not refundable", () => {
+    expect(positionStatusLabel({ ...base, amount: 0n }, NOW)).toBe("Not refundable");
   });
 
   it("labels a position in cooldown", () => {

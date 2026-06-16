@@ -94,11 +94,26 @@
                   {{ formatWeiAsEther(p.amount) }} PAS
                 </td>
                 <td class="px-4 py-2.5">
-                  <span :class="positionStatusClass(p)">{{ positionStatusLabel(p) }}</span>
+                  <span class="inline-flex items-center gap-1">
+                    <span :class="positionStatusClass(p)">{{ positionStatusLabel(p) }}</span>
+                    <span
+                      v-if="isNonRefundable(p)"
+                      :title="NON_REFUNDABLE_HINT"
+                      class="cursor-help text-dot-text-tertiary"
+                    >
+                      <Icon name="Info" size="sm" />
+                    </span>
+                  </span>
                 </td>
                 <td class="px-4 py-2.5 text-right">
+                  <span
+                    v-if="isNonRefundable(p) && !p.released"
+                    class="text-xs text-dot-text-tertiary"
+                  >
+                    No refund
+                  </span>
                   <Button
-                    v-if="!p.released"
+                    v-else-if="!p.released"
                     size="sm"
                     variant="secondary"
                     :disabled="busyId === p.domain"
@@ -250,10 +265,16 @@ import {
   isWithdrawable as isWithdrawableAt,
   positionStatusLabel as positionStatusLabelAt,
   isRefundClaimable as isRefundClaimableAt,
+  isRefundableDeposit,
   cooldownRemainingSeconds,
   formatCooldown,
   totalEscrowAmount,
 } from "@/lib/escrowStatus";
+
+// Shown on names whose escrow position holds no deposit: paid for by another
+// account, or registered under a free personhood tier. There is no bond to reclaim.
+const NON_REFUNDABLE_HINT =
+  "This name holds no refundable deposit. It was either paid for by another account or registered under a free personhood tier, so there is no bond for you to reclaim.";
 
 const wallet = useWalletStore();
 const escrow = useEscrowStore();
@@ -298,10 +319,14 @@ function cooldownText(position: EscrowPosition): string {
   return formatCooldown(cooldownRemainingSeconds(position, now.value));
 }
 
+function isNonRefundable(position: EscrowPosition): boolean {
+  return !isRefundableDeposit(position);
+}
+
 function positionStatusClass(position: EscrowPosition): string {
   const label = positionStatusLabel(position);
   if (label === "Withdrawable") return "text-success font-medium";
-  if (label === "Cooldown") return "text-dot-text-tertiary";
+  if (label === "Cooldown" || label === "Not refundable") return "text-dot-text-tertiary";
   return "text-dot-text-secondary";
 }
 

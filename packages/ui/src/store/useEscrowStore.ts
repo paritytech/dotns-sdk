@@ -82,7 +82,8 @@ export const useEscrowStore = defineStore("useEscrowStore", () => {
   // Labels are mirror-on-transfer and never deleted, so a released name (now held
   // by the escrow contract) still resolves through the caller's own label set;
   // the recipient filter drops names transferred away whose position rebound to
-  // someone else.
+  // someone else. Zero-amount positions are retained (not filtered) so the UI can
+  // mark non-refundable names; the refundable-amount check is a display concern.
   //
   // Reads run sequentially, mirroring the CLI. A parallel burst overruns the
   // chainHead_follow subscription, and every read that then sees "No active
