@@ -258,6 +258,7 @@ export class ReviveClientWrapper {
   async ensureAccountMapped(
     substrateAddress: string,
     signer: PolkadotSigner,
+    signal?: AbortSignal,
   ): Promise<boolean | undefined> {
     if (isAddress(substrateAddress)) {
       throw new Error("ensureAccountMapped requires SS58 Substrate address, not EVM H160 address");
@@ -274,7 +275,13 @@ export class ReviveClientWrapper {
     const mappingExtrinsic = this.client.tx.Revive.map_account();
 
     try {
-      await this.signAndSubmitExtrinsic(mappingExtrinsic, signer, () => {}, substrateAddress);
+      await this.signAndSubmitExtrinsic(
+        mappingExtrinsic,
+        signer,
+        () => {},
+        substrateAddress,
+        signal,
+      );
       this.mappedAccounts.add(substrateAddress);
     } catch (error: any) {
       const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
@@ -381,8 +388,10 @@ export class ReviveClientWrapper {
     statusCallback: (status: TransactionStatus) => void,
     signal?: AbortSignal,
   ): Promise<Hash> {
-    await this.ensureAccountMapped(signerSubstrateAddress, signer);
+    if (signal?.aborted) throw new Error("Transaction aborted");
+    await this.ensureAccountMapped(signerSubstrateAddress, signer, signal);
 
+    if (signal?.aborted) throw new Error("Transaction aborted");
     const gasEstimate = await this.estimateGasForCall(
       signerSubstrateAddress,
       contractAddress,

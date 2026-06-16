@@ -1,14 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { decodeFunctionResult, encodeFunctionResult, type Address } from "viem";
 import {
-  formatRefundEntryLine,
   totalEscrowAmount,
   isRefundableDeposit,
   cooldownRemainingSeconds,
   formatCooldown,
   formatPositionStatus,
-  formatPositionsTable,
 } from "../../../src/commands/escrow";
+import { formatRefundEntryLine, formatPositionsTable } from "../../../src/cli/views/escrow";
 import { DOTNS_NAME_ESCROW_ABI } from "../../../src/utils/constants";
 
 function stripAnsi(input: string): string {

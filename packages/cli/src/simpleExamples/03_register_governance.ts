@@ -13,34 +13,30 @@ import {
 } from "../commands/register";
 
 async function main() {
-  const { clientWrapper, substrateAddress, evmAddress, signer } = await connectDotns();
+  const { ctx, evmAddress } = await connectDotns();
 
   const label = process.env.DOTNS_LABEL ?? "test";
 
   validateGovernanceLabel(label);
 
-  const classification = await classifyDomainName(clientWrapper, substrateAddress, label);
+  const classification = await classifyDomainName(ctx, label);
   if (classification.requiredStatus !== ProofOfPersonhoodStatus.Reserved) {
     throw new Error(
       `Governance name must classify as Reserved; got ${ProofOfPersonhoodStatus[classification.requiredStatus]}`,
     );
   }
 
-  await ensureDomainNotRegistered(clientWrapper, substrateAddress, label);
+  await ensureDomainNotRegistered(ctx, label);
 
-  const { commitment, registration } = await generateCommitment(
-    clientWrapper,
-    substrateAddress,
-    label,
-    evmAddress,
-    true,
-  );
+  const { commitment, registration } = await generateCommitment(ctx, label, {
+    includeReverse: true,
+  });
 
-  await submitCommitment(clientWrapper, substrateAddress, signer, commitment);
-  await waitForMinimumCommitmentAge(clientWrapper, substrateAddress, commitment);
+  await submitCommitment(ctx, commitment);
+  await waitForMinimumCommitmentAge(ctx, commitment);
 
-  await finalizeGovernanceRegistration(clientWrapper, substrateAddress, signer, registration);
-  await verifyDomainOwnership(clientWrapper, substrateAddress, label, evmAddress);
+  await finalizeGovernanceRegistration(ctx, registration);
+  await verifyDomainOwnership(ctx, label, evmAddress);
 
   console.log("Governance registered:", `${label}.dot`);
   console.log("Owner:               ", evmAddress);

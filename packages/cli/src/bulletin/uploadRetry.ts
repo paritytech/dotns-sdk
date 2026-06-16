@@ -51,7 +51,7 @@ const RECONNECT_REQUIRED_UPLOAD_ERROR_MARKERS = [
   "aborted",
 ] as const;
 
-export type UploadRetryAttemptContext = {
+type UploadRetryAttemptContext = {
   retry: number;
   nextAttempt: number;
   totalAttempts: number;

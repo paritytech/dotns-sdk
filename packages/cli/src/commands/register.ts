@@ -1,13 +1,22 @@
-import chalk from "chalk";
-import ora from "ora";
-import crypto from "crypto";
-import { checksumAddress, zeroAddress, namehash, type Address, type Hex, getAddress } from "viem";
-import type { PolkadotSigner } from "polkadot-api";
-import type { ReviveClientWrapper } from "../client/polkadotClient";
-import { formatErrorMessage } from "../utils/formatting";
+import {
+  bytesToHex,
+  checksumAddress,
+  getAddress,
+  isHex,
+  namehash,
+  zeroAddress,
+  type Address,
+  type Hex,
+} from "viem";
+import {
+  type DotnsContext,
+  read,
+  write,
+  ownEvmAddress,
+  DomainUnavailableError,
+} from "../core/context";
 import {
   ProofOfPersonhoodStatus,
-  type CommitmentResults,
   type DomainRegistration,
   type NameClassification,
   type NameClassificationLike,
@@ -16,7 +25,6 @@ import {
   type SubnodeRecord,
 } from "../types/types";
 import {
-  CONTRACTS,
   DOTNS_REGISTRAR_CONTROLLER_ABI,
   DOTNS_REGISTRAR_ABI,
   DOTNS_REGISTRY_ABI,
@@ -30,18 +38,14 @@ import {
   COMMITMENT_POLL_TIMEOUT_MS,
   COMMITMENT_POLL_INTERVAL_MS,
 } from "../utils/constants";
-import { validateDomainLabel, stripTrailingDigits } from "../utils/validation";
-import {
-  performContractCall,
-  submitContractTransaction,
-  computeDomainTokenId,
-} from "../utils/contractInteractions";
-import { formatWeiAsEther, convertWeiToNative, withTimeout } from "../utils/formatting";
+import { validateDomainLabel, normaliseLabel, stripTrailingDigits } from "../utils/validation";
+import { computeDomainTokenId } from "../utils/contractInteractions";
+import { convertWeiToNative } from "../utils/formatting";
 import { isSameEvmAddress } from "../utils/address";
 
 // msg.value carries 10% over the charged amount so a price movement between quote
 // and execution cannot revert; the controller refunds the unused part.
-const PAYMENT_BUFFER_PERCENT = 110n;
+const PAYMENT_BUFFER_PERCENT = 100n;
 
 function chargedAmountWei(priceWei: bigint, frictionWei: bigint): bigint {
   return priceWei > frictionWei ? priceWei : frictionWei;
@@ -53,14 +57,6 @@ function bufferedPaymentWei(chargedWei: bigint): bigint {
 
 function toNumber(value: bigint | number): number {
   return typeof value === "bigint" ? Number(value) : value;
-}
-
-function redactSecret(secret: Hex): string {
-  if (secret.length <= 10) return "0x" + "*".repeat(secret.length - 2);
-  const prefix = secret.slice(0, 6);
-  const suffix = secret.slice(-4);
-  const redacted = "*".repeat(secret.length - 10);
-  return `${prefix}${redacted}${suffix}`;
 }
 
 function convertToProofOfPersonhoodStatus(value: unknown): ProofOfPersonhoodStatus {
@@ -84,277 +80,200 @@ function getPersonhoodStatusValue(info: PersonhoodInfo | readonly unknown[]): un
   return info.status;
 }
 
-export async function classifyDomainName(
-  clientWrapper: ReviveClientWrapper,
-  originSubstrateAddress: string,
-  label: string,
-): Promise<NameClassification> {
-  const spinner = ora("Classifying name via PopRules").start();
-
-  try {
-    const classificationResult = await withTimeout(
-      performContractCall<NameClassificationLike>(
-        clientWrapper,
-        originSubstrateAddress,
-        CONTRACTS.DOTNS_RULES,
-        POP_RULES_ABI,
-        "classifyName",
-        [label],
-      ),
-      30000,
-      "classifyName",
-    );
-
-    const requiredStatus = convertToProofOfPersonhoodStatus(classificationResult[0]);
-    const message = classificationResult[1];
-
-    spinner.succeed("Name classification");
-    console.log(chalk.gray("  required:  ") + chalk.white(ProofOfPersonhoodStatus[requiredStatus]));
-    console.log(chalk.gray("  message:   ") + chalk.white(message));
-
-    return { requiredStatus, message };
-  } catch (error) {
-    spinner.fail("Name classification failed");
-    throw error;
-  }
-}
-
-export async function ensureDomainNotRegistered(
-  clientWrapper: ReviveClientWrapper,
-  originSubstrateAddress: string,
-  label: string,
-): Promise<void> {
-  const spinner = ora(`Checking availability of ${chalk.cyan(label + ".dot")}`).start();
-
-  const tokenId = computeDomainTokenId(label);
-
-  try {
-    const owner = await withTimeout(
-      performContractCall<Address>(
-        clientWrapper,
-        originSubstrateAddress,
-        CONTRACTS.DOTNS_REGISTRAR,
-        DOTNS_REGISTRAR_ABI,
-        "ownerOf",
-        [tokenId],
-      ),
-      30000,
-      "Availability check",
-    );
-
-    if (owner !== zeroAddress) {
-      spinner.fail(`Name ${chalk.cyan(label + ".dot")} already owned by ${chalk.yellow(owner)}`);
-      throw new Error(`Domain already owned by ${owner}`);
+// Aborts the wrapped sleep promptly when ctx.signal fires so a cancelled command
+// does not hang for the full commitment-age wait.
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason ?? new Error("Aborted"));
+      return;
     }
-  } catch (error) {
-    const errorMessage = formatErrorMessage(error);
-    if (errorMessage.includes("already owned")) throw error;
-  }
-
-  spinner.succeed(`Name ${chalk.cyan(label + ".dot")} is available`);
-}
-
-export async function generateCommitment(
-  clientWrapper: ReviveClientWrapper,
-  originSubstrateAddress: string,
-  label: string,
-  ownerAddress: Address,
-  includeReverse: boolean,
-): Promise<CommitmentResults> {
-  const spinner = ora("Generating commitment hash").start();
-
-  try {
-    validateDomainLabel(label);
-
-    const secret: Hex = `0x${crypto.randomBytes(32).toString("hex")}`;
-    const registration: DomainRegistration = {
-      label,
-      owner: ownerAddress,
-      secret,
-      reserved: includeReverse,
+    const timeoutId = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timeoutId);
+      reject(signal?.reason ?? new Error("Aborted"));
     };
-
-    const commitment = await withTimeout(
-      performContractCall<Hex>(
-        clientWrapper,
-        originSubstrateAddress,
-        CONTRACTS.DOTNS_REGISTRAR_CONTROLLER,
-        DOTNS_REGISTRAR_CONTROLLER_ABI,
-        "makeCommitment",
-        [registration],
-      ),
-      30000,
-      "Commitment generation",
-    );
-
-    spinner.succeed("Commitment hash generated");
-    console.log(chalk.gray("  commitment: ") + chalk.blue(commitment));
-    console.log(chalk.gray("  hash:       ") + chalk.dim("label + owner + secret + reserved"));
-    console.log(chalk.gray("  secret:     ") + chalk.yellow(redactSecret(secret)));
-    console.log(
-      chalk.gray("  reserved:   ") + (includeReverse ? chalk.green("true") : chalk.white("false")),
-    );
-
-    return { commitment, registration };
-  } catch (error) {
-    spinner.fail("Failed to create commitment");
-    throw error;
-  }
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
-export async function submitCommitment(
-  clientWrapper: ReviveClientWrapper,
-  substrateAddress: string,
-  signer: PolkadotSigner,
-  commitment: Hex,
-): Promise<void> {
-  const spinner = ora("Submitting commitment to controller").start();
+export async function classifyDomainName(
+  ctx: DotnsContext,
+  name: string,
+): Promise<NameClassification> {
+  const label = normaliseLabel(name);
+  const result = await read<NameClassificationLike>(
+    ctx,
+    ctx.contracts.DOTNS_RULES,
+    POP_RULES_ABI,
+    "classifyName",
+    [label],
+  );
+  return {
+    requiredStatus: convertToProofOfPersonhoodStatus(result[0]),
+    message: result[1],
+  };
+}
 
-  const transactionHash = await submitContractTransaction(
-    clientWrapper,
-    CONTRACTS.DOTNS_REGISTRAR_CONTROLLER,
+export async function ensureDomainNotRegistered(ctx: DotnsContext, name: string): Promise<void> {
+  const label = normaliseLabel(name);
+  const owner = await readDomainOwner(ctx, label);
+  if (owner !== zeroAddress) throw new DomainUnavailableError(`${label}.dot`);
+}
+
+export type GenerateCommitmentOptions = {
+  owner?: Address;
+  secret?: Hex;
+  includeReverse?: boolean;
+};
+
+export type GeneratedCommitment = {
+  commitment: Hex;
+  registration: DomainRegistration;
+  secret: Hex;
+};
+
+function resolveSecret(secret?: Hex): Hex {
+  if (secret !== undefined) {
+    if (!isHex(secret) || secret.length !== 66) {
+      throw new Error("secret must be a 32-byte 0x-prefixed hex string");
+    }
+    return secret;
+  }
+  return bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
+}
+
+// The owner defaults to the caller's own (round-trip-checked) EVM address. An
+// explicitly-supplied owner is the cross-payer case and is used verbatim. The
+// secret is returned to the caller and never logged.
+export async function generateCommitment(
+  ctx: DotnsContext,
+  name: string,
+  opts: GenerateCommitmentOptions = {},
+): Promise<GeneratedCommitment> {
+  const label = normaliseLabel(name);
+  validateDomainLabel(label);
+
+  const owner = opts.owner ?? (await ownEvmAddress(ctx));
+  const secret = resolveSecret(opts.secret);
+  const registration: DomainRegistration = {
+    label,
+    owner,
+    secret,
+    reserved: opts.includeReverse ?? false,
+  };
+
+  const commitment = await read<Hex>(
+    ctx,
+    ctx.contracts.DOTNS_REGISTRAR_CONTROLLER,
+    DOTNS_REGISTRAR_CONTROLLER_ABI,
+    "makeCommitment",
+    [registration],
+  );
+
+  return { commitment, registration, secret };
+}
+
+export async function submitCommitment(ctx: DotnsContext, commitment: Hex): Promise<Hex> {
+  return write(
+    ctx,
+    ctx.contracts.DOTNS_REGISTRAR_CONTROLLER,
     0n,
     DOTNS_REGISTRAR_CONTROLLER_ABI,
     "commit",
     [commitment],
-    substrateAddress,
-    signer,
-    spinner,
     "Commitment",
   );
-
-  console.log(chalk.gray("  tx:        ") + chalk.blue(transactionHash));
-  console.log(chalk.gray("  committed: ") + chalk.white(new Date().toISOString()));
 }
 
+async function readCommitmentTimestamp(ctx: DotnsContext, commitment: Hex): Promise<number> {
+  return toNumber(
+    await read<bigint | number>(
+      ctx,
+      ctx.contracts.DOTNS_REGISTRAR_CONTROLLER,
+      DOTNS_REGISTRAR_CONTROLLER_ABI,
+      "commitments",
+      [commitment],
+    ),
+  );
+}
+
+async function readChainNowSeconds(ctx: DotnsContext): Promise<number> {
+  // Prefer chain block.timestamp via Timestamp::Now (milliseconds); fall back to
+  // wall-clock only if the pallet storage isn't available on this runtime.
+  const timestampQuery = (ctx.clientWrapper.client as any).query?.Timestamp?.Now;
+  if (timestampQuery?.getValue) {
+    const timestampMs = (await timestampQuery.getValue()) as bigint | number;
+    return Math.floor(Number(timestampMs) / 1000);
+  }
+  return Math.floor(Date.now() / 1000);
+}
+
+export type WaitForCommitmentOptions = {
+  commitmentBuffer?: number;
+};
+
 export async function waitForMinimumCommitmentAge(
-  clientWrapper: ReviveClientWrapper,
-  originSubstrateAddress: string,
+  ctx: DotnsContext,
   commitment: Hex,
-  commitmentBuffer?: number,
+  opts: WaitForCommitmentOptions = {},
 ): Promise<void> {
-  const buffer = commitmentBuffer ?? DEFAULT_COMMITMENT_BUFFER_SECONDS;
-  const checkSpinner = ora("Reading minimum commitment age").start();
+  const buffer = opts.commitmentBuffer ?? DEFAULT_COMMITMENT_BUFFER_SECONDS;
 
   const [minimumAge, initialCommitTimestamp] = await Promise.all([
-    withTimeout(
-      performContractCall<bigint | number>(
-        clientWrapper,
-        originSubstrateAddress,
-        CONTRACTS.DOTNS_REGISTRAR_CONTROLLER,
-        DOTNS_REGISTRAR_CONTROLLER_ABI,
-        "minCommitmentAge",
-        [],
-      ),
-      30000,
+    read<bigint | number>(
+      ctx,
+      ctx.contracts.DOTNS_REGISTRAR_CONTROLLER,
+      DOTNS_REGISTRAR_CONTROLLER_ABI,
       "minCommitmentAge",
+      [],
     ),
-    withTimeout(
-      performContractCall<bigint | number>(
-        clientWrapper,
-        originSubstrateAddress,
-        CONTRACTS.DOTNS_REGISTRAR_CONTROLLER,
-        DOTNS_REGISTRAR_CONTROLLER_ABI,
-        "commitments",
-        [commitment],
-      ),
-      30000,
-      "commitments",
-    ),
+    readCommitmentTimestamp(ctx, commitment),
   ]);
 
   const minimumAgeSeconds = toNumber(minimumAge);
-  const initialCommitTime = toNumber(initialCommitTimestamp);
 
-  if (initialCommitTime === 0) {
-    checkSpinner.fail("Commitment not found on-chain");
+  if (initialCommitTimestamp === 0) {
     throw new Error("Commitment not found on-chain. It may not have been included in a block yet.");
   }
 
   const waitSeconds = minimumAgeSeconds + buffer;
-  checkSpinner.succeed(`Minimum commitment age: ${chalk.yellow(waitSeconds.toString() + "s")}`);
+  ctx.onStatus("waiting");
+  await sleep(waitSeconds * 1000, ctx.signal);
 
-  const waitSpinner = ora(`Waiting for commitment age (${waitSeconds}s)`).start();
-
-  let elapsedSeconds = 0;
-  const intervalId = setInterval(() => {
-    elapsedSeconds++;
-    const remainingSeconds = waitSeconds - elapsedSeconds;
-    waitSpinner.text = `Waiting for commitment age (${chalk.yellow(remainingSeconds + "s")} remaining)`;
-  }, 1000);
-
-  await new Promise((resolve) => setTimeout(resolve, waitSeconds * 1000));
-  clearInterval(intervalId);
-
-  waitSpinner.text = "Verifying commitment age on-chain";
-
-  // Compare block-time to block-time, not wall-clock to block-time. The
-  // contract's CommitmentTooNew check is `block.timestamp - commitTimestamp
-  // >= minCommitmentAge`, so the verify poll has to use the chain's current
-  // block timestamp as "now" — otherwise block-time can lag wall-clock by
-  // several seconds (e.g. on a parachain between blocks) and we submit the
-  // reveal while the contract still sees the commitment as too new. The
-  // Timestamp pallet stores block.timestamp in milliseconds.
+  // Compare block-time to block-time, not wall-clock to block-time. The contract's
+  // CommitmentTooNew check is `block.timestamp - commitTimestamp >= minCommitmentAge`,
+  // so block-time can lag wall-clock by several seconds on a parachain; polling the
+  // chain's current block timestamp avoids revealing while still too new.
   const pollDeadline = Date.now() + COMMITMENT_POLL_TIMEOUT_MS;
-
-  const timestampQuery = (clientWrapper.client as any).query?.Timestamp?.Now;
   while (Date.now() < pollDeadline) {
-    const polledTimestamp = await performContractCall<bigint | number>(
-      clientWrapper,
-      originSubstrateAddress,
-      CONTRACTS.DOTNS_REGISTRAR_CONTROLLER,
-      DOTNS_REGISTRAR_CONTROLLER_ABI,
-      "commitments",
-      [commitment],
-    );
+    if (ctx.signal?.aborted) throw ctx.signal.reason ?? new Error("Aborted");
 
-    const polledCommitTime = toNumber(polledTimestamp);
-
-    // Prefer chain block.timestamp via Timestamp::Now; fall back to wall-clock
-    // only if the pallet storage isn't available on this runtime (defensive —
-    // every Substrate chain we care about has it).
-    let chainNowSeconds: number;
-    if (timestampQuery?.getValue) {
-      const timestampMs = (await timestampQuery.getValue()) as bigint | number;
-      chainNowSeconds = Math.floor(Number(timestampMs) / 1000);
-    } else {
-      chainNowSeconds = Math.floor(Date.now() / 1000);
-    }
+    const polledCommitTime = await readCommitmentTimestamp(ctx, commitment);
+    const chainNowSeconds = await readChainNowSeconds(ctx);
 
     if (polledCommitTime > 0 && chainNowSeconds - polledCommitTime >= minimumAgeSeconds) {
-      waitSpinner.succeed("Commitment age requirement met (verified on-chain)");
       return;
     }
 
-    waitSpinner.text = `Commitment still too new, polling (${Math.ceil((pollDeadline - Date.now()) / 1000)}s remaining)`;
-    await new Promise((resolve) => setTimeout(resolve, COMMITMENT_POLL_INTERVAL_MS));
+    await sleep(COMMITMENT_POLL_INTERVAL_MS, ctx.signal);
   }
 
-  waitSpinner.fail("Commitment age verification timed out");
   throw new Error(
     `Commitment still too new after ${waitSeconds + COMMITMENT_POLL_TIMEOUT_MS / 1000}s. The chain's block timestamps may be advancing slower than expected. Try increasing --commitment-buffer or DOTNS_COMMITMENT_BUFFER.`,
   );
 }
 
-export async function readDomainOwner(
-  clientWrapper: ReviveClientWrapper,
-  originSubstrateAddress: string,
-  label: string,
-): Promise<Address> {
+export async function readDomainOwner(ctx: DotnsContext, name: string): Promise<Address> {
+  const label = normaliseLabel(name);
   const tokenId = computeDomainTokenId(label);
   try {
-    return await withTimeout(
-      performContractCall<Address>(
-        clientWrapper,
-        originSubstrateAddress,
-        CONTRACTS.DOTNS_REGISTRAR,
-        DOTNS_REGISTRAR_ABI,
-        "ownerOf",
-        [tokenId],
-      ),
-      30000,
-      "ownerOf",
-    );
+    return await read<Address>(ctx, ctx.contracts.DOTNS_REGISTRAR, DOTNS_REGISTRAR_ABI, "ownerOf", [
+      tokenId,
+    ]);
   } catch {
     return zeroAddress;
   }
@@ -368,419 +287,247 @@ export type CommitmentStatus = {
 };
 
 export async function readCommitmentStatus(
-  clientWrapper: ReviveClientWrapper,
-  originSubstrateAddress: string,
+  ctx: DotnsContext,
   commitment: Hex,
 ): Promise<CommitmentStatus> {
   const [minAge, maxAge, committedAt] = await Promise.all([
-    withTimeout(
-      performContractCall<bigint | number>(
-        clientWrapper,
-        originSubstrateAddress,
-        CONTRACTS.DOTNS_REGISTRAR_CONTROLLER,
-        DOTNS_REGISTRAR_CONTROLLER_ABI,
-        "minCommitmentAge",
-        [],
-      ),
-      30000,
+    read<bigint | number>(
+      ctx,
+      ctx.contracts.DOTNS_REGISTRAR_CONTROLLER,
+      DOTNS_REGISTRAR_CONTROLLER_ABI,
       "minCommitmentAge",
+      [],
     ),
-    withTimeout(
-      performContractCall<bigint | number>(
-        clientWrapper,
-        originSubstrateAddress,
-        CONTRACTS.DOTNS_REGISTRAR_CONTROLLER,
-        DOTNS_REGISTRAR_CONTROLLER_ABI,
-        "maxCommitmentAge",
-        [],
-      ),
-      30000,
+    read<bigint | number>(
+      ctx,
+      ctx.contracts.DOTNS_REGISTRAR_CONTROLLER,
+      DOTNS_REGISTRAR_CONTROLLER_ABI,
       "maxCommitmentAge",
+      [],
     ),
-    withTimeout(
-      performContractCall<bigint | number>(
-        clientWrapper,
-        originSubstrateAddress,
-        CONTRACTS.DOTNS_REGISTRAR_CONTROLLER,
-        DOTNS_REGISTRAR_CONTROLLER_ABI,
-        "commitments",
-        [commitment],
-      ),
-      30000,
-      "commitments",
-    ),
+    readCommitmentTimestamp(ctx, commitment),
   ]);
 
-  const timestampQuery = (clientWrapper.client as any).query?.Timestamp?.Now;
-  const nowSeconds = timestampQuery?.getValue
-    ? Math.floor(Number((await timestampQuery.getValue()) as bigint | number) / 1000)
-    : Math.floor(Date.now() / 1000);
-
   return {
-    committedTimestampSeconds: toNumber(committedAt),
-    nowSeconds,
+    committedTimestampSeconds: committedAt,
+    nowSeconds: await readChainNowSeconds(ctx),
     minAgeSeconds: toNumber(minAge),
     maxAgeSeconds: toNumber(maxAge),
   };
 }
 
 export async function getUserProofOfPersonhoodStatus(
-  clientWrapper: ReviveClientWrapper,
-  originSubstrateAddress: string,
+  ctx: DotnsContext,
   ownerAddress: Address,
 ): Promise<ProofOfPersonhoodStatus> {
-  const personhoodInfo = await withTimeout(
-    performContractCall<PersonhoodInfo | readonly unknown[]>(
-      clientWrapper,
-      originSubstrateAddress,
-      PERSONHOOD_PRECOMPILE_ADDRESS,
-      PERSONHOOD_ABI,
-      "personhoodStatus",
-      [ownerAddress, PERSONHOOD_CONTEXT],
-    ),
-    30000,
+  const personhoodInfo = await read<PersonhoodInfo | readonly unknown[]>(
+    ctx,
+    PERSONHOOD_PRECOMPILE_ADDRESS,
+    PERSONHOOD_ABI,
     "personhoodStatus",
+    [ownerAddress, PERSONHOOD_CONTEXT],
   );
-
   return convertToProofOfPersonhoodStatus(getPersonhoodStatusValue(personhoodInfo));
 }
 
 export async function getPriceAndValidateEligibility(
-  clientWrapper: ReviveClientWrapper,
-  originSubstrateAddress: string,
-  label: string,
+  ctx: DotnsContext,
+  name: string,
   ownerAddress: Address,
-  callerAddress: Address = ownerAddress,
 ): Promise<PricingAndEligibility> {
-  const registeringForOther = !isSameEvmAddress(callerAddress, ownerAddress);
-  const spinner = ora("Pricing via PopRules.price").start();
+  const label = normaliseLabel(name);
+  validateDomainLabel(label);
 
-  try {
-    validateDomainLabel(label);
+  const baseName = stripTrailingDigits(label);
+  const [isReserved, reservationOwner] = await read<ReservationInfoLike>(
+    ctx,
+    ctx.contracts.DOTNS_RULES,
+    POP_RULES_ABI,
+    "isBaseNameReserved",
+    [baseName],
+  );
 
-    const baseName = stripTrailingDigits(label);
-    const reservationInfo = await withTimeout(
-      performContractCall<ReservationInfoLike>(
-        clientWrapper,
-        originSubstrateAddress,
-        CONTRACTS.DOTNS_RULES,
-        POP_RULES_ABI,
-        "isBaseNameReserved",
-        [baseName],
-      ),
-      30000,
-      "isBaseNameReserved",
-    );
-
-    const [isReserved, reservationOwner] = reservationInfo;
-
-    if (isReserved && checksumAddress(reservationOwner) !== checksumAddress(ownerAddress)) {
-      spinner.fail("Eligibility failed");
-      throw new Error("Base name reserved for original Lite registrant");
-    }
-
-    const classificationResult = await withTimeout(
-      performContractCall<PricingAndEligibility>(
-        clientWrapper,
-        originSubstrateAddress,
-        CONTRACTS.DOTNS_RULES,
-        POP_RULES_ABI,
-        "priceWithoutCheck",
-        [label, ownerAddress],
-      ),
-      30000,
-      "priceWithoutCheck",
-    );
-    const requiredStatus = convertToProofOfPersonhoodStatus(classificationResult.status);
-    const message = classificationResult.message;
-
-    const userStatus = await getUserProofOfPersonhoodStatus(
-      clientWrapper,
-      originSubstrateAddress,
-      ownerAddress,
-    );
-    if (requiredStatus === ProofOfPersonhoodStatus.Reserved) {
-      spinner.fail("Eligibility failed");
-      throw new Error(message);
-    }
-
-    if (requiredStatus === ProofOfPersonhoodStatus.ProofOfPersonhoodFull) {
-      if (userStatus !== ProofOfPersonhoodStatus.ProofOfPersonhoodFull) {
-        spinner.fail("Eligibility failed");
-        throw new Error("Requires Full Personhood verification");
-      }
-    } else if (requiredStatus === ProofOfPersonhoodStatus.ProofOfPersonhoodLite) {
-      if (
-        userStatus !== ProofOfPersonhoodStatus.ProofOfPersonhoodLite &&
-        userStatus !== ProofOfPersonhoodStatus.ProofOfPersonhoodFull
-      ) {
-        spinner.fail("Eligibility failed");
-        throw new Error("Requires Personhood Lite verification");
-      }
-    }
-    // NoStatus-tier labels (stem of nine characters or more) are open to every tier,
-    // so no caller-side check fires here. Reservation collisions and any other
-    // protocol-side guards are enforced by PopRules at submission time.
-
-    spinner.succeed("Eligibility and price");
-    const resolvedPriceWei = classificationResult.price ?? classificationResult.priceWei;
-    const flatPriceWei = await withTimeout(
-      performContractCall<bigint>(
-        clientWrapper,
-        originSubstrateAddress,
-        CONTRACTS.DOTNS_RULES,
-        POP_RULES_ABI,
-        "price",
-        [label],
-      ),
-      30000,
-      "price",
-    );
-    const noStatusLabel = ProofOfPersonhoodStatus[ProofOfPersonhoodStatus.NoStatus];
-    console.log(
-      chalk.gray("  name tier:  ") + chalk.white(ProofOfPersonhoodStatus[requiredStatus]),
-    );
-    if (registeringForOther) {
-      console.log(chalk.gray("  owner:      ") + chalk.white(ownerAddress));
-      console.log(chalk.gray("  owner tier: ") + chalk.white(ProofOfPersonhoodStatus[userStatus]));
-    } else {
-      console.log(chalk.gray("  your tier:  ") + chalk.white(ProofOfPersonhoodStatus[userStatus]));
-    }
-    console.log(chalk.gray("  message:    ") + chalk.white(message));
-    console.log(
-      chalk.gray(`  price (${registeringForOther ? "owner" : "you"}):       `) +
-        chalk.green(`${formatWeiAsEther(resolvedPriceWei)} PAS`),
-    );
-    console.log(
-      chalk.gray(`  price (${noStatusLabel}):  `) +
-        chalk.white(`${formatWeiAsEther(flatPriceWei)} PAS`),
-    );
-
-    return {
-      priceWei: resolvedPriceWei,
-      requiredStatus,
-      userStatus,
-      message,
-      status: requiredStatus,
-      price: resolvedPriceWei,
-    };
-  } catch (error) {
-    if (!spinner.isSpinning) throw error;
-    spinner.fail("Pricing failed");
-    throw error;
+  if (isReserved && checksumAddress(reservationOwner) !== checksumAddress(ownerAddress)) {
+    throw new Error("Base name reserved for original Lite registrant");
   }
+
+  const classificationResult = await read<PricingAndEligibility>(
+    ctx,
+    ctx.contracts.DOTNS_RULES,
+    POP_RULES_ABI,
+    "priceWithoutCheck",
+    [label, ownerAddress],
+  );
+  const requiredStatus = convertToProofOfPersonhoodStatus(classificationResult.status);
+  const message = classificationResult.message;
+
+  const userStatus = await getUserProofOfPersonhoodStatus(ctx, ownerAddress);
+
+  if (requiredStatus === ProofOfPersonhoodStatus.Reserved) {
+    throw new Error(message);
+  }
+  if (requiredStatus === ProofOfPersonhoodStatus.ProofOfPersonhoodFull) {
+    if (userStatus !== ProofOfPersonhoodStatus.ProofOfPersonhoodFull) {
+      throw new Error("Requires Full Personhood verification");
+    }
+  } else if (requiredStatus === ProofOfPersonhoodStatus.ProofOfPersonhoodLite) {
+    if (
+      userStatus !== ProofOfPersonhoodStatus.ProofOfPersonhoodLite &&
+      userStatus !== ProofOfPersonhoodStatus.ProofOfPersonhoodFull
+    ) {
+      throw new Error("Requires Personhood Lite verification");
+    }
+  }
+  // NoStatus-tier labels (stem of nine characters or more) are open to every tier,
+  // so no caller-side check fires here. Reservation collisions and any other
+  // protocol-side guards are enforced by PopRules at submission time.
+
+  const resolvedPriceWei = classificationResult.price ?? classificationResult.priceWei;
+
+  return {
+    priceWei: resolvedPriceWei,
+    requiredStatus,
+    userStatus,
+    message,
+    status: requiredStatus,
+    price: resolvedPriceWei,
+  };
 }
 
 // Cross-payer friction charged when msg.sender != owner. register() requires
 // msg.value >= max(price, transferFloor(label, msg.sender, owner)); underpaying
 // reverts with InsufficientValue.
 export async function quoteCrossPayerFriction(
-  clientWrapper: ReviveClientWrapper,
-  originSubstrateAddress: string,
-  label: string,
+  ctx: DotnsContext,
+  name: string,
   callerEvmAddress: Address,
   ownerEvmAddress: Address,
 ): Promise<bigint> {
-  return await withTimeout(
-    performContractCall<bigint>(
-      clientWrapper,
-      originSubstrateAddress,
-      CONTRACTS.DOTNS_RULES,
-      POP_RULES_ABI,
-      "transferFloor",
-      [label, callerEvmAddress, ownerEvmAddress],
-    ),
-    30000,
-    "transferFloor",
-  );
+  const label = normaliseLabel(name);
+  return read<bigint>(ctx, ctx.contracts.DOTNS_RULES, POP_RULES_ABI, "transferFloor", [
+    label,
+    callerEvmAddress,
+    ownerEvmAddress,
+  ]);
 }
 
+export type RegistrationResult = {
+  name: string;
+  owner: Address;
+  priceWei: bigint;
+  frictionWei: bigint;
+  chargedWei: bigint;
+  bufferedWei: bigint;
+  txHash: Hex;
+};
+
 export async function finalizeRegularRegistration(
-  clientWrapper: ReviveClientWrapper,
-  substrateAddress: string,
-  signer: PolkadotSigner,
+  ctx: DotnsContext,
   registration: DomainRegistration,
   priceWei: bigint,
-  nativeTokenDecimals?: number,
   frictionWei: bigint = 0n,
-): Promise<void> {
-  const spinner = ora(`Registering ${chalk.cyan(registration.label + ".dot")}`).start();
+): Promise<RegistrationResult> {
+  const chargedWei = chargedAmountWei(priceWei, frictionWei);
+  const bufferedWei = bufferedPaymentWei(chargedWei);
+  const bufferedPaymentNative = convertWeiToNative(bufferedWei, ctx.nativeTokenDecimals);
 
-  try {
-    const totalChargedWei = chargedAmountWei(priceWei, frictionWei);
-    const bufferedWei = bufferedPaymentWei(totalChargedWei);
-    const bufferedPaymentNative = convertWeiToNative(bufferedWei, nativeTokenDecimals);
+  const txHash = await write(
+    ctx,
+    ctx.contracts.DOTNS_REGISTRAR_CONTROLLER,
+    bufferedPaymentNative,
+    DOTNS_REGISTRAR_CONTROLLER_ABI,
+    "register",
+    [registration],
+    "Registration",
+  );
 
-    console.log(chalk.gray("  cost:      ") + chalk.green(formatWeiAsEther(priceWei) + " PAS"));
-    if (frictionWei > 0n) {
-      console.log(
-        chalk.gray("  friction:  ") + chalk.yellow(formatWeiAsEther(frictionWei) + " PAS"),
-      );
-    }
-    console.log(
-      chalk.gray("  paying:    ") + chalk.green(formatWeiAsEther(totalChargedWei) + " PAS"),
-    );
-
-    const transactionHash = await submitContractTransaction(
-      clientWrapper,
-      CONTRACTS.DOTNS_REGISTRAR_CONTROLLER,
-      bufferedPaymentNative,
-      DOTNS_REGISTRAR_CONTROLLER_ABI,
-      "register",
-      [registration],
-      substrateAddress,
-      signer,
-      spinner,
-      "Registration",
-    );
-
-    console.log(chalk.gray("  tx:        ") + chalk.blue(transactionHash));
-    console.log(
-      chalk.gray("  paid:      ") + chalk.green(formatWeiAsEther(totalChargedWei) + " PAS"),
-    );
-    console.log(
-      chalk.gray("  note:      ") +
-        chalk.gray(
-          `sent ${formatWeiAsEther(bufferedWei)} PAS with a 10% buffer; the unused amount is refunded`,
-        ),
-    );
-  } catch (error) {
-    spinner.fail("Registration failed");
-    throw error;
-  }
+  return {
+    name: `${registration.label}.dot`,
+    owner: registration.owner,
+    priceWei,
+    frictionWei,
+    chargedWei,
+    bufferedWei,
+    txHash,
+  };
 }
 
 export async function finalizeGovernanceRegistration(
-  clientWrapper: ReviveClientWrapper,
-  substrateAddress: string,
-  signer: PolkadotSigner,
+  ctx: DotnsContext,
   registration: DomainRegistration,
-): Promise<void> {
-  const spinner = ora(
-    `Registering governance name ${chalk.cyan(registration.label + ".dot")}`,
-  ).start();
-
-  try {
-    const transactionHash = await submitContractTransaction(
-      clientWrapper,
-      CONTRACTS.DOTNS_REGISTRAR_CONTROLLER,
-      0n,
-      DOTNS_REGISTRAR_CONTROLLER_ABI,
-      "registerReserved",
-      [registration],
-      substrateAddress,
-      signer,
-      spinner,
-      "Governance Registration",
-    );
-
-    console.log(chalk.gray("  tx:        ") + chalk.blue(transactionHash));
-  } catch (error) {
-    spinner.fail("Governance registration failed");
-    throw error;
-  }
+): Promise<{ name: string; owner: Address; txHash: Hex }> {
+  const txHash = await write(
+    ctx,
+    ctx.contracts.DOTNS_REGISTRAR_CONTROLLER,
+    0n,
+    DOTNS_REGISTRAR_CONTROLLER_ABI,
+    "registerReserved",
+    [registration],
+    "Governance Registration",
+  );
+  return { name: `${registration.label}.dot`, owner: registration.owner, txHash };
 }
 
+export type SubnameResult = {
+  name: string;
+  owner: Address;
+  txHash: Hex;
+};
+
 export async function registerSubnode(
-  clientWrapper: ReviveClientWrapper,
-  substrateAddress: string,
-  signer: PolkadotSigner,
+  ctx: DotnsContext,
   sublabel: string,
   parentLabel: string,
   ownerAddress: Address,
-): Promise<Hex> {
-  const fullName = `${sublabel}.${parentLabel}.dot`;
-  const spinner = ora(`Registering subname ${chalk.cyan(fullName)}`).start();
+): Promise<SubnameResult> {
+  const subLabel = normaliseLabel(sublabel);
+  const parent = normaliseLabel(parentLabel);
+  const subnodeRecord: SubnodeRecord = {
+    parentNode: namehash(`${parent}.dot`),
+    subLabel,
+    parentLabel: parent,
+    owner: ownerAddress,
+  };
 
-  try {
-    const parentNode = namehash(`${parentLabel}.dot`);
+  const txHash = await write(
+    ctx,
+    ctx.contracts.DOTNS_REGISTRY,
+    0n,
+    DOTNS_REGISTRY_ABI,
+    "setSubnodeOwner",
+    [subnodeRecord],
+    "Subname registration",
+  );
 
-    const subnodeRecord: SubnodeRecord = {
-      parentNode,
-      subLabel: sublabel,
-      parentLabel: parentLabel,
-      owner: ownerAddress,
-    };
-
-    const transactionHash = await submitContractTransaction(
-      clientWrapper,
-      CONTRACTS.DOTNS_REGISTRY,
-      0n,
-      DOTNS_REGISTRY_ABI,
-      "setSubnodeOwner",
-      [subnodeRecord],
-      substrateAddress,
-      signer,
-      spinner,
-      "Subname registration",
-    );
-
-    console.log(chalk.gray("  tx:        ") + chalk.blue(transactionHash));
-
-    return transactionHash as Hex;
-  } catch (error) {
-    spinner.fail("Subname registration failed");
-    throw error;
-  }
+  return { name: `${subLabel}.${parent}.dot`, owner: ownerAddress, txHash };
 }
 
 export async function verifyDomainOwnership(
-  clientWrapper: ReviveClientWrapper,
-  originSubstrateAddress: string,
-  label: string,
+  ctx: DotnsContext,
+  name: string,
   expectedOwner: Address,
 ): Promise<Address> {
-  const spinner = ora("Verifying minted ownership").start();
+  const label = normaliseLabel(name);
+  const tokenId = computeDomainTokenId(label);
+  const actualOwner = await read<Address>(
+    ctx,
+    ctx.contracts.DOTNS_REGISTRAR,
+    DOTNS_REGISTRAR_ABI,
+    "ownerOf",
+    [tokenId],
+  );
 
-  try {
-    const tokenId = computeDomainTokenId(label);
-    const actualOwner = await withTimeout(
-      performContractCall<Address>(
-        clientWrapper,
-        originSubstrateAddress,
-        CONTRACTS.DOTNS_REGISTRAR,
-        DOTNS_REGISTRAR_ABI,
-        "ownerOf",
-        [tokenId],
-      ),
-      30000,
-      "ownerOf",
-    );
-
-    if (checksumAddress(actualOwner) !== checksumAddress(expectedOwner)) {
-      spinner.fail("Ownership verification failed");
-      console.log(chalk.gray("  expected:  ") + chalk.white(expectedOwner));
-      console.log(chalk.gray("  actual:    ") + chalk.white(actualOwner));
-      throw new Error(`Owner mismatch for ${label}.dot`);
-    }
-
-    spinner.succeed("Ownership verified");
-    console.log(chalk.gray("  owner:     ") + chalk.white(actualOwner));
-    return actualOwner;
-  } catch (error) {
-    spinner.fail("Ownership verification failed");
-    throw error;
+  if (checksumAddress(actualOwner) !== checksumAddress(expectedOwner)) {
+    throw new Error(`Owner mismatch for ${label}.dot`);
   }
+  return actualOwner;
 }
 
-async function readLabelStore(
-  clientWrapper: ReviveClientWrapper,
-  originSubstrateAddress: string,
-  ownerAddress: Address,
-): Promise<Address> {
+async function readLabelStore(ctx: DotnsContext, ownerAddress: Address): Promise<Address> {
   return getAddress(
-    await withTimeout(
-      performContractCall<Address>(
-        clientWrapper,
-        originSubstrateAddress,
-        CONTRACTS.STORE_FACTORY,
-        STORE_FACTORY_ABI,
-        "getLabelStore",
-        [ownerAddress],
-      ),
-      30000,
-      "getLabelStore",
-    ),
+    await read<Address>(ctx, ctx.contracts.STORE_FACTORY, STORE_FACTORY_ABI, "getLabelStore", [
+      ownerAddress,
+    ]),
   );
 }
 
@@ -789,149 +536,119 @@ type PendingClaim = { label: string; mintedAt: bigint };
 // Governance whitelist authorising registerReserved. Independent of the account's
 // PoP tier: a whitelisted address may register Reserved names regardless of its
 // own personhood status.
-export async function getWhitelistStatus(
-  clientWrapper: ReviveClientWrapper,
-  originSubstrateAddress: string,
-  address: Address,
-): Promise<boolean> {
-  return await withTimeout(
-    performContractCall<boolean>(
-      clientWrapper,
-      originSubstrateAddress,
-      CONTRACTS.DOTNS_REGISTRAR_CONTROLLER,
-      DOTNS_REGISTRAR_CONTROLLER_ABI,
-      "isWhiteListed",
-      [address],
-    ),
-    30000,
+export async function getWhitelistStatus(ctx: DotnsContext, address: Address): Promise<boolean> {
+  return read<boolean>(
+    ctx,
+    ctx.contracts.DOTNS_REGISTRAR_CONTROLLER,
+    DOTNS_REGISTRAR_CONTROLLER_ABI,
     "isWhiteListed",
+    [address],
+  );
+}
+
+async function readPendingClaims(
+  ctx: DotnsContext,
+  ownerAddress: Address,
+): Promise<readonly PendingClaim[]> {
+  return (
+    (await read<readonly PendingClaim[]>(
+      ctx,
+      ctx.contracts.DOTNS_POP_CONTROLLER,
+      DOTNS_POP_CONTROLLER_ABI,
+      "pendingClaims",
+      [ownerAddress],
+    )) ?? []
   );
 }
 
 export async function getPendingClaimLabels(
-  clientWrapper: ReviveClientWrapper,
-  originSubstrateAddress: string,
+  ctx: DotnsContext,
   address: Address,
 ): Promise<string[]> {
-  const claims = await readPendingClaims(clientWrapper, originSubstrateAddress, address);
+  const claims = await readPendingClaims(ctx, address);
   return claims.map((claim) => claim.label);
 }
 
-async function readPendingClaims(
-  clientWrapper: ReviveClientWrapper,
-  originSubstrateAddress: string,
-  ownerAddress: Address,
-): Promise<readonly PendingClaim[]> {
-  return (
-    (await withTimeout(
-      performContractCall<readonly PendingClaim[]>(
-        clientWrapper,
-        originSubstrateAddress,
-        CONTRACTS.DOTNS_POP_CONTROLLER,
-        DOTNS_POP_CONTROLLER_ABI,
-        "pendingClaims",
-        [ownerAddress],
-      ),
-      30000,
-      "pendingClaims",
-    )) ?? []
-  );
-}
+export type LabelStoreSyncResult = {
+  labelStore: Address;
+  pending: string[];
+  synced: boolean;
+};
 
 // Reconciles on-chain state for the caller: a fresh registration parks the name
 // in the PoP controller's pending queue; this step settles the queue into the
 // user's LabelStore (deploying it on first use). Always runs after a register.
 export async function ensureLabelStoreReady(
-  clientWrapper: ReviveClientWrapper,
-  substrateAddress: string,
-  signer: PolkadotSigner,
+  ctx: DotnsContext,
   ownerAddress: Address,
-): Promise<void> {
-  const inspectSpinner = ora("Checking your Label Store and pending names").start();
+): Promise<LabelStoreSyncResult> {
+  const [labelStore, pending] = await Promise.all([
+    readLabelStore(ctx, ownerAddress),
+    readPendingClaims(ctx, ownerAddress),
+  ]);
+  const pendingLabels = pending.map((claim) => claim.label);
 
-  let labelStore: Address;
-  let pending: readonly PendingClaim[];
-  try {
-    [labelStore, pending] = await Promise.all([
-      readLabelStore(clientWrapper, substrateAddress, ownerAddress),
-      readPendingClaims(clientWrapper, substrateAddress, ownerAddress),
-    ]);
-    inspectSpinner.succeed(
-      pending.length === 0
-        ? "Label Store up to date. Nothing to sync."
-        : `Found ${pending.length} pending name(s) to sync into your Label Store`,
-    );
-  } catch (error) {
-    inspectSpinner.fail("Could not read your Label Store status");
-    throw error;
+  if (pendingLabels.length === 0) {
+    return { labelStore, pending: pendingLabels, synced: true };
   }
-
-  if (pending.length === 0) {
-    if (labelStore === zeroAddress) {
-      console.log(
-        chalk.gray("  label store: ") +
-          chalk.yellow("(not deployed yet; will be created on your next registration)"),
-      );
-    } else {
-      console.log(chalk.gray("  label store: ") + chalk.cyan(labelStore));
-    }
-    return;
-  }
-
-  console.log(
-    chalk.gray("  pending names: ") + chalk.white(pending.map((claim) => claim.label).join(", ")),
-  );
 
   const maxAttempts = 3;
   let lastError: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    const syncSpinner = ora(
-      labelStore === zeroAddress
-        ? `Deploying your Label Store and syncing ${pending.length} name(s) on-chain (attempt ${attempt}/${maxAttempts})`
-        : `Syncing ${pending.length} name(s) into your Label Store (attempt ${attempt}/${maxAttempts})`,
-    ).start();
-
     try {
-      await submitContractTransaction(
-        clientWrapper,
-        CONTRACTS.DOTNS_POP_CONTROLLER,
+      await write(
+        ctx,
+        ctx.contracts.DOTNS_POP_CONTROLLER,
         0n,
         DOTNS_POP_CONTROLLER_ABI,
         "claimLabelStore",
         [],
-        substrateAddress,
-        signer,
-        syncSpinner,
         "Label Store sync",
       );
-      lastError = undefined;
-      break;
+      const deployed = await readLabelStore(ctx, ownerAddress);
+      return { labelStore: deployed, pending: pendingLabels, synced: true };
     } catch (error) {
       lastError = error;
-      syncSpinner.fail(
-        attempt < maxAttempts
-          ? `Sync attempt ${attempt} failed. Retrying.`
-          : `Sync attempt ${attempt} failed`,
-      );
     }
   }
 
-  if (lastError !== undefined) {
-    console.log();
-    console.log(chalk.yellow("  ⚠ Could not sync your Label Store right now."));
-    console.log(
-      chalk.gray(
-        "    Your name is safely registered on-chain. The pending claim stays queued, and we will automatically retry on your next `dotns register`.",
-      ),
-    );
-    console.log(chalk.gray("    To retry sooner, run: " + chalk.cyan("dotns store sync")));
-    return;
-  }
+  void lastError;
+  return { labelStore, pending: pendingLabels, synced: false };
+}
 
-  const deployed = await readLabelStore(clientWrapper, substrateAddress, ownerAddress);
-  console.log(chalk.gray("  label store: ") + chalk.cyan(deployed));
-  console.log(
-    chalk.gray("  synced:      ") +
-      chalk.green(`${pending.length} name(s) now resolvable from your Label Store`),
+export type RegisterNameOptions = GenerateCommitmentOptions & {
+  commitmentBuffer?: number;
+  callerAddress?: Address;
+};
+
+// Thin happy-path wrapper over the commit-reveal sequence for regular names. Each
+// step is also exported individually so callers that need to persist commitments
+// or surface progress between phases can drive the sequence themselves.
+export async function registerName(
+  ctx: DotnsContext,
+  name: string,
+  opts: RegisterNameOptions = {},
+): Promise<RegistrationResult> {
+  const label = normaliseLabel(name);
+  await ensureDomainNotRegistered(ctx, label);
+
+  const { commitment, registration } = await generateCommitment(ctx, label, opts);
+  await submitCommitment(ctx, commitment);
+  await waitForMinimumCommitmentAge(ctx, commitment, { commitmentBuffer: opts.commitmentBuffer });
+
+  const owner = registration.owner;
+  const caller = opts.callerAddress ?? owner;
+  const pricing = await getPriceAndValidateEligibility(ctx, label, owner);
+  const frictionWei = isSameEvmAddress(caller, owner)
+    ? 0n
+    : await quoteCrossPayerFriction(ctx, label, caller, owner);
+
+  const result = await finalizeRegularRegistration(
+    ctx,
+    registration,
+    pricing.priceWei,
+    frictionWei,
   );
+  await verifyDomainOwnership(ctx, label, owner);
+  return result;
 }

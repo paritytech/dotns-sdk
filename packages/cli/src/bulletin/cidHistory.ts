@@ -1,13 +1,13 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { PREVIEW_BASE_URL } from "../utils/constants";
+import { getActiveDotnsEnvironment } from "../utils/constants";
 import type { UploadRecord } from "../types/types";
 
 const HISTORY_DIR = path.join(os.homedir(), ".dotns");
 const HISTORY_FILE = path.join(HISTORY_DIR, "uploads.json");
 
-export function formatLocalTimestamp(date: Date): string {
+function formatLocalTimestamp(date: Date): string {
   const months = [
     "January",
     "February",
@@ -55,7 +55,7 @@ export async function readHistory(): Promise<UploadRecord[]> {
   }
 }
 
-export async function writeHistory(records: UploadRecord[]): Promise<void> {
+async function writeHistory(records: UploadRecord[]): Promise<void> {
   await ensureHistoryDir();
   await fs.writeFile(HISTORY_FILE, JSON.stringify(records, null, 2));
 }
@@ -107,7 +107,11 @@ function encodeForPreview(cid: string): string {
   return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-export function getPreviewUrl(record: UploadRecord): string {
+// Null when the active environment has no web app (e.g. previewnet): callers omit
+// the preview link rather than emit a wrong-network or broken URL.
+export function getPreviewUrl(record: UploadRecord): string | null {
+  const { previewBaseUrl } = getActiveDotnsEnvironment();
+  if (!previewBaseUrl) return null;
   const encoded = encodeForPreview(record.cid);
-  return `${PREVIEW_BASE_URL}/${encoded}`;
+  return `${previewBaseUrl}/${encoded}`;
 }

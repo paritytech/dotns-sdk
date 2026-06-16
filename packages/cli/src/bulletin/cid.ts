@@ -14,9 +14,9 @@ export const HASH = {
   BLAKE2B_256: 0xb220,
 } as const;
 
-export const HASH_LENGTH = 32;
+const HASH_LENGTH = 32;
 
-export function computeHash(data: Uint8Array, hashCode: number): Uint8Array {
+function computeHash(data: Uint8Array, hashCode: number): Uint8Array {
   switch (hashCode) {
     case HASH.SHA2_256:
       return sha256(data);

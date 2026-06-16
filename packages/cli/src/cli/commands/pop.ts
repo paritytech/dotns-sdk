@@ -8,6 +8,7 @@ import {
 import { addAuthOptions } from "./authOptions";
 import type { CommandOptions } from "../../types/types";
 import { ProofOfPersonhoodStatus } from "../../types/types";
+import { buildReadOnlyDotnsContext } from "../context";
 import { prepareReadOnlyContext } from "./lookup";
 import {
   getMergedOptions,
@@ -18,7 +19,7 @@ import {
 } from "./jsonHelpers";
 import type { Address } from "viem";
 
-export type PopInfoResult = {
+type PopInfoResult = {
   substrate: string;
   evm: string;
   status: ProofOfPersonhoodStatus;
@@ -42,11 +43,12 @@ function formatPopStatus(status: ProofOfPersonhoodStatus): "none" | "lite" | "fu
 
 async function readPopInfo(options: CommandOptions): Promise<PopInfoResult> {
   const context = await prepareReadOnlyContext(options as any);
+  const ctx = buildReadOnlyDotnsContext(context);
   const evm = context.evmAddress as Address;
   const [status, whitelisted, pendingClaims] = await Promise.all([
-    getUserProofOfPersonhoodStatus(context.clientWrapper!, context.account.address, evm),
-    getWhitelistStatus(context.clientWrapper!, context.account.address, evm),
-    getPendingClaimLabels(context.clientWrapper!, context.account.address, evm),
+    getUserProofOfPersonhoodStatus(ctx, evm),
+    getWhitelistStatus(ctx, evm),
+    getPendingClaimLabels(ctx, evm),
   ]);
 
   return {

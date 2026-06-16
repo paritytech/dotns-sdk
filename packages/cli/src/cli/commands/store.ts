@@ -1,11 +1,19 @@
+import { printCommandHeader } from "../ui";
 import { Command } from "commander";
 import chalk from "chalk";
+import ora from "ora";
 import type { Address } from "viem";
-import { addAuthOptions, getAuthOptions } from "./authOptions";
-import { prepareAssetHubContext } from "../context";
+import { addAuthOptions } from "./authOptions";
+import { prepareAssetHubContext, buildDotnsContext, buildReadOnlyDotnsContext } from "../context";
 import { prepareReadOnlyContext } from "./lookup";
-import { getJsonFlag, maybeQuiet } from "./jsonHelpers";
-import { formatErrorMessage } from "../../utils/formatting";
+import { makeOnStatus } from "../txStatus";
+import {
+  getMergedOptions,
+  getJsonFlag,
+  maybeQuiet,
+  emitJsonResult,
+  handleCommandError,
+} from "./jsonHelpers";
 import { isSecondLevelDotName } from "../../utils/validation";
 import {
   claimUserStore,
@@ -18,112 +26,116 @@ import {
   listStoreCids,
   claimLabels,
 } from "../../commands/storeManagement";
-import type { LookupActionOptions } from "../../types/types";
 
-function handleCommandError(error: unknown, cmd: any): never {
-  const jsonOutput = getJsonFlag(cmd);
-  const message = formatErrorMessage(error);
-
-  if (jsonOutput) {
-    console.error(JSON.stringify({ error: message }));
-  } else {
-    console.error(chalk.red(`\n✗ Error: ${message}\n`));
-  }
-
-  process.exit(1);
+interface StoreCommonOptions {
+  rpc?: string;
 }
 
 export function attachStoreCommands(root: Command): void {
   const storeCommand = root
     .command("store")
     .description("Manage your on-chain User Store (claim, key/value data) and Label Store names");
+  addAuthOptions(storeCommand);
 
   const claimCommand = storeCommand
     .command("claim")
     .description("Claim your User Store (required once before setting values)")
-    .option("--json", "Output result as JSON", false);
-
-  addAuthOptions(claimCommand).action(async (options: any, cmd: any) => {
+    .option("--json", "Output result as JSON (suppresses all other output)", false);
+  addAuthOptions(claimCommand).action(async (options: StoreCommonOptions, command: Command) => {
+    const jsonOutput = getJsonFlag(command);
     try {
-      const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
-      const jsonOutput = getJsonFlag(cmd);
+      const mergedOptions = getMergedOptions(command, options);
+      const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(mergedOptions));
 
-      const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(merged));
-      const { clientWrapper, substrateAddress, signer, evmAddress } = context;
+      if (!jsonOutput) printCommandHeader("Claim User Store");
+      const spinner = ora();
+      const ctx = buildDotnsContext(context, { onStatus: makeOnStatus(spinner, "User Store") });
 
-      const result = await maybeQuiet(jsonOutput, () =>
-        claimUserStore(clientWrapper, substrateAddress, signer, evmAddress as Address),
-      );
+      const result = await maybeQuiet(jsonOutput, () => claimUserStore(ctx, context.evmAddress));
 
-      if (jsonOutput) {
-        console.log(JSON.stringify(result));
-      } else {
-        console.log(chalk.green("\n✓ User Store claimed\n"));
+      if (!emitJsonResult(jsonOutput, result)) {
+        console.log(chalk.gray("  owner: ") + chalk.white(context.evmAddress));
+        console.log(chalk.gray("  store: ") + chalk.white(result.storeAddress));
+        console.log(
+          chalk.gray("  status: ") +
+            chalk.white(result.alreadyClaimed ? "already claimed" : "claimed"),
+        );
+        if (result.tx) console.log(chalk.gray("  tx:    ") + chalk.blue(result.tx));
+        console.log(chalk.green("\n✓ Complete\n"));
       }
-
       process.exit(0);
     } catch (error) {
-      handleCommandError(error, cmd);
+      handleCommandError(jsonOutput, error);
     }
   });
 
   const infoCommand = storeCommand
     .command("info")
     .description("Show Store address and deployment status")
-    .option("--json", "Output result as JSON", false);
-
-  addAuthOptions(infoCommand).action(async (options: any, cmd: any) => {
+    .option("--json", "Output result as JSON (suppresses all other output)", false);
+  addAuthOptions(infoCommand).action(async (options: StoreCommonOptions, command: Command) => {
+    const jsonOutput = getJsonFlag(command);
     try {
-      const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
-      const jsonOutput = getJsonFlag(cmd);
+      const mergedOptions = getMergedOptions(command, options);
+      const context = await maybeQuiet(jsonOutput, () => prepareReadOnlyContext(mergedOptions));
 
-      const { clientWrapper, account, evmAddress } = await maybeQuiet(jsonOutput, () =>
-        prepareReadOnlyContext(merged),
-      );
+      if (!jsonOutput) printCommandHeader("Store info");
+      const spinner = ora();
+      const ctx = buildReadOnlyDotnsContext(context, {
+        onStatus: makeOnStatus(spinner, "Store"),
+      });
 
       const result = await maybeQuiet(jsonOutput, () =>
-        getStoreInfo(clientWrapper, account.address, evmAddress as Address),
+        getStoreInfo(ctx, context.evmAddress as Address),
       );
 
-      if (jsonOutput) {
-        console.log(JSON.stringify(result));
-      } else {
-        console.log(chalk.green("\n✓ Store info retrieved\n"));
+      if (!emitJsonResult(jsonOutput, result)) {
+        console.log(chalk.gray("  owner: ") + chalk.white(result.owner));
+        console.log(chalk.gray("  store: ") + chalk.white(result.storeAddress ?? "(not claimed)"));
+        console.log(chalk.gray("  exists: ") + chalk.white(String(result.exists)));
+        console.log(chalk.green("\n✓ Complete\n"));
       }
-
       process.exit(0);
     } catch (error) {
-      handleCommandError(error, cmd);
+      handleCommandError(jsonOutput, error);
     }
   });
 
   const listCommand = storeCommand
     .command("list")
     .description("List all values in your UserStore")
-    .option("--json", "Output result as JSON", false);
-
-  addAuthOptions(listCommand).action(async (options: any, cmd: any) => {
+    .option("--json", "Output result as JSON (suppresses all other output)", false);
+  addAuthOptions(listCommand).action(async (options: StoreCommonOptions, command: Command) => {
+    const jsonOutput = getJsonFlag(command);
     try {
-      const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
-      const jsonOutput = getJsonFlag(cmd);
+      const mergedOptions = getMergedOptions(command, options);
+      const context = await maybeQuiet(jsonOutput, () => prepareReadOnlyContext(mergedOptions));
 
-      const { clientWrapper, account, evmAddress } = await maybeQuiet(jsonOutput, () =>
-        prepareReadOnlyContext(merged),
+      if (!jsonOutput) printCommandHeader("Store values");
+      const spinner = ora();
+      const ctx = buildReadOnlyDotnsContext(context, {
+        onStatus: makeOnStatus(spinner, "Store values"),
+      });
+
+      const values = await maybeQuiet(jsonOutput, () =>
+        listStoreValues(ctx, context.evmAddress as Address),
       );
 
-      const result = await maybeQuiet(jsonOutput, () =>
-        listStoreValues(clientWrapper, account.address, evmAddress as Address),
-      );
-
-      if (jsonOutput) {
-        console.log(JSON.stringify({ values: result }));
-      } else {
-        console.log(chalk.green("\n✓ Store values listed\n"));
+      if (!emitJsonResult(jsonOutput, { values })) {
+        if (values.length === 0) {
+          console.log(chalk.gray("  (empty)"));
+        } else {
+          values.forEach((entry, index) => {
+            console.log(
+              chalk.gray(`  ${index + 1}. `) + chalk.cyan(`${entry.key} = ${entry.value}`),
+            );
+          });
+        }
+        console.log(chalk.green("\n✓ Complete\n"));
       }
-
       process.exit(0);
     } catch (error) {
-      handleCommandError(error, cmd);
+      handleCommandError(jsonOutput, error);
     }
   });
 
@@ -131,192 +143,201 @@ export function attachStoreCommands(root: Command): void {
     .command("names")
     .description("List .dot names in your LabelStore (second-level names only by default)")
     .option("--all", "Include subdomains (default: only second-level .dot names)", false)
-    .option("--json", "Output result as JSON", false);
+    .option("--json", "Output result as JSON (suppresses all other output)", false);
+  addAuthOptions(namesCommand).action(
+    async (options: StoreCommonOptions & { all?: boolean }, command: Command) => {
+      const jsonOutput = getJsonFlag(command);
+      try {
+        const mergedOptions = getMergedOptions(command, options);
+        const context = await maybeQuiet(jsonOutput, () => prepareReadOnlyContext(mergedOptions));
 
-  addAuthOptions(namesCommand).action(async (options: any, cmd: any) => {
-    try {
-      const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
-      const jsonOutput = getJsonFlag(cmd);
+        if (!jsonOutput) printCommandHeader("Store names");
+        const spinner = ora();
+        const ctx = buildReadOnlyDotnsContext(context, {
+          onStatus: makeOnStatus(spinner, "Store names"),
+        });
 
-      const { clientWrapper, account, evmAddress } = await maybeQuiet(jsonOutput, () =>
-        prepareReadOnlyContext(merged),
-      );
+        const allNames = await maybeQuiet(jsonOutput, () =>
+          listStoreNames(ctx, context.evmAddress as Address),
+        );
+        const names = options.all ? allNames : allNames.filter(isSecondLevelDotName);
 
-      const allNames = await listStoreNames(clientWrapper, account.address, evmAddress as Address);
-      const names = options.all ? allNames : allNames.filter(isSecondLevelDotName);
-
-      if (jsonOutput) {
-        console.log(JSON.stringify({ names }));
-      } else {
-        if (names.length === 0) {
-          console.log(chalk.gray("\n  No names found in Store\n"));
-        } else {
-          console.log(chalk.green(`\n✓ ${names.length} name(s) found\n`));
-          for (const name of names) {
-            console.log(chalk.gray("  • ") + chalk.cyan(name));
+        if (!emitJsonResult(jsonOutput, { names })) {
+          if (names.length === 0) {
+            console.log(chalk.gray("  No names found in Store"));
+          } else {
+            for (const name of names) {
+              console.log(chalk.gray("  • ") + chalk.cyan(name));
+            }
           }
-          console.log();
+          console.log(chalk.green("\n✓ Complete\n"));
         }
+        process.exit(0);
+      } catch (error) {
+        handleCommandError(jsonOutput, error);
       }
-
-      process.exit(0);
-    } catch (error) {
-      handleCommandError(error, cmd);
-    }
-  });
+    },
+  );
 
   const cidsCommand = storeCommand
     .command("cids")
     .description("List all uploaded CIDs in your Store")
-    .option("--json", "Output result as JSON", false);
-
-  addAuthOptions(cidsCommand).action(async (options: any, cmd: any) => {
+    .option("--json", "Output result as JSON (suppresses all other output)", false);
+  addAuthOptions(cidsCommand).action(async (options: StoreCommonOptions, command: Command) => {
+    const jsonOutput = getJsonFlag(command);
     try {
-      const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
-      const jsonOutput = getJsonFlag(cmd);
+      const mergedOptions = getMergedOptions(command, options);
+      const context = await maybeQuiet(jsonOutput, () => prepareReadOnlyContext(mergedOptions));
 
-      const { clientWrapper, account, evmAddress } = await maybeQuiet(jsonOutput, () =>
-        prepareReadOnlyContext(merged),
+      if (!jsonOutput) printCommandHeader("Store CIDs");
+      const spinner = ora();
+      const ctx = buildReadOnlyDotnsContext(context, {
+        onStatus: makeOnStatus(spinner, "Store CIDs"),
+      });
+
+      const cids = await maybeQuiet(jsonOutput, () =>
+        listStoreCids(ctx, context.evmAddress as Address),
       );
 
-      const cids = await listStoreCids(clientWrapper, account.address, evmAddress as Address);
-
-      if (jsonOutput) {
-        console.log(JSON.stringify({ cids }));
-      } else {
+      if (!emitJsonResult(jsonOutput, { cids })) {
         if (cids.length === 0) {
-          console.log(chalk.gray("\n  No CIDs found in Store\n"));
+          console.log(chalk.gray("  No CIDs found in Store"));
         } else {
-          console.log(chalk.green(`\n✓ ${cids.length} CID(s) found\n`));
           for (const cid of cids) {
             console.log(chalk.gray("  • ") + chalk.cyan(cid));
           }
-          console.log();
         }
+        console.log(chalk.green("\n✓ Complete\n"));
       }
-
       process.exit(0);
     } catch (error) {
-      handleCommandError(error, cmd);
+      handleCommandError(jsonOutput, error);
     }
   });
 
   const getCommand = storeCommand
     .command("get <key>")
     .description("Get a value by key (hex bytes32 or string, hashed via keccak256)")
-    .option("--json", "Output result as JSON", false);
+    .option("--json", "Output result as JSON (suppresses all other output)", false);
+  addAuthOptions(getCommand).action(
+    async (key: string, options: StoreCommonOptions, command: Command) => {
+      const jsonOutput = getJsonFlag(command);
+      try {
+        const mergedOptions = getMergedOptions(command, options);
+        const context = await maybeQuiet(jsonOutput, () => prepareReadOnlyContext(mergedOptions));
 
-  addAuthOptions(getCommand).action(async (key: string, options: any, cmd: any) => {
-    try {
-      const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
-      const jsonOutput = getJsonFlag(cmd);
+        if (!jsonOutput) printCommandHeader("Store value");
+        const spinner = ora();
+        const ctx = buildReadOnlyDotnsContext(context, {
+          onStatus: makeOnStatus(spinner, "Store value"),
+        });
 
-      const { clientWrapper, account, evmAddress } = await maybeQuiet(jsonOutput, () =>
-        prepareReadOnlyContext(merged),
-      );
+        const result = await maybeQuiet(jsonOutput, () =>
+          getStoreValue(ctx, context.evmAddress as Address, key),
+        );
 
-      const result = await maybeQuiet(jsonOutput, () =>
-        getStoreValue(clientWrapper, account.address, evmAddress as Address, key),
-      );
-
-      if (jsonOutput) {
-        console.log(JSON.stringify(result));
-      } else {
-        console.log(chalk.green("\n✓ Value retrieved\n"));
+        if (!emitJsonResult(jsonOutput, result)) {
+          console.log(chalk.gray("  key:   ") + chalk.white(result.key));
+          console.log(
+            chalk.gray("  value: ") + chalk.white(result.exists ? result.value : "(empty)"),
+          );
+          console.log(chalk.green("\n✓ Complete\n"));
+        }
+        process.exit(0);
+      } catch (error) {
+        handleCommandError(jsonOutput, error);
       }
-
-      process.exit(0);
-    } catch (error) {
-      handleCommandError(error, cmd);
-    }
-  });
+    },
+  );
 
   const setCommand = storeCommand
     .command("set <key> <value>")
     .description("Set a key-value pair in your Store")
-    .option("--json", "Output result as JSON", false);
+    .option("--json", "Output result as JSON (suppresses all other output)", false);
+  addAuthOptions(setCommand).action(
+    async (key: string, value: string, options: StoreCommonOptions, command: Command) => {
+      const jsonOutput = getJsonFlag(command);
+      try {
+        const mergedOptions = getMergedOptions(command, options);
+        const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(mergedOptions));
 
-  addAuthOptions(setCommand).action(async (key: string, value: string, options: any, cmd: any) => {
-    try {
-      const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
-      const jsonOutput = getJsonFlag(cmd);
+        if (!jsonOutput) printCommandHeader("Set Store value");
+        const spinner = ora();
+        const ctx = buildDotnsContext(context, { onStatus: makeOnStatus(spinner, "Store write") });
 
-      const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(merged));
-      const { clientWrapper, substrateAddress, signer, evmAddress } = context;
+        const result = await maybeQuiet(jsonOutput, () =>
+          setStoreValue(ctx, context.evmAddress, key, value),
+        );
 
-      const result = await maybeQuiet(jsonOutput, () =>
-        setStoreValue(clientWrapper, substrateAddress, signer, evmAddress as Address, key, value),
-      );
-
-      if (jsonOutput) {
-        console.log(JSON.stringify(result));
-      } else {
-        console.log(chalk.green("\n✓ Value set\n"));
+        if (!emitJsonResult(jsonOutput, result)) {
+          console.log(chalk.gray("  key:   ") + chalk.white(result.key));
+          console.log(chalk.gray("  value: ") + chalk.white(result.value));
+          console.log(chalk.green("\n✓ Complete\n"));
+        }
+        process.exit(0);
+      } catch (error) {
+        handleCommandError(jsonOutput, error);
       }
-
-      process.exit(0);
-    } catch (error) {
-      handleCommandError(error, cmd);
-    }
-  });
+    },
+  );
 
   const deleteCommand = storeCommand
     .command("delete <key>")
     .description("Delete a value from your Store by key")
-    .option("--json", "Output result as JSON", false);
+    .option("--json", "Output result as JSON (suppresses all other output)", false);
+  addAuthOptions(deleteCommand).action(
+    async (key: string, options: StoreCommonOptions, command: Command) => {
+      const jsonOutput = getJsonFlag(command);
+      try {
+        const mergedOptions = getMergedOptions(command, options);
+        const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(mergedOptions));
 
-  addAuthOptions(deleteCommand).action(async (key: string, options: any, cmd: any) => {
-    try {
-      const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
-      const jsonOutput = getJsonFlag(cmd);
+        if (!jsonOutput) printCommandHeader("Delete Store value");
+        const spinner = ora();
+        const ctx = buildDotnsContext(context, { onStatus: makeOnStatus(spinner, "Store delete") });
 
-      const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(merged));
-      const { clientWrapper, substrateAddress, signer, evmAddress } = context;
+        const result = await maybeQuiet(jsonOutput, () =>
+          deleteStoreValue(ctx, context.evmAddress, key),
+        );
 
-      const result = await maybeQuiet(jsonOutput, () =>
-        deleteStoreValue(clientWrapper, substrateAddress, signer, evmAddress as Address, key),
-      );
-
-      if (jsonOutput) {
-        console.log(JSON.stringify(result));
-      } else {
-        console.log(chalk.green("\n✓ Value deleted\n"));
+        if (!emitJsonResult(jsonOutput, result)) {
+          console.log(chalk.gray("  key: ") + chalk.white(result.key));
+          console.log(chalk.green("\n✓ Complete\n"));
+        }
+        process.exit(0);
+      } catch (error) {
+        handleCommandError(jsonOutput, error);
       }
-
-      process.exit(0);
-    } catch (error) {
-      handleCommandError(error, cmd);
-    }
-  });
+    },
+  );
 
   const syncCommand = storeCommand
     .command("sync")
     .description(
       "Sync your Label Store with the protocol. Settles any pending names from the PoP controller (deploys the store on first call).",
     )
-    .option("--json", "Output result as JSON", false);
-
-  addAuthOptions(syncCommand).action(async (options: any, cmd: any) => {
+    .option("--json", "Output result as JSON (suppresses all other output)", false);
+  addAuthOptions(syncCommand).action(async (options: StoreCommonOptions, command: Command) => {
+    const jsonOutput = getJsonFlag(command);
     try {
-      const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
-      const jsonOutput = getJsonFlag(cmd);
+      const mergedOptions = getMergedOptions(command, options);
+      const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(mergedOptions));
 
-      const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(merged));
-      const { clientWrapper, substrateAddress, signer, evmAddress } = context;
+      if (!jsonOutput) printCommandHeader("Sync Label Store");
+      const spinner = ora();
+      const ctx = buildDotnsContext(context, { onStatus: makeOnStatus(spinner, "Label Store") });
 
-      const result = await maybeQuiet(jsonOutput, () =>
-        claimLabels(clientWrapper, substrateAddress, signer, evmAddress as Address),
-      );
+      const result = await maybeQuiet(jsonOutput, () => claimLabels(ctx, context.evmAddress));
 
-      if (jsonOutput) {
-        console.log(JSON.stringify(result));
-      } else {
-        console.log(chalk.green("\n✓ Label Store synced\n"));
+      if (!emitJsonResult(jsonOutput, result)) {
+        console.log(chalk.gray("  owner: ") + chalk.white(context.evmAddress));
+        console.log(chalk.gray("  store: ") + chalk.white(result.storeAddress ?? "(not deployed)"));
+        console.log(chalk.gray("  tx:    ") + chalk.blue(result.tx));
+        console.log(chalk.green("\n✓ Complete\n"));
       }
-
       process.exit(0);
     } catch (error) {
-      handleCommandError(error, cmd);
+      handleCommandError(jsonOutput, error);
     }
   });
 }

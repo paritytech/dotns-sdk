@@ -1,9 +1,11 @@
+import { printCommandHeader } from "../ui";
 import { Command } from "commander";
 import chalk from "chalk";
-import { viewDomainText, setDomainText } from "../../commands/textRecord";
+import { getTextRecord, setTextRecord } from "../../commands/textRecord";
 import { addAuthOptions } from "./authOptions";
-import { prepareContext } from "../context";
+import { buildDotnsContext, prepareContext } from "../context";
 import { prepareReadOnlyContext } from "./lookup";
+import { makeOnStatus } from "../txStatus";
 import {
   getMergedOptions,
   getJsonFlag,
@@ -13,11 +15,11 @@ import {
 } from "./jsonHelpers";
 import ora from "ora";
 
-export interface TextViewOptions {
+interface TextViewOptions {
   rpc?: string;
 }
 
-export interface TextSetOptions {
+interface TextSetOptions {
   rpc?: string;
 }
 
@@ -40,14 +42,26 @@ export function attachTextCommands(root: Command) {
           prepareReadOnlyContext(mergedOptions as any),
         );
 
-        if (!jsonOutput) console.log(chalk.bold("\n▶ Text View\n"));
+        if (!jsonOutput) printCommandHeader("Text View");
         const spinner = ora();
-
-        const result = await maybeQuiet(jsonOutput, () =>
-          viewDomainText(context.clientWrapper!, context.account.address, name, key, spinner),
+        const ctx = buildDotnsContext(
+          { ...context, substrateAddress: context.account.address, signer: undefined } as any,
+          { onStatus: makeOnStatus(spinner, "text record") },
         );
 
+        const result = await maybeQuiet(jsonOutput, () => getTextRecord(ctx, name, key));
+
         if (!emitJsonResult(jsonOutput, result)) {
+          console.log(chalk.gray("  domain: ") + chalk.cyan(result.domain));
+          console.log(chalk.gray("  key:    ") + chalk.white(result.key));
+          if (!result.exists) {
+            console.log(chalk.yellow("  status: Domain not registered"));
+          } else {
+            console.log(
+              chalk.gray("  value:  ") +
+                (result.value ? chalk.cyan(result.value) : chalk.yellow("(not set)")),
+            );
+          }
           console.log(chalk.green("\n✓ Complete\n"));
         }
         process.exit(0);
@@ -93,22 +107,19 @@ export function attachTextCommands(root: Command) {
           prepareContext({ ...mergedOptions, useRevive: true }),
         );
 
-        if (!jsonOutput) console.log(chalk.bold("\n▶ Text Set\n"));
+        if (!jsonOutput) printCommandHeader("Text Set");
         const spinner = ora();
+        const ctx = buildDotnsContext(context as any, {
+          onStatus: makeOnStatus(spinner, "text record"),
+        });
 
-        const result = await maybeQuiet(jsonOutput, () =>
-          setDomainText(
-            context.clientWrapper!,
-            context.substrateAddress,
-            context.signer,
-            name,
-            key,
-            value!,
-            spinner,
-          ),
-        );
+        const result = await maybeQuiet(jsonOutput, () => setTextRecord(ctx, name, key, value!));
 
         if (!emitJsonResult(jsonOutput, result)) {
+          console.log(chalk.gray("  domain: ") + chalk.cyan(result.domain));
+          console.log(chalk.gray("  key:    ") + chalk.white(result.key));
+          console.log(chalk.gray("  value:  ") + chalk.cyan(result.value));
+          console.log(chalk.gray("  tx:     ") + chalk.blue(result.txHash));
           console.log(chalk.green("\n✓ Complete\n"));
         }
         process.exit(0);

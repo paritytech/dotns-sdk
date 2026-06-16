@@ -69,13 +69,13 @@ export function clampU32(value: bigint | number, fieldName: string): number {
   return Number(asBigInt);
 }
 
-export function isAuthorizationSufficient(status: AuthorizationStatus): boolean {
+function isAuthorizationSufficient(status: AuthorizationStatus): boolean {
   if (!status.authorized) return false;
   if (status.expired) return false;
   return true;
 }
 
-export function isTestnetSpecName(specName: string | undefined | null): boolean {
+function isTestnetSpecName(specName: string | undefined | null): boolean {
   if (!specName) return false;
   const s = specName.toLowerCase();
   if (s.includes("paseo")) return true;

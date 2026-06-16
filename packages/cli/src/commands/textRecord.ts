@@ -1,10 +1,7 @@
-import chalk from "chalk";
-import type { Ora } from "ora";
-import { namehash, type Address, zeroAddress } from "viem";
-import type { PolkadotSigner } from "polkadot-api";
-import type { ReviveClientWrapper } from "../client/polkadotClient";
-import { CONTRACTS, DOTNS_REGISTRY_ABI, DOTNS_CONTENT_RESOLVER_ABI } from "../utils/constants";
-import { performContractCall, submitContractTransaction } from "../utils/contractInteractions";
+import { namehash, zeroAddress, type Address } from "viem";
+import { type DotnsContext, read, write } from "../core/context";
+import { DOTNS_REGISTRY_ABI, DOTNS_CONTENT_RESOLVER_ABI } from "../utils/constants";
+import { normaliseLabel } from "../utils/validation";
 import { getResolverNodeInfo, requireResolverAuthorization } from "./resolverAuth";
 
 export type TextViewResult = {
@@ -16,167 +13,82 @@ export type TextViewResult = {
 };
 
 export type TextSetResult = {
-  ok: true;
   domain: string;
   key: string;
   value: string;
   txHash: string;
 };
 
-export async function viewDomainText(
-  clientWrapper: ReviveClientWrapper,
-  originSubstrateAddress: string,
-  label: string,
+export async function getTextRecord(
+  ctx: DotnsContext,
+  name: string,
   key: string,
-  spinner: Ora,
 ): Promise<TextViewResult> {
-  const namehashNode = namehash(`${label}.dot`);
+  const label = normaliseLabel(name);
   const domain = `${label}.dot`;
-  spinner.start("Querying registry");
+  const namehashNode = namehash(domain);
 
-  const recordExists = await performContractCall<boolean>(
-    clientWrapper,
-    originSubstrateAddress,
-    CONTRACTS.DOTNS_REGISTRY,
+  const recordExists = await read<boolean>(
+    ctx,
+    ctx.contracts.DOTNS_REGISTRY,
     DOTNS_REGISTRY_ABI,
     "recordExists",
     [namehashNode],
   );
-
-  const ownerAddress = await performContractCall<Address>(
-    clientWrapper,
-    originSubstrateAddress,
-    CONTRACTS.DOTNS_REGISTRY,
+  const owner = await read<Address>(
+    ctx,
+    ctx.contracts.DOTNS_REGISTRY,
     DOTNS_REGISTRY_ABI,
     "owner",
     [namehashNode],
   );
 
-  spinner.succeed("Registry read");
-
-  console.log(chalk.gray("  registry: ") + chalk.white(CONTRACTS.DOTNS_REGISTRY));
-  console.log(chalk.gray("  domain:   ") + chalk.cyan(domain));
-  console.log(chalk.gray("  node:     ") + chalk.white(namehashNode));
-  console.log(chalk.gray("  exists:   ") + chalk.white(String(recordExists)));
-  console.log(chalk.gray("  owner:    ") + chalk.white(ownerAddress));
-  console.log();
-
-  if (!recordExists || ownerAddress === zeroAddress) {
-    console.log(chalk.yellow("  status: Domain not registered"));
+  if (!recordExists || owner === zeroAddress) {
     return { domain, key, exists: false, owner: null, value: null };
   }
 
-  const value = await performContractCall<string>(
-    clientWrapper,
-    originSubstrateAddress,
-    CONTRACTS.DOTNS_CONTENT_RESOLVER,
+  const value = await read<string>(
+    ctx,
+    ctx.contracts.DOTNS_CONTENT_RESOLVER,
     DOTNS_CONTENT_RESOLVER_ABI,
     "text",
     [namehashNode, key],
   );
-
-  console.log(chalk.gray("  resolver: ") + chalk.white(CONTRACTS.DOTNS_CONTENT_RESOLVER));
-  console.log(chalk.gray("  key:      ") + chalk.white(key));
-  console.log(chalk.gray("  value:    ") + chalk.cyan(value || "(not set)"));
 
   return {
     domain,
     key,
     exists: true,
-    owner: ownerAddress,
+    owner,
     value: value === "" ? null : value,
   };
 }
 
-export async function setDomainText(
-  clientWrapper: ReviveClientWrapper,
-  originSubstrateAddress: string,
-  signer: PolkadotSigner,
-  label: string,
+export async function setTextRecord(
+  ctx: DotnsContext,
+  name: string,
   key: string,
   value: string,
-  spinner: Ora,
 ): Promise<TextSetResult> {
-  const namehashNode = namehash(`${label}.dot`);
+  const label = normaliseLabel(name);
   const domain = `${label}.dot`;
+  const namehashNode = namehash(domain);
 
-  console.log(chalk.gray("  domain: ") + chalk.cyan(domain));
-  console.log(chalk.gray("  node:   ") + chalk.white(namehashNode));
-  console.log();
-
-  const { exists, owner, caller } = await getResolverNodeInfo(
-    clientWrapper,
-    originSubstrateAddress,
-    namehashNode,
-  );
-
-  console.log(chalk.gray("  exists:  ") + chalk.white(String(exists)));
-  console.log(chalk.gray("  owner:   ") + chalk.white(owner));
-  console.log(chalk.gray("  caller:  ") + chalk.white(caller));
-  console.log();
-
+  const { exists, owner, caller } = await getResolverNodeInfo(ctx, namehashNode);
   if (!exists) {
     throw new Error(`Domain ${domain} is not registered`);
   }
+  await requireResolverAuthorization(ctx, owner, caller);
 
-  await requireResolverAuthorization(clientWrapper, originSubstrateAddress, owner, caller);
-
-  console.log(chalk.gray("  status: ") + chalk.green("Ownership verified"));
-  console.log();
-
-  try {
-    const currentValue = await performContractCall<string>(
-      clientWrapper,
-      originSubstrateAddress,
-      CONTRACTS.DOTNS_CONTENT_RESOLVER,
-      DOTNS_CONTENT_RESOLVER_ABI,
-      "text",
-      [namehashNode, key],
-    );
-    console.log(chalk.gray("  current: ") + chalk.cyan(currentValue || "(not set)"));
-  } catch {
-    console.log(chalk.gray("  current: ") + chalk.yellow("Not set or error reading"));
-  }
-  console.log();
-
-  console.log(chalk.gray("  resolver: ") + chalk.white(CONTRACTS.DOTNS_CONTENT_RESOLVER));
-  console.log(chalk.gray("  node:     ") + chalk.white(namehashNode));
-  console.log(chalk.gray("  key:      ") + chalk.white(key));
-  console.log(chalk.gray("  value:    ") + chalk.cyan(value));
-
-  spinner.start("Submitting setText");
-  const transactionHash = await submitContractTransaction(
-    clientWrapper,
-    CONTRACTS.DOTNS_CONTENT_RESOLVER,
+  const txHash = await write(
+    ctx,
+    ctx.contracts.DOTNS_CONTENT_RESOLVER,
     0n,
     DOTNS_CONTENT_RESOLVER_ABI,
     "setText",
     [namehashNode, key, value],
-    originSubstrateAddress,
-    signer,
-    spinner,
-    "setText",
+    "Setting text record",
   );
 
-  console.log(chalk.gray("  tx:       ") + chalk.blue(transactionHash));
-
-  const updatedValue = await performContractCall<string>(
-    clientWrapper,
-    originSubstrateAddress,
-    CONTRACTS.DOTNS_CONTENT_RESOLVER,
-    DOTNS_CONTENT_RESOLVER_ABI,
-    "text",
-    [namehashNode, key],
-  );
-
-  console.log();
-  console.log(chalk.gray("  new: ") + chalk.cyan(updatedValue));
-
-  return {
-    ok: true,
-    domain,
-    key,
-    value,
-    txHash: transactionHash,
-  };
+  return { domain, key, value, txHash };
 }

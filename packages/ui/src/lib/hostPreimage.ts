@@ -58,10 +58,6 @@ export function blockMatchesCid(bytes: Uint8Array, cid: string): boolean {
   return true;
 }
 
-export async function hostPreimageAvailable(): Promise<boolean> {
-  return (await getPreimageManager()) != null;
-}
-
 /**
  * Read a single preimage by key, wrapping the host's subscription-based lookup as
  * a one-shot promise. Resolves with the bytes on the first non-null callback, or

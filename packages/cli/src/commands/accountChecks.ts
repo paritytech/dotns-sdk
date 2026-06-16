@@ -1,119 +1,73 @@
-import chalk from "chalk";
-import ora from "ora";
 import { isAddress, getAddress } from "viem";
-import type { PolkadotSigner } from "polkadot-api";
-import type { ReviveClientWrapper } from "../client/polkadotClient";
+import { type DotnsContext, read, write } from "../core/context";
 import type {
   IsMappedResult,
   IsWhitelistedResult,
   WhitelistResult,
   ResolvedAddress,
 } from "../types/types";
-import { CONTRACTS, DOTNS_REGISTRAR_CONTROLLER_ABI } from "../utils/constants";
-import { performContractCall, submitContractTransaction } from "../utils/contractInteractions";
+import { DOTNS_REGISTRAR_CONTROLLER_ABI } from "../utils/constants";
 import { isValidSubstrateAddress } from "../utils/validation";
 
-async function resolveToEvmAddress(
-  clientWrapper: ReviveClientWrapper,
-  address: string,
-): Promise<ResolvedAddress> {
+async function resolveToEvmAddress(ctx: DotnsContext, address: string): Promise<ResolvedAddress> {
   if (isAddress(address)) {
-    return Promise.resolve({ evmAddress: getAddress(address), originalAddress: address });
+    return { evmAddress: getAddress(address), originalAddress: address };
   }
   if (!isValidSubstrateAddress(address)) {
     throw new Error(`Invalid address: not a valid EVM or Substrate address`);
   }
-  const evm = await clientWrapper.getEvmAddress(address);
-  return { evmAddress: evm, originalAddress: address };
+  const evmAddress = await ctx.clientWrapper.getEvmAddress(address);
+  return { evmAddress, originalAddress: address };
 }
 
 export async function checkAccountMapped(
-  clientWrapper: ReviveClientWrapper,
+  ctx: DotnsContext,
   targetAddress: string,
 ): Promise<IsMappedResult> {
-  const spinner = ora("Resolving address").start();
-  const { evmAddress, originalAddress } = await resolveToEvmAddress(clientWrapper, targetAddress);
-
-  spinner.text = "Checking account mapping";
-  const isMapped = await clientWrapper.checkIfAccountMapped(originalAddress);
-
-  spinner.succeed("Mapping check complete");
-  console.log(chalk.gray("\n  address: ") + chalk.white(originalAddress));
-  console.log(chalk.gray("  evm:     ") + chalk.cyan(evmAddress));
-  console.log(chalk.gray("  mapped:  ") + (isMapped ? chalk.green("true") : chalk.yellow("false")));
-
+  const { evmAddress, originalAddress } = await resolveToEvmAddress(ctx, targetAddress);
+  const isMapped = await ctx.clientWrapper.checkIfAccountMapped(originalAddress);
   return { address: originalAddress, evmAddress, isMapped };
 }
 
-export async function checkWhitelisted(
-  clientWrapper: ReviveClientWrapper,
-  originAddress: string,
+export async function getWhitelistStatus(
+  ctx: DotnsContext,
   targetAddress: string,
 ): Promise<IsWhitelistedResult> {
-  const spinner = ora("Resolving address").start();
-  const { evmAddress, originalAddress } = await resolveToEvmAddress(clientWrapper, targetAddress);
-
-  spinner.text = "Checking whitelist status";
-  const isWhitelisted = await performContractCall<boolean>(
-    clientWrapper,
-    originAddress,
-    CONTRACTS.DOTNS_REGISTRAR_CONTROLLER,
+  const { evmAddress, originalAddress } = await resolveToEvmAddress(ctx, targetAddress);
+  const isWhitelisted = await read<boolean>(
+    ctx,
+    ctx.contracts.DOTNS_REGISTRAR_CONTROLLER,
     DOTNS_REGISTRAR_CONTROLLER_ABI,
     "isWhiteListed",
     [evmAddress],
   );
-
-  spinner.succeed("Whitelist check complete");
-  console.log(chalk.gray("\n  address:     ") + chalk.white(originalAddress));
-  console.log(chalk.gray("  evm:         ") + chalk.cyan(evmAddress));
-  console.log(
-    chalk.gray("  whitelisted: ") + (isWhitelisted ? chalk.green("true") : chalk.yellow("false")),
-  );
-
   return { address: originalAddress, evmAddress, isWhitelisted };
 }
 
 export async function whitelistAddress(
-  clientWrapper: ReviveClientWrapper,
-  originAddress: string,
-  signer: PolkadotSigner,
+  ctx: DotnsContext,
   targetAddress: string,
   enable: boolean = true,
 ): Promise<WhitelistResult> {
-  const spinner = ora("Resolving address").start();
-  const { evmAddress, originalAddress } = await resolveToEvmAddress(clientWrapper, targetAddress);
+  const { evmAddress, originalAddress } = await resolveToEvmAddress(ctx, targetAddress);
 
-  spinner.text = enable ? "Whitelisting address" : "Removing from whitelist";
-  const txHash = await submitContractTransaction(
-    clientWrapper,
-    CONTRACTS.DOTNS_REGISTRAR_CONTROLLER,
+  const txHash = await write(
+    ctx,
+    ctx.contracts.DOTNS_REGISTRAR_CONTROLLER,
     0n,
     DOTNS_REGISTRAR_CONTROLLER_ABI,
     "whiteListAddress",
     [evmAddress, enable],
-    originAddress,
-    signer,
-    spinner,
     enable ? "Whitelist" : "Un-whitelist",
   );
 
-  spinner.text = "Verifying on-chain";
-  const verified = await performContractCall<boolean>(
-    clientWrapper,
-    originAddress,
-    CONTRACTS.DOTNS_REGISTRAR_CONTROLLER,
+  const whitelisted = await read<boolean>(
+    ctx,
+    ctx.contracts.DOTNS_REGISTRAR_CONTROLLER,
     DOTNS_REGISTRAR_CONTROLLER_ABI,
     "isWhiteListed",
     [evmAddress],
   );
 
-  spinner.succeed(enable ? "Address whitelisted" : "Address removed from whitelist");
-  console.log(chalk.gray("\n  address:     ") + chalk.white(originalAddress));
-  console.log(chalk.gray("  evm:         ") + chalk.cyan(evmAddress));
-  console.log(chalk.gray("  txHash:      ") + chalk.white(txHash));
-  console.log(
-    chalk.gray("  whitelisted: ") + (verified ? chalk.green("true") : chalk.yellow("false")),
-  );
-
-  return { address: originalAddress, evmAddress, whitelisted: verified, txHash };
+  return { address: originalAddress, evmAddress, whitelisted, txHash };
 }

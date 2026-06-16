@@ -1,3 +1,4 @@
+import { printCommandHeader } from "../ui";
 import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
@@ -11,7 +12,8 @@ import {
 } from "../../commands/delegate";
 import { resolveTransferRecipient } from "../transfer";
 import { addAuthOptions } from "./authOptions";
-import { prepareContext } from "../context";
+import { prepareAssetHubContext, buildDotnsContext, buildReadOnlyDotnsContext } from "../context";
+import { makeOnStatus } from "../txStatus";
 import { prepareReadOnlyContext } from "./lookup";
 import {
   getMergedOptions,
@@ -44,15 +46,14 @@ export function attachDelegateCommands(root: Command) {
       const jsonOutput = getJsonFlag(command);
       try {
         const mergedOptions = getMergedOptions(command, options);
-        const context = await maybeQuiet(jsonOutput, () =>
-          prepareContext({ ...mergedOptions, useRevive: true }),
-        );
+        const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(mergedOptions));
 
-        if (!jsonOutput) console.log(chalk.bold("\n▶ Delegate name\n"));
+        if (!jsonOutput) printCommandHeader("Delegate name");
         const spinner = ora();
+        const ctx = buildDotnsContext(context, { onStatus: makeOnStatus(spinner, "Delegating") });
 
         const delegateAddress = await maybeQuiet(jsonOutput, () =>
-          resolveTransferRecipient(context.clientWrapper!, context.substrateAddress, delegate),
+          resolveTransferRecipient(ctx, delegate),
         );
 
         if (!jsonOutput) {
@@ -61,14 +62,7 @@ export function attachDelegateCommands(root: Command) {
         }
 
         const result = await maybeQuiet(jsonOutput, () =>
-          setNameDelegate(
-            context.clientWrapper!,
-            context.substrateAddress,
-            context.signer,
-            name,
-            delegateAddress as Address,
-            spinner,
-          ),
+          setNameDelegate(ctx, name, delegateAddress as Address),
         );
 
         if (!emitJsonResult(jsonOutput, result)) {
@@ -91,22 +85,15 @@ export function attachDelegateCommands(root: Command) {
       const jsonOutput = getJsonFlag(command);
       try {
         const mergedOptions = getMergedOptions(command, options);
-        const context = await maybeQuiet(jsonOutput, () =>
-          prepareContext({ ...mergedOptions, useRevive: true }),
-        );
+        const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(mergedOptions));
 
-        if (!jsonOutput) console.log(chalk.bold("\n▶ Revoke delegate\n"));
+        if (!jsonOutput) printCommandHeader("Revoke delegate");
         const spinner = ora();
+        const ctx = buildDotnsContext(context, {
+          onStatus: makeOnStatus(spinner, "Revoking delegate on"),
+        });
 
-        const result = await maybeQuiet(jsonOutput, () =>
-          revokeNameDelegate(
-            context.clientWrapper!,
-            context.substrateAddress,
-            context.signer,
-            name,
-            spinner,
-          ),
-        );
+        const result = await maybeQuiet(jsonOutput, () => revokeNameDelegate(ctx, name));
 
         if (!emitJsonResult(jsonOutput, result)) {
           console.log(chalk.gray("  name: ") + chalk.cyan(result.name));
@@ -133,12 +120,11 @@ export function attachDelegateCommands(root: Command) {
           prepareReadOnlyContext(mergedOptions as never),
         );
 
-        if (!jsonOutput) console.log(chalk.bold("\n▶ Delegate status\n"));
+        if (!jsonOutput) printCommandHeader("Delegate status");
         const spinner = ora();
+        const ctx = buildReadOnlyDotnsContext(context, { onStatus: makeOnStatus(spinner) });
 
-        const delegate = await maybeQuiet(jsonOutput, () =>
-          getNameDelegate(context.clientWrapper!, context.account.address, name, spinner),
-        );
+        const delegate = await maybeQuiet(jsonOutput, () => getNameDelegate(ctx, name));
 
         if (!emitJsonResult(jsonOutput, { name, delegate })) {
           if (delegate === null) {
@@ -167,20 +153,19 @@ export function attachDelegateCommands(root: Command) {
       const jsonOutput = getJsonFlag(command);
       try {
         const mergedOptions = getMergedOptions(command, options);
-        const context = await maybeQuiet(jsonOutput, () =>
-          prepareContext({ ...mergedOptions, useRevive: true }),
-        );
+        const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(mergedOptions));
 
         const approved = !options.revoke;
         if (!jsonOutput) {
-          console.log(
-            chalk.bold(approved ? "\n▶ Delegate records\n" : "\n▶ Revoke record delegate\n"),
-          );
+          printCommandHeader(approved ? "Delegate records" : "Revoke record delegate");
         }
         const spinner = ora();
+        const ctx = buildDotnsContext(context, {
+          onStatus: makeOnStatus(spinner, "Delegating record control to"),
+        });
 
         const operatorAddress = await maybeQuiet(jsonOutput, () =>
-          resolveTransferRecipient(context.clientWrapper!, context.substrateAddress, operator),
+          resolveTransferRecipient(ctx, operator),
         );
 
         if (!jsonOutput) {
@@ -188,14 +173,7 @@ export function attachDelegateCommands(root: Command) {
         }
 
         const result = await maybeQuiet(jsonOutput, () =>
-          setRecordDelegate(
-            context.clientWrapper!,
-            context.substrateAddress,
-            context.signer,
-            operatorAddress as Address,
-            approved,
-            spinner,
-          ),
+          setRecordDelegate(ctx, operatorAddress as Address, approved),
         );
 
         if (!emitJsonResult(jsonOutput, result)) {
@@ -222,20 +200,16 @@ export function attachDelegateCommands(root: Command) {
           prepareReadOnlyContext(mergedOptions as never),
         );
 
-        if (!jsonOutput) console.log(chalk.bold("\n▶ Record delegate status\n"));
+        if (!jsonOutput) printCommandHeader("Record delegate status");
         const spinner = ora();
+        const ctx = buildReadOnlyDotnsContext(context, { onStatus: makeOnStatus(spinner) });
 
         const operatorAddress = await maybeQuiet(jsonOutput, () =>
-          resolveTransferRecipient(context.clientWrapper!, context.account.address, operator),
+          resolveTransferRecipient(ctx, operator),
         );
 
         const approved = await maybeQuiet(jsonOutput, () =>
-          getRecordDelegate(
-            context.clientWrapper!,
-            context.account.address,
-            operatorAddress as Address,
-            spinner,
-          ),
+          getRecordDelegate(ctx, operatorAddress as Address),
         );
 
         if (!emitJsonResult(jsonOutput, { operator: operatorAddress, approved })) {

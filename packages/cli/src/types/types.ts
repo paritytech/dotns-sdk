@@ -178,13 +178,6 @@ export type ResolvedAuthSource = {
   credential?: string;
 };
 
-export type CommitmentResults = {
-  /** Commitment hash for the registration */
-  commitment: Hex;
-  /** Domain registration parameters */
-  registration: DomainRegistration;
-};
-
 export type BulletinUploadOptions = {
   /** Bulletin WebSocket RPC endpoint */
   bulletinRpc?: string;
@@ -431,17 +424,6 @@ export type VerificationResult = {
   statusCode?: number;
   /** Error message if resolution failed */
   errorMessage?: string;
-};
-
-export type BlockVerificationResult = {
-  /** Total number of CIDs verified */
-  totalBlocks: number;
-  /** List of CIDs that were successfully resolved */
-  resolvableBlocks: string[];
-  /** List of CIDs that could not be resolved */
-  missingBlocks: string[];
-  /** Gateway URL used for verification */
-  gateway: string;
 };
 
 export type HashingEnumVariant =

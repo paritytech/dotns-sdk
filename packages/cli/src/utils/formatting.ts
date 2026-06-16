@@ -1,8 +1,4 @@
-import chalk from "chalk";
-import type { Ora } from "ora";
 import { formatEther } from "viem";
-import { printHumanDetail, printHumanFailure, printHumanSuccess } from "../cli/reporter";
-import type { TransactionStatus } from "../types/types";
 import { DEFAULT_NATIVE_TOKEN_DECIMALS, EVM_TOKEN_DECIMALS } from "./constants";
 
 function normalizeNativeDecimals(decimals?: number): bigint {
@@ -38,19 +34,6 @@ export function formatNativeBalance(valueInNativeUnits: bigint, decimals?: numbe
   return `${wholePart}.${fractionalString}`;
 }
 
-export function parseNativeBalance(decimalValue: string, decimals?: number): bigint {
-  const nativeDecimals = normalizeNativeDecimals(decimals);
-  const parts = decimalValue.split(".");
-  const wholePart = BigInt(parts[0] || "0");
-  const fractionalPart = parts[1] || "0";
-
-  const paddedFraction = fractionalPart
-    .padEnd(Number(nativeDecimals), "0")
-    .slice(0, Number(nativeDecimals));
-
-  return wholePart * 10n ** nativeDecimals + BigInt(paddedFraction);
-}
-
 export function convertWeiToNative(weiValue: bigint, nativeDecimals?: number): bigint {
   return weiValue / getNativeToWeiRatio(nativeDecimals);
 }
@@ -62,75 +45,6 @@ export function convertWeiToNativeCeil(weiValue: bigint, nativeDecimals?: number
 
 export function formatWeiAsEther(weiValue: bigint): string {
   return formatEther(weiValue);
-}
-
-export function createTransactionStatusHandler(
-  spinner?: Ora,
-  operationName?: string,
-): (status: TransactionStatus) => void {
-  let lastUpdateTimestamp = Date.now();
-  let startTimestamp = Date.now();
-
-  return (status: TransactionStatus) => {
-    const currentTimestamp = Date.now();
-    const elapsedSeconds = Math.floor((currentTimestamp - startTimestamp) / 1000);
-
-    if (!spinner) {
-      switch (status) {
-        case "signing":
-          printHumanDetail(chalk.cyan("Signing transaction"));
-          break;
-        case "broadcasting":
-          printHumanDetail(chalk.blue("Broadcasting to network"));
-          break;
-        case "included":
-          printHumanDetail(chalk.magenta("Included in block"));
-          break;
-        case "finalized":
-          printHumanSuccess(chalk.green(`Finalized (${elapsedSeconds}s)`));
-          break;
-        case "failed":
-          printHumanFailure(chalk.red("Transaction failed"));
-          break;
-      }
-      return;
-    }
-
-    switch (status) {
-      case "signing":
-        spinner.color = "cyan";
-        spinner.text = `Signing ${operationName || "transaction"}`;
-        startTimestamp = currentTimestamp;
-        lastUpdateTimestamp = currentTimestamp;
-        break;
-
-      case "broadcasting":
-        spinner.color = "blue";
-        spinner.text = `Broadcasting ${operationName || "transaction"}`;
-        lastUpdateTimestamp = currentTimestamp;
-        break;
-
-      case "included": {
-        const secondsSinceIncluded = Math.floor((currentTimestamp - lastUpdateTimestamp) / 1000);
-        spinner.color = "magenta";
-        spinner.text =
-          secondsSinceIncluded > 3
-            ? `Waiting for finalization (${secondsSinceIncluded}s)`
-            : "Included in block, awaiting finalization";
-        break;
-      }
-
-      case "finalized":
-        spinner.succeed(
-          chalk.green(`${operationName || "Transaction"} finalized (${elapsedSeconds}s)`),
-        );
-        break;
-
-      case "failed":
-        spinner.fail(chalk.red(`${operationName || "Transaction"} failed`));
-        break;
-    }
-  };
 }
 
 export function formatBytes(bytes: number | bigint): string {

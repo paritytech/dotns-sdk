@@ -8,7 +8,6 @@ import { attachPopCommands } from "./commands/pop";
 import { attachRegisterCommand } from "./commands/registerCommand";
 import { attachAccountCommands } from "./commands/info";
 import { version } from "../../package.json";
-import { banner } from "./ui";
 import { attachStoreCommands } from "./commands/store";
 import { attachEscrowCommands } from "./commands/escrow";
 import { attachDelegateCommands } from "./commands/delegate";
@@ -34,8 +33,6 @@ export function createProgram() {
   attachEscrowCommands(program);
   attachDelegateCommands(program);
   attachPrimaryCommands(program);
-
-  if (!process.argv.includes("--json")) banner();
 
   return program;
 }

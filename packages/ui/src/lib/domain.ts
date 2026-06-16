@@ -6,9 +6,6 @@ import { normalize } from "viem/ens";
  * Functions for validating, normalizing, and working with domain names
  */
 
-const DOT_NAME_REGEX =
-  /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\.dot$/;
-
 export const SPECIAL_CHAR_REGEX = /[&^%$*+~=`{}|\\<>\/\[\]"]+/;
 
 // A single canonical DNS label, mirroring the contract's StringUtils._isDnsLabel
@@ -99,77 +96,4 @@ export function isSameDotName(a: string | null | undefined, b: string | null | u
  */
 export function isRegistrableDotName(name: string): boolean {
   return normalizeDomainName(name.trim().toLowerCase()).split(".").filter(Boolean).length === 1;
-}
-
-/**
- * Filter an array to only include valid .dot domain names
- *
- * @param values - Array of values to filter
- * @returns Array of valid .dot domain names
- */
-export function filterDotNames(values: unknown): string[] {
-  if (!Array.isArray(values)) return [];
-
-  const out: string[] = [];
-  const seen = new Set<string>();
-
-  for (const value of values) {
-    if (typeof value !== "string") continue;
-
-    const name = value.trim().toLowerCase();
-    if (!name) continue;
-    if (!name.endsWith(".dot")) continue;
-    if (!DOT_NAME_REGEX.test(name)) continue;
-
-    if (!seen.has(name)) {
-      seen.add(name);
-      out.push(name);
-    }
-  }
-
-  return out;
-}
-
-/**
- * Extract bytes from a contract result
- *
- * @param result - Contract call result
- * @returns Extracted bytes as Uint8Array, string, or null
- */
-export function extractBytes(result: any): Uint8Array | string | null {
-  if (!result) return null;
-
-  const core =
-    result.result ??
-    result.ok ??
-    result.asOk ??
-    (Array.isArray(result) ? result[1] : null) ??
-    result;
-
-  if (!core) return null;
-
-  if (core.isOk && core.asOk) return unwrap(core.asOk);
-  if (core.ok) return unwrap(core.ok);
-
-  if (core.toHuman) {
-    const human = core.toHuman();
-    const v = human?.Ok ?? human?.ok;
-    if (typeof v === "string") return v;
-  }
-
-  return unwrap(core);
-}
-
-/**
- * Unwrap a value to Uint8Array or string
- *
- * @param v - Value to unwrap
- * @returns Unwrapped value or null
- */
-export function unwrap(v: any): Uint8Array | string | null {
-  if (!v) return null;
-  if (typeof v === "string") return v;
-  if (v instanceof Uint8Array) return v;
-  if (v.toU8a) return v.toU8a();
-  return null;
 }

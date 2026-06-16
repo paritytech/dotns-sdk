@@ -1,11 +1,19 @@
 import { Command } from "commander";
 import chalk from "chalk";
+import ora from "ora";
 import { createClient } from "polkadot-api";
 import { getWsProvider } from "polkadot-api/ws-provider";
 import { paseo } from "@polkadot-api/descriptors";
 import { ReviveClientWrapper, type PolkadotApiClient } from "../../client/polkadotClient";
 import type { AccountInfoOptions, CommandOptions } from "../../types/types";
-import { displayAccountInformation, prepareContext, prepareAssetHubContext } from "../context";
+import {
+  displayAccountInformation,
+  prepareContext,
+  prepareAssetHubContext,
+  buildDotnsContext,
+  buildReadOnlyDotnsContext,
+} from "../context";
+import { makeOnStatus } from "../txStatus";
 import { addAuthOptions } from "./authOptions";
 import { resolveRpc, resolveKeystorePath } from "../env";
 import { formatErrorMessage } from "../../utils/formatting";
@@ -15,7 +23,7 @@ import { prepareReadOnlyContext } from "./lookup";
 import { getJsonFlag, getMergedOptions, maybeQuiet } from "./jsonHelpers";
 import {
   checkAccountMapped,
-  checkWhitelisted,
+  getWhitelistStatus,
   whitelistAddress,
 } from "../../commands/accountChecks";
 
@@ -81,7 +89,7 @@ export function attachAccountCommands(root: Command) {
       const context = await prepareContext(mergedOptions);
 
       const evmAddress = await step("Resolving EVM address", async () =>
-        clientWrapper.getEvmAddress(context.substrateAddress),
+        clientWrapper.resolveOwnEvmAddress(context.substrateAddress),
       );
 
       console.log(chalk.gray("\n  Auth:      ") + chalk.white(auth.resolvedFrom));
@@ -130,7 +138,7 @@ export function attachAccountCommands(root: Command) {
       );
 
       const evmAddress = await step("Resolving EVM address", async () =>
-        clientWrapper.getEvmAddress(context.substrateAddress),
+        clientWrapper.resolveOwnEvmAddress(context.substrateAddress),
       );
 
       console.log(chalk.gray("\n  EVM:       ") + chalk.cyan(evmAddress));
@@ -158,12 +166,23 @@ export function attachAccountCommands(root: Command) {
     const jsonOutput = getJsonFlag(cmd);
     try {
       const mergedOptions = getMergedOptions(cmd, options);
-      const { clientWrapper } = await maybeQuiet(jsonOutput, () =>
-        prepareReadOnlyContext(mergedOptions),
-      );
-      const result = await maybeQuiet(jsonOutput, () => checkAccountMapped(clientWrapper, address));
-      if (jsonOutput) console.log(JSON.stringify(result));
-      else console.log(chalk.green("\n  Complete\n"));
+      const context = await maybeQuiet(jsonOutput, () => prepareReadOnlyContext(mergedOptions));
+      const spinner = ora();
+      const ctx = buildReadOnlyDotnsContext(context, {
+        onStatus: makeOnStatus(spinner, "mapping"),
+      });
+      const result = await maybeQuiet(jsonOutput, () => checkAccountMapped(ctx, address));
+      if (jsonOutput) {
+        console.log(JSON.stringify(result));
+      } else {
+        console.log(chalk.gray("\n  address: ") + chalk.white(result.address));
+        console.log(chalk.gray("  evm:     ") + chalk.cyan(result.evmAddress));
+        console.log(
+          chalk.gray("  mapped:  ") +
+            (result.isMapped ? chalk.green("true") : chalk.yellow("false")),
+        );
+        console.log(chalk.green("\n  Complete\n"));
+      }
       process.exit(0);
     } catch (error) {
       if (jsonOutput) console.error(JSON.stringify({ error: formatErrorMessage(error) }));
@@ -182,14 +201,23 @@ export function attachAccountCommands(root: Command) {
     const jsonOutput = getJsonFlag(cmd);
     try {
       const mergedOptions = getMergedOptions(cmd, options);
-      const { clientWrapper, account } = await maybeQuiet(jsonOutput, () =>
-        prepareReadOnlyContext(mergedOptions),
-      );
-      const result = await maybeQuiet(jsonOutput, () =>
-        checkWhitelisted(clientWrapper, account.address, address),
-      );
-      if (jsonOutput) console.log(JSON.stringify(result));
-      else console.log(chalk.green("\n  Complete\n"));
+      const context = await maybeQuiet(jsonOutput, () => prepareReadOnlyContext(mergedOptions));
+      const spinner = ora();
+      const ctx = buildReadOnlyDotnsContext(context, {
+        onStatus: makeOnStatus(spinner, "whitelist"),
+      });
+      const result = await maybeQuiet(jsonOutput, () => getWhitelistStatus(ctx, address));
+      if (jsonOutput) {
+        console.log(JSON.stringify(result));
+      } else {
+        console.log(chalk.gray("\n  address:     ") + chalk.white(result.address));
+        console.log(chalk.gray("  evm:         ") + chalk.cyan(result.evmAddress));
+        console.log(
+          chalk.gray("  whitelisted: ") +
+            (result.isWhitelisted ? chalk.green("true") : chalk.yellow("false")),
+        );
+        console.log(chalk.green("\n  Complete\n"));
+      }
       process.exit(0);
     } catch (error) {
       if (jsonOutput) console.error(JSON.stringify({ error: formatErrorMessage(error) }));
@@ -210,17 +238,23 @@ export function attachAccountCommands(root: Command) {
       const mergedOptions = getMergedOptions(cmd, options);
       const enable = !mergedOptions.remove;
       const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(mergedOptions));
-      const result = await maybeQuiet(jsonOutput, () =>
-        whitelistAddress(
-          context.clientWrapper,
-          context.substrateAddress,
-          context.signer,
-          address,
-          enable,
-        ),
-      );
-      if (jsonOutput) console.log(JSON.stringify(result));
-      else console.log(chalk.green("\n  Complete\n"));
+      const spinner = ora();
+      const ctx = buildDotnsContext(context, {
+        onStatus: makeOnStatus(spinner, enable ? "Whitelist" : "Un-whitelist"),
+      });
+      const result = await maybeQuiet(jsonOutput, () => whitelistAddress(ctx, address, enable));
+      if (jsonOutput) {
+        console.log(JSON.stringify(result));
+      } else {
+        console.log(chalk.gray("\n  address:     ") + chalk.white(result.address));
+        console.log(chalk.gray("  evm:         ") + chalk.cyan(result.evmAddress));
+        console.log(chalk.gray("  txHash:      ") + chalk.white(result.txHash));
+        console.log(
+          chalk.gray("  whitelisted: ") +
+            (result.whitelisted ? chalk.green("true") : chalk.yellow("false")),
+        );
+        console.log(chalk.green("\n  Complete\n"));
+      }
       process.exit(0);
     } catch (error) {
       if (jsonOutput) console.error(JSON.stringify({ error: formatErrorMessage(error) }));

@@ -19,15 +19,16 @@ export function stripTrailingDigits(label: string): string {
   return label.replace(/\d+$/, "");
 }
 
-// Normalise a name or `name.dot` to its bare lowercase label.
-export function asLabel(name: string): string {
+// Normalise a name or `name.dot` to its bare lowercase label. The single label
+// normaliser used across the CLI and core operations.
+export function normaliseLabel(name: string): string {
   const raw = name.trim().toLowerCase();
   return raw.endsWith(".dot") ? raw.slice(0, -4) : raw;
 }
 
 // True for a single label under .dot ("alice", "alice.dot"), false for subdomains ("sub.alice").
 export function isSecondLevelDotName(name: string): boolean {
-  return asLabel(name).split(".").filter(Boolean).length === 1;
+  return normaliseLabel(name).split(".").filter(Boolean).length === 1;
 }
 
 // A single canonical DNS label, mirroring the contract's StringUtils._isDnsLabel

@@ -7,15 +7,21 @@ import { type Address } from "viem";
 import { ReviveClientWrapper, type PolkadotApiClient } from "../client/polkadotClient";
 import { DEFAULT_BULLETIN_RPC, DEFAULT_MNEMONIC, RPC_ENDPOINTS } from "../utils/constants";
 import { createAccountFromSource, createSubstrateSigner } from "../commands/auth";
+import { createDotnsContext, type DotnsContext } from "../core/context";
+import { createKeyringSigner } from "../core/keyring";
 
 export type ConnectedDotns = {
   client: PolkadotApiClient;
   clientWrapper: ReviveClientWrapper;
+  ctx: DotnsContext;
   substrateAddress: string;
   evmAddress: Address;
   signer: PolkadotSigner;
 };
 
+// Builds the keyring-backed signer here only because this is a local dev example.
+// A real consumer (mobile, extension, hardware) constructs its own PolkadotSigner
+// and passes it straight to createDotnsContext — no keyring involved.
 export async function connectDotns(): Promise<ConnectedDotns> {
   const rpc = process.env.DOTNS_RPC ?? RPC_ENDPOINTS[0];
 
@@ -25,13 +31,17 @@ export async function connectDotns(): Promise<ConnectedDotns> {
   const client = createClient(getWsProvider(rpc)).getTypedApi(paseo) as PolkadotApiClient;
   const clientWrapper = new ReviveClientWrapper(client);
 
-  const account = await createAccountFromSource(source, isKeyUri);
-  const substrateAddress = account.address;
-  const evmAddress = await clientWrapper.getEvmAddress(substrateAddress);
+  const { origin, signer } = await createKeyringSigner({ source, isKeyUri });
+  const evmAddress = await clientWrapper.getEvmAddress(origin);
+  const ctx = createDotnsContext({
+    clientWrapper,
+    origin,
+    signer,
+    environment: process.env.DOTNS_ENV,
+    onStatus: (status) => console.log(`  · ${status}`),
+  });
 
-  const signer = createSubstrateSigner(account);
-
-  return { client, clientWrapper, substrateAddress, evmAddress, signer };
+  return { client, clientWrapper, ctx, substrateAddress: origin, evmAddress, signer };
 }
 
 export async function connectBulletin() {

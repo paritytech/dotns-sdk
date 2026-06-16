@@ -89,34 +89,3 @@ export function getSecondsForUnit(unit: Unit): bigint {
       return 60n;
   }
 }
-
-/**
- * Generate dummy domain names for testing/demo purposes
- *
- * @param count - Number of domains to generate (default: 20)
- * @returns Array of unique domain names
- */
-export function generateDummyDomains(count = 20): string[] {
-  const tlds = ["dot", "eth", "xyz", "dao"];
-  const secondLevel = ["alpha", "beta", "gamma", "delta", "omega", "kappa"];
-  const prefixes = ["user", "dev", "team", "node", "player", "agent"];
-
-  const domains: string[] = [];
-
-  for (let i = 0; i < count; i++) {
-    const level = Math.floor(Math.random() * 3) + 1;
-    const tld = tlds[Math.floor(Math.random() * tlds.length)];
-    const name = secondLevel[Math.floor(Math.random() * secondLevel.length)];
-    const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
-
-    if (level === 1) {
-      domains.push(`${tld}`);
-    } else if (level === 2) {
-      domains.push(`${name}.${tld}`);
-    } else {
-      domains.push(`${prefix}.${name}.${tld}`);
-    }
-  }
-
-  return [...new Set(domains)];
-}

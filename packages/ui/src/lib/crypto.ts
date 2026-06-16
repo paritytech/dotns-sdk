@@ -1,7 +1,6 @@
 import { concat, keccak256, toBytes } from "viem";
 import type { SS58String } from "polkadot-api";
-import { AccountId, type TypedApi } from "polkadot-api";
-import type { Paseo_asset_hub as Paseo } from "@parity/product-sdk-descriptors/paseo-asset-hub";
+import { AccountId } from "polkadot-api";
 import { ss58Decode, ss58Encode } from "@parity/product-sdk-address";
 
 /**
@@ -94,22 +93,6 @@ function normalizeSingleLabel(label: string): string {
  */
 export const ss58ToEthereum = (address: SS58String): `0x${string}` =>
   `0x${keccak256(AccountId().enc(address)).slice(-40)}` as `0x${string}`;
-
-/**
- * Check if an address is mapped in the Revive pallet
- *
- * @param api - Polkadot API instance
- * @param address - SS58 address to check
- * @returns True if address is mapped
- */
-export const isMappedTypedApi = async (
-  api: TypedApi<Paseo>,
-  address: SS58String,
-): Promise<boolean> => {
-  const key = ss58ToEthereum(address);
-  const result = await api.query.Revive.OriginalAccount.getValue(key);
-  return result != null;
-};
 
 /**
  * Validate a substrate SS58 address
