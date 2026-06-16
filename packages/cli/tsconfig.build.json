@@ -6,6 +6,10 @@
     "outDir": "dist",
     "rootDir": ".",
 
+    "declaration": true,
+    "declarationMap": true,
+    "resolveJsonModule": true,
+
     "allowImportingTsExtensions": false
   },
   "include": ["src/**/*.ts", "installIPFS.ts"]

@@ -1,9 +1,6 @@
-import chalk from "chalk";
-import ora from "ora";
 import { namehash, getAddress, type Address, zeroAddress, checksumAddress } from "viem";
-import type { ReviveClientWrapper } from "../client/polkadotClient";
+import { type DotnsContext, read, ownEvmAddress } from "../core/context";
 import {
-  CONTRACTS,
   DOTNS_REGISTRY_ABI,
   DOTNS_RESOLVER_ABI,
   POP_RULES_ABI,
@@ -13,23 +10,26 @@ import {
   DOTNS_POP_RESOLVER_ABI,
 } from "../utils/constants";
 import { stripTrailingDigits } from "../utils/validation";
-import { computeDomainTokenId, performContractCall } from "../utils/contractInteractions";
-import { formatNativeBalance, withTimeout, formatErrorMessage } from "../utils/formatting";
+import { computeDomainTokenId } from "../utils/contractInteractions";
+import { formatNativeBalance, formatErrorMessage } from "../utils/formatting";
 import type { DomainLookupResult, BaseNameReservation, DomainOwnership } from "../types/types";
 
+export type RegisteredNamesResult = {
+  owner: Address;
+  store: Address | null;
+  names: string[];
+};
+
 export async function performDomainLookup(
+  ctx: DotnsContext,
   label: string,
-  originSubstrateAddress: string,
-  clientWrapper: ReviveClientWrapper,
-  nativeTokenDecimals?: number,
-  nativeTokenSymbol: string = "PAS",
 ): Promise<DomainLookupResult> {
-  const fullyQualifiedDomainName = `${label}.dot`;
-  const namehashNode = namehash(fullyQualifiedDomainName);
+  const domain = `${label}.dot`;
+  const node = namehash(domain);
 
   const result: DomainLookupResult = {
-    domain: fullyQualifiedDomainName,
-    node: namehashNode,
+    domain,
+    node,
     exists: false,
     owner: zeroAddress,
     resolver: zeroAddress,
@@ -40,201 +40,91 @@ export async function performDomainLookup(
     chatKey: null,
   };
 
-  const spinner = ora("Reading registry").start();
-
   result.exists = Boolean(
-    await performContractCall<boolean>(
-      clientWrapper,
-      originSubstrateAddress,
-      CONTRACTS.DOTNS_REGISTRY,
-      DOTNS_REGISTRY_ABI,
-      "recordExists",
-      [namehashNode],
-    ),
+    await read<boolean>(ctx, ctx.contracts.DOTNS_REGISTRY, DOTNS_REGISTRY_ABI, "recordExists", [
+      node,
+    ]),
   );
 
   result.owner = getAddress(
-    await performContractCall<Address>(
-      clientWrapper,
-      originSubstrateAddress,
-      CONTRACTS.DOTNS_REGISTRY,
-      DOTNS_REGISTRY_ABI,
-      "owner",
-      [namehashNode],
-    ),
+    await read<Address>(ctx, ctx.contracts.DOTNS_REGISTRY, DOTNS_REGISTRY_ABI, "owner", [node]),
   );
 
   result.resolver = getAddress(
-    await performContractCall<Address>(
-      clientWrapper,
-      originSubstrateAddress,
-      CONTRACTS.DOTNS_REGISTRY,
-      DOTNS_REGISTRY_ABI,
-      "resolver",
-      [namehashNode],
-    ),
+    await read<Address>(ctx, ctx.contracts.DOTNS_REGISTRY, DOTNS_REGISTRY_ABI, "resolver", [node]),
   );
 
-  spinner.succeed("Registry read");
-
-  console.log("\n▶ DotNS Domain Lookup");
-  console.log(chalk.gray("  domain: ") + chalk.cyan(fullyQualifiedDomainName));
-  console.log(chalk.gray("  node:   ") + chalk.white(namehashNode));
-  console.log();
-
-  console.log("▶ Registry (DotnsRegistry)");
-  console.log(chalk.gray("  registry: ") + chalk.white(CONTRACTS.DOTNS_REGISTRY));
-  console.log(chalk.gray("  exists:   ") + chalk.white(String(result.exists)));
-  console.log(chalk.gray("  owner:    ") + chalk.white(result.owner));
-  console.log(chalk.gray("  resolver: ") + chalk.white(result.resolver));
-  console.log();
+  const baseName = stripTrailingDigits(label);
 
   if (!result.exists || result.owner === zeroAddress) {
-    console.log("▶ Status");
-    console.log(chalk.gray("  status: ") + chalk.yellow("not registered (no record)"));
-    console.log();
-
-    const baseName = stripTrailingDigits(label);
     if (baseName !== label) {
-      result.baseNameReservation = await lookupBaseNameReservation(
-        clientWrapper,
-        originSubstrateAddress,
-        baseName,
-      );
-      displayBaseNameReservation(result.baseNameReservation);
+      result.baseNameReservation = await lookupBaseNameReservation(ctx, baseName);
     }
-
     return result;
   }
 
-  console.log("▶ Label Store (StoreFactory)");
-  console.log(chalk.gray("  factory: ") + chalk.white(CONTRACTS.STORE_FACTORY));
-
   const storeAddress = getAddress(
-    await performContractCall<Address>(
-      clientWrapper,
-      originSubstrateAddress,
-      CONTRACTS.STORE_FACTORY,
-      STORE_FACTORY_ABI,
-      "getLabelStore",
-      [result.owner],
-    ),
+    await read<Address>(ctx, ctx.contracts.STORE_FACTORY, STORE_FACTORY_ABI, "getLabelStore", [
+      result.owner,
+    ]),
   );
-
   result.store = storeAddress === zeroAddress ? null : storeAddress;
 
-  console.log(chalk.gray("  store:   ") + chalk.white(storeAddress));
-  console.log(
-    chalk.gray("  status:  ") +
-      chalk.white(storeAddress === zeroAddress ? "no store deployed" : "store exists"),
-  );
-  console.log();
-
-  console.log("▶ Forward Resolution (DotnsResolver)");
-  console.log(chalk.gray("  expectedResolver: ") + chalk.white(CONTRACTS.DOTNS_RESOLVER));
-
-  if (checksumAddress(result.resolver) !== checksumAddress(CONTRACTS.DOTNS_RESOLVER)) {
-    console.log(
-      chalk.gray("  note: ") +
-        chalk.yellow("registry resolver is not DotnsResolver, skipping address lookup"),
-    );
-  } else {
+  if (checksumAddress(result.resolver) === checksumAddress(ctx.contracts.DOTNS_RESOLVER)) {
     try {
       const resolvedAddress = getAddress(
-        await performContractCall<Address>(
-          clientWrapper,
-          originSubstrateAddress,
-          result.resolver,
-          DOTNS_RESOLVER_ABI,
-          "addressOf",
-          [namehashNode],
-        ),
+        await read<Address>(ctx, result.resolver, DOTNS_RESOLVER_ABI, "addressOf", [node]),
       );
-
       result.resolvedAddress = resolvedAddress === zeroAddress ? null : resolvedAddress;
-
-      console.log(
-        chalk.gray("  resolvedAddress: ") +
-          chalk.white(resolvedAddress === zeroAddress ? "(not set)" : resolvedAddress),
-      );
     } catch {
-      console.log(chalk.gray("  resolvedAddress: ") + chalk.yellow("lookup failed"));
+      result.resolvedAddress = null;
     }
   }
-  console.log();
 
-  console.log("▶ Owner Balance");
+  result.ownerBalance = await lookupOwnerBalance(ctx, result.owner);
+
   try {
-    const ownerSubstrateAddress = await clientWrapper.getSubstrateAddress(result.owner);
-    const accountInfo =
-      await clientWrapper.client.query.System.Account.getValue(ownerSubstrateAddress);
-    const freeBalance = accountInfo.data.free as bigint;
-
-    result.ownerBalance = {
-      substrate: ownerSubstrateAddress,
-      free: formatNativeBalance(freeBalance, nativeTokenDecimals),
-    };
-
-    console.log(chalk.gray("  substrate: ") + chalk.white(ownerSubstrateAddress));
-    console.log(
-      chalk.gray("  free:      ") +
-        chalk.white(
-          `${formatNativeBalance(freeBalance, nativeTokenDecimals)} ${nativeTokenSymbol}`,
-        ),
-    );
-  } catch {
-    console.log(chalk.gray("  balance: ") + chalk.yellow("unavailable"));
-  }
-  console.log();
-
-  console.log("▶ Proof of Personhood (DotnsPopResolver)");
-  try {
-    const chatKey = await performContractCall<string>(
-      clientWrapper,
-      originSubstrateAddress,
-      CONTRACTS.DOTNS_POP_RESOLVER,
+    const chatKey = await read<string>(
+      ctx,
+      ctx.contracts.DOTNS_POP_RESOLVER,
       DOTNS_POP_RESOLVER_ABI,
       "chatKey",
-      [namehashNode],
+      [node],
     );
     result.chatKey = chatKey && chatKey !== "0x" ? chatKey : null;
-    console.log(chalk.gray("  chatKey: ") + chalk.white(result.chatKey ?? "(not set)"));
   } catch {
-    console.log(chalk.gray("  chatKey: ") + chalk.yellow("lookup failed"));
+    result.chatKey = null;
   }
-  console.log();
 
-  const baseName = stripTrailingDigits(label);
   if (baseName !== label) {
-    result.baseNameReservation = await lookupBaseNameReservation(
-      clientWrapper,
-      originSubstrateAddress,
-      baseName,
-    );
-    displayBaseNameReservation(result.baseNameReservation);
+    result.baseNameReservation = await lookupBaseNameReservation(ctx, baseName);
   }
-
-  console.log("▶ Lookup completed");
 
   return result;
 }
 
+async function lookupOwnerBalance(
+  ctx: DotnsContext,
+  owner: Address,
+): Promise<DomainLookupResult["ownerBalance"]> {
+  try {
+    const substrate = await ctx.clientWrapper.getSubstrateAddress(owner);
+    const accountInfo = await ctx.clientWrapper.client.query.System.Account.getValue(substrate);
+    const free = accountInfo.data.free as bigint;
+    return { substrate, free: formatNativeBalance(free, ctx.nativeTokenDecimals) };
+  } catch {
+    return null;
+  }
+}
+
 async function lookupBaseNameReservation(
-  clientWrapper: ReviveClientWrapper,
-  originSubstrateAddress: string,
+  ctx: DotnsContext,
   baseName: string,
 ): Promise<BaseNameReservation> {
   try {
-    const reservationInfo = await performContractCall<readonly [boolean, Address, bigint]>(
-      clientWrapper,
-      originSubstrateAddress,
-      CONTRACTS.DOTNS_RULES,
-      POP_RULES_ABI,
-      "isBaseNameReserved",
-      [baseName],
-    );
-
-    const [isReserved, reservationOwner, expirationTimestamp] = reservationInfo;
+    const [isReserved, reservationOwner, expirationTimestamp] = await read<
+      readonly [boolean, Address, bigint]
+    >(ctx, ctx.contracts.DOTNS_RULES, POP_RULES_ABI, "isBaseNameReserved", [baseName]);
 
     return {
       baseName,
@@ -246,137 +136,62 @@ async function lookupBaseNameReservation(
           : null,
     };
   } catch {
-    return {
-      expires: null,
-      baseName,
-      isReserved: false,
-      reservedBy: zeroAddress,
-    };
+    return { expires: null, baseName, isReserved: false, reservedBy: zeroAddress };
   }
 }
 
-function displayBaseNameReservation(reservation: BaseNameReservation): void {
-  console.log("▶ Base Name Reservation (PopRules)");
-  console.log(chalk.gray("  oracle:   ") + chalk.white(CONTRACTS.DOTNS_RULES));
-  console.log(chalk.gray("  baseName: ") + chalk.cyan(reservation.baseName));
-  console.log(chalk.gray("  isReserved: ") + chalk.white(String(reservation.isReserved)));
-  console.log(chalk.gray("  owner:      ") + chalk.white(reservation.reservedBy));
-  if (reservation.expires) {
-    console.log(chalk.gray("  expires:    ") + chalk.white(reservation.expires));
-  }
-  console.log();
-}
+export async function listMyRegisteredNames(ctx: DotnsContext): Promise<RegisteredNamesResult> {
+  const owner = await ownEvmAddress(ctx);
 
-export async function listMyRegisteredNames(
-  clientWrapper: ReviveClientWrapper,
-  originSubstrateAddress: string,
-): Promise<void> {
-  const evmAddress = await clientWrapper.getEvmAddress(originSubstrateAddress);
-
-  const spinner = ora("Checking for deployed Label Store").start();
-
-  const storeAddress = await performContractCall<Address>(
-    clientWrapper,
-    originSubstrateAddress,
-    CONTRACTS.STORE_FACTORY,
+  const storeAddress = await read<Address>(
+    ctx,
+    ctx.contracts.STORE_FACTORY,
     STORE_FACTORY_ABI,
     "getLabelStore",
-    [evmAddress],
+    [owner],
   );
 
   if (storeAddress === zeroAddress) {
-    spinner.fail("No Label Store deployed");
-    console.log(
-      chalk.yellow(
-        "\nYou haven't registered any names yet. Your Label Store will be created automatically when you register your first name.",
-      ),
-    );
-    return;
+    return { owner, store: null, names: [] };
   }
 
-  spinner.succeed("Label Store found");
+  const LABEL_PAGE_SIZE = 100n;
+  const labelCount = await read<bigint>(ctx, storeAddress, LABEL_STORE_ABI, "getLabelCount", []);
 
-  console.log("\n▶ My Registered Names");
-  console.log(chalk.gray("  owner: ") + chalk.white(evmAddress));
-  console.log(chalk.gray("  store: ") + chalk.white(storeAddress));
-  console.log();
-
-  const valueSpinner = ora("Reading registered names from Store").start();
-
-  try {
-    const LABEL_PAGE_SIZE = 100n;
-    const labelCount = await performContractCall<bigint>(
-      clientWrapper,
-      originSubstrateAddress,
-      storeAddress,
-      LABEL_STORE_ABI,
-      "getLabelCount",
-      [],
-    );
-
-    const registeredNames: string[] = [];
-    for (let offset = 0n; offset < labelCount; offset += LABEL_PAGE_SIZE) {
-      const page = await performContractCall<readonly string[]>(
-        clientWrapper,
-        originSubstrateAddress,
-        storeAddress,
-        LABEL_STORE_ABI,
-        "getLabels",
-        [offset, LABEL_PAGE_SIZE],
-      );
-      registeredNames.push(...page);
-    }
-
-    valueSpinner.succeed(`Found ${registeredNames.length} registered name(s)`);
-
-    if (registeredNames.length === 0) {
-      console.log(chalk.gray("  No names found in Store"));
-    } else {
-      console.log(chalk.bold("  Registered names:"));
-      registeredNames.forEach((name, index) => {
-        console.log(chalk.gray(`    ${index + 1}. `) + chalk.cyan(name));
-      });
-    }
-  } catch (error) {
-    valueSpinner.fail("Failed to read from Store");
-    console.log(chalk.yellow(`\n  Error: ${formatErrorMessage(error)}`));
+  const names: string[] = [];
+  for (let offset = 0n; offset < labelCount; offset += LABEL_PAGE_SIZE) {
+    const page = await read<readonly string[]>(ctx, storeAddress, LABEL_STORE_ABI, "getLabels", [
+      offset,
+      LABEL_PAGE_SIZE,
+    ]);
+    names.push(...page);
   }
+
+  return { owner, store: storeAddress, names };
 }
 
 export async function performOwnerOfLookup(
+  ctx: DotnsContext,
   name: string,
-  substrateAddress: string,
-  clientWrapper: ReviveClientWrapper,
 ): Promise<DomainOwnership> {
   if (!name || name.trim().length === 0) {
     throw new Error("--owner-of requires a <label>");
   }
 
   const label = name.trim();
-
-  console.log(chalk.bold("\n🔎 Ownership lookup\n"));
-  console.log(chalk.gray("  Label:  ") + chalk.cyan(label));
-  console.log(chalk.gray("  Domain: ") + chalk.cyan(label + ".dot"));
-
   const tokenId = computeDomainTokenId(label);
 
   let actualOwner: Address;
   let isRegistered: boolean;
 
   try {
-    actualOwner = await withTimeout(
-      performContractCall<Address>(
-        clientWrapper,
-        substrateAddress,
-        CONTRACTS.DOTNS_REGISTRAR,
-        DOTNS_REGISTRAR_ABI,
-        "ownerOf",
-        [tokenId],
-      ),
-      30000,
+    actualOwner = await read<Address>(
+      ctx,
+      ctx.contracts.DOTNS_REGISTRAR,
+      DOTNS_REGISTRAR_ABI,
       "ownerOf",
+      [tokenId],
     );
-
     isRegistered = actualOwner !== zeroAddress;
   } catch (error) {
     const errorMessage = formatErrorMessage(error);
@@ -388,21 +203,15 @@ export async function performOwnerOfLookup(
     }
   }
 
-  const ownerSubstrateAddress = isRegistered
-    ? await clientWrapper.getSubstrateAddress(actualOwner)
+  const ownerSubstrate = isRegistered
+    ? await ctx.clientWrapper.getSubstrateAddress(actualOwner)
     : "(none)";
-
-  console.log(chalk.gray("\n  Registered:        ") + chalk.white(String(isRegistered)));
-  console.log(
-    chalk.gray("  Owner (EVM):       ") + chalk.white(isRegistered ? actualOwner : "(none)"),
-  );
-  console.log(chalk.gray("  Owner (Substrate): ") + chalk.white(ownerSubstrateAddress));
 
   return {
     label,
     domain: `${label}.dot`,
     registered: isRegistered,
     ownerEvm: isRegistered ? actualOwner : zeroAddress,
-    ownerSubstrate: ownerSubstrateAddress,
+    ownerSubstrate,
   };
 }

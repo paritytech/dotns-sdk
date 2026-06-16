@@ -22,7 +22,8 @@
     "benchmark": "bun benchmarks/benchmark.ts",
     "benchmark:dashboard": "bun benchmarks/generate-dashboard.ts",
     "build": "bun build src/cli/index.ts --outfile dist/cli.tmp.js --target node --format esm && echo '#!/usr/bin/env node' | cat - dist/cli.tmp.js > dist/cli.js && rm dist/cli.tmp.js && chmod +x dist/cli.js",
-    "prepublishOnly": "bun run build",
+    "build:lib": "bun build src/core/index.ts --outfile dist/core/index.js --target node --format esm && bun build src/core/keyring.ts --outfile dist/core/keyring.js --target node --format esm && bunx tsc -p tsconfig.build.json --emitDeclarationOnly",
+    "prepublishOnly": "bun run build && bun run build:lib",
     "prepare": "bunx papi generate"
   },
   "engines": {
@@ -35,7 +36,15 @@
     "dotns": "./dist/cli.js"
   },
   "exports": {
-    ".": "./dist/cli.js"
+    ".": "./dist/cli.js",
+    "./core": {
+      "types": "./dist/src/core/index.d.ts",
+      "import": "./dist/core/index.js"
+    },
+    "./core/keyring": {
+      "types": "./dist/src/core/keyring.d.ts",
+      "import": "./dist/core/keyring.js"
+    }
   },
   "devDependencies": {
     "@polkadot-api/descriptors": "file:.papi/descriptors",

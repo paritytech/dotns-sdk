@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import chalk from "chalk";
+import ora from "ora";
 import type { KeyringPair } from "@polkadot/keyring/types";
 import { createClient } from "polkadot-api";
 import { getWsProvider } from "polkadot-api/ws-provider";
@@ -16,18 +17,108 @@ import {
   createSubstrateSigner,
 } from "../../commands/auth";
 import { addAuthOptions, getAuthOptions } from "./authOptions";
-import { step } from "../ui";
-import { getChainTokenInfo, prepareAssetHubContext } from "../context";
-import { resolveTransferRecipient, transferDomain } from "../transfer";
-import { classifyTransferDestination, isValidTransferDestination } from "./register";
+import { step, printCommandHeader } from "../ui";
+import {
+  getChainTokenInfo,
+  prepareAssetHubContext,
+  buildDotnsContext,
+  buildReadOnlyDotnsContext,
+} from "../context";
+import { makeOnStatus } from "../txStatus";
+import { resolveTransferRecipient, transferName } from "../transfer";
+import { isValidTransferDestination } from "./register";
 import type {
   AuthSource,
   ReadOnlyContext,
   LookupActionOptions,
   ResolvedReadOnlyAuth,
+  DomainLookupResult,
 } from "../../types/types";
+import type { DotnsContext } from "../../core/context";
 import { getJsonFlag, maybeQuiet } from "./jsonHelpers";
-import type { Address } from "viem";
+import { zeroAddress, checksumAddress, type Address } from "viem";
+
+function renderDomainLookup(
+  ctx: DotnsContext,
+  result: DomainLookupResult,
+  nativeTokenSymbol: string,
+): void {
+  console.log("\n▶ DotNS Domain Lookup");
+  console.log(chalk.gray("  domain: ") + chalk.cyan(result.domain));
+  console.log(chalk.gray("  node:   ") + chalk.white(result.node));
+  console.log();
+
+  console.log("▶ Registry (DotnsRegistry)");
+  console.log(chalk.gray("  registry: ") + chalk.white(ctx.contracts.DOTNS_REGISTRY));
+  console.log(chalk.gray("  exists:   ") + chalk.white(String(result.exists)));
+  console.log(chalk.gray("  owner:    ") + chalk.white(result.owner));
+  console.log(chalk.gray("  resolver: ") + chalk.white(result.resolver));
+  console.log();
+
+  if (!result.exists || result.owner === zeroAddress) {
+    console.log("▶ Status");
+    console.log(chalk.gray("  status: ") + chalk.yellow("not registered (no record)"));
+    console.log();
+    if (result.baseNameReservation) renderBaseNameReservation(ctx, result.baseNameReservation);
+    return;
+  }
+
+  console.log("▶ Label Store (StoreFactory)");
+  console.log(chalk.gray("  factory: ") + chalk.white(ctx.contracts.STORE_FACTORY));
+  console.log(chalk.gray("  store:   ") + chalk.white(result.store ?? zeroAddress));
+  console.log(
+    chalk.gray("  status:  ") + chalk.white(result.store ? "store exists" : "no store deployed"),
+  );
+  console.log();
+
+  console.log("▶ Forward Resolution (DotnsResolver)");
+  console.log(chalk.gray("  expectedResolver: ") + chalk.white(ctx.contracts.DOTNS_RESOLVER));
+  if (checksumAddress(result.resolver) !== checksumAddress(ctx.contracts.DOTNS_RESOLVER)) {
+    console.log(
+      chalk.gray("  note: ") +
+        chalk.yellow("registry resolver is not DotnsResolver, skipping address lookup"),
+    );
+  } else {
+    console.log(
+      chalk.gray("  resolvedAddress: ") + chalk.white(result.resolvedAddress ?? "(not set)"),
+    );
+  }
+  console.log();
+
+  console.log("▶ Owner Balance");
+  if (result.ownerBalance) {
+    console.log(chalk.gray("  substrate: ") + chalk.white(result.ownerBalance.substrate));
+    console.log(
+      chalk.gray("  free:      ") + chalk.white(`${result.ownerBalance.free} ${nativeTokenSymbol}`),
+    );
+  } else {
+    console.log(chalk.gray("  balance: ") + chalk.yellow("unavailable"));
+  }
+  console.log();
+
+  console.log("▶ Proof of Personhood (DotnsPopResolver)");
+  console.log(chalk.gray("  chatKey: ") + chalk.white(result.chatKey ?? "(not set)"));
+  console.log();
+
+  if (result.baseNameReservation) renderBaseNameReservation(ctx, result.baseNameReservation);
+
+  console.log("▶ Lookup completed");
+}
+
+function renderBaseNameReservation(
+  ctx: DotnsContext,
+  reservation: NonNullable<DomainLookupResult["baseNameReservation"]>,
+): void {
+  console.log("▶ Base Name Reservation (PopRules)");
+  console.log(chalk.gray("  oracle:   ") + chalk.white(ctx.contracts.DOTNS_RULES));
+  console.log(chalk.gray("  baseName: ") + chalk.cyan(reservation.baseName));
+  console.log(chalk.gray("  isReserved: ") + chalk.white(String(reservation.isReserved)));
+  console.log(chalk.gray("  owner:      ") + chalk.white(reservation.reservedBy));
+  if (reservation.expires) {
+    console.log(chalk.gray("  expires:    ") + chalk.white(reservation.expires));
+  }
+  console.log();
+}
 
 async function createReadOnlyChainContext(rpc: string) {
   const rawClient = createClient(getWsProvider(rpc));
@@ -121,7 +212,7 @@ export async function prepareReadOnlyContext(
   };
 }
 
-export async function ensureAccountMappedWhenAuthenticated(
+async function ensureAccountMappedWhenAuthenticated(
   clientWrapper: ReviveClientWrapper,
   keypair: KeyringPair,
   resolvedFrom: ResolvedReadOnlyAuth["resolvedFrom"],
@@ -138,23 +229,6 @@ export async function ensureAccountMappedWhenAuthenticated(
         `  ⚠ Account mapping skipped: ${mapError instanceof Error ? mapError.message : String(mapError)}`,
       ),
     );
-  }
-}
-
-async function resolveRecipientByKind(
-  clientWrapper: ReviveClientWrapper,
-  substrateAddress: string,
-  destination: string,
-): Promise<string> {
-  const kind = classifyTransferDestination(destination);
-
-  switch (kind) {
-    case "evm":
-      return destination;
-    case "substrate":
-      return clientWrapper.getEvmAddress(destination);
-    case "label":
-      return resolveTransferRecipient(clientWrapper, substrateAddress, destination);
   }
 }
 
@@ -192,26 +266,20 @@ export function attachLookupCommands(root: Command): void {
           process.exit(1);
         }
 
-        const { clientWrapper, account, nativeTokenDecimals, nativeTokenSymbol } = await maybeQuiet(
-          jsonOutput,
-          () => prepareReadOnlyContext(merged),
-        );
+        const context = await maybeQuiet(jsonOutput, () => prepareReadOnlyContext(merged));
 
-        if (!jsonOutput) console.log(chalk.bold("\n▶ Domain Lookup\n"));
+        if (!jsonOutput) printCommandHeader("Domain Lookup");
+        const spinner = ora();
+        const ctx = buildReadOnlyDotnsContext(context, {
+          onStatus: makeOnStatus(spinner, "registry"),
+        });
 
-        const result = await maybeQuiet(jsonOutput, () =>
-          performDomainLookup(
-            label,
-            account.address,
-            clientWrapper,
-            nativeTokenDecimals,
-            nativeTokenSymbol,
-          ),
-        );
+        const result = await maybeQuiet(jsonOutput, () => performDomainLookup(ctx, label));
 
         if (jsonOutput) {
           console.log(JSON.stringify(result));
         } else {
+          renderDomainLookup(ctx, result, context.nativeTokenSymbol);
           console.log(chalk.green("\n✓ Complete\n"));
         }
 
@@ -243,24 +311,22 @@ export function attachLookupCommands(root: Command): void {
           const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
           const jsonOutput = getJsonFlag(cmd);
 
-          const { clientWrapper, account, nativeTokenDecimals, nativeTokenSymbol } =
-            await maybeQuiet(jsonOutput, () => prepareReadOnlyContext(merged));
+          const context = await maybeQuiet(jsonOutput, () => prepareReadOnlyContext(merged));
 
-          if (!jsonOutput) console.log(chalk.bold("\n▶ Domain Lookup\n"));
+          if (!jsonOutput) printCommandHeader("Domain Lookup");
+          const spinner = ora();
+          const ctx = buildReadOnlyDotnsContext(context, {
+            onStatus: makeOnStatus(spinner, "registry"),
+          });
 
           const result = await maybeQuiet(jsonOutput, () =>
-            performDomainLookup(
-              merged.name as string,
-              account.address,
-              clientWrapper,
-              nativeTokenDecimals,
-              nativeTokenSymbol,
-            ),
+            performDomainLookup(ctx, merged.name as string),
           );
 
           if (jsonOutput) {
             console.log(JSON.stringify(result));
           } else {
+            renderDomainLookup(ctx, result, context.nativeTokenSymbol);
             console.log(chalk.green("\n✓ Complete\n"));
           }
 
@@ -291,19 +357,29 @@ export function attachLookupCommands(root: Command): void {
       const merged = { ...(options ?? {}), ...getAuthOptions(cmd) } as LookupActionOptions;
       const jsonOutput = getJsonFlag(cmd);
 
-      const { clientWrapper, account } = await maybeQuiet(jsonOutput, () =>
-        prepareReadOnlyContext(merged),
-      );
+      const context = await maybeQuiet(jsonOutput, () => prepareReadOnlyContext(merged));
 
-      if (!jsonOutput) console.log(chalk.bold("\n▶ Ownership Lookup\n"));
+      if (!jsonOutput) printCommandHeader("Ownership lookup");
+      const spinner = ora();
+      const ctx = buildReadOnlyDotnsContext(context, {
+        onStatus: makeOnStatus(spinner, "registrar"),
+      });
 
-      const result = await maybeQuiet(jsonOutput, () =>
-        performOwnerOfLookup(label, account.address, clientWrapper),
-      );
+      const result = await maybeQuiet(jsonOutput, () => performOwnerOfLookup(ctx, label));
 
       if (jsonOutput) {
         console.log(JSON.stringify(result));
       } else {
+        console.log(chalk.gray("  Label:             ") + chalk.cyan(result.label ?? label));
+        console.log(
+          chalk.gray("  Domain:            ") + chalk.cyan(result.domain ?? `${label}.dot`),
+        );
+        console.log(chalk.gray("  Registered:        ") + chalk.white(String(result.registered)));
+        console.log(
+          chalk.gray("  Owner (EVM):       ") +
+            chalk.white(result.registered ? result.ownerEvm : "(none)"),
+        );
+        console.log(chalk.gray("  Owner (Substrate): ") + chalk.white(result.ownerSubstrate));
         console.log(chalk.green("\n✓ Complete\n"));
       }
 
@@ -353,44 +429,25 @@ export function attachLookupCommands(root: Command): void {
         }
 
         const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(merged));
-        const { clientWrapper, substrateAddress, signer, evmAddress, nativeTokenDecimals } =
-          context;
+        const ctx = buildDotnsContext(context);
 
         if (!jsonOutput) {
-          console.log(chalk.bold("\n▶ Transfer\n"));
+          printCommandHeader("Transfer");
           console.log(chalk.gray("  domain: ") + chalk.cyan(`${label}.dot`));
           console.log(chalk.gray("  to:     ") + chalk.white(destination));
         }
 
-        await maybeQuiet(jsonOutput, () =>
-          step("Ensuring account mapped", async () =>
-            clientWrapper.ensureAccountMapped(substrateAddress, signer),
-          ),
-        );
-
         const recipient = await maybeQuiet(jsonOutput, () =>
-          step("Resolving recipient", async () =>
-            resolveRecipientByKind(clientWrapper, substrateAddress, destination),
-          ),
+          step("Resolving recipient", async () => resolveTransferRecipient(ctx, destination)),
         );
 
         await maybeQuiet(jsonOutput, () =>
-          step("Transferring domain", async () =>
-            transferDomain(
-              clientWrapper,
-              substrateAddress,
-              signer,
-              evmAddress,
-              recipient as Address,
-              label,
-              nativeTokenDecimals,
-            ),
-          ),
+          step("Transferring domain", async () => transferName(ctx, label, recipient as Address)),
         );
 
         await maybeQuiet(jsonOutput, () =>
           step("Verifying ownership", async () =>
-            verifyDomainOwnership(clientWrapper, substrateAddress, label, recipient as Address),
+            verifyDomainOwnership(ctx, label, recipient as Address),
           ),
         );
 

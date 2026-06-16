@@ -109,16 +109,3 @@ export function useDomainValidation(
 export function normalizeDomains(domains: string[]): string[] {
   return domains.map((d) => utilNormalizeDomain(d));
 }
-
-/**
- * Helper function to ensure .dot suffix on an array of domains.
- *
- * @param domains - Array of domain strings
- * @returns Array of domains with .dot suffix
- */
-export function ensureDotSuffix(domains: string[]): string[] {
-  return domains.map((d) => {
-    const normalized = utilNormalizeDomain(d);
-    return normalized.endsWith(".dot") ? normalized : `${normalized}.dot`;
-  });
-}

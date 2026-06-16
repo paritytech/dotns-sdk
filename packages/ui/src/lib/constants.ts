@@ -23,11 +23,5 @@ export const COLORS = {
   WARNING_LIGHT: theme.colors.warning.light,
 } as const;
 
-// Export z-index values for programmatic use
-export const Z_INDEX = theme.zIndex;
-
-// Export transition durations for programmatic use
-export const TRANSITIONS = theme.transitions;
-
 // Re-export the full theme for advanced use cases
 export { theme };

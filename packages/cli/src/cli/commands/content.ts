@@ -1,9 +1,11 @@
+import { printCommandHeader } from "../ui";
 import { Command } from "commander";
 import chalk from "chalk";
-import { viewDomainContentHash, setDomainContentHash } from "../../commands/contentHash";
+import { getContentHash, setContentHash } from "../../commands/contentHash";
 import { addAuthOptions } from "./authOptions";
-import { prepareContext } from "../context";
+import { buildDotnsContext, prepareContext } from "../context";
 import { prepareReadOnlyContext } from "./lookup";
+import { makeOnStatus } from "../txStatus";
 import { dotliViewUrls } from "../../utils/constants";
 import {
   getMergedOptions,
@@ -14,11 +16,11 @@ import {
 } from "./jsonHelpers";
 import ora from "ora";
 
-export interface ContentViewOptions {
+interface ContentViewOptions {
   rpc?: string;
 }
 
-export interface ContentSetOptions {
+interface ContentSetOptions {
   rpc?: string;
 }
 
@@ -41,14 +43,25 @@ export function attachContentCommands(root: Command) {
           prepareReadOnlyContext(mergedOptions as any),
         );
 
-        if (!jsonOutput) console.log(chalk.bold("\n▶ Content View\n"));
+        if (!jsonOutput) printCommandHeader("Content View");
         const spinner = ora();
-
-        const result = await maybeQuiet(jsonOutput, () =>
-          viewDomainContentHash(context.clientWrapper!, context.account.address, name, spinner),
+        const ctx = buildDotnsContext(
+          { ...context, substrateAddress: context.account.address, signer: undefined } as any,
+          { onStatus: makeOnStatus(spinner, "content hash") },
         );
 
+        const result = await maybeQuiet(jsonOutput, () => getContentHash(ctx, name));
+
         if (!emitJsonResult(jsonOutput, result)) {
+          console.log(chalk.gray("  domain:      ") + chalk.cyan(result.domain));
+          console.log(
+            chalk.gray("  contenthash: ") +
+              (result.contenthash ? chalk.white(result.contenthash) : chalk.yellow("(not set)")),
+          );
+          console.log(
+            chalk.gray("  cid:         ") +
+              (result.cid ? chalk.cyan(result.cid) : chalk.yellow("(not set)")),
+          );
           console.log(chalk.green("\n✓ Complete\n"));
         }
         process.exit(0);
@@ -77,21 +90,18 @@ export function attachContentCommands(root: Command) {
           prepareContext({ ...mergedOptions, useRevive: true }),
         );
 
-        if (!jsonOutput) console.log(chalk.bold("\n▶ Content Set\n"));
+        if (!jsonOutput) printCommandHeader("Content Set");
         const spinner = ora();
+        const ctx = buildDotnsContext(context as any, {
+          onStatus: makeOnStatus(spinner, "content hash"),
+        });
 
-        const result = await maybeQuiet(jsonOutput, () =>
-          setDomainContentHash(
-            context.clientWrapper!,
-            context.substrateAddress,
-            context.signer,
-            name,
-            cid,
-            spinner,
-          ),
-        );
+        const result = await maybeQuiet(jsonOutput, () => setContentHash(ctx, name, cid));
 
         if (!emitJsonResult(jsonOutput, result)) {
+          console.log(chalk.gray("  domain: ") + chalk.cyan(result.domain));
+          console.log(chalk.gray("  cid:    ") + chalk.cyan(result.cid));
+          console.log(chalk.gray("  tx:     ") + chalk.blue(result.txHash));
           console.log(chalk.green("\n✓ Complete\n"));
           console.log(chalk.gray("  View on dot.li:"));
           for (const url of dotliViewUrls(name)) {

@@ -1,15 +1,9 @@
-import chalk from "chalk";
-import ora from "ora";
-import { checksumAddress, isAddress, zeroAddress, type Address } from "viem";
-import { ReviveClientWrapper } from "../client/polkadotClient";
-import { CONTRACTS, DOTNS_REGISTRAR_ABI } from "../utils/constants";
-import { validateDomainLabel, isValidSubstrateAddress } from "../utils/validation";
-import { formatErrorMessage, formatWeiAsEther, convertWeiToNativeCeil } from "../utils/formatting";
-import {
-  computeDomainTokenId,
-  performContractCall,
-  submitContractTransaction,
-} from "../utils/contractInteractions";
+import { checksumAddress, isAddress, zeroAddress, type Address, type Hex } from "viem";
+import { type DotnsContext, read, write, ownEvmAddress } from "../core/context";
+import { DOTNS_REGISTRAR_ABI } from "../utils/constants";
+import { validateDomainLabel, normaliseLabel, isValidSubstrateAddress } from "../utils/validation";
+import { formatErrorMessage, convertWeiToNativeCeil } from "../utils/formatting";
+import { computeDomainTokenId } from "../utils/contractInteractions";
 
 function toChecksummed(a: Address): Address {
   return checksumAddress(a) as Address;
@@ -19,58 +13,34 @@ function isLabelLike(input: string): boolean {
   return /^[a-z0-9-]{3,}$/.test(input);
 }
 
-function asDotLabel(input: string): string {
-  const raw = input.trim().toLowerCase();
-  if (raw.endsWith(".dot")) return raw.slice(0, -4);
-  return raw;
-}
-
-async function ownerOfLabel(
-  clientWrapper: ReviveClientWrapper,
-  originSubstrateAddress: string,
-  label: string,
-): Promise<Address> {
+async function ownerOfLabel(ctx: DotnsContext, label: string): Promise<Address> {
   const tokenId = computeDomainTokenId(label);
-  return await performContractCall<Address>(
-    clientWrapper,
-    originSubstrateAddress,
-    CONTRACTS.DOTNS_REGISTRAR,
-    DOTNS_REGISTRAR_ABI,
-    "ownerOf",
-    [tokenId],
-  );
+  return read<Address>(ctx, ctx.contracts.DOTNS_REGISTRAR, DOTNS_REGISTRAR_ABI, "ownerOf", [
+    tokenId,
+  ]);
 }
 
+// Resolves a recipient identifier to its EVM address. Classify in priority order;
+// an SS58 address must be matched before the label branch because its lowercased
+// form is all [a-z0-9] and would pass isLabelLike.
 export async function resolveTransferRecipient(
-  clientWrapper: ReviveClientWrapper,
-  originSubstrateAddress: string,
+  ctx: DotnsContext,
   recipientIdentifier: string,
 ): Promise<Address> {
   const input = recipientIdentifier.trim();
 
-  // Classify in priority order; an SS58 address must be matched before the label
-  // branch because its lowercased form is all [a-z0-9] and would pass isLabelLike.
   if (isAddress(input)) return toChecksummed(input as Address);
 
   if (isValidSubstrateAddress(input)) {
-    const spinner = ora(`Resolving ${chalk.white(input)} to EVM address`).start();
-    const evmAddress = await clientWrapper.getEvmAddress(input);
-    spinner.succeed(`${chalk.white(input)} → ${chalk.white(toChecksummed(evmAddress))}`);
-    return toChecksummed(evmAddress);
+    return toChecksummed(await ctx.clientWrapper.getEvmAddress(input));
   }
 
-  const label = asDotLabel(input);
+  const label = normaliseLabel(input);
   if (isLabelLike(label)) {
-    const spinner = ora(`Resolving ${chalk.cyan(label + ".dot")} to owner address`).start();
-
-    const ownerAddress = await ownerOfLabel(clientWrapper, originSubstrateAddress, label);
-
+    const ownerAddress = await ownerOfLabel(ctx, label);
     if (ownerAddress === zeroAddress) {
-      spinner.fail(`No owner found for ${chalk.cyan(label + ".dot")} (unregistered)`);
       throw new Error(`Domain ${label}.dot has no owner`);
     }
-
-    spinner.succeed(`${chalk.cyan(label + ".dot")} → ${chalk.white(toChecksummed(ownerAddress))}`);
     return toChecksummed(ownerAddress);
   }
 
@@ -79,107 +49,94 @@ export async function resolveTransferRecipient(
   );
 }
 
-export async function transferDomain(
-  clientWrapper: ReviveClientWrapper,
-  originSubstrateAddress: string,
-  signer: any,
-  fromAddress: Address,
-  toAddress: Address,
+export type TransferResult = {
+  name: string;
+  from: Address;
+  to: Address;
+  feeWei: bigint;
+  txHash: Hex;
+};
+
+// The syncLabel write was a one-off migration helper that fired an extra signed
+// transaction on every transfer. It must never run for an injected host signer,
+// so it is gated behind an explicit CLI-only opt-in and stays off by default.
+async function syncLabelWithRegistrar(
+  ctx: DotnsContext,
   label: string,
-  nativeTokenDecimals?: number,
+  tokenId: bigint,
 ): Promise<void> {
-  const spinner = ora().start();
-
-  const normLabel = asDotLabel(label);
-  spinner.text = `Validating ${chalk.cyan(normLabel + ".dot")}`;
-  validateDomainLabel(normLabel);
-  spinner.succeed(`Valid: ${chalk.cyan(normLabel + ".dot")}`);
-
-  spinner.start(`Checking owner of ${chalk.cyan(normLabel + ".dot")}`);
-  const tokenId = computeDomainTokenId(normLabel);
-  const currentOwner = await ownerOfLabel(clientWrapper, originSubstrateAddress, normLabel);
-  const currentOwnerC = toChecksummed(currentOwner);
-  spinner.succeed(`Owner: ${chalk.cyan(normLabel + ".dot")} → ${chalk.white(currentOwnerC)}`);
-
-  const fromC = toChecksummed(fromAddress);
-  const toC = toChecksummed(toAddress);
-
-  if (currentOwner === zeroAddress) {
-    spinner.fail(`${chalk.cyan(normLabel + ".dot")} is not registered`);
-    throw new Error(`Cannot transfer: ${normLabel}.dot is not registered`);
-  }
-
-  if (currentOwnerC !== fromC) {
-    spinner.fail(`Not authorized to transfer ${chalk.cyan(normLabel + ".dot")}`);
-    console.log(chalk.gray("  expected owner: ") + chalk.white(fromC));
-    console.log(chalk.gray("  on-chain owner: ") + chalk.white(currentOwnerC));
-    throw new Error(`Cannot transfer: ${normLabel}.dot owned by ${currentOwnerC}`);
-  }
-
-  // TODO: remove this before any new environment deployment
-  // This ensures all names are synced with the registrar
   try {
-    const syncSpinner = ora(`Syncing label ${chalk.cyan(normLabel)} with registrar`).start();
-    await submitContractTransaction(
-      clientWrapper,
-      CONTRACTS.DOTNS_REGISTRAR,
+    await write(
+      ctx,
+      ctx.contracts.DOTNS_REGISTRAR,
       0n,
       DOTNS_REGISTRAR_ABI,
       "syncLabel",
-      [tokenId, normLabel],
-      originSubstrateAddress,
-      signer,
-      syncSpinner,
+      [tokenId, label],
       "Label sync",
     );
-    syncSpinner.succeed("Label synced");
   } catch (error) {
     const errorMessage = formatErrorMessage(error);
-    if (!errorMessage.includes("LabelAlreadySet")) {
-      console.log(chalk.yellow("  Label sync skipped: " + errorMessage.split("\n")[0]));
-    }
+    if (!errorMessage.includes("LabelAlreadySet")) throw error;
+  }
+}
+
+export type TransferNameOptions = {
+  syncLabel?: boolean;
+};
+
+// Transfers ownership of `label`.dot to `recipient`. The source address is derived
+// internally from the caller's own (round-trip-checked) EVM address: it can never
+// be supplied by the caller, so the ownership check and the transferFrom source
+// always match the signing account.
+export async function transferName(
+  ctx: DotnsContext,
+  name: string,
+  recipient: Address,
+  opts: TransferNameOptions = {},
+): Promise<TransferResult> {
+  const label = normaliseLabel(name);
+  validateDomainLabel(label);
+
+  const tokenId = computeDomainTokenId(label);
+  const from = await ownEvmAddress(ctx);
+  const fromC = toChecksummed(from);
+  const toC = toChecksummed(recipient);
+
+  const currentOwner = await ownerOfLabel(ctx, label);
+  if (currentOwner === zeroAddress) {
+    throw new Error(`Cannot transfer: ${label}.dot is not registered`);
+  }
+  const currentOwnerC = toChecksummed(currentOwner);
+  if (currentOwnerC !== fromC) {
+    throw new Error(`Cannot transfer: ${label}.dot owned by ${currentOwnerC}`);
+  }
+
+  if (opts.syncLabel) {
+    await syncLabelWithRegistrar(ctx, label, tokenId);
   }
 
   // Quote the friction fee the registrar will charge: zero for same-tier or upward
   // transfers, D for a downward step or a label-class reach-floor mismatch. Sending
   // less than the quoted amount reverts with TransferFeeRequired.
-  const feeSpinner = ora(`Quoting transfer fee for ${chalk.cyan(normLabel + ".dot")}`).start();
-  const feeWei = await performContractCall<bigint>(
-    clientWrapper,
-    originSubstrateAddress,
-    CONTRACTS.DOTNS_REGISTRAR,
+  const feeWei = await read<bigint>(
+    ctx,
+    ctx.contracts.DOTNS_REGISTRAR,
     DOTNS_REGISTRAR_ABI,
     "quoteTransferFee",
     [tokenId, toC],
   );
-  const feeNative = convertWeiToNativeCeil(feeWei, nativeTokenDecimals);
-  feeSpinner.succeed(
-    feeWei === 0n
-      ? `Fee: free (same-tier or upward transfer)`
-      : `Fee: ${chalk.green(formatWeiAsEther(feeWei) + " PAS")}`,
-  );
+  const feeNative = convertWeiToNativeCeil(feeWei, ctx.nativeTokenDecimals);
 
-  spinner.start(`Submitting transfer ${chalk.cyan(normLabel + ".dot")} → ${chalk.green(toC)}`);
-
-  const transactionHash = await submitContractTransaction(
-    clientWrapper,
-    CONTRACTS.DOTNS_REGISTRAR,
+  const txHash = await write(
+    ctx,
+    ctx.contracts.DOTNS_REGISTRAR,
     feeNative,
     DOTNS_REGISTRAR_ABI,
     "transferFrom",
     [fromC, toC, tokenId],
-    originSubstrateAddress,
-    signer,
-    spinner,
     "Transfer",
   );
 
-  spinner.succeed(`Transfer finalized`);
-  console.log(chalk.gray("  tx:   ") + chalk.blue(transactionHash));
-  console.log(chalk.gray("  from: ") + chalk.yellow(fromC));
-  console.log(chalk.gray("  to:   ") + chalk.green(toC));
-  console.log(chalk.gray("  name: ") + chalk.cyan(normLabel + ".dot"));
-  if (feeWei > 0n) {
-    console.log(chalk.gray("  fee:  ") + chalk.green(formatWeiAsEther(feeWei) + " PAS"));
-  }
+  return { name: `${label}.dot`, from: fromC, to: toC, feeWei, txHash };
 }

@@ -7,7 +7,16 @@ import {
   isSecondLevelDotName,
   countTrailingDigits,
   stripTrailingDigits,
+  normaliseLabel,
 } from "../../../src/utils/validation";
+
+describe("normaliseLabel", () => {
+  test("lowercases, trims, and strips a single trailing .dot", () => {
+    expect(normaliseLabel("  Alice.DOT ")).toBe("alice");
+    expect(normaliseLabel("alice")).toBe("alice");
+    expect(normaliseLabel("sub.alice.dot")).toBe("sub.alice");
+  });
+});
 
 describe("isCanonicalLabel", () => {
   test("accepts lowercase letters, digits and internal hyphens", () => {

@@ -1,20 +1,19 @@
 import chalk from "chalk";
 import { printHumanLine, printHumanSuccess } from "./reporter";
+import { version } from "../../package.json";
+import { getActiveDotnsEnvironment } from "../utils/constants";
 
-export function banner(): void {
-  const width = 40;
-
-  const line = "═".repeat(width);
-  const title = "dotns developer CLI"
-    .padStart(Math.floor((width + "dotns developer CLI".length) / 2), " ")
-    .padEnd(width, " ");
-
-  console.error(`\n${chalk.bold.cyan(line)}`);
-  console.error(chalk.bold.cyan(title));
-  console.error(`${chalk.bold.cyan(line)}\n`);
+// One contextual line per command, replacing the old decorative banner: identity
+// (version), the operation, an optional target, and the active network. Greppable
+// in CI logs and written to stderr via the reporter, so --json stdout stays clean.
+export function printCommandHeader(action: string, target?: string): void {
+  const segments = [`dotns ${version}`, action];
+  if (target) segments.push(target);
+  segments.push(`(${getActiveDotnsEnvironment().id})`);
+  printHumanLine(segments.join("  "));
 }
 
-export function stepStart(label: string) {
+function stepStart(label: string) {
   printHumanLine(chalk.gray(label));
 }
 

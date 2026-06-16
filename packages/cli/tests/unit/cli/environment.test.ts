@@ -5,6 +5,7 @@ import {
   setActiveDotnsEnvironment,
 } from "../../../src/utils/constants";
 import { ENV, resolveRpc } from "../../../src/cli/env";
+import { printCommandHeader } from "../../../src/cli/ui";
 
 const originalDotnsEnv = process.env[ENV.DOTNS_ENV];
 const originalRpc = process.env[ENV.RPC];
@@ -47,4 +48,24 @@ test("--env takes precedence over DOTNS_ENV while --rpc only overrides endpoint"
 
   expect(resolveRpc("wss://cli-rpc.example", "paseo-v2")).toBe("wss://cli-rpc.example");
   expect(getActiveDotnsEnvironment().id).toBe("paseo-v2");
+});
+
+test("printCommandHeader emits one contextual line with version, action, target and network", () => {
+  setActiveDotnsEnvironment("paseo-v2");
+  const originalWrite = process.stderr.write.bind(process.stderr);
+  let captured = "";
+  process.stderr.write = ((chunk: string | Uint8Array): boolean => {
+    captured += typeof chunk === "string" ? chunk : Buffer.from(chunk).toString();
+    return true;
+  }) as typeof process.stderr.write;
+  try {
+    printCommandHeader("Escrow status", "alice.dot");
+  } finally {
+    process.stderr.write = originalWrite as typeof process.stderr.write;
+  }
+  expect(captured).toContain("dotns ");
+  expect(captured).toContain("Escrow status");
+  expect(captured).toContain("alice.dot");
+  expect(captured).toContain("(paseo-v2)");
+  expect(captured).not.toContain("═");
 });

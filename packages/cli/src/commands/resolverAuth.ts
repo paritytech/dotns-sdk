@@ -1,7 +1,6 @@
 import { type Address, zeroAddress, checksumAddress } from "viem";
-import type { ReviveClientWrapper } from "../client/polkadotClient";
-import { CONTRACTS, DOTNS_REGISTRY_ABI, DOTNS_CONTENT_RESOLVER_ABI } from "../utils/constants";
-import { performContractCall } from "../utils/contractInteractions";
+import { type DotnsContext, read, ownEvmAddress } from "../core/context";
+import { DOTNS_REGISTRY_ABI, DOTNS_CONTENT_RESOLVER_ABI } from "../utils/constants";
 
 export interface ResolverNodeInfo {
   exists: boolean;
@@ -10,44 +9,39 @@ export interface ResolverNodeInfo {
 }
 
 export async function getResolverNodeInfo(
-  clientWrapper: ReviveClientWrapper,
-  originSubstrateAddress: string,
+  ctx: DotnsContext,
   namehashNode: string,
 ): Promise<ResolverNodeInfo> {
-  const exists = await performContractCall<boolean>(
-    clientWrapper,
-    originSubstrateAddress,
-    CONTRACTS.DOTNS_REGISTRY,
+  const exists = await read<boolean>(
+    ctx,
+    ctx.contracts.DOTNS_REGISTRY,
     DOTNS_REGISTRY_ABI,
     "recordExists",
     [namehashNode],
   );
 
-  const owner = await performContractCall<Address>(
-    clientWrapper,
-    originSubstrateAddress,
-    CONTRACTS.DOTNS_REGISTRY,
+  const owner = await read<Address>(
+    ctx,
+    ctx.contracts.DOTNS_REGISTRY,
     DOTNS_REGISTRY_ABI,
     "owner",
     [namehashNode],
   );
 
-  const caller = await clientWrapper.getEvmAddress(originSubstrateAddress);
+  const caller = await ownEvmAddress(ctx);
 
   return { exists: exists && owner !== zeroAddress, owner, caller };
 }
 
 export async function requireResolverAuthorization(
-  clientWrapper: ReviveClientWrapper,
-  originSubstrateAddress: string,
+  ctx: DotnsContext,
   owner: Address,
   caller: Address,
 ): Promise<void> {
   const isOwner = checksumAddress(owner) === checksumAddress(caller);
-  const isApproved = await performContractCall<boolean>(
-    clientWrapper,
-    originSubstrateAddress,
-    CONTRACTS.DOTNS_CONTENT_RESOLVER,
+  const isApproved = await read<boolean>(
+    ctx,
+    ctx.contracts.DOTNS_CONTENT_RESOLVER,
     DOTNS_CONTENT_RESOLVER_ABI,
     "isApprovedForAll",
     [owner, caller],

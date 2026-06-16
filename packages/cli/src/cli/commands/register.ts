@@ -1,6 +1,7 @@
 import chalk from "chalk";
+import ora from "ora";
 import { checksumAddress, isAddress, type Address, type Hex } from "viem";
-import { formatErrorMessage } from "../../utils/formatting";
+import { formatErrorMessage, formatWeiAsEther } from "../../utils/formatting";
 import {
   classifyDomainName,
   ensureDomainNotRegistered,
@@ -16,6 +17,7 @@ import {
   ensureLabelStoreReady,
   readCommitmentStatus,
   readDomainOwner,
+  type RegistrationResult,
 } from "../../commands/register";
 import {
   saveCommitmentRecord,
@@ -36,16 +38,16 @@ import {
 } from "../../utils/validation";
 import {
   type DomainRegistration,
-  type NameClassification,
-  type PricingAndEligibility,
   type RegistrationCommandOptions,
   ProofOfPersonhoodStatus,
 } from "../../types/types";
-import { step } from "../ui";
-import { prepareAssetHubContext } from "../context";
+import { step, printCommandHeader } from "../ui";
+import { buildDotnsContext, prepareAssetHubContext } from "../context";
+import { makeOnStatus } from "../txStatus";
+import type { DotnsContext } from "../../core/context";
 import { prepareReadOnlyContext } from "./lookup";
 import { generateRandomLabel } from "../labels";
-import { resolveTransferRecipient, transferDomain } from "../transfer";
+import { resolveTransferRecipient, transferName } from "../transfer";
 
 type PersistContext = {
   env: string;
@@ -53,11 +55,51 @@ type PersistContext = {
   credential: string;
 };
 
+// Caller plus the core operation context, built once per command and threaded
+// through the commit-reveal sequence so every signed write shares one origin.
+type RegistrationSession = {
+  ctx: DotnsContext;
+  caller: Address;
+  nativeTokenDecimals: number;
+};
+
 function requireEnvironment(environment: string | undefined): string {
   if (!environment) {
     throw new Error("Could not resolve the DotNS environment for this command.");
   }
   return environment;
+}
+
+function buildSession(
+  context: Awaited<ReturnType<typeof prepareAssetHubContext>>,
+  operationName: string,
+): RegistrationSession {
+  const spinner = ora();
+  return {
+    ctx: buildDotnsContext(context as any, { onStatus: makeOnStatus(spinner, operationName) }),
+    caller: context.evmAddress as Address,
+    nativeTokenDecimals: context.nativeTokenDecimals,
+  };
+}
+
+function redactSecret(secret: Hex): string {
+  if (secret.length <= 10) return "0x" + "*".repeat(secret.length - 2);
+  return `${secret.slice(0, 6)}${"*".repeat(secret.length - 10)}${secret.slice(-4)}`;
+}
+
+function printRegistrationResult(result: RegistrationResult): void {
+  console.log(
+    chalk.gray("  cost:      ") + chalk.green(formatWeiAsEther(result.priceWei) + " PAS"),
+  );
+  if (result.frictionWei > 0n) {
+    console.log(
+      chalk.gray("  friction:  ") + chalk.yellow(formatWeiAsEther(result.frictionWei) + " PAS"),
+    );
+  }
+  console.log(chalk.gray("  tx:        ") + chalk.blue(result.txHash));
+  console.log(
+    chalk.gray("  note:      ") + chalk.gray(`sent ${formatWeiAsEther(result.bufferedWei)} PAS`),
+  );
 }
 
 export type TransferDestinationKind = "evm" | "substrate" | "label";
@@ -101,7 +143,7 @@ export function isValidTransferDestination(destination: string): boolean {
   );
 }
 
-export type DomainRegistrationResult = {
+type DomainRegistrationResult = {
   ok: true;
   label: string;
   domain: string;
@@ -199,13 +241,14 @@ export async function executeRegistration(
 
   const context = await prepareAssetHubContext(options);
   const { clientWrapper, substrateAddress, signer, evmAddress } = context;
+  const session = buildSession(context, "Register");
 
   const label = options.name ?? generateRandomLabel(ProofOfPersonhoodStatus.NoStatus);
 
   let ownerEvmAddress: Address = evmAddress;
   if (options.owner != null) {
     ownerEvmAddress = await step("Resolving owner", async () =>
-      resolveTransferRecipient(clientWrapper, substrateAddress, options.owner as string),
+      resolveTransferRecipient(session.ctx, options.owner as string),
     );
   }
 
@@ -247,24 +290,16 @@ export async function executeRegistration(
   const attemptRegistration = (): Promise<void> =>
     options.governance
       ? executeGovernanceRegistration(
-          clientWrapper,
-          substrateAddress,
-          signer,
-          evmAddress,
+          session,
           label,
           transferDestination,
           persistContext,
           options.commitmentBuffer,
-          context.nativeTokenDecimals,
         )
       : executeRegularRegistration(
-          clientWrapper,
-          substrateAddress,
-          signer,
-          evmAddress,
+          session,
           ownerEvmAddress,
           label,
-          context.nativeTokenDecimals,
           options.reverse ?? false,
           transferDestination,
           persistContext,
@@ -280,7 +315,7 @@ export async function executeRegistration(
     commitmentBuffer: options.commitmentBuffer,
   });
 
-  printCompletionBanner("✓ Operation Complete", `${label}.dot`);
+  console.log(chalk.bold.green("✓ Operation Complete") + chalk.gray(` ${label}.dot`));
 
   return {
     ok: true as const,
@@ -304,6 +339,7 @@ export async function executeSubnameRegistration(
 
   const context = await prepareAssetHubContext(options);
   const { clientWrapper, substrateAddress, signer, evmAddress } = context;
+  const session = buildSession(context, "Subname");
 
   const sublabel = options.name;
   const parentLabel = options.parent;
@@ -313,7 +349,7 @@ export async function executeSubnameRegistration(
 
   const fullName = `${sublabel}.${parentLabel}.dot`;
 
-  console.log(chalk.bold("\n▶ Subname Registration\n"));
+  printCommandHeader("Subname Registration");
   console.log(chalk.gray("  Subname:   ") + chalk.cyan(fullName));
   console.log(chalk.gray("  Parent:    ") + chalk.white(`${parentLabel}.dot`));
   console.log(chalk.gray("  Owner:     ") + chalk.white(ownerAddress));
@@ -322,16 +358,12 @@ export async function executeSubnameRegistration(
     clientWrapper.ensureAccountMapped(substrateAddress, signer),
   );
 
-  await registerSubnode(
-    clientWrapper,
-    substrateAddress,
-    signer,
-    sublabel,
-    parentLabel,
-    ownerAddress,
+  const result = await step("Registering subname", async () =>
+    registerSubnode(session.ctx, sublabel, parentLabel, ownerAddress),
   );
+  console.log(chalk.gray("  tx:        ") + chalk.blue(result.txHash));
 
-  printCompletionBanner("✓ Subname Registered", fullName);
+  console.log(chalk.bold.green("✓ Subname Registered") + chalk.gray(` ${fullName}`));
 
   return {
     ok: true as const,
@@ -383,124 +415,102 @@ function forgetCommitment(persistContext: PersistContext, label: string): void {
   }
 }
 
-const BANNER_RULE = "═══════════════════════════════════════";
-
-/** Centre a title within the banner rule width for the completion box. */
-function centerInBanner(title: string): string {
-  const width = BANNER_RULE.length;
-  if (title.length >= width) return title;
-  const left = Math.floor((width - title.length) / 2);
-  return title.padStart(title.length + left).padEnd(width);
-}
-
-function printCompletionBanner(title: string, domain: string): void {
-  console.log(`\n${chalk.bold.green(BANNER_RULE)}`);
-  console.log(chalk.bold.green(centerInBanner(title)));
-  console.log(`${chalk.bold.green(BANNER_RULE)}\n`);
-  console.log(chalk.gray("  Domain: ") + chalk.cyan(domain));
+/** Print the eligibility and price summary the core pricing read returns. */
+function printPricing(
+  pricing: {
+    requiredStatus: ProofOfPersonhoodStatus;
+    userStatus: ProofOfPersonhoodStatus;
+    message: string;
+    priceWei: bigint;
+  },
+  owner: Address,
+  registeringForOther: boolean,
+): void {
+  console.log(
+    chalk.gray("  name tier:  ") + chalk.white(ProofOfPersonhoodStatus[pricing.requiredStatus]),
+  );
+  if (registeringForOther) {
+    console.log(chalk.gray("  owner:      ") + chalk.white(owner));
+    console.log(
+      chalk.gray("  owner tier: ") + chalk.white(ProofOfPersonhoodStatus[pricing.userStatus]),
+    );
+  } else {
+    console.log(
+      chalk.gray("  your tier:  ") + chalk.white(ProofOfPersonhoodStatus[pricing.userStatus]),
+    );
+  }
+  console.log(chalk.gray("  message:    ") + chalk.white(pricing.message));
+  console.log(
+    chalk.gray("  price:      ") + chalk.green(`${formatWeiAsEther(pricing.priceWei)} PAS`),
+  );
 }
 
 /** Resolve the recipient, transfer the freshly minted name, and verify the move. */
-async function replayTransfer(params: {
-  clientWrapper: any;
-  substrateAddress: string;
-  signer: any;
-  evmAddress: Address;
-  label: string;
-  transferDestination: string;
-  nativeTokenDecimals?: number;
-}): Promise<void> {
+async function replayTransfer(
+  session: RegistrationSession,
+  label: string,
+  destination: string,
+): Promise<void> {
   const recipient = await step("Resolving recipient", async () =>
-    resolveTransferRecipient(
-      params.clientWrapper,
-      params.substrateAddress,
-      params.transferDestination,
-    ),
+    resolveTransferRecipient(session.ctx, destination),
   );
 
-  await step("Transferring domain", async () =>
-    transferDomain(
-      params.clientWrapper,
-      params.substrateAddress,
-      params.signer,
-      params.evmAddress,
-      recipient,
-      params.label,
-      params.nativeTokenDecimals,
-    ),
+  // syncLabel is a CLI-only migration helper; enable it here so freshly minted
+  // names stay registrar-synced, while host-injected signers never trigger it.
+  const result = await step("Transferring domain", async () =>
+    transferName(session.ctx, label, recipient, { syncLabel: true }),
   );
+  console.log(chalk.gray("  tx:   ") + chalk.blue(result.txHash));
+  console.log(chalk.gray("  from: ") + chalk.yellow(result.from));
+  console.log(chalk.gray("  to:   ") + chalk.green(result.to));
+  if (result.feeWei > 0n) {
+    console.log(chalk.gray("  fee:  ") + chalk.green(formatWeiAsEther(result.feeWei) + " PAS"));
+  }
 
   await step("Verifying ownership", async () =>
-    verifyDomainOwnership(params.clientWrapper, params.substrateAddress, params.label, recipient),
+    verifyDomainOwnership(session.ctx, label, recipient),
   );
 }
 
 /** Price, quote cross-payer friction when needed, and submit the regular reveal. */
-async function finalizeRegularReveal(params: {
-  clientWrapper: any;
-  substrateAddress: string;
-  signer: any;
-  evmAddress: Address;
-  ownerEvmAddress: Address;
-  label: string;
-  registration: DomainRegistration;
-  nativeTokenDecimals: number;
-}): Promise<void> {
-  const isCrossPayer =
-    checksumAddress(params.ownerEvmAddress) !== checksumAddress(params.evmAddress);
+async function finalizeRegularReveal(
+  session: RegistrationSession,
+  ownerEvmAddress: Address,
+  label: string,
+  registration: DomainRegistration,
+): Promise<void> {
+  const isCrossPayer = checksumAddress(ownerEvmAddress) !== checksumAddress(session.caller);
 
-  const pricing: PricingAndEligibility = await step("Pricing and eligibility", async () =>
-    getPriceAndValidateEligibility(
-      params.clientWrapper,
-      params.substrateAddress,
-      params.label,
-      params.ownerEvmAddress,
-      params.evmAddress,
-    ),
+  const pricing = await step("Pricing and eligibility", async () =>
+    getPriceAndValidateEligibility(session.ctx, label, ownerEvmAddress),
   );
+  printPricing(pricing, ownerEvmAddress, isCrossPayer);
 
   const frictionWei: bigint = isCrossPayer
     ? await step("Quoting cross-payer friction", async () =>
-        quoteCrossPayerFriction(
-          params.clientWrapper,
-          params.substrateAddress,
-          params.label,
-          params.evmAddress,
-          params.ownerEvmAddress,
-        ),
+        quoteCrossPayerFriction(session.ctx, label, session.caller, ownerEvmAddress),
       )
     : 0n;
 
-  await step("Finalizing registration", async () =>
-    finalizeRegularRegistration(
-      params.clientWrapper,
-      params.substrateAddress,
-      params.signer,
-      params.registration,
-      pricing.priceWei,
-      params.nativeTokenDecimals,
-      frictionWei,
-    ),
+  const result = await step("Finalizing registration", async () =>
+    finalizeRegularRegistration(session.ctx, registration, pricing.priceWei, frictionWei),
   );
+  printRegistrationResult(result);
 }
 
 async function executeGovernanceRegistration(
-  clientWrapper: any,
-  substrateAddress: string,
-  signer: any,
-  evmAddress: Address,
+  session: RegistrationSession,
   label: string,
   transferDestination: string | undefined,
   persistContext: PersistContext,
   commitmentBuffer?: number,
-  nativeTokenDecimals?: number,
 ): Promise<void> {
   console.log(chalk.bold("\n🏛 Governance registration (commit-reveal)\n"));
 
   validateGovernanceLabel(label);
 
   const classification = await step("Classifying name", async () =>
-    classifyDomainName(clientWrapper, substrateAddress, label),
+    classifyDomainName(session.ctx, label),
   );
 
   if (classification.requiredStatus !== ProofOfPersonhoodStatus.Reserved) {
@@ -509,67 +519,54 @@ async function executeGovernanceRegistration(
     );
   }
 
-  await step("Checking availability", async () =>
-    ensureDomainNotRegistered(clientWrapper, substrateAddress, label),
-  );
+  await step("Checking availability", async () => ensureDomainNotRegistered(session.ctx, label));
 
-  const { commitment, registration } = await step("Generating commitment", async () =>
-    generateCommitment(clientWrapper, substrateAddress, label, evmAddress, true),
+  const { commitment, registration, secret } = await step("Generating commitment", async () =>
+    generateCommitment(session.ctx, label, { owner: session.caller, includeReverse: true }),
   );
+  console.log(chalk.gray("  commitment: ") + chalk.blue(commitment));
+  console.log(chalk.gray("  secret:     ") + chalk.yellow(redactSecret(secret)));
 
-  await step("Submitting commitment", async () =>
-    submitCommitment(clientWrapper, substrateAddress, signer, commitment),
-  );
+  await step("Submitting commitment", async () => submitCommitment(session.ctx, commitment));
 
   persistCommitment(persistContext, {
     label,
-    owner: evmAddress,
+    owner: session.caller,
     reserved: true,
     governance: true,
-    secret: registration.secret,
+    secret,
     commitmentHash: commitment,
     transferDestination,
   });
 
   await step("Waiting commitment age", async () =>
-    waitForMinimumCommitmentAge(clientWrapper, substrateAddress, commitment, commitmentBuffer),
+    waitForMinimumCommitmentAge(session.ctx, commitment, { commitmentBuffer }),
   );
 
-  await step("Finalizing registration", async () =>
-    finalizeGovernanceRegistration(clientWrapper, substrateAddress, signer, registration),
+  const result = await step("Finalizing registration", async () =>
+    finalizeGovernanceRegistration(session.ctx, registration),
   );
+  console.log(chalk.gray("  tx:        ") + chalk.blue(result.txHash));
 
   forgetCommitment(persistContext, label);
 
   await step("Verifying ownership", async () =>
-    verifyDomainOwnership(clientWrapper, substrateAddress, label, evmAddress),
+    verifyDomainOwnership(session.ctx, label, session.caller),
   );
 
   await step("Ensuring label store", async () =>
-    ensureLabelStoreReady(clientWrapper, substrateAddress, signer, evmAddress),
+    ensureLabelStoreReady(session.ctx, session.caller),
   );
 
   if (transferDestination) {
-    await replayTransfer({
-      clientWrapper,
-      substrateAddress,
-      signer,
-      evmAddress,
-      label,
-      transferDestination,
-      nativeTokenDecimals,
-    });
+    await replayTransfer(session, label, transferDestination);
   }
 }
 
 async function executeRegularRegistration(
-  clientWrapper: any,
-  substrateAddress: string,
-  signer: any,
-  evmAddress: Address,
+  session: RegistrationSession,
   ownerEvmAddress: Address,
   label: string,
-  nativeTokenDecimals: number,
   enableReverseRecord: boolean,
   transferDestination: string | undefined,
   persistContext: PersistContext,
@@ -579,107 +576,76 @@ async function executeRegularRegistration(
 
   validateDomainLabel(label);
 
-  const isCrossPayer = checksumAddress(ownerEvmAddress) !== checksumAddress(evmAddress);
+  const isCrossPayer = checksumAddress(ownerEvmAddress) !== checksumAddress(session.caller);
 
-  const classification: NameClassification = await step("Classifying name", async () =>
-    classifyDomainName(clientWrapper, substrateAddress, label),
-  );
+  await step("Classifying name", async () => classifyDomainName(session.ctx, label));
 
-  await step("Checking availability", async () =>
-    ensureDomainNotRegistered(clientWrapper, substrateAddress, label),
-  );
+  await step("Checking availability", async () => ensureDomainNotRegistered(session.ctx, label));
 
-  const { commitment, registration } = await step("Generating commitment", async () =>
-    generateCommitment(
-      clientWrapper,
-      substrateAddress,
-      label,
-      ownerEvmAddress,
-      enableReverseRecord,
-    ),
+  const { commitment, registration, secret } = await step("Generating commitment", async () =>
+    generateCommitment(session.ctx, label, {
+      owner: ownerEvmAddress,
+      includeReverse: enableReverseRecord,
+    }),
   );
+  console.log(chalk.gray("  commitment: ") + chalk.blue(commitment));
+  console.log(chalk.gray("  secret:     ") + chalk.yellow(redactSecret(secret)));
 
-  await step("Submitting commitment", async () =>
-    submitCommitment(clientWrapper, substrateAddress, signer, commitment),
-  );
+  await step("Submitting commitment", async () => submitCommitment(session.ctx, commitment));
 
   persistCommitment(persistContext, {
     label,
     owner: ownerEvmAddress,
     reserved: enableReverseRecord,
     governance: false,
-    secret: registration.secret,
+    secret,
     commitmentHash: commitment,
     transferDestination,
   });
 
   await step("Waiting commitment age", async () =>
-    waitForMinimumCommitmentAge(clientWrapper, substrateAddress, commitment, commitmentBuffer),
+    waitForMinimumCommitmentAge(session.ctx, commitment, { commitmentBuffer }),
   );
 
-  await finalizeRegularReveal({
-    clientWrapper,
-    substrateAddress,
-    signer,
-    evmAddress,
-    ownerEvmAddress,
-    label,
-    registration,
-    nativeTokenDecimals,
-  });
+  await finalizeRegularReveal(session, ownerEvmAddress, label, registration);
 
   forgetCommitment(persistContext, label);
 
   await step("Verifying ownership", async () =>
-    verifyDomainOwnership(clientWrapper, substrateAddress, label, ownerEvmAddress),
+    verifyDomainOwnership(session.ctx, label, ownerEvmAddress),
   );
 
   if (!isCrossPayer) {
     await step("Ensuring label store", async () =>
-      ensureLabelStoreReady(clientWrapper, substrateAddress, signer, evmAddress),
+      ensureLabelStoreReady(session.ctx, session.caller),
     );
   }
 
   if (transferDestination) {
-    await replayTransfer({
-      clientWrapper,
-      substrateAddress,
-      signer,
-      evmAddress,
-      label,
-      transferDestination,
-      nativeTokenDecimals,
-    });
+    await replayTransfer(session, label, transferDestination);
   }
-
-  void classification;
 }
 
-async function isRegisteredTo(
-  clientWrapper: any,
-  substrateAddress: string,
-  label: string,
-  owner: Address,
-): Promise<boolean> {
-  const actual = await readDomainOwner(clientWrapper, substrateAddress, label);
+async function isRegisteredTo(ctx: DotnsContext, label: string, owner: Address): Promise<boolean> {
+  const actual = await readDomainOwner(ctx, label);
   return checksumAddress(actual) === checksumAddress(owner);
 }
 
-export async function resumeRegistration(
+async function resumeRegistration(
   context: Awaited<ReturnType<typeof prepareAssetHubContext>>,
   record: CommitmentRecord,
   credential: string,
   commitmentBuffer?: number,
 ): Promise<DomainRegistrationResult> {
-  const { clientWrapper, substrateAddress, signer, evmAddress, nativeTokenDecimals } = context;
+  const session = buildSession(context, "Register");
   const { label } = record;
   const persistContext: PersistContext = {
     env: requireEnvironment(context.environment),
-    caller: evmAddress as Address,
+    caller: session.caller,
     credential,
   };
 
-  console.log(chalk.bold(`\n▶ Resuming ${chalk.cyan(label + ".dot")}\n`));
+  printCommandHeader("Resuming", `${label}.dot`);
 
   const registration: DomainRegistration = {
     label,
@@ -689,7 +655,7 @@ export async function resumeRegistration(
   };
 
   const alreadyOwned = await step("Checking on-chain ownership", async () =>
-    isRegisteredTo(clientWrapper, substrateAddress, label, record.owner),
+    isRegisteredTo(session.ctx, label, record.owner),
   );
 
   if (alreadyOwned) {
@@ -699,13 +665,13 @@ export async function resumeRegistration(
       ok: true as const,
       label,
       domain: `${label}.dot`,
-      caller: evmAddress,
+      caller: session.caller,
       owner: record.owner,
     };
   }
 
   const status = await step("Reading commitment status", async () =>
-    readCommitmentStatus(clientWrapper, substrateAddress, record.commitmentHash),
+    readCommitmentStatus(session.ctx, record.commitmentHash),
   );
 
   const commitmentAge = status.nowSeconds - status.committedTimestampSeconds;
@@ -714,61 +680,40 @@ export async function resumeRegistration(
 
   if (needsRecommit) {
     await step("Re-submitting commitment", async () =>
-      submitCommitment(clientWrapper, substrateAddress, signer, record.commitmentHash),
+      submitCommitment(session.ctx, record.commitmentHash),
     );
   }
 
   await step("Waiting commitment age", async () =>
-    waitForMinimumCommitmentAge(
-      clientWrapper,
-      substrateAddress,
-      record.commitmentHash,
-      commitmentBuffer,
-    ),
+    waitForMinimumCommitmentAge(session.ctx, record.commitmentHash, { commitmentBuffer }),
   );
 
   if (record.governance) {
-    await step("Finalizing registration", async () =>
-      finalizeGovernanceRegistration(clientWrapper, substrateAddress, signer, registration),
+    const result = await step("Finalizing registration", async () =>
+      finalizeGovernanceRegistration(session.ctx, registration),
     );
+    console.log(chalk.gray("  tx:        ") + chalk.blue(result.txHash));
   } else {
-    await finalizeRegularReveal({
-      clientWrapper,
-      substrateAddress,
-      signer,
-      evmAddress,
-      ownerEvmAddress: record.owner,
-      label,
-      registration,
-      nativeTokenDecimals,
-    });
+    await finalizeRegularReveal(session, record.owner, label, registration);
   }
 
   await step("Verifying ownership", async () =>
-    verifyDomainOwnership(clientWrapper, substrateAddress, label, record.owner),
+    verifyDomainOwnership(session.ctx, label, record.owner),
   );
 
   forgetCommitment(persistContext, label);
 
   if (record.transferDestination) {
-    await replayTransfer({
-      clientWrapper,
-      substrateAddress,
-      signer,
-      evmAddress,
-      label,
-      transferDestination: record.transferDestination,
-      nativeTokenDecimals,
-    });
+    await replayTransfer(session, label, record.transferDestination);
   }
 
-  printCompletionBanner("✓ Registration Resumed", `${label}.dot`);
+  console.log(chalk.bold.green("✓ Registration Resumed") + chalk.gray(` ${label}.dot`));
 
   return {
     ok: true as const,
     label,
     domain: `${label}.dot`,
-    caller: evmAddress,
+    caller: session.caller,
     owner: record.owner,
   };
 }
@@ -805,7 +750,7 @@ export async function executeRetry(
   return resumeRegistration(context, record, credential, options.commitmentBuffer);
 }
 
-export type ClearSummary = {
+type ClearSummary = {
   ok: true;
   purged: string[];
   discarded: string[];
@@ -819,7 +764,7 @@ async function promptPendingAction(
   const readline = await import("node:readline/promises");
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
-  console.log(chalk.bold("\n▶ Pending commitments\n"));
+  printCommandHeader("Pending commitments");
   for (const record of pending) {
     console.log(
       chalk.gray("  • ") +
@@ -846,7 +791,7 @@ export async function executeClear(
   options: Partial<RegisterActionOptions> & { discard?: boolean; register?: boolean } = {},
 ): Promise<ClearSummary> {
   const context = await prepareAssetHubContext(options);
-  const { clientWrapper, substrateAddress } = context;
+  const session = buildSession(context, "Register");
   const caller = context.evmAddress as Address;
   const env = requireEnvironment(context.environment);
 
@@ -863,7 +808,7 @@ export async function executeClear(
   const pending: CommitmentRecord[] = [];
   for (const record of records) {
     const registered = await step(`Checking ${record.label}.dot`, async () =>
-      isRegisteredTo(clientWrapper, substrateAddress, record.label, record.owner),
+      isRegisteredTo(session.ctx, record.label, record.owner),
     );
     if (registered) {
       deleteCommitmentRecord(env, caller, record.label);
@@ -916,7 +861,7 @@ export async function executeClear(
   return summary;
 }
 
-export type CommitmentRow = {
+type CommitmentRow = {
   label: string;
   status: "registered" | "pending";
   committedAtIso: string;
@@ -932,20 +877,18 @@ export async function executeList(
   options: Partial<RegisterActionOptions> & { json?: boolean } = {},
 ): Promise<ListSummary> {
   const context = await prepareReadOnlyContext(options);
-  const { clientWrapper } = context;
   const caller = context.evmAddress as Address;
   const env = requireEnvironment(context.environment);
+  const ctx = buildDotnsContext(
+    { ...context, substrateAddress: context.account.address, signer: undefined } as any,
+    { onStatus: makeOnStatus(undefined, "Register") },
+  );
 
   const records = loadCommitmentRecords(env, caller);
 
   const rows: CommitmentRow[] = [];
   for (const record of records) {
-    const registered = await isRegisteredTo(
-      clientWrapper,
-      context.account.address,
-      record.label,
-      record.owner,
-    );
+    const registered = await isRegisteredTo(ctx, record.label, record.owner);
     rows.push({
       label: record.label,
       status: registered ? "registered" : "pending",
@@ -958,7 +901,7 @@ export async function executeList(
     if (rows.length === 0) {
       console.log(chalk.gray("\n  No cached commitments.\n"));
     } else {
-      console.log(chalk.bold("\n▶ Cached commitments\n"));
+      printCommandHeader("Cached commitments");
       for (const row of rows) {
         const statusLabel =
           row.status === "registered" ? chalk.green("registered") : chalk.yellow("pending");

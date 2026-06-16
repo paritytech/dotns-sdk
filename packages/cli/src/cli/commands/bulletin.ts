@@ -984,7 +984,7 @@ export function attachBulletinCommands(root: Command): void {
           writeBulletinJson({
             cid,
             contenthash: `0x${contenthash}`,
-            preview: previewUrl,
+            preview: previewUrl ?? undefined,
             path: resolvedPath,
             type: isDirectory ? "directory" : "file",
             size: uploadSize,
@@ -996,7 +996,9 @@ export function attachBulletinCommands(root: Command): void {
           });
         } else {
           console.log(chalk.gray("\n  cid:         ") + chalk.cyan(cid));
-          console.log(chalk.gray("  preview:     ") + chalk.blue(previewUrl));
+          if (previewUrl) {
+            console.log(chalk.gray("  preview:     ") + chalk.blue(previewUrl));
+          }
           console.log(
             chalk.gray("  total time:  ") + chalk.white(formatDuration(totalUploadTimeSeconds)),
           );
@@ -1227,7 +1229,10 @@ export function attachBulletinCommands(root: Command): void {
         if (record.size > 0) {
           console.log(chalk.gray("      size:    ") + chalk.white(formatBytes(record.size)));
         }
-        console.log(chalk.gray("      preview: ") + chalk.blue(getPreviewUrl(record)));
+        const recordPreviewUrl = getPreviewUrl(record);
+        if (recordPreviewUrl) {
+          console.log(chalk.gray("      preview: ") + chalk.blue(recordPreviewUrl));
+        }
         console.log();
       });
 

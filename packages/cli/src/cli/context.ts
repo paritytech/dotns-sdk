@@ -17,8 +17,53 @@ import {
   createAccountFromSource,
   createSubstrateSigner,
 } from "../commands/auth";
-import type { AssetHubContext, BulletinContext, ChainContext } from "../types/types";
+import type {
+  AssetHubContext,
+  BulletinContext,
+  ChainContext,
+  ReadOnlyContext,
+} from "../types/types";
 import { DEFAULT_NATIVE_TOKEN_DECIMALS } from "../utils/constants";
+import { createDotnsContext, type DotnsContext, type OperationStatus } from "../core/context";
+
+type BuildContextOptions = {
+  onStatus?: (status: OperationStatus) => void;
+  signal?: AbortSignal;
+};
+
+// Bridges a connected CLI AssetHubContext onto the core DotnsContext that every
+// operation takes. Origin and signer travel together, so the signing account can
+// never be mismatched against the charged origin.
+export function buildDotnsContext(
+  context: AssetHubContext,
+  opts?: BuildContextOptions,
+): DotnsContext {
+  return createDotnsContext({
+    clientWrapper: context.clientWrapper,
+    origin: context.substrateAddress,
+    signer: context.signer,
+    environment: context.environment,
+    nativeTokenDecimals: context.nativeTokenDecimals,
+    onStatus: opts?.onStatus,
+    signal: opts?.signal,
+  });
+}
+
+// Read-only variant for CLI commands that resolve a ReadOnlyContext: no signer, so
+// only reads are callable (writes throw MissingSignerError, which is correct here).
+export function buildReadOnlyDotnsContext(
+  context: ReadOnlyContext,
+  opts?: BuildContextOptions,
+): DotnsContext {
+  return createDotnsContext({
+    clientWrapper: context.clientWrapper,
+    origin: context.account.address,
+    environment: context.environment,
+    nativeTokenDecimals: context.nativeTokenDecimals,
+    onStatus: opts?.onStatus,
+    signal: opts?.signal,
+  });
+}
 
 function resolveRpcEnvironment(options: any): string | undefined {
   return options.env ?? options.network;
@@ -229,7 +274,7 @@ export async function prepareAssetHubContext(options: any): Promise<AssetHubCont
   };
 }
 
-export async function prepareBulletinContext(options: any): Promise<BulletinContext> {
+async function prepareBulletinContext(options: any): Promise<BulletinContext> {
   const environment = resolveDotnsEnvironment(resolveRpcEnvironment(options));
   const rpc = resolveBulletinRpc(options.bulletinRpc ?? options.rpc, environment.id);
   const { keystorePath, rawClient, tokenInfo, auth, account, substrateAddress, signer } =

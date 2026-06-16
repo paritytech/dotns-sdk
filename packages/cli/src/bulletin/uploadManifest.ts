@@ -164,7 +164,7 @@ async function listManifestFiles(): Promise<string[]> {
   }
 }
 
-export async function loadManifest(
+async function loadManifest(
   target: string | UploadManifestIdentity,
 ): Promise<UploadManifest | null> {
   if (typeof target === "string") {
