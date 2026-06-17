@@ -4,9 +4,8 @@
       <p class="text-sm font-medium text-dot-accent mb-2">Tools</p>
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">CLI</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
-        The DotNS command-line interface provides full access to the protocol from your terminal.
-        Register names, manage content, upload to Bulletin, and configure profiles &mdash; all
-        without leaving the command line.
+        Register names, manage content, upload to Bulletin, and configure profiles from the
+        terminal.
       </p>
     </div>
 
@@ -49,10 +48,10 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Authentication</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Every command that signs a transaction needs an explicit key. The CLI refuses to sign write
+        Commands that sign transactions require an explicit key. The CLI does not sign write
         operations with the shared public dev account; configure one of these methods before
         registering, transferring, delegating, publishing, or changing records. The encrypted
-        keystore is the recommended approach for local work.
+        keystore is suitable for local development.
       </p>
       <div class="overflow-x-auto">
         <table class="w-full text-sm border border-dot-border rounded-lg overflow-hidden">
@@ -86,8 +85,8 @@
         <span class="font-mono">-m</span> or <span class="font-mono">-k</span> each time.
       </DocCallout>
       <DocCallout variant="warning" title="Write commands require explicit auth">
-        Read-only commands can run without configured credentials. Write commands fail closed unless
-        you provide <span class="font-mono">DOTNS_MNEMONIC</span>,
+        Read-only commands can run without configured credentials. Write commands fail unless you
+        provide <span class="font-mono">DOTNS_MNEMONIC</span>,
         <span class="font-mono">DOTNS_KEY_URI</span>, or an encrypted keystore account.
       </DocCallout>
       <DocCallout variant="tip" title="Auth precedence">
@@ -96,6 +95,45 @@
         <span class="font-mono">--account</span>, <span class="font-mono">--keystore-path</span>, or
         <span class="font-mono">--password</span>, the CLI uses the encrypted keystore and does not
         let ambient env secrets shadow the selected account.
+      </DocCallout>
+    </div>
+
+    <div class="space-y-4">
+      <h2 class="text-xl font-semibold text-dot-text-primary">Mobile wallet signer (QR)</h2>
+      <p class="text-dot-text-secondary leading-relaxed">
+        Pair a Polkadot mobile wallet over a QR code with
+        <span class="font-mono">--signer qr</span> (or
+        <span class="font-mono">DOTNS_SIGNER=qr</span>) instead of a local key. The CLI prints a QR,
+        you scan it, and each transaction is approved on the phone. The QR and prompts are written
+        to stderr, so <span class="font-mono">--json</span> output on stdout stays clean.
+      </p>
+      <DocCodeBlock :code="qrSignerExamples" lang="bash" />
+      <DocCallout variant="warning" title="Experimental">
+        The QR signer is experimental and the CLI prints a warning each time it runs. Because the
+        account is the paired wallet,
+        <span class="font-mono">--signer qr</span> cannot be combined with the local-keystore flags
+        or their environment variables (<span class="font-mono">--account</span>,
+        <span class="font-mono">--password</span>, <span class="font-mono">--keystore-path</span>,
+        <span class="font-mono">--mnemonic</span>, <span class="font-mono">--key-uri</span>,
+        <span class="font-mono">DOTNS_MNEMONIC</span>, <span class="font-mono">DOTNS_KEY_URI</span>,
+        <span class="font-mono">DOTNS_KEYSTORE_PASSWORD</span>); doing so is rejected, not ignored.
+      </DocCallout>
+      <DocCallout variant="info" title="Relay network must match the wallet">
+        Pairing happens on a People-chain relay. The CLI and the wallet must use the same relay, or
+        pairing fails. Match it to your wallet build with
+        <span class="font-mono">--qr-people-rpc</span> /
+        <span class="font-mono">DOTNS_QR_PEOPLE_RPC</span>:
+        <span class="font-mono">paseo</span> (default), <span class="font-mono">preview</span>,
+        <span class="font-mono">stable</span>, or a comma-separated list of
+        <span class="font-mono">wss://</span> URLs. A freshly paired account must be address-mapped
+        and funded on Asset Hub before it can register. Set
+        <span class="font-mono">DOTNS_QR_DEBUG=1</span> to print the verbose pairing trace.
+      </DocCallout>
+      <DocCallout variant="tip" title="Session reuse and --qr-fresh">
+        The first pairing is cached under <span class="font-mono">~/.polkadot-apps/</span>, so later
+        commands reuse it without re-scanning. Anyone with read access to that directory can sign as
+        the wallet until you re-pair; pass <span class="font-mono">--qr-fresh</span> to force a
+        fresh pairing and re-approval on a given run.
       </DocCallout>
     </div>
 
@@ -279,23 +317,33 @@ const authMethods = [
 ];
 
 const envVars = [
-  { name: "DOTNS_RPC", description: "WebSocket RPC endpoint for the Polkadot chain" },
+  { name: "DOTNS_ENV", description: "DotNS environment (default: paseo-v2)" },
+  { name: "DOTNS_RPC", description: "WebSocket RPC endpoint for the Asset Hub chain" },
+  { name: "DOTNS_BULLETIN_RPC", description: "WebSocket RPC endpoint for the Bulletin chain" },
   { name: "DOTNS_MNEMONIC", description: "BIP-39 mnemonic phrase" },
   { name: "DOTNS_KEY_URI", description: "Substrate key URI (e.g. //Alice)" },
   { name: "DOTNS_KEYSTORE_PATH", description: "Keystore directory (default: ~/.dotns/keystore/)" },
   { name: "DOTNS_KEYSTORE_PASSWORD", description: "Password for encrypted keystore files" },
-  { name: "DOTNS_MIN_BALANCE_PAS", description: "Minimum account balance in PAS before warning" },
+  {
+    name: "DOTNS_COMMITMENT_BUFFER",
+    description: "Extra seconds to wait after minCommitmentAge before reveal",
+  },
+  { name: "DOTNS_SIGNER", description: "Signer backend: keystore (default) or qr [experimental]" },
+  { name: "DOTNS_QR_APP_ID", description: "Product id for QR pairing (default: dotns)" },
+  {
+    name: "DOTNS_QR_PEOPLE_RPC",
+    description: "QR pairing relay: paseo (default) / preview / stable, or wss URLs",
+  },
+  { name: "DOTNS_QR_DEBUG", description: "Set to print the verbose QR pairing trace" },
 ];
 
 const sharedOptions = [
+  { flag: "--env <environment>", description: "DotNS environment: paseo-v2 (env: DOTNS_ENV)" },
+  { flag: "--network <environment>", description: "Alias for --env" },
   { flag: "--rpc <wsUrl>", description: "WebSocket RPC endpoint (env: DOTNS_RPC)" },
   {
     flag: "--keystore-path <path>",
     description: "Keystore directory (env: DOTNS_KEYSTORE_PATH)",
-  },
-  {
-    flag: "--min-balance <pas>",
-    description: "Minimum balance in PAS (env: DOTNS_MIN_BALANCE_PAS)",
   },
   {
     flag: "--account <name>",
@@ -304,6 +352,16 @@ const sharedOptions = [
   { flag: "--password <pw>", description: "Keystore password (env: DOTNS_KEYSTORE_PASSWORD)" },
   { flag: "-m, --mnemonic <phrase>", description: "BIP-39 mnemonic phrase (env: DOTNS_MNEMONIC)" },
   { flag: "-k, --key-uri <uri>", description: "Substrate key URI (env: DOTNS_KEY_URI)" },
+  {
+    flag: "--signer <kind>",
+    description: "Signer: keystore (default) or qr [experimental] (env: DOTNS_SIGNER)",
+  },
+  { flag: "--qr-app-id <id>", description: "Product id for QR pairing (env: DOTNS_QR_APP_ID)" },
+  {
+    flag: "--qr-people-rpc <stageOrUrls>",
+    description: "QR pairing relay: paseo|preview|stable or wss URLs (env: DOTNS_QR_PEOPLE_RPC)",
+  },
+  { flag: "--qr-fresh", description: "Force a fresh QR pairing, ignoring any cached session" },
   {
     flag: "--json",
     description: "Output result as JSON and suppress all other output (available on most commands)",
@@ -385,6 +443,15 @@ const commandReference: CmdGroup[] = [
             flag: "--to <destination>",
             description: "Transfer destination (EVM address, SS58, or domain label)",
           },
+          {
+            flag: "--cb, --commitment-buffer <seconds>",
+            description:
+              "Extra seconds to wait after minCommitmentAge (env: DOTNS_COMMITMENT_BUFFER)",
+          },
+          {
+            flag: "--retry <count>",
+            description: "On failure, resume from the cached commitment up to N times",
+          },
         ],
       },
       {
@@ -410,6 +477,24 @@ const commandReference: CmdGroup[] = [
             description: "Owner address (EVM, Substrate, or label)",
           },
         ],
+      },
+      {
+        usage: "register retry [name]",
+        description:
+          "Resume a cached commit-reveal registration. Without a name, resumes the most recent.",
+        options: [
+          {
+            flag: "--cb, --commitment-buffer <seconds>",
+            description:
+              "Extra seconds to wait after minCommitmentAge (env: DOTNS_COMMITMENT_BUFFER)",
+          },
+          { flag: "--json", description: "Output result as JSON" },
+        ],
+      },
+      {
+        usage: "register list",
+        description: "List cached commitments and their on-chain status.",
+        options: [{ flag: "--json", description: "Output result as JSON" }],
       },
     ],
   },
@@ -696,6 +781,18 @@ dotns register domain --name myname
 
 # Key URI for dev/test
 dotns lookup name alice -k "//Alice"`;
+
+const qrSignerExamples = `# Pair a mobile wallet over a QR code instead of a local key
+dotns register domain --name myname --signer qr
+
+# Match the pairing relay to the wallet's network (default is paseo)
+dotns register domain --name myname --signer qr --qr-people-rpc preview
+
+# Force a fresh pairing and re-approval, ignoring the cached session
+dotns register domain --name myname --signer qr --qr-fresh
+
+# Print the verbose pairing trace when diagnosing a stuck pairing
+DOTNS_QR_DEBUG=1 dotns register domain --name myname --signer qr`;
 
 const resumableRegistrationExamples = `# Resume the most recent interrupted registration
 dotns register retry --account default

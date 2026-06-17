@@ -33,6 +33,10 @@ Examples:
 - scripts that operate across networks (smoke tests, migrations, verification)
 - higher-level flows (register, set resolver records, set reverse, Store writes) as composable functions
 
+The CLI's named operations are also exported as a programmatic SDK (`@parity/dotns-cli/core`) that
+takes a caller-supplied signer — including QR-paired mobile wallets. See the CLI README's
+"Programmatic SDK" section and `/docs/tools/sdk`.
+
 Non-goals:
 - the contracts themselves
 - UI code that is primarily presentation

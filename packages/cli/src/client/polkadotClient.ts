@@ -289,6 +289,12 @@ export class ReviveClientWrapper {
         this.mappedAccounts.add(substrateAddress);
         return true;
       }
+      // A rejected submission (e.g. a stale nonce from a racing map) may still have left
+      // the account mapped, so confirm against chain before surfacing the error.
+      if (await this.checkIfAccountMapped(substrateAddress)) {
+        this.mappedAccounts.add(substrateAddress);
+        return true;
+      }
       throw error;
     }
   }

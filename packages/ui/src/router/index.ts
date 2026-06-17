@@ -195,6 +195,11 @@ const routes = [
         component: lazyLoad(() => import("../views/docs/tools/UiPage.vue")),
       },
       {
+        path: "tools/sdk",
+        name: "DocsSdk",
+        component: lazyLoad(() => import("../views/docs/tools/SdkPage.vue")),
+      },
+      {
         path: "use-cases/personal-identity",
         name: "DocsPersonalIdentity",
         component: lazyLoad(() => import("../views/docs/use-cases/PersonalIdentityPage.vue")),

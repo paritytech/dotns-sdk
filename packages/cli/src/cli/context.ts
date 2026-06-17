@@ -10,7 +10,12 @@ import {
   resolveBulletinRpc,
   resolveKeystorePath,
   resolveDotnsEnvironment,
+  resolveSignerKind,
+  resolveQrAppId,
+  resolveQrPeopleEndpoints,
+  assertSignerOptions,
 } from "./env";
+import { createQrSigner } from "./qrSigner";
 import { step } from "./ui";
 import {
   resolveAuthSource,
@@ -165,6 +170,7 @@ type ConnectionAndAuth = {
 // Connect to `rpc`, read token metadata, resolve the account and build its signer:
 // the work shared by every chain context regardless of descriptor.
 async function connectAndAuthenticate(options: any, rpc: string): Promise<ConnectionAndAuth> {
+  assertSignerOptions(options);
   const keystorePath = resolveKeystorePath(options.keystorePath);
 
   const rawClient = await step(`Connecting RPC ${rpc}`, async () =>
@@ -173,6 +179,33 @@ async function connectAndAuthenticate(options: any, rpc: string): Promise<Connec
   const tokenInfo = await step("Reading chain token metadata", async () =>
     getChainTokenInfo(rawClient),
   );
+
+  if (resolveSignerKind(options.signer) === "qr") {
+    const { origin, signer } = await step("Pairing mobile wallet", async () =>
+      createQrSigner({
+        appId: resolveQrAppId(options.qrAppId),
+        endpoints: resolveQrPeopleEndpoints(options.qrPeopleRpc),
+        fresh: options.qrFresh,
+      }),
+    );
+    // Only `.account.address` is read downstream, so the placeholder cast is safe. credential
+    // keys the retry cache; the wallet has no local secret, so the deterministic origin is used.
+    return {
+      keystorePath,
+      rawClient,
+      tokenInfo,
+      auth: {
+        source: origin,
+        isKeyUri: false,
+        resolvedFrom: "cli",
+        account: "qr-wallet",
+        credential: origin,
+      },
+      account: { address: origin } as Awaited<ReturnType<typeof createAccountFromSource>>,
+      substrateAddress: origin,
+      signer,
+    };
+  }
 
   const auth = await step("Resolving account", async () =>
     resolveAuthSource({
@@ -238,6 +271,11 @@ export async function prepareAssetHubContext(options: any): Promise<AssetHubCont
   const clientWrapper = new ReviveClientWrapper(client as PolkadotApiClient);
   const evmAddress = await step("Resolving EVM address", async () =>
     clientWrapper.getEvmAddress(substrateAddress),
+  );
+
+  // Idempotent: submits map_account only when unmapped, so a mapped account incurs no signature.
+  await step("Ensuring account mapped", async () =>
+    clientWrapper.ensureAccountMapped(substrateAddress, signer),
   );
 
   logConfiguration({

@@ -120,6 +120,14 @@ export type AuthOptionValues = {
   mnemonic?: string;
   /** Substrate key URI (e.g., //Alice) */
   keyUri?: string;
+  /** Signer backend: local keystore (default) or a QR-paired mobile wallet */
+  signer?: "keystore" | "qr";
+  /** App id used when pairing a QR mobile wallet */
+  qrAppId?: string;
+  /** QR pairing relay: a stage name (paseo|preview|stable) or wss URLs */
+  qrPeopleRpc?: string;
+  /** Force a fresh QR pairing instead of reusing the cached session */
+  qrFresh?: boolean;
 };
 
 export type AccountKeystorePayload = {

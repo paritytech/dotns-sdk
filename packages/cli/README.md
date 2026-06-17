@@ -76,6 +76,43 @@ New keystore passwords supplied interactively, with `--password`, or with
 `DOTNS_KEYSTORE_PASSWORD` must be at least 6 characters. Decryption remains compatible with
 existing keystores.
 
+### Mobile wallet signer (QR)
+
+> **Experimental:** the QR mobile-wallet signer is still in development and the CLI prints a warning
+> when it is used. The wallet must be on the same People-chain network as the pairing relay (see
+> `--qr-people-rpc`); a production App Store wallet cannot pair with this testnet flow.
+
+Instead of a local key, pair a Polkadot mobile wallet over a QR code with `--signer qr` (or
+`DOTNS_SIGNER=qr`). The CLI prints a QR code, you scan it with the app, and every transaction is
+approved on your phone, so no private key sits on the machine.
+
+```bash
+dotns register domain --name coolname42 --signer qr
+```
+
+The account is the paired wallet, so `--signer qr` cannot be combined with the local-keystore
+flags or their environment variables (`--account`, `--password`, `--keystore-path`,
+`--mnemonic`, `--key-uri`, `DOTNS_MNEMONIC`, `DOTNS_KEY_URI`, `DOTNS_KEYSTORE_PASSWORD`); doing
+so is rejected rather than silently ignored.
+
+The first pairing is cached under `~/.polkadot-apps/`, so later commands reuse it without
+re-scanning (the wallet's granted allowance also makes signing non-interactive). The pairing is
+cryptographically bound to the host keys in the QR, so a malicious relay cannot forge it. Anyone
+with read access to `~/.polkadot-apps/` can sign as the wallet until you re-pair; pass `--qr-fresh`
+to force a fresh pairing (and re-approval) on a given run.
+
+The pairing QR and prompts are written to stderr, so `--json` output on stdout stays machine-clean.
+Requires Node ≥ 21 (for a global `WebSocket`); running under Bun works as-is. A freshly paired
+account is usually not address-mapped, so run `dotns account map --signer qr` once before
+registering or transferring. The wallet pairs under a single product id (default `dotns`) that
+also seeds the signing account; override it with `--qr-app-id` / `DOTNS_QR_APP_ID`.
+
+Pairing rendezvous happens on a People-chain relay, and the CLI and the wallet must be on the same
+one or the wallet's response never arrives and pairing hangs. Select the relay to match the
+wallet's network with `--qr-people-rpc` / `DOTNS_QR_PEOPLE_RPC`: `paseo` (default), `preview`,
+`stable`, or a comma-separated list of `wss` URLs. Set `DOTNS_QR_DEBUG=1` to print the verbose
+pairing handshake trace when diagnosing a stuck pairing.
+
 ## Environment Variables
 
 | Variable                  | Description                                        |
@@ -86,6 +123,10 @@ existing keystores.
 | `DOTNS_RPC`               | Asset Hub RPC endpoint                             |
 | `DOTNS_MNEMONIC`          | BIP39 mnemonic phrase                              |
 | `DOTNS_KEY_URI`           | Substrate key URI                                  |
+| `DOTNS_SIGNER`            | Signer backend: `keystore` (default) or `qr`       |
+| `DOTNS_QR_APP_ID`         | Product id for QR pairing (default `dotns`)        |
+| `DOTNS_QR_PEOPLE_RPC`     | QR relay: `paseo`/`preview`/`stable` or wss URLs   |
+| `DOTNS_QR_DEBUG`          | Set to print the verbose QR pairing trace          |
 
 Select an environment with either an environment variable or a per-command option:
 
@@ -103,6 +144,50 @@ dotns account whitelist 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY --env p
 ```
 
 `--rpc` still overrides the endpoint URL, but it does not change the selected DotNS contract addresses. Use `--env`/`DOTNS_ENV` to select the DotNS deployment.
+
+## Programmatic SDK
+
+The operations the CLI runs are exported from `@parity/dotns-cli/core` as typed functions you can
+call from your own TypeScript. You build a context with a chain client, an SS58 origin, and a
+`PolkadotSigner` you supply; every operation takes that context. There is no raw-contract surface:
+addresses come from `DOTNS_ENVIRONMENTS[id].contracts` and the ABI is applied internally, so callers
+never pass an ABI, address, or calldata.
+
+```ts
+import { createClient } from "polkadot-api";
+import { getWsProvider } from "polkadot-api/ws-provider";
+import { paseo } from "@polkadot-api/descriptors";
+import {
+  createDotnsContext,
+  ReviveClientWrapper,
+  registerName,
+  registerSubnode,
+  setContentHash,
+  getContentHash,
+  resolveTransferRecipient,
+  transferName,
+} from "@parity/dotns-cli/core";
+
+const client = createClient(getWsProvider("wss://paseo-asset-hub-next-rpc.polkadot.io"));
+const ctx = createDotnsContext({
+  clientWrapper: new ReviveClientWrapper(client.getTypedApi(paseo)),
+  origin, // your SS58 address
+  signer, // your PolkadotSigner
+  environment: "paseo-v2",
+});
+
+await registerName(ctx, "alice"); // owner defaults to your mapped EVM address
+await registerSubnode(ctx, "alice", "bob", ownerAddress); // alice.bob.dot
+await setContentHash(ctx, "alice.dot", "bafy...cid");
+const { cid } = await getContentHash(ctx, "alice.dot");
+const recipient = await resolveTransferRecipient(ctx, "bob.dot"); // EVM, SS58, or .dot label
+await transferName(ctx, "alice", recipient);
+```
+
+`createDotnsContext` rejects an EVM (H160) origin, and a write without a signer throws
+`MissingSignerError`. The origin must be Revive address-mapped before `registerName`/`transferName`.
+To sign with a QR-paired mobile wallet programmatically, build the signer with
+`@parity/product-sdk-terminal` and pass it as `signer` (see `/docs/tools/sdk`).
 
 ## Commands
 
