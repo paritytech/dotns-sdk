@@ -91,8 +91,15 @@ dotns register domain --name coolname42 --signer qr
 ```
 
 The account is the paired wallet, so `--signer qr` cannot be combined with the local-keystore
-flags (`--account`, `--password`, `--keystore-path`, `--mnemonic`, `--key-uri`); doing so is
-rejected rather than silently ignored.
+flags or their environment variables (`--account`, `--password`, `--keystore-path`,
+`--mnemonic`, `--key-uri`, `DOTNS_MNEMONIC`, `DOTNS_KEY_URI`, `DOTNS_KEYSTORE_PASSWORD`); doing
+so is rejected rather than silently ignored.
+
+The first pairing is cached under `~/.polkadot-apps/`, so later commands reuse it without
+re-scanning (the wallet's granted allowance also makes signing non-interactive). The pairing is
+cryptographically bound to the host keys in the QR, so a malicious relay cannot forge it. Anyone
+with read access to `~/.polkadot-apps/` can sign as the wallet until you re-pair; pass `--qr-fresh`
+to force a fresh pairing (and re-approval) on a given run.
 
 The pairing QR and prompts are written to stderr, so `--json` output on stdout stays machine-clean.
 Requires Node ≥ 21 (for a global `WebSocket`); running under Bun works as-is. A freshly paired

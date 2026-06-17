@@ -4,9 +4,8 @@
       <p class="text-sm font-medium text-dot-accent mb-2">Tools</p>
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">SDK</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
-        The same operations the CLI runs are exported as reusable functions from
-        <code>@parity/dotns-cli/core</code>. Build a context with your own signer and call the typed
-        operations directly &mdash; no raw contract calls, ABIs, or calldata to assemble.
+        The operations the CLI runs are exported from <code>@parity/dotns-cli/core</code> as typed
+        functions. Supply your own signer; the SDK manages ABIs and contract addresses.
       </p>
     </div>
 
@@ -19,16 +18,16 @@
       </p>
       <DocCodeBlock :code="setupCode" lang="typescript" />
       <DocCallout variant="info" title="Where do ABIs and addresses come from?">
-        You never pass an ABI or address. Core exports <code>DOTNS_ENVIRONMENTS</code> (whose
-        <code>contracts</code> hold the per-network addresses) and bakes the right ABI in for the
-        environment you select. There is no raw-contract escape hatch by design.
+        You do not pass an ABI or address. Core exports <code>DOTNS_ENVIRONMENTS</code>, whose
+        <code>contracts</code> hold the per-network addresses, and selects the matching ABI for the
+        chosen environment. There is no raw-contract path.
       </DocCallout>
       <DocCallout variant="warning" title="Origin must be address-mapped">
-        <code>createDotnsContext</code> rejects an EVM (H160) origin, and writes without a signer
-        throw <code>MissingSignerError</code>. A fresh account must be Revive address-mapped (<code
+        <code>createDotnsContext</code> rejects an EVM (H160) origin. Writes without a signer throw
+        <code>MissingSignerError</code>. A fresh account must be Revive address-mapped (<code
           >dotns account map</code
         >) before <code>registerName</code>/<code>transferName</code>, which derive the owner from
-        your mapped EVM address.
+        the mapped EVM address.
       </DocCallout>
     </div>
 
@@ -41,17 +40,21 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Sign with a mobile wallet (QR)</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        The CLI can pair a Polkadot mobile wallet over a QR code instead of a local key &mdash; run
-        any command with <code>--signer qr</code> (or <code>DOTNS_SIGNER=qr</code>). It prints a QR,
-        you scan it with the app, and every transaction is approved on your phone. SDK consumers can
-        do the same pairing themselves and feed the resulting signer into
-        <code>createDotnsContext</code>:
+        Pair a mobile wallet over a QR code and supply the resulting signer to
+        <code>createDotnsContext</code>. The dotns CLI does this for <code>--signer qr</code>; SDK
+        consumers can pair directly:
       </p>
       <DocCodeBlock :code="qrCode" lang="typescript" />
       <DocCallout variant="info" title="Requirements">
-        QR pairing is a CLI/host signer mechanism (core ships no QR signer). Node consumers need
-        Node&nbsp;&ge;&nbsp;21 (global <code>WebSocket</code>); Bun works as-is. The paired session
-        is a complete <code>PolkadotSigner</code> (transaction and message signing).
+        Core ships no QR signer; this is a CLI/host mechanism. Node requires Node&nbsp;&ge;&nbsp;21
+        for a global <code>WebSocket</code>; Bun works without setup. The paired session implements
+        <code>PolkadotSigner</code>.
+      </DocCallout>
+      <DocCallout variant="warning" title="Relay network must match the wallet">
+        Pairing happens on a People-chain relay, so the host and wallet must use the same network or
+        pairing fails. The endpoint is set on <code>createTerminalAdapter</code>. The dotns CLI
+        exposes it as <code>--qr-people-rpc</code>
+        (<code>paseo</code>/<code>preview</code>/<code>stable</code>). The signer is experimental.
       </DocCallout>
     </div>
   </div>
@@ -107,9 +110,13 @@ const qrCode = `import {
 } from "@parity/product-sdk-terminal";
 import { encodeAddress } from "@polkadot/util-crypto";
 
-const adapter = createTerminalAdapter({ appId: "my-app" });
-adapter.sso.pairingStatus.subscribe(async (s) => {
-  if (s.step === "pairing") console.log(await renderQrCode(s.payload));
+// endpoints must be the People chain the wallet is on, or pairing never lands.
+const adapter = createTerminalAdapter({
+  appId: "my-app",
+  endpoints: ["wss://paseo-people-next-system-rpc.polkadot.io"],
+});
+adapter.sso.pairingStatus.subscribe(async (status) => {
+  if (status.step === "pairing") console.log(await renderQrCode(status.payload));
 });
 await adapter.sso.authenticate();
 

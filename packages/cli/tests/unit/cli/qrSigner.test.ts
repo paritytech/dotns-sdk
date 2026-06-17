@@ -16,7 +16,7 @@ mock.module("@parity/product-sdk-terminal", () => ({
       pairingStatus: { subscribe: () => () => {} },
       authenticate: async () => ({ isErr: () => false }),
     },
-    destroy: () => {},
+    destroy: async () => {},
   }),
   renderQrCode: async () => "<qr>",
   waitForSessions: async () => [{ remoteAccount: { accountId: publicKey } }],
@@ -24,6 +24,7 @@ mock.module("@parity/product-sdk-terminal", () => ({
 }));
 
 mock.module("@parity/product-sdk-terminal/host", () => ({
+  getCachedAllocation: async () => null,
   requestResourceAllocation: async () => [
     { tag: "Allocated", value: { tag: "SmartContractAllowance", dest: 0 } },
     { tag: "NotAvailable", value: undefined },

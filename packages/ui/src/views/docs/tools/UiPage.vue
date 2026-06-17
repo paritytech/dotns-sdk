@@ -4,9 +4,7 @@
       <p class="text-sm font-medium text-dot-accent mb-2">Tools</p>
       <h1 class="text-4xl font-serif text-dot-text-primary mb-4">Web UI</h1>
       <p class="text-lg text-dot-text-secondary leading-relaxed">
-        The DotNS Web UI is a browser-based interface for interacting with the DotNS protocol.
-        Search for domains, register names, manage your profile, and look up any .dot name &mdash;
-        all from a clean, wallet-connected interface at
+        Search domains, register names, manage profiles, and look up any .dot name at
         <a
           href="https://dotns.paseo.li"
           target="_blank"
@@ -34,10 +32,9 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Domain Search &amp; Registration</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        The home page provides a search bar where you can check if a .dot name is available. If the
-        name is unregistered, the UI walks you through the commit-reveal registration flow &mdash;
-        including price estimation, Proof of Personhood verification (for premium names), and
-        transaction signing.
+        The home page search bar checks whether a .dot name is available. Unregistered names enter
+        the commit-reveal flow: price estimation, Proof of Personhood verification (for premium
+        names), and transaction signing.
       </p>
       <div class="border border-dot-border rounded-xl p-6 bg-dot-surface space-y-3">
         <div v-for="(step, i) in registrationSteps" :key="i" class="flex items-start gap-3">
@@ -53,9 +50,8 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Profile Management</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Once you own a .dot name, the profile page lets you manage your on-chain identity. Set text
-        records for your social accounts, bio, and website. Set your primary name for reverse
-        resolution so dApps can display your .dot name instead of your hex address.
+        The profile page manages the on-chain identity of a .dot name you own. Set text records
+        (social accounts, bio, website) and a primary name for reverse resolution.
       </p>
       <div class="overflow-x-auto">
         <table class="w-full text-sm border border-dot-border rounded-lg overflow-hidden">
@@ -79,8 +75,7 @@
       <h2 class="text-xl font-semibold text-dot-text-primary">Domain Lookup / Whois</h2>
       <p class="text-dot-text-secondary leading-relaxed">
         Look up any .dot name to see its owner, resolver address, text records, content hash, and
-        registration details. The whois page provides a complete view of any domain's on-chain data
-        &mdash; no wallet connection required.
+        registration details. No wallet connection is required.
       </p>
       <DocCallout variant="info" title="Public data">
         All .dot name data is on-chain and publicly readable. The whois lookup does not require
@@ -91,18 +86,15 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Reverse Resolution Lookup</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        Enter any Polkadot address (EVM or SS58 format) to see if it has a primary .dot name set.
-        This is useful for verifying identities and understanding which name an address has chosen
-        to represent itself with.
+        Enter any Polkadot address (EVM or SS58) to find its primary .dot name, if one is set.
       </p>
     </div>
 
     <div class="space-y-4">
       <h2 class="text-xl font-semibold text-dot-text-primary">Connecting Your Wallet</h2>
       <p class="text-dot-text-secondary leading-relaxed">
-        To register names and manage your profile, connect a wallet using the button in the top
-        right corner. The UI supports any EVM-compatible wallet through the standard wallet
-        connection flow.
+        Connect a wallet to register names and manage profiles. The UI supports any EVM-compatible
+        wallet.
       </p>
       <div class="border border-dot-border rounded-xl overflow-hidden">
         <div
@@ -120,9 +112,8 @@
         </div>
       </div>
       <DocCallout variant="tip" title="Read-only mode">
-        You can browse the UI, search names, and view whois data without connecting a wallet. A
-        wallet is only needed for transactions like registration, profile updates, and content hash
-        changes.
+        Browsing, name search, and whois work without a wallet. A wallet is required only for
+        transactions: registration, profile updates, and content-hash changes.
       </DocCallout>
     </div>
 
@@ -147,7 +138,7 @@ const features = [
   {
     title: "Domain Search & Registration",
     description:
-      "Search for available .dot names and register them through a guided commit-reveal flow with price estimation and PoP verification.",
+      "Search and register .dot names via commit-reveal, with price estimation and PoP verification.",
   },
   {
     title: "Profile Management",
@@ -157,12 +148,11 @@ const features = [
   {
     title: "Domain Lookup / Whois",
     description:
-      "Look up any .dot name to see its owner, resolver, text records, content hash, and full registration details.",
+      "Look up any .dot name to see its owner, resolver, text records, content hash, and registration details.",
   },
   {
     title: "Reverse Resolution Lookup",
-    description:
-      "Enter any address (EVM or SS58) to find its primary .dot name. Useful for verifying on-chain identities.",
+    description: "Enter any address (EVM or SS58) to find its primary .dot name.",
   },
 ];
 
@@ -172,13 +162,14 @@ const registrationSteps = [
   "Submit the commit transaction (hashes your intent to register)",
   "Wait for the commitment period (prevents front-running)",
   "Submit the reveal transaction to complete registration",
-  "Your .dot name is now yours — set up your profile",
+  "Your .dot name is registered. Set up your profile",
 ];
 
 const profileActions = [
   {
     name: "Edit text records",
-    description: "Set or update key-value records like twitter, github, url, and description.",
+    description:
+      "Set or update key-value text records such as twitter, github, url, and description.",
   },
   {
     name: "Set primary name",

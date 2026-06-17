@@ -21,7 +21,8 @@ export function addAuthOptions(cmd: Command): Command {
     .option(
       "--qr-people-rpc <stageOrUrls>",
       `QR pairing relay: paseo|preview|stable or wss URLs (env: ${ENV.QR_PEOPLE_RPC})`,
-    );
+    )
+    .option("--qr-fresh", "Force a fresh QR pairing, ignoring any cached session");
 }
 
 export function getAuthOptions(cmd: Command): AuthOptionValues {

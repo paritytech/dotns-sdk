@@ -180,21 +180,27 @@ async function connectAndAuthenticate(options: any, rpc: string): Promise<Connec
     getChainTokenInfo(rawClient),
   );
 
-  // QR path: pair a mobile wallet for the signer and skip the keystore entirely.
   if (resolveSignerKind(options.signer) === "qr") {
     const { origin, signer } = await step("Pairing mobile wallet", async () =>
       createQrSigner({
         appId: resolveQrAppId(options.qrAppId),
         endpoints: resolveQrPeopleEndpoints(options.qrPeopleRpc),
+        fresh: options.qrFresh,
       }),
     );
-    // resolvedFrom stays "cli" (the QR signer is CLI-selected, not a resolveAuthSource result).
-    // Only `.account.address` is read downstream, so the placeholder cast is safe.
+    // Only `.account.address` is read downstream, so the placeholder cast is safe. credential
+    // keys the retry cache; the wallet has no local secret, so the deterministic origin is used.
     return {
       keystorePath,
       rawClient,
       tokenInfo,
-      auth: { source: origin, isKeyUri: false, resolvedFrom: "cli", account: "qr-wallet" },
+      auth: {
+        source: origin,
+        isKeyUri: false,
+        resolvedFrom: "cli",
+        account: "qr-wallet",
+        credential: origin,
+      },
       account: { address: origin } as Awaited<ReturnType<typeof createAccountFromSource>>,
       substrateAddress: origin,
       signer,

@@ -5,25 +5,31 @@ import {
   waitForSessions,
   createSessionSigner,
 } from "@parity/product-sdk-terminal";
-import { requestResourceAllocation } from "@parity/product-sdk-terminal/host";
+import {
+  requestResourceAllocation,
+  getCachedAllocation,
+  type AllocatableResource,
+} from "@parity/product-sdk-terminal/host";
 import chalk from "chalk";
+import type { Dirent } from "node:fs";
+import { readdir, unlink } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { DEFAULT_QR_APP_ID, ENV } from "./env";
 import type { SignerHandle } from "../core/keyring";
 
 type TerminalAdapter = ReturnType<typeof createTerminalAdapter>;
+type AdapterOptions = Parameters<typeof createTerminalAdapter>[0];
 type WalletSession = Awaited<ReturnType<typeof waitForSessions>>[number];
 
 const SUBSTRATE_SS58_PREFIX = 42;
-// Bounds the whole pairing handshake, which has no internal timeout and otherwise hangs
-// forever if the wallet never responds. Long enough to scan, approve, and let the wallet
-// allocate its allowance.
 const DEFAULT_PAIR_TIMEOUT_MS = 120_000;
-// Sessions persist to disk and load asynchronously, so give the read a moment before
-// deciding a fresh pairing is needed.
 const EXISTING_SESSION_TIMEOUT_MS = 3_000;
+// Session files whose topic binding must rotate for a fresh pairing.
+const ROTATE_KEYS = ["DeviceIdentity", "SsoSessionsV3"];
+// --fresh additionally drops the cached allowance so the wallet re-approves signing.
+const FRESH_KEYS = [...ROTATE_KEYS, "AllowanceKeys"];
 
-// Verbose handshake trace, silent unless DOTNS_QR_DEBUG is set, so normal runs only
-// emit the user-facing prompts below.
 const traceQr: (message: string) => void = process.env[ENV.QR_DEBUG]
   ? (message) => console.error(`[qr] ${message}`)
   : () => {};
@@ -35,6 +41,34 @@ function assertWebSocketSupport(): void {
         "Run the CLI under bun, or upgrade Node.",
     );
   }
+}
+
+// The pairing topic derives from the host device identity, which is otherwise reused
+// forever; a prior session's disconnect statement (7-day TTL) then replays onto the reused
+// topic and evicts the new session. Deleting the identity moves pairing onto a clean topic.
+async function rotateDeviceIdentity(appId: string, keys: readonly string[]): Promise<void> {
+  const dir = join(homedir(), ".polkadot-apps");
+  let entries: Dirent[];
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  const prefix = `${appId}_`;
+  await Promise.all(
+    entries
+      .filter((entry) => entry.isFile() && entry.name.startsWith(prefix))
+      .filter((entry) => keys.includes(entry.name.slice(prefix.length).replace(/\.json$/, "")))
+      .map((entry) => unlink(join(dir, entry.name)).catch(() => {})),
+  );
+}
+
+// Sessions are appended, so the freshest pairing is last.
+async function getLatestWalletSession(
+  adapter: TerminalAdapter,
+  timeoutMs: number,
+): Promise<WalletSession | undefined> {
+  return (await waitForSessions(adapter, timeoutMs)).at(-1);
 }
 
 function reportPairingProgress(adapter: TerminalAdapter): void {
@@ -60,8 +94,8 @@ function reportPairingProgress(adapter: TerminalAdapter): void {
   });
 }
 
-// authenticate() never settles on its own if the wallet stalls mid-handshake, so race it
-// against a timeout that aborts the attempt and surfaces a clear error.
+// authenticate() never settles if the wallet stalls, so bound it with a timeout that aborts
+// and reports the relay the wallet had to match.
 async function authenticatePairing(
   adapter: TerminalAdapter,
   pairTimeoutMs: number,
@@ -87,19 +121,11 @@ async function authenticatePairing(
   }
 }
 
-// Reuse an already-paired session when one exists; calling authenticate() again over a
-// live session can hang. Only pair afresh (rendering the QR) when none is found.
-async function acquireWalletSession(
+async function pairNewSession(
   adapter: TerminalAdapter,
   pairTimeoutMs: number,
   relay: string,
 ): Promise<WalletSession> {
-  const [existing] = await waitForSessions(adapter, EXISTING_SESSION_TIMEOUT_MS);
-  if (existing) {
-    traceQr("reusing existing paired session");
-    return existing;
-  }
-
   reportPairingProgress(adapter);
   const result = await authenticatePairing(adapter, pairTimeoutMs, relay);
   if (result.isErr()) {
@@ -107,37 +133,72 @@ async function acquireWalletSession(
   }
   traceQr(`authenticated (${result.value ? "session" : "null"})`);
 
-  const [session] = await waitForSessions(adapter, pairTimeoutMs);
+  const session = await getLatestWalletSession(adapter, pairTimeoutMs);
   if (!session) {
     throw new Error("QR pairing produced no wallet session (timed out or aborted).");
   }
   return session;
 }
 
-// The wallet silently drops signing requests until a signing allowance is granted, so
-// claim it up front (this prompts the phone) rather than letting the first transaction
-// hang.
+// Reuse an existing session unless `fresh`; otherwise rotate onto a clean topic and pair
+// afresh, which means replacing the probe adapter. Owns the returned adapter to return.
+async function acquireWalletSession(
+  adapterOptions: AdapterOptions,
+  pairTimeoutMs: number,
+  relay: string,
+  fresh: boolean,
+): Promise<{ adapter: TerminalAdapter; session: WalletSession }> {
+  let adapter = createTerminalAdapter(adapterOptions);
+  try {
+    if (!fresh) {
+      const existing = await getLatestWalletSession(adapter, EXISTING_SESSION_TIMEOUT_MS);
+      if (existing) {
+        traceQr("reusing existing paired session");
+        return { adapter, session: existing };
+      }
+    }
+
+    await adapter.destroy();
+    await rotateDeviceIdentity(adapterOptions.appId, fresh ? FRESH_KEYS : ROTATE_KEYS);
+    adapter = createTerminalAdapter(adapterOptions);
+
+    const session = await pairNewSession(adapter, pairTimeoutMs, relay);
+    return { adapter, session };
+  } catch (error) {
+    await adapter.destroy();
+    throw error;
+  }
+}
+
+// The wallet drops signing requests until an allowance is granted, so claim it up front
+// rather than letting the first transaction hang. Re-requesting a cached allowance
+// round-trips to a wallet with nothing to prompt and times out, so skip when already held.
 async function grantSigningAllowance(
   session: WalletSession,
   adapter: TerminalAdapter,
 ): Promise<void> {
+  const smartContract: AllocatableResource = { tag: "SmartContractAllowance", value: 0 };
+  if (await getCachedAllocation(adapter, smartContract)) {
+    return;
+  }
   console.error("Approve the signing allowance on your phone to continue.");
-  const [smartContract] = await requestResourceAllocation(session, adapter, [
-    { tag: "SmartContractAllowance", value: 0 },
+  const [outcome] = await requestResourceAllocation(session, adapter, [
+    smartContract,
     { tag: "AutoSigning", value: undefined },
   ]);
-  if (smartContract?.tag !== "Allocated") {
+  if (outcome?.tag !== "Allocated") {
     throw new Error(
       "Wallet declined the smart-contract signing allowance; cannot sign transactions.",
     );
   }
 }
 
-export async function createQrSigner(opts?: {
+export async function createQrSigner(options?: {
   appId?: string;
   hostName?: string;
   endpoints?: string[];
   pairTimeoutMs?: number;
+  fresh?: boolean;
 }): Promise<SignerHandle> {
   console.error(
     chalk.yellow(
@@ -148,23 +209,23 @@ export async function createQrSigner(opts?: {
   // encodeAddress needs wasm crypto initialised; the keystore path gets this via createAccountFromSource.
   await cryptoWaitReady();
 
-  // hostName must be present in the proposal or the wallet rejects pairing, and it
-  // defaults to the appId so the wallet shows the same identity it derives from.
-  // endpoints must match the wallet's People chain or the handshake never lands.
-  const appId = opts?.appId ?? DEFAULT_QR_APP_ID;
-  const adapter = createTerminalAdapter({
+  // hostName must be present in the proposal or the wallet rejects pairing; default it to
+  // the appId so the wallet shows the identity it derives from.
+  const appId = options?.appId ?? DEFAULT_QR_APP_ID;
+  const adapterOptions: AdapterOptions = {
     appId,
-    ...(opts?.endpoints ? { endpoints: opts.endpoints } : {}),
-    hostMetadata: { hostName: opts?.hostName ?? appId, platformType: "cli" },
-  });
-  const relay = opts?.endpoints?.join(", ") ?? "the default relay";
+    ...(options?.endpoints ? { endpoints: options.endpoints } : {}),
+    hostMetadata: { hostName: options?.hostName ?? appId, platformType: "cli" },
+  };
+  const relay = options?.endpoints?.length ? options.endpoints.join(", ") : "the default relay";
 
+  const { adapter, session } = await acquireWalletSession(
+    adapterOptions,
+    options?.pairTimeoutMs ?? DEFAULT_PAIR_TIMEOUT_MS,
+    relay,
+    options?.fresh ?? false,
+  );
   try {
-    const session = await acquireWalletSession(
-      adapter,
-      opts?.pairTimeoutMs ?? DEFAULT_PAIR_TIMEOUT_MS,
-      relay,
-    );
     await grantSigningAllowance(session, adapter);
 
     const signer = createSessionSigner(session, adapter);

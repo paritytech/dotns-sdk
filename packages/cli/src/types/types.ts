@@ -126,6 +126,8 @@ export type AuthOptionValues = {
   qrAppId?: string;
   /** QR pairing relay: a stage name (paseo|preview|stable) or wss URLs */
   qrPeopleRpc?: string;
+  /** Force a fresh QR pairing instead of reusing the cached session */
+  qrFresh?: boolean;
 };
 
 export type AccountKeystorePayload = {
