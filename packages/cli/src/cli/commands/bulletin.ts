@@ -443,12 +443,12 @@ export function attachBulletinCommands(root: Command): void {
       .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint (defaults to active env)")
       .option(
         "--transactions <count>",
-        "Number of transactions to authorize",
+        `Number of transactions to authorize (default: ${DEFAULT_AUTHORIZATION_TRANSACTIONS})`,
         String(DEFAULT_AUTHORIZATION_TRANSACTIONS),
       )
       .option(
         "--bytes <count>",
-        "Number of bytes to authorize",
+        `Number of bytes to authorize (default: ${DEFAULT_AUTHORIZATION_BYTES})`,
         String(DEFAULT_AUTHORIZATION_BYTES),
       )
       .option("--force", "Force re-authorization even if account appears already authorized", false)
@@ -684,7 +684,7 @@ export function attachBulletinCommands(root: Command): void {
       .option("--bulletin-rpc <wsUrl>", "Bulletin WebSocket RPC endpoint (defaults to active env)")
       .option(
         "--chunk-size <bytes>",
-        "Chunk size for large uploads (clamped to 256 KB–2 MB)",
+        `Chunk size for large uploads (default: ${DEFAULT_CHUNK_SIZE_BYTES}; clamped to 256 KB–2 MB)`,
         String(DEFAULT_CHUNK_SIZE_BYTES),
       )
       .option(
