@@ -61,6 +61,7 @@ export const docsNav: DocNavGroup[] = [
     items: [
       { title: "CLI", path: "/docs/tools/cli" },
       { title: "Web UI", path: "/docs/tools/ui" },
+      { title: "SDK", path: "/docs/tools/sdk" },
     ],
   },
   {

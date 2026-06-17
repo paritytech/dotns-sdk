@@ -240,7 +240,7 @@ export async function executeRegistration(
   }
 
   const context = await prepareAssetHubContext(options);
-  const { clientWrapper, substrateAddress, signer, evmAddress } = context;
+  const { evmAddress } = context;
   const session = buildSession(context, "Register");
 
   const label = options.name ?? generateRandomLabel(ProofOfPersonhoodStatus.NoStatus);
@@ -271,10 +271,6 @@ export async function executeRegistration(
   console.log(
     chalk.gray("  Transfer:  ") +
       (transferDestination ? chalk.green("post-mint") : chalk.gray("none")),
-  );
-
-  await step("Ensuring account mapped", async () =>
-    clientWrapper.ensureAccountMapped(substrateAddress, signer),
   );
 
   const credential = context.auth.credential ?? resolveManifestCredential(options);
@@ -338,7 +334,7 @@ export async function executeSubnameRegistration(
   }
 
   const context = await prepareAssetHubContext(options);
-  const { clientWrapper, substrateAddress, signer, evmAddress } = context;
+  const { evmAddress } = context;
   const session = buildSession(context, "Subname");
 
   const sublabel = options.name;
@@ -353,10 +349,6 @@ export async function executeSubnameRegistration(
   console.log(chalk.gray("  Subname:   ") + chalk.cyan(fullName));
   console.log(chalk.gray("  Parent:    ") + chalk.white(`${parentLabel}.dot`));
   console.log(chalk.gray("  Owner:     ") + chalk.white(ownerAddress));
-
-  await step("Ensuring account mapped", async () =>
-    clientWrapper.ensureAccountMapped(substrateAddress, signer),
-  );
 
   const result = await step("Registering subname", async () =>
     registerSubnode(session.ctx, sublabel, parentLabel, ownerAddress),
