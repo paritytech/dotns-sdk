@@ -10,6 +10,9 @@ dist
 coverage
 *.lcov
 
+# test scratch output
+tests/.tmp/
+
 # logs
 logs
 _.log
