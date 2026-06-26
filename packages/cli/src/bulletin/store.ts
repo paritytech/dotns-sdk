@@ -460,7 +460,8 @@ export function createBulletinClient(rpc: string): PolkadotClient {
   installRxUnhandledErrorGuard();
   return createPolkadotClient(
     withPolkadotSdkCompat(
-      getWsProvider(rpc, {
+      getWsProvider({
+        endpoints: [rpc],
         heartbeatTimeout: WS_HEARTBEAT_TIMEOUT_MS,
         timeout: WS_CONNECT_TIMEOUT_MS,
       }),

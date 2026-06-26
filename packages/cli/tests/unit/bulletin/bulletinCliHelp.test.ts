@@ -1,6 +1,11 @@
 import { expect, test } from "bun:test";
 import { HARNESS_HELP_SUCCESS_EXIT_CODE, runDotnsCli } from "../../_helpers/cliHelpers";
 
+// Commander wraps help descriptions at the terminal width (80 columns when
+// stdout is not a TTY, as in tests and CI), so a phrase can break across
+// lines. Collapse whitespace before asserting on multi-word phrases.
+const collapseWhitespace = (output: string): string => output.replace(/\s+/g, " ");
+
 test("root help lists bulletin command", async () => {
   const result = await runDotnsCli(["--help"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
@@ -53,7 +58,7 @@ test("bulletin upload help shows default values", async () => {
   const result = await runDotnsCli(["bulletin", "upload", "--help"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 
-  expect(result.combinedOutput).toContain("defaults to active");
+  expect(collapseWhitespace(result.combinedOutput)).toContain("defaults to active");
   expect(result.combinedOutput).toContain("5");
 });
 
@@ -83,7 +88,7 @@ test("bulletin authorize help shows default values", async () => {
   const result = await runDotnsCli(["bulletin", "authorize", "--help"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 
-  expect(result.combinedOutput).toContain("defaults to active");
+  expect(collapseWhitespace(result.combinedOutput)).toContain("defaults to active");
   expect(result.combinedOutput).toContain("1000000");
 });
 
