@@ -1,5 +1,5 @@
 import { createClient } from "polkadot-api";
-import { getWsProvider } from "polkadot-api/ws-provider";
+import { getWsProvider } from "polkadot-api/ws-provider/node";
 import { paseo } from "@polkadot-api/descriptors";
 import { Keyring } from "@polkadot/keyring";
 import { cryptoWaitReady, mnemonicGenerate } from "@polkadot/util-crypto";

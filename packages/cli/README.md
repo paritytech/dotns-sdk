@@ -155,7 +155,7 @@ never pass an ABI, address, or calldata.
 
 ```ts
 import { createClient } from "polkadot-api";
-import { getWsProvider } from "polkadot-api/ws-provider";
+import { getWsProvider } from "polkadot-api/ws-provider/node";
 import { paseo } from "@polkadot-api/descriptors";
 import {
   createDotnsContext,

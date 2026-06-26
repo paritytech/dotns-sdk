@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import { createClient, type PolkadotClient } from "polkadot-api";
-import { getWsProvider } from "polkadot-api/ws-provider";
+import { getWsProvider } from "polkadot-api/ws-provider/node";
 import { bulletin, paseo } from "@polkadot-api/descriptors";
 import { type Address } from "viem";
 import { ReviveClientWrapper, type PolkadotApiClient } from "../client/polkadotClient";

@@ -65,7 +65,7 @@ import DocCallout from "@/components/docs/DocCallout.vue";
 import DocCodeBlock from "@/components/docs/DocCodeBlock.vue";
 
 const setupCode = `import { createClient } from "polkadot-api";
-import { getWsProvider } from "polkadot-api/ws-provider";
+import { getWsProvider } from "polkadot-api/ws-provider/web";
 import { paseo } from "@polkadot-api/descriptors";
 import { createDotnsContext, ReviveClientWrapper } from "@parity/dotns-cli/core";
 

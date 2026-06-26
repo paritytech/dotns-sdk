@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import { createClient as createPolkadotClient, Binary } from "polkadot-api";
 import type { PolkadotClient } from "polkadot-api";
-import { getWsProvider } from "polkadot-api/ws-provider";
+import { getWsProvider } from "polkadot-api/ws-provider/node";
 import { withPolkadotSdkCompat } from "polkadot-api/polkadot-sdk-compat";
 import { config as rxjsConfig } from "rxjs";
 import { bulletin } from "@polkadot-api/descriptors";

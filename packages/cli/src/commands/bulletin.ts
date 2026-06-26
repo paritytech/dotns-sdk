@@ -3,7 +3,7 @@ import { promises as filesystem, createReadStream } from "node:fs";
 import path from "node:path";
 import type { PolkadotClient, PolkadotSigner } from "polkadot-api";
 import { createClient } from "polkadot-api";
-import { getWsProvider } from "polkadot-api/ws-provider";
+import { getWsProvider } from "polkadot-api/ws-provider/node";
 import { withPolkadotSdkCompat } from "polkadot-api/polkadot-sdk-compat";
 import { bulletin } from "@polkadot-api/descriptors";
 import { importer } from "ipfs-unixfs-importer";

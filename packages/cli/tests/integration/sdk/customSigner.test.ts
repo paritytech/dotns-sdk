@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createClient } from "polkadot-api";
-import { getWsProvider } from "polkadot-api/ws-provider";
+import { getWsProvider } from "polkadot-api/ws-provider/node";
 import { paseo } from "@polkadot-api/descriptors";
 import { getPolkadotSigner, type PolkadotSigner } from "polkadot-api/signer";
 import { sr25519CreateDerive } from "@polkadot-labs/hdkd";

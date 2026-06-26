@@ -3,7 +3,7 @@ import chalk from "chalk";
 import ora from "ora";
 import type { KeyringPair } from "@polkadot/keyring/types";
 import { createClient } from "polkadot-api";
-import { getWsProvider } from "polkadot-api/ws-provider";
+import { getWsProvider } from "polkadot-api/ws-provider/node";
 import { paseo } from "@polkadot-api/descriptors";
 import { ReviveClientWrapper, type PolkadotApiClient } from "../../client/polkadotClient";
 import { performDomainLookup, performOwnerOfLookup } from "../../commands/lookup";

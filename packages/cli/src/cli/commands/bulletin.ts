@@ -1031,7 +1031,7 @@ export function attachBulletinCommands(root: Command): void {
           try {
             const { cacheCidToStore } = await import("../../commands/storeManagement");
             const { createClient } = await import("polkadot-api");
-            const { getWsProvider } = await import("polkadot-api/ws-provider");
+            const { getWsProvider } = await import("polkadot-api/ws-provider/node");
             const { paseo } = await import("@polkadot-api/descriptors");
             const { ReviveClientWrapper } = await import("../../client/polkadotClient");
             const rpc = resolveBulletinCacheAssetHubRpc(mergedOptions);
