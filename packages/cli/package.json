@@ -21,9 +21,11 @@
     "test:integration": "bun test tests/integration/",
     "benchmark": "bun benchmarks/benchmark.ts",
     "benchmark:dashboard": "bun benchmarks/generate-dashboard.ts",
-    "build": "bun build src/cli/index.ts --outfile dist/cli.tmp.js --target node --format esm && echo '#!/usr/bin/env node' | cat - dist/cli.tmp.js > dist/cli.js && rm dist/cli.tmp.js && chmod +x dist/cli.js",
-    "build:lib": "bun build src/core/index.ts --outfile dist/core/index.js --target node --format esm && bun build src/core/keyring.ts --outfile dist/core/keyring.js --target node --format esm && bunx tsc -p tsconfig.build.json --emitDeclarationOnly",
-    "prepublishOnly": "bun run build && bun run build:lib",
+    "build": "rm -rf dist && bun run build:cli && bun run build:lib",
+    "build:cli": "bun build src/cli/index.ts --outfile dist/cli.tmp.js --target node --format esm && echo '#!/usr/bin/env node' | cat - dist/cli.tmp.js > dist/cli.js && rm dist/cli.tmp.js && chmod +x dist/cli.js",
+    "build:lib": "bun build src/core/index.ts --outfile dist/core/index.js --target node --format esm && bun build src/core/keyring.ts --outfile dist/core/keyring.js --target node --format esm && bun build src/core/bulletin.ts --outfile dist/core/bulletin.js --target node --format esm && bunx tsc -p tsconfig.build.json --emitDeclarationOnly",
+    "verify:pack": "node ../../scripts/verifyPackExports.mjs",
+    "prepublishOnly": "bun run build",
     "prepare": "bunx papi generate"
   },
   "engines": {
@@ -38,12 +40,16 @@
   "exports": {
     ".": "./dist/cli.js",
     "./core": {
-      "types": "./dist/src/core/index.d.ts",
+      "types": "./dist/core/index.d.ts",
       "import": "./dist/core/index.js"
     },
     "./core/keyring": {
-      "types": "./dist/src/core/keyring.d.ts",
+      "types": "./dist/core/keyring.d.ts",
       "import": "./dist/core/keyring.js"
+    },
+    "./core/bulletin": {
+      "types": "./dist/core/bulletin.d.ts",
+      "import": "./dist/core/bulletin.js"
     }
   },
   "devDependencies": {

@@ -104,6 +104,11 @@ jobs:
         working-directory: packages/cli
         run: npm pack
 
+      - name: Verify declared exports are packed
+        if: steps.build.outcome == 'success'
+        working-directory: packages/cli
+        run: bun run verify:pack
+
       - name: Upload CLI artifact
         if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4

@@ -15,7 +15,7 @@
     "format:workflows:fix": "bunx prettier --write \".github/**/*.{yml,yaml}\"",
     "lint": "bun run --cwd packages/cli lint && bun run --cwd packages/ui lint && bun run lint:workflows",
     "lint:fix": "bun run --cwd packages/cli lint:fix && bun run --cwd packages/ui lint:fix && bun run lint:workflows",
-    "lint:workflows": "docker run --rm -e SHELLCHECK_OPTS=\"-e SC2129 -e SC2086 -e SC2193\" -v \"$PWD\":/repo --workdir /repo rhysd/actionlint:latest -color",
+    "lint:workflows": "node scripts/lintWorkflows.mjs",
     "precommit": "bun run format:fix && bun run lint:fix && bun run format && bun run lint"
   },
   "devDependencies": {
