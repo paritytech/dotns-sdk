@@ -103,11 +103,14 @@ export function attachContentCommands(root: Command) {
           console.log(chalk.gray("  cid:    ") + chalk.cyan(result.cid));
           console.log(chalk.gray("  tx:     ") + chalk.blue(result.txHash));
           console.log(chalk.green("\n✓ Complete\n"));
-          console.log(chalk.gray("  View on dot.li:"));
-          for (const url of dotliViewUrls(name)) {
-            console.log("    " + chalk.cyan(url));
+          const viewUrls = dotliViewUrls(name);
+          if (viewUrls.length > 0) {
+            console.log(chalk.gray("  View on dot.li:"));
+            for (const url of viewUrls) {
+              console.log("    " + chalk.cyan(url));
+            }
+            console.log();
           }
-          console.log();
         }
         process.exit(0);
       } catch (error) {

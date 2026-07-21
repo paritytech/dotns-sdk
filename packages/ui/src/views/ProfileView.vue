@@ -910,8 +910,8 @@ async function saveResolve(hash: string) {
     const tx = await resolverStore.setContentHash(selectedDomain.value, hash);
     transaction.value = tx;
     if (tx.status) {
-      const [production, paseo] = dotliViewUrls(selectedDomain.value);
-      toast.success(`Content set. View on dot.li:\n${production}\n${paseo}`);
+      const urls = dotliViewUrls(selectedDomain.value);
+      toast.success(`Content set. View on dot.li:\n${urls.join("\n")}`);
     }
   } catch (error) {
     transaction.value = { hash: zeroHash, status: false };
