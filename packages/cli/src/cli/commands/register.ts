@@ -4,8 +4,10 @@ import { checksumAddress, isAddress, type Address, type Hex } from "viem";
 import { formatErrorMessage, formatWeiAsEther } from "../../utils/formatting";
 import {
   classifyDomainName,
+  tryClassifyDomainName,
   ensureDomainNotRegistered,
   generateCommitment,
+  getWhitelistStatus,
   submitCommitment,
   waitForMinimumCommitmentAge,
   getPriceAndValidateEligibility,
@@ -501,11 +503,36 @@ async function executeGovernanceRegistration(
 
   validateGovernanceLabel(label);
 
+  // registerReserved is gated on the whitelist (or the controller owner), not on the
+  // caller's PoP tier. Surfaced as information only: the controller owner is also
+  // authorised, so a `false` here is a warning rather than a hard stop.
+  const whitelisted = await step("Checking governance whitelist", async () =>
+    getWhitelistStatus(session.ctx, session.caller).catch(() => null),
+  );
+  if (whitelisted === false) {
+    console.log(
+      chalk.yellow("  ⚠ caller is not whitelisted; ") +
+        chalk.gray(
+          "registerReserved reverts with NotWhiteListedOrOwner unless you own the controller",
+        ),
+    );
+  } else if (whitelisted === true) {
+    console.log(chalk.gray("  whitelisted: ") + chalk.green("yes"));
+  }
+
+  // A null classification means PopRules refuses to classify the label's *shape*
+  // (classifyName reverts). registerReserved does not consult PopRules, so that is
+  // not a blocker here — only a definite non-Reserved classification is.
   const classification = await step("Classifying name", async () =>
-    classifyDomainName(session.ctx, label),
+    tryClassifyDomainName(session.ctx, label),
   );
 
-  if (classification.requiredStatus !== ProofOfPersonhoodStatus.Reserved) {
+  if (classification === null) {
+    console.log(
+      chalk.yellow("  ⚠ PopRules cannot classify this label shape; ") +
+        chalk.gray("registerReserved bypasses PopRules, continuing"),
+    );
+  } else if (classification.requiredStatus !== ProofOfPersonhoodStatus.Reserved) {
     throw new Error(
       `Governance name must classify as Reserved; got ${ProofOfPersonhoodStatus[classification.requiredStatus]}`,
     );
@@ -514,7 +541,11 @@ async function executeGovernanceRegistration(
   await step("Checking availability", async () => ensureDomainNotRegistered(session.ctx, label));
 
   const { commitment, registration, secret } = await step("Generating commitment", async () =>
-    generateCommitment(session.ctx, label, { owner: session.caller, includeReverse: true }),
+    generateCommitment(session.ctx, label, {
+      owner: session.caller,
+      includeReverse: true,
+      governance: true,
+    }),
   );
   console.log(chalk.gray("  commitment: ") + chalk.blue(commitment));
   console.log(chalk.gray("  secret:     ") + chalk.yellow(redactSecret(secret)));

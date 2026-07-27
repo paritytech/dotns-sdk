@@ -145,9 +145,50 @@ describe("validateGovernanceLabel stem-length rule", () => {
     );
   });
 
-  test("inherits the digit-suffix rule from validateDomainLabel", () => {
-    expect(() => validateGovernanceLabel("abcd1")).toThrow(
-      /must have either no trailing digits or exactly two/,
+  test("measures the stem with trailing digits stripped", () => {
+    expect(() => validateGovernanceLabel("abcde1")).not.toThrow();
+    expect(() => validateGovernanceLabel("abcdef1")).toThrow(
+      /base name must be 5 characters or fewer/,
     );
+  });
+
+  test("does not apply the PopRules digit-suffix rule", () => {
+    expect(() => validateGovernanceLabel("abcd1")).not.toThrow();
+  });
+});
+
+describe("validateGovernanceLabel digit-suffix independence", () => {
+  test("accepts a single trailing digit", () => {
+    // The real case: registerReserved never consults PopRules, so "dim2"
+    // (base "dim" plus one trailing digit) must be registrable.
+    expect(() => validateGovernanceLabel("dim2")).not.toThrow();
+  });
+
+  test("accepts three or more trailing digits", () => {
+    expect(() => validateGovernanceLabel("dim123")).not.toThrow();
+    expect(() => validateGovernanceLabel("dim9999")).not.toThrow();
+  });
+
+  test("accepts labels with no trailing digits", () => {
+    expect(() => validateGovernanceLabel("game")).not.toThrow();
+  });
+});
+
+describe("validateGovernanceLabel canonical-label rules", () => {
+  test("rejects uppercase characters", () => {
+    expect(() => validateGovernanceLabel("Dim2")).toThrow(/governance label/);
+  });
+
+  test("rejects labels containing a dot", () => {
+    expect(() => validateGovernanceLabel("dim.dot")).toThrow(/governance label/);
+  });
+
+  test("rejects leading or trailing hyphen", () => {
+    expect(() => validateGovernanceLabel("-dim")).toThrow(/governance label/);
+    expect(() => validateGovernanceLabel("dim-")).toThrow(/governance label/);
+  });
+
+  test("rejects labels shorter than three characters", () => {
+    expect(() => validateGovernanceLabel("ab")).toThrow(/minimum length of 3 characters/);
   });
 });

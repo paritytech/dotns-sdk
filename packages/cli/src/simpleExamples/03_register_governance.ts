@@ -3,7 +3,7 @@ import { validateGovernanceLabel } from "../utils/validation";
 import { ProofOfPersonhoodStatus } from "../types/types";
 
 import {
-  classifyDomainName,
+  tryClassifyDomainName,
   ensureDomainNotRegistered,
   generateCommitment,
   submitCommitment,
@@ -19,8 +19,13 @@ async function main() {
 
   validateGovernanceLabel(label);
 
-  const classification = await classifyDomainName(ctx, label);
-  if (classification.requiredStatus !== ProofOfPersonhoodStatus.Reserved) {
+  // null means PopRules refuses to classify this label shape at all. registerReserved
+  // bypasses PopRules, so that is not a blocker — only a definite non-Reserved is.
+  const classification = await tryClassifyDomainName(ctx, label);
+  if (
+    classification !== null &&
+    classification.requiredStatus !== ProofOfPersonhoodStatus.Reserved
+  ) {
     throw new Error(
       `Governance name must classify as Reserved; got ${ProofOfPersonhoodStatus[classification.requiredStatus]}`,
     );
@@ -30,6 +35,7 @@ async function main() {
 
   const { commitment, registration } = await generateCommitment(ctx, label, {
     includeReverse: true,
+    governance: true,
   });
 
   await submitCommitment(ctx, commitment);

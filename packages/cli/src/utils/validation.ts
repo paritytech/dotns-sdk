@@ -72,8 +72,24 @@ export function validateDomainLabel(label: string): void {
   }
 }
 
+// Governance registration goes through DotnsRegistrarController.registerReserved,
+// which never consults PopRules: its only on-chain label checks are isSingleLabel()
+// (InvalidLabel) and length >= 3 (LabelTooShort). Deliberately NOT applying
+// validateDomainLabel's trailing-digit rule here — that rule mirrors PopRules,
+// which this path bypasses, so enforcing it would reject labels the contract
+// accepts (for example "dim2", base "dim" plus one trailing digit).
+//
+// The stem-length bound below is likewise not a registerReserved requirement (it
+// mirrors PopRules' `stemLen <= 5 -> Reserved` classification), but it is kept on
+// purpose: it preserves this command's intent that governance registration is for
+// short reserved names, and avoids silently widening what a whitelisted account
+// can mint through the CLI.
 export function validateGovernanceLabel(label: string): void {
-  validateDomainLabel(label);
+  validateCanonicalLabel(label, "governance label");
+
+  if (label.length < 3) {
+    throw new Error("Invalid governance label: minimum length of 3 characters");
+  }
 
   const baseName = stripTrailingDigits(label);
   if (baseName.length > 5) {

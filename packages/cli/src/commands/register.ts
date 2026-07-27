@@ -38,7 +38,12 @@ import {
   COMMITMENT_POLL_TIMEOUT_MS,
   COMMITMENT_POLL_INTERVAL_MS,
 } from "../utils/constants";
-import { validateDomainLabel, normaliseLabel, stripTrailingDigits } from "../utils/validation";
+import {
+  validateDomainLabel,
+  validateGovernanceLabel,
+  normaliseLabel,
+  stripTrailingDigits,
+} from "../utils/validation";
 import { computeDomainTokenId } from "../utils/contractInteractions";
 import { convertWeiToNative } from "../utils/formatting";
 import { isSameEvmAddress } from "../utils/address";
@@ -118,6 +123,22 @@ export async function classifyDomainName(
   };
 }
 
+// classifyName is `pure` but reverts with PopError for label shapes PopRules
+// refuses to classify at all (one, or three or more, trailing digits). Callers that
+// treat the classification as advisory — notably the governance path, which submits
+// through registerReserved and so bypasses PopRules entirely — get null rather than
+// a thrown error and can decide for themselves whether to continue.
+export async function tryClassifyDomainName(
+  ctx: DotnsContext,
+  name: string,
+): Promise<NameClassification | null> {
+  try {
+    return await classifyDomainName(ctx, name);
+  } catch {
+    return null;
+  }
+}
+
 export async function ensureDomainNotRegistered(ctx: DotnsContext, name: string): Promise<void> {
   const label = normaliseLabel(name);
   const owner = await readDomainOwner(ctx, label);
@@ -128,6 +149,12 @@ export type GenerateCommitmentOptions = {
   owner?: Address;
   secret?: Hex;
   includeReverse?: boolean;
+  /**
+   * Set for commitments that will be revealed through registerReserved. That path
+   * bypasses PopRules, so the label is validated against the controller's own rules
+   * (validateGovernanceLabel) instead of the PopRules-derived validateDomainLabel.
+   */
+  governance?: boolean;
 };
 
 export type GeneratedCommitment = {
@@ -155,7 +182,11 @@ export async function generateCommitment(
   opts: GenerateCommitmentOptions = {},
 ): Promise<GeneratedCommitment> {
   const label = normaliseLabel(name);
-  validateDomainLabel(label);
+  if (opts.governance) {
+    validateGovernanceLabel(label);
+  } else {
+    validateDomainLabel(label);
+  }
 
   const owner = opts.owner ?? (await ownEvmAddress(ctx));
   const secret = resolveSecret(opts.secret);
