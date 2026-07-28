@@ -24,6 +24,22 @@ export function isRevertFlag(flags: bigint): boolean {
   return (flags & 1n) === 1n;
 }
 
+/**
+ * A revert carrying revert data: the contract ran and rejected the call, so the
+ * failure is an answer rather than a failure to reach the chain.
+ *
+ * Deliberately not raised for the empty-data revert, which means an unmapped
+ * origin ({@link UNMAPPED_ORIGIN_REVERT_HINT}) — a setup problem with its own
+ * remedy — nor for RPC failures, ABI mismatches or decode errors. Callers that
+ * treat a revert as information must not treat those the same way.
+ */
+export class ContractRevertError extends Error {
+  constructor(revertReason: string) {
+    super(`Contract reverted: ${revertReason}`);
+    this.name = "ContractRevertError";
+  }
+}
+
 export function buildRevertError(data: Hex, abi: Abi): Error {
   if (data === "0x") {
     return new Error(UNMAPPED_ORIGIN_REVERT_HINT);
@@ -38,7 +54,7 @@ export function buildRevertError(data: Hex, abi: Abi): Error {
   } catch {
     // Unknown error selector — fall back to raw hex
   }
-  return new Error(`Contract reverted: ${revertReason}`);
+  return new ContractRevertError(revertReason);
 }
 
 export function decodeContractRevertError(data: Hex, abi: Abi, context: string): Error {

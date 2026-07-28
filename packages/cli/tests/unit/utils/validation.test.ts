@@ -157,20 +157,43 @@ describe("validateGovernanceLabel stem-length rule", () => {
   });
 });
 
-describe("validateGovernanceLabel digit-suffix independence", () => {
-  test("accepts a single trailing digit", () => {
-    // The real case: registerReserved never consults PopRules, so "dim2"
-    // (base "dim" plus one trailing digit) must be registrable.
+// The digit-suffix rule ("zero or exactly two trailing digits") is a PopRules
+// rule. registerReserved never consults PopRules — its only on-chain label checks
+// are isSingleLabel() and length >= 3 — so applying that rule to this path would
+// reject labels the contract accepts. Governance labels only.
+//
+// The contrast with the normal path is asserted at the bottom of this block, so
+// the two rule sets can be read side by side rather than two files apart.
+describe("validateGovernanceLabel is independent of the PopRules digit-suffix rule", () => {
+  test("accepts ONE trailing digit, which PopRules rejects outright", () => {
+    // registered on-chain: dim2.dot, paseo-next-v2
     expect(() => validateGovernanceLabel("dim2")).not.toThrow();
   });
 
-  test("accepts three or more trailing digits", () => {
+  test("accepts THREE OR MORE trailing digits, which PopRules also rejects", () => {
     expect(() => validateGovernanceLabel("dim123")).not.toThrow();
     expect(() => validateGovernanceLabel("dim9999")).not.toThrow();
   });
 
-  test("accepts labels with no trailing digits", () => {
+  test("accepts zero trailing digits", () => {
     expect(() => validateGovernanceLabel("game")).not.toThrow();
+  });
+
+  test("accepts exactly two trailing digits", () => {
+    expect(() => validateGovernanceLabel("dim22")).not.toThrow();
+  });
+
+  // Guards the scope of the relaxation: normal registration is untouched, so every
+  // non-governance name still obeys the 0-or-2 rule.
+  test("the NORMAL path still enforces 0-or-2 trailing digits", () => {
+    expect(() => validateDomainLabel("dim2")).toThrow(
+      /must have either no trailing digits or exactly two/,
+    );
+    expect(() => validateDomainLabel("dim123")).toThrow(
+      /must have either no trailing digits or exactly two/,
+    );
+    expect(() => validateDomainLabel("dimtwo")).not.toThrow();
+    expect(() => validateDomainLabel("dimtwo01")).not.toThrow();
   });
 });
 

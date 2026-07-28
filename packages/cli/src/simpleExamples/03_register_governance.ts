@@ -22,10 +22,7 @@ async function main() {
   // null means PopRules refuses to classify this label shape at all. registerReserved
   // bypasses PopRules, so that is not a blocker — only a definite non-Reserved is.
   const classification = await tryClassifyDomainName(ctx, label);
-  if (
-    classification !== null &&
-    classification.requiredStatus !== ProofOfPersonhoodStatus.Reserved
-  ) {
+  if (classification && classification.requiredStatus !== ProofOfPersonhoodStatus.Reserved) {
     throw new Error(
       `Governance name must classify as Reserved; got ${ProofOfPersonhoodStatus[classification.requiredStatus]}`,
     );

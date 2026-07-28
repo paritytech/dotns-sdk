@@ -501,6 +501,17 @@ async function executeGovernanceRegistration(
 ): Promise<void> {
   console.log(chalk.bold("\n🏛 Governance registration (commit-reveal)\n"));
 
+  // This path submits through DotnsRegistrarController.registerReserved, which
+  // never consults PopRules: its only on-chain label checks are isSingleLabel()
+  // (InvalidLabel) and length >= 3 (LabelTooShort). Hence validateGovernanceLabel
+  // rather than validateDomainLabel — the latter's "zero or exactly two trailing
+  // digits" rule mirrors PopRules and would reject labels the contract accepts,
+  // e.g. "dim2" (stem "dim" plus one trailing digit).
+  //
+  // The stem <= 5 bound it does apply is likewise not a registerReserved
+  // requirement; it mirrors PopRules' `stemLen <= 5 -> Reserved` classification.
+  // Kept deliberately: it holds this command to the reserved class it is for,
+  // rather than silently widening what a whitelisted account can mint here.
   validateGovernanceLabel(label);
 
   // registerReserved is gated on the whitelist (or the controller owner), not on the
@@ -522,9 +533,16 @@ async function executeGovernanceRegistration(
 
   // A null classification means PopRules refuses to classify the label's *shape*
   // (classifyName reverts). registerReserved does not consult PopRules, so that is
-  // not a blocker here — only a definite non-Reserved classification is.
+  // not a blocker here — only a definite non-Reserved classification is. Anything
+  // other than a revert propagates out of tryClassifyDomainName, so an unreachable
+  // chain cannot masquerade as "unclassifiable" and unlock this path.
+  let unclassifiableReason: string | undefined;
   const classification = await step("Classifying name", async () =>
-    tryClassifyDomainName(session.ctx, label),
+    tryClassifyDomainName(session.ctx, label, {
+      onUnclassifiable: (reason) => {
+        unclassifiableReason = reason;
+      },
+    }),
   );
 
   if (classification === null) {
@@ -532,6 +550,9 @@ async function executeGovernanceRegistration(
       chalk.yellow("  ⚠ PopRules cannot classify this label shape; ") +
         chalk.gray("registerReserved bypasses PopRules, continuing"),
     );
+    if (unclassifiableReason) {
+      console.log(chalk.gray(`    ${unclassifiableReason}`));
+    }
   } else if (classification.requiredStatus !== ProofOfPersonhoodStatus.Reserved) {
     throw new Error(
       `Governance name must classify as Reserved; got ${ProofOfPersonhoodStatus[classification.requiredStatus]}`,
