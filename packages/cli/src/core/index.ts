@@ -12,6 +12,7 @@ export type { DotnsContext, OperationStatus, CreateDotnsContextOptions } from ".
 
 export {
   classifyDomainName,
+  tryClassifyDomainName,
   ensureDomainNotRegistered,
   generateCommitment,
   submitCommitment,

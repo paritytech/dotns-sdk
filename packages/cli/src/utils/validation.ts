@@ -72,8 +72,22 @@ export function validateDomainLabel(label: string): void {
   }
 }
 
+/**
+ * Validates a label for the governance registration path.
+ *
+ * Intentionally does **not** delegate to {@link validateDomainLabel}: that
+ * function's trailing-digit rule mirrors PopRules, and this path does not go
+ * through PopRules. Checks the canonical label shape, a minimum length of 3, and
+ * bounds the stem to the reserved class this path exists for.
+ *
+ * `executeGovernanceRegistration` documents why each bound is or is not applied.
+ */
 export function validateGovernanceLabel(label: string): void {
-  validateDomainLabel(label);
+  validateCanonicalLabel(label, "governance label");
+
+  if (label.length < 3) {
+    throw new Error("Invalid governance label: minimum length of 3 characters");
+  }
 
   const baseName = stripTrailingDigits(label);
   if (baseName.length > 5) {

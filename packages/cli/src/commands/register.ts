@@ -38,8 +38,13 @@ import {
   COMMITMENT_POLL_TIMEOUT_MS,
   COMMITMENT_POLL_INTERVAL_MS,
 } from "../utils/constants";
-import { validateDomainLabel, normaliseLabel, stripTrailingDigits } from "../utils/validation";
-import { computeDomainTokenId } from "../utils/contractInteractions";
+import {
+  validateDomainLabel,
+  validateGovernanceLabel,
+  normaliseLabel,
+  stripTrailingDigits,
+} from "../utils/validation";
+import { computeDomainTokenId, ContractRevertError } from "../utils/contractInteractions";
 import { convertWeiToNative } from "../utils/formatting";
 import { isSameEvmAddress } from "../utils/address";
 
@@ -118,6 +123,38 @@ export async function classifyDomainName(
   };
 }
 
+/**
+ * {@link classifyDomainName}, but returns `null` when PopRules *refuses to
+ * classify* the label at all rather than throwing.
+ *
+ * `classifyName` is `pure`, yet it reverts with `PopError` for label shapes
+ * PopRules rejects outright (one, or three or more, trailing digits). For callers
+ * that treat the classification as advisory — notably the governance path, which
+ * submits through `registerReserved` and bypasses PopRules entirely — that revert
+ * is an answer, not a failure.
+ *
+ * Only a revert is converted to `null`. An unreachable chain, an unmapped origin
+ * or an ABI mismatch all propagate: reinterpreting those as "unclassifiable"
+ * would let a transient RPC failure silently unlock the governance path, which is
+ * precisely the wrong behaviour under uncertainty.
+ *
+ * The revert reason is handed to `onUnclassifiable` rather than printed, so the
+ * reason is never lost while this layer stays free of presentation concerns.
+ */
+export async function tryClassifyDomainName(
+  ctx: DotnsContext,
+  name: string,
+  opts: { onUnclassifiable?: (reason: string) => void } = {},
+): Promise<NameClassification | null> {
+  try {
+    return await classifyDomainName(ctx, name);
+  } catch (error) {
+    if (!(error instanceof ContractRevertError)) throw error;
+    opts.onUnclassifiable?.(error.message);
+    return null;
+  }
+}
+
 export async function ensureDomainNotRegistered(ctx: DotnsContext, name: string): Promise<void> {
   const label = normaliseLabel(name);
   const owner = await readDomainOwner(ctx, label);
@@ -128,6 +165,12 @@ export type GenerateCommitmentOptions = {
   owner?: Address;
   secret?: Hex;
   includeReverse?: boolean;
+  /**
+   * Set for commitments that will be revealed through registerReserved. That path
+   * bypasses PopRules, so the label is validated against the controller's own rules
+   * (validateGovernanceLabel) instead of the PopRules-derived validateDomainLabel.
+   */
+  governance?: boolean;
 };
 
 export type GeneratedCommitment = {
@@ -155,7 +198,11 @@ export async function generateCommitment(
   opts: GenerateCommitmentOptions = {},
 ): Promise<GeneratedCommitment> {
   const label = normaliseLabel(name);
-  validateDomainLabel(label);
+  if (opts.governance) {
+    validateGovernanceLabel(label);
+  } else {
+    validateDomainLabel(label);
+  }
 
   const owner = opts.owner ?? (await ownEvmAddress(ctx));
   const secret = resolveSecret(opts.secret);
