@@ -235,7 +235,26 @@ export type DotnsEnvironmentConfig = {
   bulletinP2pPeers: readonly string[];
 };
 
-const SHARED_MULTICALL3 = "0xFc430CcCdb9335C1907fc72e93eb1f48e847319C" as Address;
+// CREATE3 address book from the canonical dotns deployment (dotns repo,
+// deployments/paseo-assethub/420420417.json). Every contract is deployed through
+// the shared CREATE3 factory with a chain-independent salt, so these addresses
+// are identical on every Paseo Asset Hub chain that reuses that factory. paseo-v2
+// and previewnet both report chain 420420417 and share this book; devnet is a
+// separate deployment with its own address set.
+const PASEO_CREATE3_CONTRACTS: DotnsContractAddresses = {
+  DOTNS_REGISTRAR: "0x4f06E818Ba3d987704fd91cf3d868E4b019106Ab" as Address,
+  DOTNS_REGISTRAR_CONTROLLER: "0xBdaA01bD1bA67d709F2b1fF286Da0d854977EA30" as Address,
+  DOTNS_REGISTRY: "0xf34054fd76BbF85f216cf9908226D5f0A72E50CA" as Address,
+  DOTNS_RESOLVER: "0xbd1165E549DF96F083c0A16f61590927bC187009" as Address,
+  DOTNS_REVERSE_RESOLVER: "0xee3883d7eB60Ee9BCD7F3bcD8f2f05302A9Cc035" as Address,
+  DOTNS_POP_RESOLVER: "0xDaC984884EcA8Fc44011f1D6C49B27828390A72B" as Address,
+  DOTNS_CONTENT_RESOLVER: "0x7F74D7CD50f5a834270E2ad395a01b01891AB37d" as Address,
+  STORE_FACTORY: "0x709A027F446a9e2a4BB9cb9a9c754435b19e32B7" as Address,
+  DOTNS_RULES: "0x747B456bE03aec0b42bd85C51513730FBD45DA31" as Address,
+  DOTNS_POP_CONTROLLER: "0xCC932348606cc1f3318cADeC5A5Cd2CA447f8a4b" as Address,
+  DOTNS_NAME_ESCROW: "0x4881Afb78e7C908cAe818168B926229D93376520" as Address,
+  MULTICALL3: "0xB4468000abD87D3c56cbFBd153161223D7b109e5" as Address,
+};
 
 export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConfig> = {
   "paseo-v2": {
@@ -246,20 +265,7 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
     blockExplorerUrl: "https://blockscout-testnet.polkadot.io",
     previewBaseUrl: "https://dotns.paseo.li/#/preview",
     dotliGateways: ["paseo.li"],
-    contracts: {
-      DOTNS_REGISTRAR: "0xf7Ad3F44F316C73E4a2b46b1ed48d376bCc9E639" as Address,
-      DOTNS_REGISTRAR_CONTROLLER: "0x674b705268DAE369F0a7BE9cbaCDb928b8BA38C2" as Address,
-      DOTNS_REGISTRY: "0xa1b2b939E82b2ecE55Bd8a0E283818BfC1CA6CDc" as Address,
-      DOTNS_RESOLVER: "0xA8988eA083174ea94Ed1D686f0F073a10f65598D" as Address,
-      DOTNS_REVERSE_RESOLVER: "0x259B9D8199c29d2EF132264ad05f8F74F3115A2E" as Address,
-      DOTNS_POP_RESOLVER: "0xC9D511Eb80fD8B745DC5Be59aCF5d700271bC01e" as Address,
-      DOTNS_CONTENT_RESOLVER: "0x8A26480b0B5Df3d4D9b95adc24a5Ecb33A5b8F64" as Address,
-      STORE_FACTORY: "0x692047C1477a017F287488E1c85F96Ca28C23fD8" as Address,
-      DOTNS_RULES: "0x4909bFb3f4Fd86244abD6430fDfA0Ce5C91aD0c4" as Address,
-      DOTNS_POP_CONTROLLER: "0x1c858C31497a7715C0D56A11208feB6b74FaB2aB" as Address,
-      DOTNS_NAME_ESCROW: "0x2Cb9899d91Ee575E8917958723F5E941b1BcC6A1" as Address,
-      MULTICALL3: SHARED_MULTICALL3,
-    },
+    contracts: PASEO_CREATE3_CONTRACTS,
     bulletinRpc: DEFAULT_BULLETIN_RPC,
     ipfsGatewayUrl: PASEO_IPFS_GATEWAY_URL,
     bulletinP2pPeers: PASEO_BULLETIN_PEERS,
@@ -273,20 +279,7 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
     previewBaseUrl: null,
     // Served via its own substrate.dev gateway, not a dot.li host.
     dotliGateways: [],
-    contracts: {
-      DOTNS_REGISTRAR: "0x061273AeF34e8ab9Ca08E199d7440E2639Fc2088" as Address,
-      DOTNS_REGISTRAR_CONTROLLER: "0xC0c21ca6302884572E61d69D5bf3E271Acf39B23" as Address,
-      DOTNS_REGISTRY: "0x5622CA75C75726Da13ae46C69127C07c87538633" as Address,
-      DOTNS_RESOLVER: "0x823f39E7a4126669be53211FFbCF27e55b3274C6" as Address,
-      DOTNS_REVERSE_RESOLVER: "0xA347059298aA171b3E744538F7043e9AAaAa95E0" as Address,
-      DOTNS_POP_RESOLVER: "0xeD11Bb5064fAAcb0A91e52dac2272E89856F2F6a" as Address,
-      DOTNS_CONTENT_RESOLVER: "0xBD003d5Dd04E68aC60d529a46AEfBdEf8941868C" as Address,
-      STORE_FACTORY: "0x4BEFaB5de968183524b1eBd2FAec9C68Cdc696Fd" as Address,
-      DOTNS_RULES: "0xF209a15e8a10D208bb4d3e3c56D9EB73a5934C26" as Address,
-      DOTNS_POP_CONTROLLER: "0xae2c63b921Bc9DC30C149A8FA462fd3efA53D1F4" as Address,
-      DOTNS_NAME_ESCROW: "0xb7E39199f13aCf7e90cCf67b980aC3ef0E2C4Fbe" as Address,
-      MULTICALL3: "0x758F88C7761FCD4742f9471448c2209a7e859280" as Address,
-    },
+    contracts: PASEO_CREATE3_CONTRACTS,
     bulletinRpc: "wss://previewnet.substrate.dev/bulletin",
     ipfsGatewayUrl: "https://previewnet.substrate.dev/ipfs",
     bulletinP2pPeers: [],
@@ -302,18 +295,18 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
     previewBaseUrl: null,
     dotliGateways: ["dev-dot.li"],
     contracts: {
-      DOTNS_REGISTRAR: "0x4f06E818Ba3d987704fd91cf3d868E4b019106Ab" as Address,
-      DOTNS_REGISTRAR_CONTROLLER: "0xBdaA01bD1bA67d709F2b1fF286Da0d854977EA30" as Address,
-      DOTNS_REGISTRY: "0xf34054fd76BbF85f216cf9908226D5f0A72E50CA" as Address,
-      DOTNS_RESOLVER: "0xbd1165E549DF96F083c0A16f61590927bC187009" as Address,
-      DOTNS_REVERSE_RESOLVER: "0xee3883d7eB60Ee9BCD7F3bcD8f2f05302A9Cc035" as Address,
-      DOTNS_POP_RESOLVER: "0xDaC984884EcA8Fc44011f1D6C49B27828390A72B" as Address,
-      DOTNS_CONTENT_RESOLVER: "0x7F74D7CD50f5a834270E2ad395a01b01891AB37d" as Address,
-      STORE_FACTORY: "0x709A027F446a9e2a4BB9cb9a9c754435b19e32B7" as Address,
-      DOTNS_RULES: "0x747B456bE03aec0b42bd85C51513730FBD45DA31" as Address,
-      DOTNS_POP_CONTROLLER: "0xCC932348606cc1f3318cADeC5A5Cd2CA447f8a4b" as Address,
-      DOTNS_NAME_ESCROW: "0x4881Afb78e7C908cAe818168B926229D93376520" as Address,
-      MULTICALL3: "0xB4468000abD87D3c56cbFBd153161223D7b109e5" as Address,
+      DOTNS_REGISTRAR: "0x7f0dF075cc8B7FE7218E90fFC5a553450dB120F3" as Address,
+      DOTNS_REGISTRAR_CONTROLLER: "0x45fDEa4Ad7b8607Fc22DBC3DBE3cD8b350F8bede" as Address,
+      DOTNS_REGISTRY: "0x527b08a640b527a3dae0C4BE04D7344E430B6E50" as Address,
+      DOTNS_RESOLVER: "0xC28796526Bf3E9295f09655a1001F30f77AfCF0D" as Address,
+      DOTNS_REVERSE_RESOLVER: "0xfd2594FcF920B38A970011C486e1E3041563147F" as Address,
+      DOTNS_POP_RESOLVER: "0x92Fd4195Be40A266d2914FB64C63cC50715dB1D8" as Address,
+      DOTNS_CONTENT_RESOLVER: "0x326bdE29315199c814B1c58b431D84D16EA5cE41" as Address,
+      STORE_FACTORY: "0xD81DC23FAa69B311C1FC553Ea63798772e7D253D" as Address,
+      DOTNS_RULES: "0x2181a14081fF2D4477BAA8FB1aEB4C9c44F5F2b0" as Address,
+      DOTNS_POP_CONTROLLER: "0x1884819F6747576883805Cb2b7BB68d29484d1b0" as Address,
+      DOTNS_NAME_ESCROW: "0xfEdBe7a7F32017F6bCAA3109bE2EaC7D59E319E5" as Address,
+      MULTICALL3: "0x929EdB8d61461c29d07deC834ef747EbFDcf0B74" as Address,
     },
     bulletinRpc: DEVNET_BULLETIN_RPC,
     ipfsGatewayUrl: DEVNET_IPFS_GATEWAY_URL,

@@ -336,8 +336,7 @@ watch(() => props.blob, loadTextContent);
         >
           <pre
             class="font-mono text-xs sm:text-sm text-dot-text-secondary whitespace-pre-wrap break-words leading-relaxed"
-            >{{ textContent }}</pre
-          >
+            >{{ textContent }}</pre>
         </div>
 
         <div

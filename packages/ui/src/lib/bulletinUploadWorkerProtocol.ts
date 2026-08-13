@@ -57,13 +57,10 @@ export type BulletinUploadWorkerErrorResponse = {
 };
 
 export type BulletinUploadWorkerResponse =
-  | PrepareSliceSuccessResponse
-  | PrepareRootSuccessResponse
-  | BulletinUploadWorkerErrorResponse;
+  PrepareSliceSuccessResponse | PrepareRootSuccessResponse | BulletinUploadWorkerErrorResponse;
 
 export type BulletinUploadWorkerSuccessResponse =
-  | PrepareSliceSuccessResponse
-  | PrepareRootSuccessResponse;
+  PrepareSliceSuccessResponse | PrepareRootSuccessResponse;
 
 export type StorePreparedResult = {
   cid: string;
