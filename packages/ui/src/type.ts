@@ -118,7 +118,12 @@ export type TransactionState = "pending" | "success" | "failed";
 export type Unit = "minutes" | "hours" | "days" | "years" | "months";
 export type DotNSStatus = "taken" | "available";
 export type TransactionStatus =
-  "idle" | "signing" | "broadcasting" | "included" | "finalized" | "failed";
+  | "idle"
+  | "signing"
+  | "broadcasting"
+  | "included"
+  | "finalized"
+  | "failed";
 
 export type SignerMode = "papi" | "legacy";
 

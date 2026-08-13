@@ -220,7 +220,12 @@ export type BulletinUploadOptions = {
 };
 
 export type BulletinProgressPhase =
-  "validate" | "authorize" | "refresh" | "upload" | "verify" | "cache";
+  | "validate"
+  | "authorize"
+  | "refresh"
+  | "upload"
+  | "verify"
+  | "cache";
 
 export type BulletinProgressState = "start" | "update" | "success" | "warning" | "failure";
 
