@@ -25,8 +25,14 @@ export function addAuthOptions(cmd: Command): Command {
     .option("--qr-fresh", "Force a fresh QR pairing, ignoring any cached session");
 }
 
+// Global options such as `--env` are declared on the program root, but every
+// leaf command redeclares them via addAuthOptions, so they can be given at any
+// level. Merging only the immediate parent drops a root-level `--env` for a
+// command nested two levels deep (e.g. `dotns --env devnet lookup name`).
+// Commander's optsWithGlobals walks the full ancestor chain, with values set on
+// the command itself taking precedence over ancestors.
 export function getAuthOptions(cmd: Command): AuthOptionValues {
-  const own = cmd.opts?.() ?? {};
-  const parent = cmd.parent?.opts?.() ?? {};
-  return { ...parent, ...own } as AuthOptionValues;
+  const merged =
+    typeof cmd.optsWithGlobals === "function" ? cmd.optsWithGlobals() : (cmd.opts?.() ?? {});
+  return merged as AuthOptionValues;
 }
