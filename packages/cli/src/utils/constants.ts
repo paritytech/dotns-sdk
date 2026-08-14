@@ -25,9 +25,10 @@ export const PASEO_ASSET_HUB_URL = "wss://paseo-asset-hub-next-rpc.polkadot.io";
 export const PREVIEWNET_ASSET_HUB_URL = "wss://previewnet.substrate.dev/asset-hub";
 const PASEO_IPFS_GATEWAY_URL = "https://paseo-bulletin-next-ipfs.polkadot.io/ipfs";
 
-// Public Products Devnet — Paseo Asset Hub (para 1000, chain 420420417). The
-// bundled `paseo` descriptor is already built from this chain's genesis; these
-// endpoints wire a named preset to it.
+// Public Products Devnet, Paseo Asset Hub (para 1000, chain 420420417). These
+// endpoints wire a named preset to it. The bundled `paseo` descriptor is built
+// from the paseo-v2 chain, not this one; the interfaces the CLI uses (ReviveApi,
+// Revive.call, System.Account) are identical across both runtimes.
 export const DEVNET_ASSET_HUB_URL = "wss://asset-hub-paseo-rpc.n.dwellir.com";
 export const DEVNET_BULLETIN_RPC = "wss://bulletin-paseo.tservices.es:8443";
 export const DEVNET_IPFS_GATEWAY_URL = "https://devnet-ipfs.api.polkadotcommunity.foundation/ipfs";
@@ -238,9 +239,12 @@ export type DotnsEnvironmentConfig = {
 // CREATE3 address book from the canonical dotns deployment (dotns repo,
 // deployments/paseo-assethub/420420417.json). Every contract is deployed through
 // the shared CREATE3 factory with a chain-independent salt, so these addresses
-// are identical on every Paseo Asset Hub chain that reuses that factory. paseo-v2
-// and previewnet both report chain 420420417 and share this book; devnet is a
-// separate deployment with its own address set.
+// are identical on every chain that reuses that factory. paseo-v2 and previewnet
+// are distinct chains with distinct genesis hashes, but both host the factory at
+// 0x8533c79E058c5a6489CAFeCA86dc600E029D75f5, so they share this book. devnet is a
+// separate deployment with its own address set. Note the chain id is 420420417 on
+// all three, so it does not distinguish them and must not be used to decide which
+// book applies.
 const PASEO_CREATE3_CONTRACTS: DotnsContractAddresses = {
   DOTNS_REGISTRAR: "0x4f06E818Ba3d987704fd91cf3d868E4b019106Ab" as Address,
   DOTNS_REGISTRAR_CONTROLLER: "0xBdaA01bD1bA67d709F2b1fF286Da0d854977EA30" as Address,

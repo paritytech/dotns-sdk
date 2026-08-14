@@ -29,8 +29,11 @@ export function addAuthOptions(cmd: Command): Command {
 // leaf command redeclares them via addAuthOptions, so they can be given at any
 // level. Merging only the immediate parent drops a root-level `--env` for a
 // command nested two levels deep (e.g. `dotns --env devnet lookup name`).
-// Commander's optsWithGlobals walks the full ancestor chain, with values set on
-// the command itself taking precedence over ancestors.
+// Commander's optsWithGlobals walks the full ancestor chain. It assigns ancestor
+// values over the command's own ("globals overwrite locals"), which is harmless
+// here: Commander stores an option on the outermost command that declares it, so
+// only one command in the chain ever holds a value and the last occurrence on the
+// command line wins regardless of where it was typed.
 export function getAuthOptions(cmd: Command): AuthOptionValues {
   const merged =
     typeof cmd.optsWithGlobals === "function" ? cmd.optsWithGlobals() : (cmd.opts?.() ?? {});

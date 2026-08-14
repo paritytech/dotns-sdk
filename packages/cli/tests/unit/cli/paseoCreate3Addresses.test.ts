@@ -1,10 +1,12 @@
 import { expect, test } from "bun:test";
 import { DOTNS_ENVIRONMENTS } from "../../../src/utils/constants";
 
-// paseo-v2 and previewnet both report chain 420420417 and share the CREATE3
-// factory, so they resolve to the identical address book recorded in the dotns
-// contracts repo at deployments/paseo-assethub/420420417.json. Drift here silently
-// points the CLI at retired contracts, so pin the canonical addresses explicitly.
+// paseo-v2 and previewnet are distinct chains that both host the CREATE3 factory
+// at the same address, so they resolve to the identical address book recorded in
+// the dotns contracts repo at deployments/paseo-assethub/420420417.json. Their
+// shared chain id is not what makes the book shared: devnet reports 420420417 too
+// and has its own deployment. Drift here silently points the CLI at retired
+// contracts, so pin the canonical addresses explicitly.
 const CANONICAL_PASEO_ADDRESSES = {
   DOTNS_REGISTRAR: "0x4f06E818Ba3d987704fd91cf3d868E4b019106Ab",
   DOTNS_REGISTRAR_CONTROLLER: "0xBdaA01bD1bA67d709F2b1fF286Da0d854977EA30",

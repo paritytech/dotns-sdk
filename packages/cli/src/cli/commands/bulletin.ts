@@ -592,8 +592,7 @@ export function attachBulletinCommands(root: Command): void {
 
   addAuthOptions(refreshCommand).action(
     async (addressArgument: string | undefined, options: any, command: any) => {
-      const parent = command.parent;
-      const mergedOptions = parent ? { ...parent.opts(), ...options } : options;
+      const mergedOptions = getMergedOptions(command, options);
       const jsonOutput = Boolean(mergedOptions.json);
 
       try {
