@@ -1,7 +1,8 @@
 import type { Address } from "viem";
 import { type DotnsContext, read, write, ownEvmAddress } from "../core/context";
 import { DOTNS_REVERSE_RESOLVER_ABI } from "../utils/constants";
-import { validateDomainLabel, normaliseLabel } from "../utils/validation";
+import { validateDomainLabel } from "../utils/validation";
+import { formatDomainName, normaliseName } from "../core/naming";
 
 export type PrimaryNameResult = {
   name: string;
@@ -9,7 +10,7 @@ export type PrimaryNameResult = {
 };
 
 export async function setPrimaryName(ctx: DotnsContext, name: string): Promise<PrimaryNameResult> {
-  const label = normaliseLabel(name);
+  const label = await normaliseName(ctx, name);
   validateDomainLabel(label);
   const txHash = await write(
     ctx,
@@ -20,7 +21,7 @@ export async function setPrimaryName(ctx: DotnsContext, name: string): Promise<P
     [label],
     "Setting primary name",
   );
-  return { name: `${label}.dot`, txHash };
+  return { name: await formatDomainName(ctx, label), txHash };
 }
 
 export async function getPrimaryName(ctx: DotnsContext, address?: Address): Promise<string | null> {

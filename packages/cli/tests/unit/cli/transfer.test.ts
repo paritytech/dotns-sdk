@@ -3,9 +3,9 @@ import { checksumAddress } from "viem";
 import { resolveTransferRecipient } from "../../../src/cli/transfer";
 
 // Only the EVM-address and unrecognised-input branches are exercised here; the
-// SS58 and .dot-label branches resolve via the chain client and belong to
-// integration coverage. Those branches return before touching ctx, so a null
-// context is never dereferenced.
+// SS58 and domain-name branches resolve via the chain client and belong to
+// integration coverage. Syntactically invalid input is rejected before the TLD
+// is read, so a null context is never dereferenced.
 const NO_CTX = null as never;
 
 describe("resolveTransferRecipient", () => {
@@ -14,7 +14,7 @@ describe("resolveTransferRecipient", () => {
     await expect(resolveTransferRecipient(NO_CTX, lower)).resolves.toBe(checksumAddress(lower));
   });
 
-  test("rejects input that is neither an EVM address, SS58 address, nor .dot label", async () => {
+  test("rejects input that is neither an EVM address, SS58 address, nor domain name", async () => {
     await expect(resolveTransferRecipient(NO_CTX, "not a name!!")).rejects.toThrow(
       "Unrecognised recipient",
     );

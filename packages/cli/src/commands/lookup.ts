@@ -1,4 +1,4 @@
-import { namehash, getAddress, type Address, zeroAddress, checksumAddress } from "viem";
+import { getAddress, type Address, zeroAddress, checksumAddress } from "viem";
 import { type DotnsContext, read, ownEvmAddress } from "../core/context";
 import {
   DOTNS_REGISTRY_ABI,
@@ -10,7 +10,7 @@ import {
   DOTNS_POP_RESOLVER_ABI,
 } from "../utils/constants";
 import { stripTrailingDigits } from "../utils/validation";
-import { computeDomainTokenId } from "../core/naming";
+import { computeDomainTokenId, domainNode, formatDomainName } from "../core/naming";
 import { formatNativeBalance, formatErrorMessage } from "../utils/formatting";
 import type { DomainLookupResult, BaseNameReservation, DomainOwnership } from "../types/types";
 
@@ -24,8 +24,8 @@ export async function performDomainLookup(
   ctx: DotnsContext,
   label: string,
 ): Promise<DomainLookupResult> {
-  const domain = `${label}.dot`;
-  const node = namehash(domain);
+  const domain = await formatDomainName(ctx, label);
+  const node = await domainNode(ctx, label);
 
   const result: DomainLookupResult = {
     domain,
@@ -209,7 +209,7 @@ export async function performOwnerOfLookup(
 
   return {
     label,
-    domain: `${label}.dot`,
+    domain: await formatDomainName(ctx, label),
     registered: isRegistered,
     ownerEvm: isRegistered ? actualOwner : zeroAddress,
     ownerSubstrate,

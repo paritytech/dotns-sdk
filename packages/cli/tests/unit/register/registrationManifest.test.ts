@@ -202,7 +202,8 @@ function fakeRead(_ctx: unknown, _address: string, _abi: unknown, functionName: 
   if (functionName === "available") return availableResult;
   if (functionName === "protocolRegistry") return "0x00000000000000000000000000000000000000ff";
   if (functionName === "tldNode") return PASEO_NODE;
-  if (functionName === "tld") return "paseo";
+  // The registry returns the suffix with its leading dot; resolveTldInfo strips it.
+  if (functionName === "tld") return ".paseo";
   throw new Error(`unexpected read: ${functionName}`);
 }
 

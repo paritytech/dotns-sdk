@@ -2,6 +2,7 @@ import type { Abi, Address, Hex } from "viem";
 import { type DotnsContext, read } from "./context";
 import { DOTNS_REGISTRAR_CONTROLLER_ABI } from "../utils/constants";
 import { deriveDomainNode, deriveDomainTokenId } from "../utils/contractInteractions";
+import { normaliseLabel } from "../utils/validation";
 
 // Minimal view surface of DotnsProtocolRegistry. The full ABI is not synced into
 // the SDK because these two immutable getters are all the naming layer needs; the
@@ -40,10 +41,13 @@ async function fetchTldInfo(ctx: DotnsContext): Promise<TldInfo> {
     "protocolRegistry",
     [],
   );
-  const [tldNode, tld] = await Promise.all([
+  const [tldNode, rawTld] = await Promise.all([
     read<Hex>(ctx, protocolRegistry, PROTOCOL_REGISTRY_ABI, "tldNode", []),
     read<string>(ctx, protocolRegistry, PROTOCOL_REGISTRY_ABI, "tld", []),
   ]);
+  // The registry stores the suffix with its leading dot (for example ".paseo");
+  // callers here work with the bare label, matching normaliseLabel's `tld` argument.
+  const tld = rawTld.startsWith(".") ? rawTld.slice(1) : rawTld;
   return Object.freeze({ tldNode, tld });
 }
 
@@ -85,4 +89,11 @@ export async function computeDomainTokenId(ctx: DotnsContext, label: string): Pr
 export async function formatDomainName(ctx: DotnsContext, label: string): Promise<string> {
   const { tld } = await resolveTldInfo(ctx);
   return `${label}.${tld}`;
+}
+
+// Normalise user input to its bare label, stripping the deployment's TLD suffix
+// so `alice.paseo` and `alice` both resolve to `alice`.
+export async function normaliseName(ctx: DotnsContext, name: string): Promise<string> {
+  const { tld } = await resolveTldInfo(ctx);
+  return normaliseLabel(name, tld);
 }

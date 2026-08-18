@@ -1,4 +1,5 @@
 import { connectDotns } from "./00_shared";
+import { formatDomainName } from "../core/naming";
 import { validateGovernanceLabel } from "../utils/validation";
 import { ProofOfPersonhoodStatus } from "../types/types";
 
@@ -41,7 +42,7 @@ async function main() {
   await finalizeGovernanceRegistration(ctx, registration);
   await verifyDomainOwnership(ctx, label, evmAddress);
 
-  console.log("Governance registered:", `${label}.dot`);
+  console.log("Governance registered:", await formatDomainName(ctx, label));
   console.log("Owner:               ", evmAddress);
 }
 

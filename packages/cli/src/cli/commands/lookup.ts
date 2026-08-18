@@ -26,6 +26,7 @@ import {
 } from "../context";
 import { makeOnStatus } from "../txStatus";
 import { resolveTransferRecipient, transferName } from "../transfer";
+import { formatDomainName } from "../../core/naming";
 import { isValidTransferDestination } from "./register";
 import type {
   AuthSource,
@@ -371,9 +372,7 @@ export function attachLookupCommands(root: Command): void {
         console.log(JSON.stringify(result));
       } else {
         console.log(chalk.gray("  Label:             ") + chalk.cyan(result.label ?? label));
-        console.log(
-          chalk.gray("  Domain:            ") + chalk.cyan(result.domain ?? `${label}.dot`),
-        );
+        console.log(chalk.gray("  Domain:            ") + chalk.cyan(result.domain ?? label));
         console.log(chalk.gray("  Registered:        ") + chalk.white(String(result.registered)));
         console.log(
           chalk.gray("  Owner (EVM):       ") +
@@ -430,10 +429,11 @@ export function attachLookupCommands(root: Command): void {
 
         const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(merged));
         const ctx = buildDotnsContext(context);
+        const domain = await formatDomainName(ctx, label);
 
         if (!jsonOutput) {
           printCommandHeader("Transfer");
-          console.log(chalk.gray("  domain: ") + chalk.cyan(`${label}.dot`));
+          console.log(chalk.gray("  domain: ") + chalk.cyan(domain));
           console.log(chalk.gray("  to:     ") + chalk.white(destination));
         }
 
@@ -455,7 +455,7 @@ export function attachLookupCommands(root: Command): void {
           console.log(
             JSON.stringify({
               label,
-              domain: `${label}.dot`,
+              domain,
               destination,
               recipient,
               transferred: true,

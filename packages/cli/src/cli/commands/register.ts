@@ -45,6 +45,7 @@ import {
 } from "../../types/types";
 import { step, printCommandHeader } from "../ui";
 import { buildDotnsContext, prepareAssetHubContext } from "../context";
+import { formatDomainName, normaliseName } from "../../core/naming";
 import { makeOnStatus } from "../txStatus";
 import type { DotnsContext } from "../../core/context";
 import { prepareReadOnlyContext } from "./lookup";
@@ -245,7 +246,10 @@ export async function executeRegistration(
   const { evmAddress } = context;
   const session = buildSession(context, "Register");
 
-  const label = options.name ?? generateRandomLabel(ProofOfPersonhoodStatus.NoStatus);
+  const label = options.name
+    ? await normaliseName(session.ctx, options.name)
+    : generateRandomLabel(ProofOfPersonhoodStatus.NoStatus);
+  const domain = await formatDomainName(session.ctx, label);
 
   let ownerEvmAddress: Address = evmAddress;
   if (options.owner != null) {
@@ -261,7 +265,7 @@ export async function executeRegistration(
       chalk.yellow(options.governance ? "Governance registration" : "Regular registration"),
   );
   console.log(chalk.gray("  Label:     ") + chalk.cyan(label));
-  console.log(chalk.gray("  Domain:    ") + chalk.cyan(label + ".dot"));
+  console.log(chalk.gray("  Domain:    ") + chalk.cyan(domain));
   console.log(chalk.gray("  Caller:    ") + chalk.white(evmAddress));
   console.log(chalk.gray("  Owner:     ") + chalk.white(ownerEvmAddress));
   if (crossPayer) {
@@ -313,12 +317,12 @@ export async function executeRegistration(
     commitmentBuffer: options.commitmentBuffer,
   });
 
-  console.log(chalk.bold.green("✓ Operation Complete") + chalk.gray(` ${label}.dot`));
+  console.log(chalk.bold.green("✓ Operation Complete") + chalk.gray(` ${domain}`));
 
   return {
     ok: true as const,
     label,
-    domain: `${label}.dot`,
+    domain,
     caller: evmAddress,
     owner: ownerEvmAddress,
   };
@@ -345,11 +349,12 @@ export async function executeSubnameRegistration(
   validateCanonicalLabel(parentLabel, "parent label");
   const ownerAddress = (options.owner as Address) ?? evmAddress;
 
-  const fullName = `${sublabel}.${parentLabel}.dot`;
+  const parentDomain = await formatDomainName(session.ctx, parentLabel);
+  const fullName = `${sublabel}.${parentDomain}`;
 
   printCommandHeader("Subname Registration");
   console.log(chalk.gray("  Subname:   ") + chalk.cyan(fullName));
-  console.log(chalk.gray("  Parent:    ") + chalk.white(`${parentLabel}.dot`));
+  console.log(chalk.gray("  Parent:    ") + chalk.white(parentDomain));
   console.log(chalk.gray("  Owner:     ") + chalk.white(ownerAddress));
 
   const result = await step("Registering subname", async () =>
@@ -689,7 +694,8 @@ async function resumeRegistration(
     credential,
   };
 
-  printCommandHeader("Resuming", `${label}.dot`);
+  const domain = await formatDomainName(session.ctx, label);
+  printCommandHeader("Resuming", domain);
 
   const registration: DomainRegistration = {
     label,
@@ -703,12 +709,12 @@ async function resumeRegistration(
   );
 
   if (alreadyOwned) {
-    console.log(chalk.green(`  ✓ ${label}.dot is already registered to ${record.owner}`));
+    console.log(chalk.green(`  ✓ ${domain} is already registered to ${record.owner}`));
     forgetCommitment(persistContext, label);
     return {
       ok: true as const,
       label,
-      domain: `${label}.dot`,
+      domain,
       caller: session.caller,
       owner: record.owner,
     };
@@ -751,12 +757,12 @@ async function resumeRegistration(
     await replayTransfer(session, label, record.transferDestination);
   }
 
-  console.log(chalk.bold.green("✓ Registration Resumed") + chalk.gray(` ${label}.dot`));
+  console.log(chalk.bold.green("✓ Registration Resumed") + chalk.gray(` ${domain}`));
 
   return {
     ok: true as const,
     label,
-    domain: `${label}.dot`,
+    domain,
     caller: session.caller,
     owner: record.owner,
   };
@@ -812,7 +818,7 @@ async function promptPendingAction(
   for (const record of pending) {
     console.log(
       chalk.gray("  • ") +
-        chalk.cyan(record.label + ".dot") +
+        chalk.cyan(record.label) +
         chalk.gray(`  committed ${record.committedAtIso}`),
     );
   }
@@ -851,7 +857,7 @@ export async function executeClear(
 
   const pending: CommitmentRecord[] = [];
   for (const record of records) {
-    const registered = await step(`Checking ${record.label}.dot`, async () =>
+    const registered = await step(`Checking ${record.label}`, async () =>
       isRegisteredTo(session.ctx, record.label, record.owner),
     );
     if (registered) {
@@ -951,7 +957,7 @@ export async function executeList(
           row.status === "registered" ? chalk.green("registered") : chalk.yellow("pending");
         console.log(
           chalk.gray("  • ") +
-            chalk.cyan((row.label + ".dot").padEnd(24)) +
+            chalk.cyan(row.label.padEnd(24)) +
             statusLabel +
             chalk.gray(`  ${row.committedAtIso}  ${row.env}`),
         );

@@ -4,7 +4,7 @@ import { performDomainLookup, listMyRegisteredNames } from "../commands/lookup";
 async function main() {
   const { ctx } = await connectDotns();
 
-  const name = process.env.DOTNS_NAME ?? "example.dot";
+  const name = process.env.DOTNS_NAME ?? "example";
 
   console.log("Lookup:", name);
   console.log(await performDomainLookup(ctx, name));

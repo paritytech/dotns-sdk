@@ -1,8 +1,7 @@
 import { type Address } from "viem";
 import { type DotnsContext, read, write } from "../core/context";
 import { DOTNS_NAME_ESCROW_ABI, DOTNS_REGISTRAR_ABI } from "../utils/constants";
-import { computeDomainTokenId } from "../core/naming";
-import { normaliseLabel } from "../utils/validation";
+import { computeDomainTokenId, formatDomainName, normaliseName } from "../core/naming";
 import { isSameEvmAddress } from "../utils/address";
 
 /// On-chain release position for a token.
@@ -58,7 +57,7 @@ async function readPositionForName(
   ctx: DotnsContext,
   name: string,
 ): Promise<EscrowPositionView | null> {
-  const label = normaliseLabel(name);
+  const label = await normaliseName(ctx, name);
   const tokenId = await computeDomainTokenId(ctx, label);
 
   const raw = await read<RawReleasePosition>(
@@ -74,7 +73,7 @@ async function readPositionForName(
   }
 
   return {
-    domain: label,
+    domain: await formatDomainName(ctx, label),
     tokenId,
     recipient: raw.recipient,
     asset: raw.asset,
@@ -171,7 +170,7 @@ export async function releaseName(
   ctx: DotnsContext,
   label: string,
 ): Promise<{ approveTxHash: string; releaseTxHash: string; tokenId: bigint }> {
-  const tokenId = await computeDomainTokenId(ctx, normaliseLabel(label));
+  const tokenId = await computeDomainTokenId(ctx, await normaliseName(ctx, label));
 
   const approveTxHash = await write(
     ctx,
@@ -199,7 +198,7 @@ export async function releaseName(
 /// Calls `withdraw` to credit the original depositor's pull-payment balance. Reverts before
 /// the per-position cooldown elapses.
 export async function withdrawName(ctx: DotnsContext, label: string): Promise<string> {
-  const tokenId = await computeDomainTokenId(ctx, normaliseLabel(label));
+  const tokenId = await computeDomainTokenId(ctx, await normaliseName(ctx, label));
   return write(
     ctx,
     ctx.contracts.DOTNS_NAME_ESCROW,

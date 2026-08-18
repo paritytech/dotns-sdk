@@ -1,4 +1,4 @@
-import { afterAll, afterEach, expect, test } from "bun:test";
+import { beforeAll, afterAll, afterEach, expect, test } from "bun:test";
 import { ProofOfPersonhoodStatus } from "../../../src/types/types";
 import { generateRandomLabel } from "../../../src/cli/labels";
 import {
@@ -9,12 +9,18 @@ import {
   BOB_EVM_ADDRESS,
   runDotnsCli,
   type CliRunResult,
+  resolveExpectedTld,
 } from "../../_helpers/cliHelpers";
 import {
   cleanupTestFileTemporaryDirectory,
   cleanupTestTemporaryDirectory,
   createKeystorePathsForTest,
 } from "../../_helpers/testPaths";
+
+let expectedTld: string;
+beforeAll(async () => {
+  expectedTld = await resolveExpectedTld();
+});
 
 const createdTestTemporaryDirectoryPaths: string[] = [];
 let testFileTemporaryRootDirectoryPath: string | undefined;
@@ -93,7 +99,7 @@ test(
     expect(setResult.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
     expect(setResult.combinedOutput).not.toContain("✗ Error:");
     const setJson = parseJsonLine(setResult) as { name: string; delegate: string; txHash: string };
-    expect(setJson.name).toBe(`${label}.dot`);
+    expect(setJson.name).toBe(`${label}.${expectedTld}`);
     expect(setJson.delegate.toLowerCase()).toBe(BOB_EVM_ADDRESS.toLowerCase());
     expect(setJson.txHash).toMatch(/^0x[0-9a-fA-F]+$/);
 

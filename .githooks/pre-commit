@@ -21,3 +21,6 @@ if ! git diff --quiet; then
   git diff --name-only
   exit 1
 fi
+
+echo "Checking for new dangling inline types..."
+bun run check:types:staged

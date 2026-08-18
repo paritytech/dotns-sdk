@@ -1,7 +1,7 @@
 import { namehash, zeroAddress, type Address, type Hex } from "viem";
 import { type DotnsContext, read, write } from "../core/context";
 import { DOTNS_REGISTRY_ABI, DOTNS_CONTENT_RESOLVER_ABI } from "../utils/constants";
-import { normaliseLabel } from "../utils/validation";
+import { formatDomainName, normaliseName } from "../core/naming";
 import { decodeIpfsContenthash, encodeIpfsContenthash } from "../bulletin/cid";
 import { getResolverNodeInfo, requireResolverAuthorization } from "./resolverAuth";
 
@@ -30,8 +30,8 @@ export type ContentSetResult = {
 };
 
 export async function getContentHash(ctx: DotnsContext, name: string): Promise<ContentViewResult> {
-  const label = normaliseLabel(name);
-  const domain = `${label}.dot`;
+  const label = await normaliseName(ctx, name);
+  const domain = await formatDomainName(ctx, label);
   const namehashNode = namehash(domain);
 
   const recordExists = await read<boolean>(
@@ -74,8 +74,8 @@ export async function setContentHash(
   name: string,
   cid: string,
 ): Promise<ContentSetResult> {
-  const label = normaliseLabel(name);
-  const domain = `${label}.dot`;
+  const label = await normaliseName(ctx, name);
+  const domain = await formatDomainName(ctx, label);
   const namehashNode = namehash(domain);
 
   const { exists, owner, caller } = await getResolverNodeInfo(ctx, namehashNode);

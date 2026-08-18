@@ -77,7 +77,7 @@ function makePosition(
   }> = {},
 ) {
   return {
-    domain: overrides.domain ?? "alice",
+    domain: overrides.domain ?? "alice.paseo",
     tokenId: 1n,
     recipient: "0x1111111111111111111111111111111111111111" as Address,
     asset: "0x0000000000000000000000000000000000000000" as Address,
@@ -159,13 +159,13 @@ describe("formatPositionsTable", () => {
 
   test("renders a header plus one aligned row per position with the cooldown", () => {
     const lines = formatPositionsTable(
-      [makePosition({ released: true, withdrawAvailableAt: NOW + 60n, domain: "alice" })],
+      [makePosition({ released: true, withdrawAvailableAt: NOW + 60n, domain: "alice.paseo" })],
       NOW,
     ).map(stripAnsi);
     expect(lines[0]).toContain("NAME");
     expect(lines[0]).toContain("DEPOSIT");
     expect(lines[0]).toContain("STATUS");
-    expect(lines[1]).toContain("alice.dot");
+    expect(lines[1]).toContain("alice.paseo");
     expect(lines[1]).toContain("cooldown 1m 0s");
   });
 });

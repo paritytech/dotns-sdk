@@ -29,7 +29,7 @@ export type CommitmentRecord = {
   env: string;
   /** EVM address that submitted the commit (the cache owner). */
   caller: Address;
-  /** Domain label without ".dot". */
+  /** Domain label without the TLD suffix. */
   label: string;
   /** EVM address that will own the name once revealed. */
   owner: Address;

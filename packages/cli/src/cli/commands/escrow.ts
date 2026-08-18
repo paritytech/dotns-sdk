@@ -127,7 +127,7 @@ export function attachEscrowCommands(root: Command) {
     .description("Show the caller's claimable pull-payment balance")
     .option(
       "--recipient <address>",
-      "Recipient EVM address, SS58 address, or .dot label (defaults to caller)",
+      "Recipient EVM address, SS58 address, or domain name (defaults to caller)",
     )
     .option("--json", "Output result as JSON (suppresses all other output)", false);
   addAuthOptions(balanceCommand).action(async (options: RefundListOptions, command: Command) => {
@@ -162,7 +162,7 @@ export function attachEscrowCommands(root: Command) {
     .description("List all escrow positions for the caller and the total locked")
     .option(
       "--recipient <address>",
-      "Recipient EVM address, SS58 address, or .dot label (defaults to caller)",
+      "Recipient EVM address, SS58 address, or domain name (defaults to caller)",
     )
     .option("--json", "Output result as JSON (suppresses all other output)", false);
   addAuthOptions(positionsCommand).action(async (options: RefundListOptions, command: Command) => {
@@ -340,7 +340,7 @@ export function attachEscrowCommands(root: Command) {
     .description("List pending refund entries for the caller (or a specified recipient)")
     .option(
       "--recipient <address>",
-      "Recipient EVM address, SS58 address, or .dot label (defaults to caller)",
+      "Recipient EVM address, SS58 address, or domain name (defaults to caller)",
     )
     .option("--offset <n>", "Page offset", "0")
     .option(

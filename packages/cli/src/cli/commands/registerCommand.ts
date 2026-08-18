@@ -43,12 +43,12 @@ export function attachRegisterCommand(root: Command) {
   const domainCommand = registerCommand
     .command("domain")
     .description("Register a new base domain")
-    .option("-n, --name <label>", "Domain label to register (without .dot)")
+    .option("-n, --name <label>", "Domain label to register (bare label, without the TLD)")
     .option("-r, --reverse", "Enable reverse record registration", false)
     .option("-g, --governance", "Use governance registration path", false)
     .option(
       "-o, --owner <address>",
-      "Register on behalf of another address (EVM, SS58, or .dot label). Caller pays price + transferFloor friction; owner receives the NFT. Mutually exclusive with --transfer, --reverse, --governance.",
+      "Register on behalf of another address (an EVM address, SS58 address, or domain name). Caller pays price + transferFloor friction; owner receives the NFT. Mutually exclusive with --transfer, --reverse, --governance.",
     )
     .option("--transfer", "Transfer domain after registration", false)
     .option("--to <destination>", "Transfer destination (EVM address, SS58, or domain label)")
@@ -91,7 +91,7 @@ export function attachRegisterCommand(root: Command) {
     .command("subname")
     .description("Register a subname under an existing domain")
     .requiredOption("-n, --name <label>", "Subname label to register")
-    .requiredOption("-p, --parent <label>", "Parent domain label (without .dot)")
+    .requiredOption("-p, --parent <label>", "Parent domain label (bare label, without the TLD)")
     .option("-o, --owner <address>", "Owner address (EVM or Substrate, or label)")
     .option("--json", "Output result as JSON (suppresses all other output)", false)
     .action(async (options: any, cmd: any) => {

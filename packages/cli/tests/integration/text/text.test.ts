@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
+import { beforeAll, afterAll, afterEach, expect, test } from "bun:test";
 import {
   createDefaultAccountKeystore,
   HARNESS_SUCCESS_EXIT_CODE,
@@ -9,6 +9,7 @@ import {
   TEST_PASSWORD,
   TEST_TIMEOUT_MS,
   type CliRunResult,
+  resolveExpectedTld,
 } from "../../_helpers/cliHelpers";
 import {
   cleanupTestFileTemporaryDirectory,
@@ -29,8 +30,10 @@ const TEST_VALUE = "test-text-value";
 // Self-provisioned in beforeAll: a fresh domain owned by Alice (//Alice), so
 // the suite never depends on a pre-existing on-chain registration.
 let REGISTERED_DOMAIN: string;
+let expectedTld: string;
 
 beforeAll(async () => {
+  expectedTld = await resolveExpectedTld();
   REGISTERED_DOMAIN = await registerFreshDomain(ALICE_KEY_URI);
 }, REGISTRATION_TIMEOUT_MS);
 
@@ -99,7 +102,7 @@ function expectSuccessfulView(result: CliRunResult) {
 
 function expectTextSetHeader(result: CliRunResult, domain: string) {
   expect(result.combinedOutput).toContain("▶ Text Set");
-  expect(result.combinedOutput).toContain(domain + ".dot");
+  expect(result.combinedOutput).toContain(`${domain}.${expectedTld}`);
 }
 
 test(
@@ -108,7 +111,7 @@ test(
     const result = await runTextView(REGISTERED_DOMAIN, TEST_KEY);
 
     expectSuccessfulView(result);
-    expect(result.combinedOutput).toContain(REGISTERED_DOMAIN + ".dot");
+    expect(result.combinedOutput).toContain(`${REGISTERED_DOMAIN}.${expectedTld}`);
     expect(result.combinedOutput).toContain("registry:");
     expect(result.combinedOutput).toContain("exists:");
     expect(result.combinedOutput).toContain("owner:");
@@ -268,7 +271,7 @@ test(
 
     const parsed = JSON.parse(result.combinedOutput.trim());
 
-    expect(parsed.domain).toBe(`${REGISTERED_DOMAIN}.dot`);
+    expect(parsed.domain).toBe(`${REGISTERED_DOMAIN}.${expectedTld}`);
     expect(parsed.key).toBe(TEST_KEY);
     expect(parsed.exists).toBe(true);
     expect(parsed).toHaveProperty("owner");
@@ -286,7 +289,7 @@ test(
 
     const parsed = JSON.parse(result.combinedOutput.trim());
 
-    expect(parsed.domain).toBe(`${UNREGISTERED_DOMAIN}.dot`);
+    expect(parsed.domain).toBe(`${UNREGISTERED_DOMAIN}.${expectedTld}`);
     expect(parsed.key).toBe(TEST_KEY);
     expect(parsed.exists).toBe(false);
     expect(parsed.owner).toBeNull();
@@ -317,7 +320,7 @@ test(
     const parsed = JSON.parse(result.combinedOutput.trim());
 
     expect(parsed.ok).toBe(true);
-    expect(parsed.domain).toBe(`${REGISTERED_DOMAIN}.dot`);
+    expect(parsed.domain).toBe(`${REGISTERED_DOMAIN}.${expectedTld}`);
     expect(parsed.key).toBe(TEST_KEY);
     expect(parsed.value).toBe(TEST_VALUE);
     expect(parsed.txHash).toBeString();

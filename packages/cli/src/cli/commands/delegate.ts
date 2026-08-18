@@ -39,7 +39,9 @@ export function attachDelegateCommands(root: Command) {
 
   const setCommand = delegateCommand
     .command("set <name> <delegate>")
-    .description("Delegate full control of a name; delegate may be an EVM, SS58, or .dot label")
+    .description(
+      "Delegate full control of a name; delegate may be an EVM address, SS58 address, or domain name",
+    )
     .option("--json", "Output result as JSON (suppresses all other output)", false);
   addAuthOptions(setCommand).action(
     async (name: string, delegate: string, options: DelegateCommonOptions, command: Command) => {
@@ -144,7 +146,7 @@ export function attachDelegateCommands(root: Command) {
   const recordsCommand = delegateCommand
     .command("records <operator>")
     .description(
-      "Let another account edit records on all your names; operator may be EVM, SS58, or .dot",
+      "Let another account edit records on all your names; operator may be an EVM address, SS58 address, or domain name",
     )
     .option("--revoke", "Revoke record-editing access instead of granting it", false)
     .option("--json", "Output result as JSON (suppresses all other output)", false);

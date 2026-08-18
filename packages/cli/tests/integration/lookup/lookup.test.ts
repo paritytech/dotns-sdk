@@ -1,13 +1,19 @@
-import { expect, test } from "bun:test";
+import { beforeAll, expect, test } from "bun:test";
 import {
   HARNESS_SUCCESS_EXIT_CODE,
   ALICE_KEY_URI,
   runDotnsCli,
   TEST_TIMEOUT_MS,
   type CliRunResult,
+  resolveExpectedTld,
 } from "../../_helpers/cliHelpers";
 import { ProofOfPersonhoodStatus } from "../../../src/types/types";
 import { generateRandomLabel } from "../../../src/cli/labels";
+
+let expectedTld: string;
+beforeAll(async () => {
+  expectedTld = await resolveExpectedTld();
+});
 
 const REGISTERED_DOMAIN = "dotnscli";
 const REGISTERED_DOMAIN_WITH_POP = "sphaman12";
@@ -18,7 +24,7 @@ function expectSuccessfulLookup(result: CliRunResult, label: string) {
   expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
   expect(result.combinedOutput).not.toContain("✗ Error:");
   expect(result.combinedOutput).not.toContain("EISDIR:");
-  expect(result.combinedOutput).toContain(label + ".dot");
+  expect(result.combinedOutput).toContain(`${label}.${expectedTld}`);
 }
 
 function expectSuccessfulOwnerLookup(result: CliRunResult, label: string) {
@@ -26,7 +32,7 @@ function expectSuccessfulOwnerLookup(result: CliRunResult, label: string) {
   expect(result.combinedOutput).not.toContain("✗ Error:");
   expect(result.combinedOutput).not.toContain("EISDIR:");
   expect(result.combinedOutput).toContain("Ownership lookup");
-  expect(result.combinedOutput).toContain(label + ".dot");
+  expect(result.combinedOutput).toContain(`${label}.${expectedTld}`);
   expect(result.combinedOutput).toContain("Registered:");
   expect(result.combinedOutput).toContain("Owner (EVM):");
 }
@@ -85,7 +91,7 @@ test(
 
     const parsed = JSON.parse(result.combinedOutput.trim());
 
-    expect(parsed.domain).toBe(`${REGISTERED_DOMAIN}.dot`);
+    expect(parsed.domain).toBe(`${REGISTERED_DOMAIN}.${expectedTld}`);
     expect(parsed.node).toBeString();
     expect(parsed.exists).toBeBoolean();
     expect(parsed.owner).toBeString();
@@ -145,7 +151,7 @@ test(
     const parsed = JSON.parse(result.combinedOutput.trim());
 
     expect(parsed.label).toBe(REGISTERED_DOMAIN);
-    expect(parsed.domain).toBe(`${REGISTERED_DOMAIN}.dot`);
+    expect(parsed.domain).toBe(`${REGISTERED_DOMAIN}.${expectedTld}`);
     expect(parsed.registered).toBeBoolean();
     expect(parsed.ownerEvm).toBeString();
     expect(parsed.ownerSubstrate).toBeString();
@@ -181,7 +187,7 @@ test(
     expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
     expect(result.combinedOutput).not.toContain("✗ Error:");
     expect(result.combinedOutput).toContain("Transfer");
-    expect(result.combinedOutput).toContain(label + ".dot");
+    expect(result.combinedOutput).toContain(`${label}.${expectedTld}`);
   },
   { timeout: TEST_TIMEOUT_MS },
 );
@@ -205,7 +211,7 @@ test(
     expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
     expect(result.combinedOutput).not.toContain("✗ Error:");
     expect(result.combinedOutput).toContain("Transfer");
-    expect(result.combinedOutput).toContain(label + ".dot");
+    expect(result.combinedOutput).toContain(`${label}.${expectedTld}`);
   },
   { timeout: TEST_TIMEOUT_MS },
 );
@@ -234,7 +240,7 @@ test(
     const parsed = JSON.parse(result.combinedOutput.trim());
 
     expect(parsed.label).toBe(label);
-    expect(parsed.domain).toBe(`${label}.dot`);
+    expect(parsed.domain).toBe(`${label}.${expectedTld}`);
     expect(parsed.destination).toBe(BOB_SS58);
     expect(parsed.recipient).toBeString();
     expect(parsed.transferred).toBe(true);

@@ -1,4 +1,4 @@
-import { afterAll, afterEach, expect, test } from "bun:test";
+import { beforeAll, afterAll, afterEach, expect, test } from "bun:test";
 import { ProofOfPersonhoodStatus } from "../../../src/types/types";
 import { generateRandomLabel } from "../../../src/cli/labels";
 import {
@@ -9,12 +9,18 @@ import {
   TEST_OWNER_EVM_ADDRESS,
   runDotnsCli,
   type CliRunResult,
+  resolveExpectedTld,
 } from "../../_helpers/cliHelpers";
 import {
   cleanupTestFileTemporaryDirectory,
   cleanupTestTemporaryDirectory,
   createKeystorePathsForTest,
 } from "../../_helpers/testPaths";
+
+let expectedTld: string;
+beforeAll(async () => {
+  expectedTld = await resolveExpectedTld();
+});
 
 const createdTestTemporaryDirectoryPaths: string[] = [];
 let testFileTemporaryRootDirectoryPath: string | undefined;
@@ -70,7 +76,7 @@ function expectSuccessfulRegistration(result: CliRunResult, label: string) {
   expect(result.combinedOutput).not.toContain("✗ Error:");
   expect(result.combinedOutput).not.toContain("EISDIR:");
   expect(result.combinedOutput).toContain("✓ Operation Complete");
-  expect(result.combinedOutput).toContain(`${label}.dot`);
+  expect(result.combinedOutput).toContain(`${label}.${expectedTld}`);
 }
 
 function expectNoPopStatusMutationAttempt(result: CliRunResult) {
@@ -178,7 +184,7 @@ test(
 
     expect(parsed.ok).toBe(true);
     expect(parsed.label).toBe(label);
-    expect(parsed.domain).toBe(`${label}.dot`);
+    expect(parsed.domain).toBe(`${label}.${expectedTld}`);
     expect(parsed.owner).toBeString();
   },
   { timeout: REGISTER_TEST_TIMEOUT_MS },

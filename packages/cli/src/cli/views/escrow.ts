@@ -22,7 +22,7 @@ export function formatPositionsTable(
   if (positions.length === 0) return [];
 
   const rows = positions.map((position) => ({
-    name: `${position.domain}.dot`,
+    name: position.domain,
     deposit: `${formatWeiAsEther(position.amount)} PAS`,
     status: formatPositionStatus(position, nowSeconds),
   }));

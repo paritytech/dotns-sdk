@@ -15,6 +15,7 @@ import {
   handleCommandError,
 } from "./jsonHelpers";
 import { isSecondLevelDotName } from "../../utils/validation";
+import { resolveTldInfo } from "../../core/naming";
 import {
   claimUserStore,
   getStoreInfo,
@@ -141,8 +142,8 @@ export function attachStoreCommands(root: Command): void {
 
   const namesCommand = storeCommand
     .command("names")
-    .description("List .dot names in your LabelStore (second-level names only by default)")
-    .option("--all", "Include subdomains (default: only second-level .dot names)", false)
+    .description("List names in your LabelStore (second-level names only by default)")
+    .option("--all", "Include subdomains (default: only second-level names)", false)
     .option("--json", "Output result as JSON (suppresses all other output)", false);
   addAuthOptions(namesCommand).action(
     async (options: StoreCommonOptions & { all?: boolean }, command: Command) => {
@@ -160,7 +161,10 @@ export function attachStoreCommands(root: Command): void {
         const allNames = await maybeQuiet(jsonOutput, () =>
           listStoreNames(ctx, context.evmAddress as Address),
         );
-        const names = options.all ? allNames : allNames.filter(isSecondLevelDotName);
+        const { tld } = await resolveTldInfo(ctx);
+        const names = options.all
+          ? allNames
+          : allNames.filter((name) => isSecondLevelDotName(name, tld));
 
         if (!emitJsonResult(jsonOutput, { names })) {
           if (names.length === 0) {
