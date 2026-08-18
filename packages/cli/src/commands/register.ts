@@ -44,7 +44,8 @@ import {
   normaliseLabel,
   stripTrailingDigits,
 } from "../utils/validation";
-import { computeDomainTokenId, ContractRevertError } from "../utils/contractInteractions";
+import { ContractRevertError } from "../utils/contractInteractions";
+import { computeDomainTokenId, formatDomainName } from "../core/naming";
 import { convertWeiToNative } from "../utils/formatting";
 import { isSameEvmAddress } from "../utils/address";
 
@@ -157,8 +158,19 @@ export async function tryClassifyDomainName(
 
 export async function ensureDomainNotRegistered(ctx: DotnsContext, name: string): Promise<void> {
   const label = normaliseLabel(name);
-  const owner = await readDomainOwner(ctx, label);
-  if (owner !== zeroAddress) throw new DomainUnavailableError(`${label}.dot`);
+  // Ask the controller directly: `available(label)` is the exact predicate the
+  // on-chain `register()` enforces. Reading `ownerOf` instead would wrongly pass a
+  // name that is unavailable yet not currently minted (for example one in its
+  // post-expiry grace period), because `ownerOf` reverts and that revert is
+  // swallowed as "no owner", so the pre-check would disagree with the reveal.
+  const available = await read<boolean>(
+    ctx,
+    ctx.contracts.DOTNS_REGISTRAR_CONTROLLER,
+    DOTNS_REGISTRAR_CONTROLLER_ABI,
+    "available",
+    [label],
+  );
+  if (!available) throw new DomainUnavailableError(await formatDomainName(ctx, label));
 }
 
 export type GenerateCommitmentOptions = {
@@ -316,7 +328,7 @@ export async function waitForMinimumCommitmentAge(
 
 export async function readDomainOwner(ctx: DotnsContext, name: string): Promise<Address> {
   const label = normaliseLabel(name);
-  const tokenId = computeDomainTokenId(label);
+  const tokenId = await computeDomainTokenId(ctx, label);
   try {
     return await read<Address>(ctx, ctx.contracts.DOTNS_REGISTRAR, DOTNS_REGISTRAR_ABI, "ownerOf", [
       tokenId,
@@ -555,7 +567,7 @@ export async function verifyDomainOwnership(
   expectedOwner: Address,
 ): Promise<Address> {
   const label = normaliseLabel(name);
-  const tokenId = computeDomainTokenId(label);
+  const tokenId = await computeDomainTokenId(ctx, label);
   const actualOwner = await read<Address>(
     ctx,
     ctx.contracts.DOTNS_REGISTRAR,

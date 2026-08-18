@@ -1,7 +1,7 @@
 {
   "name": "@parity/dotns-cli",
   "module": "index.ts",
-  "version": "0.6.9",
+  "version": "0.8.3",
   "type": "module",
   "private": true,
   "license": "MIT",

@@ -12,7 +12,6 @@ import {
 import type { PolkadotSigner } from "polkadot-api";
 import type { ReviveClientWrapper } from "../client/polkadotClient";
 import type { TransactionStatus } from "../types/types";
-import { DOT_NODE } from "./constants";
 import { withTimeout } from "./formatting";
 
 export const UNMAPPED_ORIGIN_REVERT_HINT =
@@ -174,8 +173,17 @@ export async function submitContractTransaction(
   }
 }
 
-export function computeDomainTokenId(label: string): bigint {
+// Pure namehash of `label` rooted at `tldNode`, mirroring the on-chain
+// `LabelUtils.namehashUnder(tldNode, labelhash)`. The TLD node is a runtime value
+// (`DotnsProtocolRegistry.tldNode()`), not a constant: distinct deployments use
+// distinct TLDs (for example `dot` on mainnet, `paseo` on the Paseo testnet), so
+// the caller must supply the node read from chain rather than assuming `.dot`.
+export function deriveDomainNode(tldNode: Hex, label: string): Hex {
   const labelhash = keccak256(toBytes(label));
-  const node = keccak256(concatHex([DOT_NODE, labelhash]));
-  return BigInt(node);
+  return keccak256(concatHex([tldNode, labelhash]));
+}
+
+// The minted ERC721 tokenId is `uint256(node)` (see DotnsRegistrarController).
+export function deriveDomainTokenId(tldNode: Hex, label: string): bigint {
+  return BigInt(deriveDomainNode(tldNode, label));
 }

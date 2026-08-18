@@ -10,7 +10,7 @@ import {
   DOTNS_POP_RESOLVER_ABI,
 } from "../utils/constants";
 import { stripTrailingDigits } from "../utils/validation";
-import { computeDomainTokenId } from "../utils/contractInteractions";
+import { computeDomainTokenId } from "../core/naming";
 import { formatNativeBalance, formatErrorMessage } from "../utils/formatting";
 import type { DomainLookupResult, BaseNameReservation, DomainOwnership } from "../types/types";
 
@@ -179,7 +179,7 @@ export async function performOwnerOfLookup(
   }
 
   const label = name.trim();
-  const tokenId = computeDomainTokenId(label);
+  const tokenId = await computeDomainTokenId(ctx, label);
 
   let actualOwner: Address;
   let isRegistered: boolean;

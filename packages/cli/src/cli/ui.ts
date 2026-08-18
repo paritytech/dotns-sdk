@@ -6,8 +6,12 @@ import { getActiveDotnsEnvironment } from "../utils/constants";
 // One contextual line per command, replacing the old decorative banner: identity
 // (version), the operation, an optional target, and the active network. Greppable
 // in CI logs and written to stderr via the reporter, so --json stdout stays clean.
+export function versionLabel(): string {
+  return `using dotns cli v${version}`;
+}
+
 export function printCommandHeader(action: string, target?: string): void {
-  const segments = [`dotns ${version}`, action];
+  const segments = [versionLabel(), action];
   if (target) segments.push(target);
   segments.push(`(${getActiveDotnsEnvironment().id})`);
   printHumanLine(segments.join("  "));

@@ -3,7 +3,7 @@ import { type DotnsContext, read, write, ownEvmAddress } from "../core/context";
 import { DOTNS_REGISTRAR_ABI } from "../utils/constants";
 import { validateDomainLabel, normaliseLabel, isValidSubstrateAddress } from "../utils/validation";
 import { formatErrorMessage, convertWeiToNativeCeil } from "../utils/formatting";
-import { computeDomainTokenId } from "../utils/contractInteractions";
+import { computeDomainTokenId } from "../core/naming";
 
 function toChecksummed(a: Address): Address {
   return checksumAddress(a) as Address;
@@ -14,7 +14,7 @@ function isLabelLike(input: string): boolean {
 }
 
 async function ownerOfLabel(ctx: DotnsContext, label: string): Promise<Address> {
-  const tokenId = computeDomainTokenId(label);
+  const tokenId = await computeDomainTokenId(ctx, label);
   return read<Address>(ctx, ctx.contracts.DOTNS_REGISTRAR, DOTNS_REGISTRAR_ABI, "ownerOf", [
     tokenId,
   ]);
@@ -98,7 +98,7 @@ export async function transferName(
   const label = normaliseLabel(name);
   validateDomainLabel(label);
 
-  const tokenId = computeDomainTokenId(label);
+  const tokenId = await computeDomainTokenId(ctx, label);
   const from = await ownEvmAddress(ctx);
   const fromC = toChecksummed(from);
   const toC = toChecksummed(recipient);
