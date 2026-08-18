@@ -214,6 +214,8 @@ const { computeDomainTokenId, resolveTldInfo, formatDomainName, clearTldInfoCach
 const { ensureDomainNotRegistered } = await import("../../../src/commands/register");
 
 const namingCtx = {
+  // Any object works as the WeakMap cache key that scopes the TLD to this client.
+  clientWrapper: {},
   contracts: {
     DOTNS_REGISTRAR_CONTROLLER: "0x00000000000000000000000000000000000000aa",
     DOTNS_REGISTRAR: "0x00000000000000000000000000000000000000bb",
@@ -236,6 +238,18 @@ describe("TLD ingested from chain", () => {
     await resolveTldInfo(namingCtx);
     await resolveTldInfo(namingCtx);
     expect(reads.filter((functionName) => functionName === "tldNode")).toHaveLength(1);
+  });
+
+  test("does not share the cache between clients that share a controller address", async () => {
+    // paseo-v2 and previewnet share a controller address but are distinct chains,
+    // so a second client with the same controller must resolve its own TLD.
+    const otherClientCtx = {
+      clientWrapper: {},
+      contracts: namingCtx.contracts,
+    } as unknown as realContext.DotnsContext;
+    await resolveTldInfo(namingCtx);
+    await resolveTldInfo(otherClientCtx);
+    expect(reads.filter((functionName) => functionName === "tldNode")).toHaveLength(2);
   });
 
   test("computeDomainTokenId derives the id under the chain TLD", async () => {

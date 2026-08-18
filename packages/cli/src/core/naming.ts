@@ -1,4 +1,5 @@
 import type { Abi, Address, Hex } from "viem";
+import type { ReviveClientWrapper } from "../client/polkadotClient";
 import { type DotnsContext, read } from "./context";
 import { DOTNS_REGISTRAR_CONTROLLER_ABI } from "../utils/constants";
 import { deriveDomainNode, deriveDomainTokenId } from "../utils/contractInteractions";
@@ -27,10 +28,12 @@ const PROTOCOL_REGISTRY_ABI = [
 export type TldInfo = Readonly<{ tldNode: Hex; tld: string }>;
 
 // The TLD is immutable per deployment, so it is safe to resolve once and reuse.
-// Keyed by the controller address (the per-environment entry point), which lets a
-// single process serve multiple environments without cross-talk. The promise is
-// cached so concurrent callers share one in-flight read.
-const tldInfoCache = new Map<Address, Promise<TldInfo>>();
+// Keyed first by the chain client, then by the controller address: paseo-v2 and
+// previewnet share a controller address in the CREATE3 address book but are
+// distinct chains with their own TLD, so the client must be part of the key to
+// keep them apart within one process. The promise is cached so concurrent callers
+// share one in-flight read.
+let tldInfoCache = new WeakMap<ReviveClientWrapper, Map<Address, Promise<TldInfo>>>();
 
 async function fetchTldInfo(ctx: DotnsContext): Promise<TldInfo> {
   const controller = ctx.contracts.DOTNS_REGISTRAR_CONTROLLER;
@@ -54,22 +57,27 @@ async function fetchTldInfo(ctx: DotnsContext): Promise<TldInfo> {
 // Resolves the active TLD from chain, deriving it from the deployment the context
 // points at rather than assuming `.dot`. Cached for the lifetime of the process.
 export function resolveTldInfo(ctx: DotnsContext): Promise<TldInfo> {
+  let byController = tldInfoCache.get(ctx.clientWrapper);
+  if (!byController) {
+    byController = new Map();
+    tldInfoCache.set(ctx.clientWrapper, byController);
+  }
   const key = ctx.contracts.DOTNS_REGISTRAR_CONTROLLER;
-  let pending = tldInfoCache.get(key);
+  let pending = byController.get(key);
   if (!pending) {
     pending = fetchTldInfo(ctx).catch((error) => {
       // Do not cache failures: a transient read error must not poison later calls.
-      tldInfoCache.delete(key);
+      byController.delete(key);
       throw error;
     });
-    tldInfoCache.set(key, pending);
+    byController.set(key, pending);
   }
   return pending;
 }
 
 // Clears the cached TLD. Intended for tests that exercise multiple deployments.
 export function clearTldInfoCache(): void {
-  tldInfoCache.clear();
+  tldInfoCache = new WeakMap();
 }
 
 // The namehash of `label` under the active TLD (the on-chain `node`).
