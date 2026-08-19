@@ -35,7 +35,14 @@ export type TldInfo = Readonly<{ tldNode: Hex; tld: string }>;
 // share one in-flight read.
 let tldInfoCache = new WeakMap<ReviveClientWrapper, Map<Address, Promise<TldInfo>>>();
 
-async function fetchTldInfo(ctx: DotnsContext): Promise<TldInfo> {
+const TLD_FETCH_ATTEMPTS = 3;
+const TLD_RETRY_BASE_DELAY_MS = 300;
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function readTldInfo(ctx: DotnsContext): Promise<TldInfo> {
   const controller = ctx.contracts.DOTNS_REGISTRAR_CONTROLLER;
   const protocolRegistry = await read<Address>(
     ctx,
@@ -52,6 +59,23 @@ async function fetchTldInfo(ctx: DotnsContext): Promise<TldInfo> {
   // callers here work with the bare label, matching normaliseLabel's `tld` argument.
   const tld = rawTld.startsWith(".") ? rawTld.slice(1) : rawTld;
   return Object.freeze({ tldNode, tld });
+}
+
+// The TLD read runs once at the start of a command, so a transient RPC blip
+// should not fail the whole command. Retry a few times with a short linear
+// backoff before giving up. resolveTldInfo still evicts a failed entry, so a
+// later call can try again from scratch.
+async function fetchTldInfo(ctx: DotnsContext): Promise<TldInfo> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= TLD_FETCH_ATTEMPTS; attempt += 1) {
+    try {
+      return await readTldInfo(ctx);
+    } catch (error) {
+      lastError = error;
+      if (attempt < TLD_FETCH_ATTEMPTS) await delay(TLD_RETRY_BASE_DELAY_MS * attempt);
+    }
+  }
+  throw lastError;
 }
 
 // Resolves the active TLD from chain, deriving it from the deployment the context

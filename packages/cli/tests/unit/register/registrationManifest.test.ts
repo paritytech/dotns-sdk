@@ -195,9 +195,14 @@ const PASEO_NODE = keccak256(
 );
 
 let availableResult = true;
+let transientFailures = 0;
 const reads: string[] = [];
 
 function fakeRead(_ctx: unknown, _address: string, _abi: unknown, functionName: string): unknown {
+  if (transientFailures > 0) {
+    transientFailures -= 1;
+    throw new Error("transient RPC failure");
+  }
   reads.push(functionName);
   if (functionName === "available") return availableResult;
   if (functionName === "protocolRegistry") return "0x00000000000000000000000000000000000000ff";
@@ -225,6 +230,7 @@ const namingCtx = {
 describe("TLD ingested from chain", () => {
   beforeEach(() => {
     reads.length = 0;
+    transientFailures = 0;
     clearTldInfoCache();
   });
   afterEach(() => clearTldInfoCache());
@@ -232,6 +238,11 @@ describe("TLD ingested from chain", () => {
   test("resolveTldInfo reads the deployment TLD rather than assuming .dot", async () => {
     expect(await resolveTldInfo(namingCtx)).toEqual({ tldNode: PASEO_NODE, tld: "paseo" });
     expect(reads).toEqual(["protocolRegistry", "tldNode", "tld"]);
+  });
+
+  test("retries a transient read failure before resolving", async () => {
+    transientFailures = 1;
+    expect(await resolveTldInfo(namingCtx)).toEqual({ tldNode: PASEO_NODE, tld: "paseo" });
   });
 
   test("the immutable TLD is cached across calls", async () => {

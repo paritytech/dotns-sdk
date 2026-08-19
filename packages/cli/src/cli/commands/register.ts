@@ -809,6 +809,7 @@ type ClearSummary = {
 };
 
 async function promptPendingAction(
+  ctx: DotnsContext,
   pending: CommitmentRecord[],
 ): Promise<"register" | "discard" | "cancel"> {
   const readline = await import("node:readline/promises");
@@ -818,7 +819,7 @@ async function promptPendingAction(
   for (const record of pending) {
     console.log(
       chalk.gray("  • ") +
-        chalk.cyan(record.label) +
+        chalk.cyan(await formatDomainName(ctx, record.label)) +
         chalk.gray(`  committed ${record.committedAtIso}`),
     );
   }
@@ -857,8 +858,9 @@ export async function executeClear(
 
   const pending: CommitmentRecord[] = [];
   for (const record of records) {
-    const registered = await step(`Checking ${record.label}`, async () =>
-      isRegisteredTo(session.ctx, record.label, record.owner),
+    const registered = await step(
+      `Checking ${await formatDomainName(session.ctx, record.label)}`,
+      async () => isRegisteredTo(session.ctx, record.label, record.owner),
     );
     if (registered) {
       deleteCommitmentRecord(env, caller, record.label);
@@ -882,7 +884,7 @@ export async function executeClear(
   } else if (options.register) {
     action = "register";
   } else if (process.stdin.isTTY) {
-    action = await promptPendingAction(pending);
+    action = await promptPendingAction(session.ctx, pending);
   } else {
     throw new Error(
       `${pending.length} pending commitment(s) found. Pass --discard to delete them or --register to complete them.`,
@@ -955,9 +957,10 @@ export async function executeList(
       for (const row of rows) {
         const statusLabel =
           row.status === "registered" ? chalk.green("registered") : chalk.yellow("pending");
+        const domain = await formatDomainName(ctx, row.label);
         console.log(
           chalk.gray("  • ") +
-            chalk.cyan(row.label.padEnd(24)) +
+            chalk.cyan(domain.padEnd(24)) +
             statusLabel +
             chalk.gray(`  ${row.committedAtIso}  ${row.env}`),
         );
