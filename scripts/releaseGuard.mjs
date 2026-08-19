@@ -1,6 +1,7 @@
-// Enforces one-package-per-release. A pull request, and a release tag, may touch
-// the CLI or the UI, never both, and the changed package's version must lead its
-// latest release tag. CLI releases use `v*` tags; UI releases use `ui-v*`.
+// One-package-per-change guard. A pull request may change the CLI or the UI, not
+// both, and the changed package's version must lead its latest release tag. A
+// release tag's version must match that package's package.json. CLI releases use
+// `v*` tags; UI releases use `ui-v*`.
 //
 // Two entry points share one set of primitives (no duplicated git or semver
 // logic between the PR check and the release check):
@@ -144,9 +145,11 @@ function checkPullRequest(flags) {
   );
 }
 
-// Release gate: the tag names one package, its version must equal that package's
-// package.json, and nothing in the range since that package's previous tag may
-// touch the other package.
+// Release gate: the tag names one package, and its version must equal that
+// package's package.json. The one-package-per-change rule is enforced at PR time
+// (checkPullRequest); a release range on main naturally spans both packages'
+// history, so it is not a signal here, and a `v*` release only ever builds and
+// publishes the CLI regardless.
 function checkRelease(flags) {
   if (!flags.tag) fail("release mode requires --tag <tag>.");
   const pkg = packageForTag(flags.tag);
@@ -158,25 +161,8 @@ function checkRelease(flags) {
       `Tag ${flags.tag} declares ${pkg.id} ${tagVersion}, but ${pkg.dir}/package.json is ${version}.`,
     );
   }
-
-  const previous = releasedVersions(pkg).find(
-    (candidate) => compareVersions(candidate, tagVersion) < 0,
-  );
-  if (previous) {
-    const previousTag = `${pkg.tagPrefix}${previous}`;
-    const touched = packagesTouched(
-      changedFiles([`${previousTag}..${flags.tag}`]),
-    );
-    const other = PACKAGES.find((candidate) => candidate.id !== pkg.id);
-    if (touched.has(other.id)) {
-      fail(
-        `Release ${flags.tag} includes ${other.id} changes since ${previousTag}. A ${pkg.id} ` +
-          `release must not ship ${other.id} changes; release them under a ${other.tagPrefix}* tag.`,
-      );
-    }
-  }
   console.log(
-    `OK: ${pkg.id} release ${flags.tag} matches package.json and touches no other package.`,
+    `OK: ${pkg.id} release ${flags.tag} matches ${pkg.dir}/package.json ${version}.`,
   );
 }
 
