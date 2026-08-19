@@ -1,4 +1,5 @@
 import { connectDotns } from "./00_shared";
+import { formatDomainName } from "../core/naming";
 import { validateDomainLabel } from "../utils/validation";
 
 import {
@@ -35,7 +36,7 @@ async function main() {
   await verifyDomainOwnership(ctx, label, evmAddress);
   await ensureLabelStoreReady(ctx, evmAddress);
 
-  console.log("Registered:", `${label}.dot`);
+  console.log("Registered:", await formatDomainName(ctx, label));
   console.log("Owner:     ", evmAddress);
 }
 

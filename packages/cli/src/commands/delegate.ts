@@ -1,8 +1,8 @@
 import { zeroAddress, type Address } from "viem";
 import { type DotnsContext, read, write, ownEvmAddress } from "../core/context";
 import { DOTNS_REGISTRAR_ABI, DOTNS_CONTENT_RESOLVER_ABI } from "../utils/constants";
-import { computeDomainTokenId } from "../utils/contractInteractions";
-import { validateDomainLabel, normaliseLabel } from "../utils/validation";
+import { computeDomainTokenId, formatDomainName, normaliseName } from "../core/naming";
+import { validateDomainLabel } from "../utils/validation";
 
 export type DelegateResult = {
   name: string;
@@ -22,9 +22,9 @@ async function approveDelegate(
   delegate: Address,
   action: string,
 ): Promise<DelegateResult> {
-  const label = normaliseLabel(name);
+  const label = await normaliseName(ctx, name);
   validateDomainLabel(label);
-  const tokenId = computeDomainTokenId(label);
+  const tokenId = await computeDomainTokenId(ctx, label);
   const txHash = await write(
     ctx,
     ctx.contracts.DOTNS_REGISTRAR,
@@ -34,7 +34,7 @@ async function approveDelegate(
     [delegate, tokenId],
     action,
   );
-  return { name: `${label}.dot`, delegate, txHash };
+  return { name: await formatDomainName(ctx, label), delegate, txHash };
 }
 
 export async function setNameDelegate(
@@ -50,9 +50,9 @@ export async function revokeNameDelegate(ctx: DotnsContext, name: string): Promi
 }
 
 export async function getNameDelegate(ctx: DotnsContext, name: string): Promise<Address | null> {
-  const label = normaliseLabel(name);
+  const label = await normaliseName(ctx, name);
   validateDomainLabel(label);
-  const tokenId = computeDomainTokenId(label);
+  const tokenId = await computeDomainTokenId(ctx, label);
   const delegate = await read<Address>(
     ctx,
     ctx.contracts.DOTNS_REGISTRAR,

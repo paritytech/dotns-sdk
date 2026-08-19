@@ -1,7 +1,10 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, mock, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { concatHex, keccak256, stringToBytes, type Hex } from "viem";
+import * as realContext from "../../../src/core/context";
+import { deriveDomainTokenId } from "../../../src/utils/contractInteractions";
 import {
   saveCommitmentRecord,
   loadCommitmentRecords,
@@ -184,5 +187,109 @@ describe("resolveManifestCredential", () => {
       if (savedKeyUri === undefined) delete process.env[CLI_ENV.KEY_URI];
       else process.env[CLI_ENV.KEY_URI] = savedKeyUri;
     }
+  });
+});
+
+const PASEO_NODE = keccak256(
+  concatHex([("0x" + "00".repeat(32)) as Hex, keccak256(stringToBytes("paseo"))]),
+);
+
+let availableResult = true;
+let transientFailures = 0;
+const reads: string[] = [];
+
+function fakeRead(_ctx: unknown, _address: string, _abi: unknown, functionName: string): unknown {
+  if (transientFailures > 0) {
+    transientFailures -= 1;
+    throw new Error("transient RPC failure");
+  }
+  reads.push(functionName);
+  if (functionName === "available") return availableResult;
+  if (functionName === "protocolRegistry") return "0x00000000000000000000000000000000000000ff";
+  if (functionName === "tldNode") return PASEO_NODE;
+  // The registry returns the suffix with its leading dot; resolveTldInfo strips it.
+  if (functionName === "tld") return ".paseo";
+  throw new Error(`unexpected read: ${functionName}`);
+}
+
+mock.module("../../../src/core/context", () => ({ ...realContext, read: fakeRead }));
+
+const { computeDomainTokenId, resolveTldInfo, formatDomainName, clearTldInfoCache } =
+  await import("../../../src/core/naming");
+const { ensureDomainNotRegistered } = await import("../../../src/commands/register");
+
+const namingCtx = {
+  // Any object works as the WeakMap cache key that scopes the TLD to this client.
+  clientWrapper: {},
+  contracts: {
+    DOTNS_REGISTRAR_CONTROLLER: "0x00000000000000000000000000000000000000aa",
+    DOTNS_REGISTRAR: "0x00000000000000000000000000000000000000bb",
+  },
+} as unknown as realContext.DotnsContext;
+
+describe("TLD ingested from chain", () => {
+  beforeEach(() => {
+    reads.length = 0;
+    transientFailures = 0;
+    clearTldInfoCache();
+  });
+  afterEach(() => clearTldInfoCache());
+
+  test("resolveTldInfo reads the deployment TLD rather than assuming .dot", async () => {
+    expect(await resolveTldInfo(namingCtx)).toEqual({ tldNode: PASEO_NODE, tld: "paseo" });
+    expect(reads).toEqual(["protocolRegistry", "tldNode", "tld"]);
+  });
+
+  test("retries a transient read failure before resolving", async () => {
+    transientFailures = 1;
+    expect(await resolveTldInfo(namingCtx)).toEqual({ tldNode: PASEO_NODE, tld: "paseo" });
+  });
+
+  test("the immutable TLD is cached across calls", async () => {
+    await resolveTldInfo(namingCtx);
+    await resolveTldInfo(namingCtx);
+    expect(reads.filter((functionName) => functionName === "tldNode")).toHaveLength(1);
+  });
+
+  test("does not share the cache between clients that share a controller address", async () => {
+    // paseo-v2 and previewnet share a controller address but are distinct chains,
+    // so a second client with the same controller must resolve its own TLD.
+    const otherClientCtx = {
+      clientWrapper: {},
+      contracts: namingCtx.contracts,
+    } as unknown as realContext.DotnsContext;
+    await resolveTldInfo(namingCtx);
+    await resolveTldInfo(otherClientCtx);
+    expect(reads.filter((functionName) => functionName === "tldNode")).toHaveLength(2);
+  });
+
+  test("computeDomainTokenId derives the id under the chain TLD", async () => {
+    expect(await computeDomainTokenId(namingCtx, "getsome")).toBe(
+      deriveDomainTokenId(PASEO_NODE, "getsome"),
+    );
+  });
+
+  test("formatDomainName uses the deployment TLD suffix", async () => {
+    expect(await formatDomainName(namingCtx, "alice")).toBe("alice.paseo");
+  });
+});
+
+describe("ensureDomainNotRegistered enforces the controller predicate", () => {
+  beforeEach(() => {
+    reads.length = 0;
+    clearTldInfoCache();
+  });
+  afterEach(() => clearTldInfoCache());
+
+  test("passes when available(label) is true, checking available not ownerOf", async () => {
+    availableResult = true;
+    await expect(ensureDomainNotRegistered(namingCtx, "alice")).resolves.toBeUndefined();
+    expect(reads).toContain("available");
+    expect(reads).not.toContain("ownerOf");
+  });
+
+  test("throws with the real TLD suffix when available(label) is false", async () => {
+    availableResult = false;
+    await expect(ensureDomainNotRegistered(namingCtx, "alice")).rejects.toThrow("alice.paseo");
   });
 });

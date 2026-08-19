@@ -16,6 +16,23 @@ describe("normaliseLabel", () => {
     expect(normaliseLabel("alice")).toBe("alice");
     expect(normaliseLabel("sub.alice.dot")).toBe("sub.alice");
   });
+
+  test("strips the given TLD suffix rather than assuming .dot", () => {
+    expect(normaliseLabel("alice.paseo", "paseo")).toBe("alice");
+    expect(normaliseLabel("alice", "paseo")).toBe("alice");
+    // Under the paseo TLD a trailing .dot is not a TLD and must not be stripped.
+    expect(normaliseLabel("alice.dot", "paseo")).toBe("alice.dot");
+    // A subdomain keeps both segments when the trailing one is not the TLD.
+    expect(normaliseLabel("sub.alice", "paseo")).toBe("sub.alice");
+  });
+});
+
+describe("isSecondLevelDotName", () => {
+  test("distinguishes a second-level name from a subdomain under the given TLD", () => {
+    expect(isSecondLevelDotName("alice.paseo", "paseo")).toBe(true);
+    expect(isSecondLevelDotName("alice", "paseo")).toBe(true);
+    expect(isSecondLevelDotName("sub.alice", "paseo")).toBe(false);
+  });
 });
 
 describe("isCanonicalLabel", () => {

@@ -1,9 +1,9 @@
 import { checksumAddress, isAddress, zeroAddress, type Address, type Hex } from "viem";
 import { type DotnsContext, read, write, ownEvmAddress } from "../core/context";
 import { DOTNS_REGISTRAR_ABI } from "../utils/constants";
-import { validateDomainLabel, normaliseLabel, isValidSubstrateAddress } from "../utils/validation";
+import { validateDomainLabel, isValidSubstrateAddress } from "../utils/validation";
 import { formatErrorMessage, convertWeiToNativeCeil } from "../utils/formatting";
-import { computeDomainTokenId } from "../utils/contractInteractions";
+import { computeDomainTokenId, formatDomainName, normaliseName } from "../core/naming";
 
 function toChecksummed(a: Address): Address {
   return checksumAddress(a) as Address;
@@ -14,7 +14,7 @@ function isLabelLike(input: string): boolean {
 }
 
 async function ownerOfLabel(ctx: DotnsContext, label: string): Promise<Address> {
-  const tokenId = computeDomainTokenId(label);
+  const tokenId = await computeDomainTokenId(ctx, label);
   return read<Address>(ctx, ctx.contracts.DOTNS_REGISTRAR, DOTNS_REGISTRAR_ABI, "ownerOf", [
     tokenId,
   ]);
@@ -35,17 +35,21 @@ export async function resolveTransferRecipient(
     return toChecksummed(await ctx.clientWrapper.getEvmAddress(input));
   }
 
-  const label = normaliseLabel(input);
-  if (isLabelLike(label)) {
-    const ownerAddress = await ownerOfLabel(ctx, label);
-    if (ownerAddress === zeroAddress) {
-      throw new Error(`Domain ${label}.dot has no owner`);
+  // A name is a label plus at most one TLD segment. Reject anything else here so
+  // clearly-invalid input fails without a chain read for the TLD.
+  if (/^[a-z0-9-]+(\.[a-z0-9-]+)?$/.test(input.toLowerCase())) {
+    const label = await normaliseName(ctx, input);
+    if (isLabelLike(label)) {
+      const ownerAddress = await ownerOfLabel(ctx, label);
+      if (ownerAddress === zeroAddress) {
+        throw new Error(`Domain ${await formatDomainName(ctx, label)} has no owner`);
+      }
+      return toChecksummed(ownerAddress);
     }
-    return toChecksummed(ownerAddress);
   }
 
   throw new Error(
-    `Unrecognised recipient "${input}" — expected an EVM address, SS58 address, or .dot label.`,
+    `Unrecognised recipient "${input}" — expected an EVM address, SS58 address, or domain name.`,
   );
 }
 
@@ -85,7 +89,7 @@ export type TransferNameOptions = {
   syncLabel?: boolean;
 };
 
-// Transfers ownership of `label`.dot to `recipient`. The source address is derived
+// Transfers ownership of `label` to `recipient`. The source address is derived
 // internally from the caller's own (round-trip-checked) EVM address: it can never
 // be supplied by the caller, so the ownership check and the transferFrom source
 // always match the signing account.
@@ -95,21 +99,23 @@ export async function transferName(
   recipient: Address,
   opts: TransferNameOptions = {},
 ): Promise<TransferResult> {
-  const label = normaliseLabel(name);
+  const label = await normaliseName(ctx, name);
   validateDomainLabel(label);
 
-  const tokenId = computeDomainTokenId(label);
+  const tokenId = await computeDomainTokenId(ctx, label);
   const from = await ownEvmAddress(ctx);
   const fromC = toChecksummed(from);
   const toC = toChecksummed(recipient);
 
   const currentOwner = await ownerOfLabel(ctx, label);
   if (currentOwner === zeroAddress) {
-    throw new Error(`Cannot transfer: ${label}.dot is not registered`);
+    throw new Error(`Cannot transfer: ${await formatDomainName(ctx, label)} is not registered`);
   }
   const currentOwnerC = toChecksummed(currentOwner);
   if (currentOwnerC !== fromC) {
-    throw new Error(`Cannot transfer: ${label}.dot owned by ${currentOwnerC}`);
+    throw new Error(
+      `Cannot transfer: ${await formatDomainName(ctx, label)} owned by ${currentOwnerC}`,
+    );
   }
 
   if (opts.syncLabel) {
@@ -138,5 +144,5 @@ export async function transferName(
     "Transfer",
   );
 
-  return { name: `${label}.dot`, from: fromC, to: toC, feeWei, txHash };
+  return { name: await formatDomainName(ctx, label), from: fromC, to: toC, feeWei, txHash };
 }

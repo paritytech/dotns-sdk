@@ -1,7 +1,7 @@
 import { namehash, zeroAddress, type Address } from "viem";
 import { type DotnsContext, read, write } from "../core/context";
 import { DOTNS_REGISTRY_ABI, DOTNS_CONTENT_RESOLVER_ABI } from "../utils/constants";
-import { normaliseLabel } from "../utils/validation";
+import { formatDomainName, normaliseName } from "../core/naming";
 import { getResolverNodeInfo, requireResolverAuthorization } from "./resolverAuth";
 
 export type TextViewResult = {
@@ -24,8 +24,8 @@ export async function getTextRecord(
   name: string,
   key: string,
 ): Promise<TextViewResult> {
-  const label = normaliseLabel(name);
-  const domain = `${label}.dot`;
+  const label = await normaliseName(ctx, name);
+  const domain = await formatDomainName(ctx, label);
   const namehashNode = namehash(domain);
 
   const recordExists = await read<boolean>(
@@ -70,8 +70,8 @@ export async function setTextRecord(
   key: string,
   value: string,
 ): Promise<TextSetResult> {
-  const label = normaliseLabel(name);
-  const domain = `${label}.dot`;
+  const label = await normaliseName(ctx, name);
+  const domain = await formatDomainName(ctx, label);
   const namehashNode = namehash(domain);
 
   const { exists, owner, caller } = await getResolverNodeInfo(ctx, namehashNode);

@@ -16,7 +16,7 @@ import {
   assertSignerOptions,
 } from "./env";
 import { createQrSigner } from "./qrSigner";
-import { step } from "./ui";
+import { step, versionLabel } from "./ui";
 import {
   resolveAuthSource,
   createAccountFromSource,
@@ -244,6 +244,7 @@ function logConfiguration(params: {
   authAccount: string;
 }): void {
   console.log(chalk.bold("\n📋 Configuration\n"));
+  console.log(chalk.gray("  CLI:       ") + chalk.white(versionLabel()));
   console.log(chalk.gray("  Env:       ") + chalk.white(params.environmentLabel));
   console.log(chalk.gray("  RPC:       ") + chalk.white(params.rpc));
   console.log(chalk.gray("  Chain:     ") + chalk.white(params.chainLabel));

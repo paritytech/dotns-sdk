@@ -3,7 +3,6 @@ import {
   checksumAddress,
   getAddress,
   isHex,
-  namehash,
   zeroAddress,
   type Address,
   type Hex,
@@ -41,10 +40,10 @@ import {
 import {
   validateDomainLabel,
   validateGovernanceLabel,
-  normaliseLabel,
   stripTrailingDigits,
 } from "../utils/validation";
-import { computeDomainTokenId, ContractRevertError } from "../utils/contractInteractions";
+import { ContractRevertError } from "../utils/contractInteractions";
+import { computeDomainTokenId, domainNode, formatDomainName, normaliseName } from "../core/naming";
 import { convertWeiToNative } from "../utils/formatting";
 import { isSameEvmAddress } from "../utils/address";
 
@@ -109,7 +108,7 @@ export async function classifyDomainName(
   ctx: DotnsContext,
   name: string,
 ): Promise<NameClassification> {
-  const label = normaliseLabel(name);
+  const label = await normaliseName(ctx, name);
   const result = await read<NameClassificationLike>(
     ctx,
     ctx.contracts.DOTNS_RULES,
@@ -156,9 +155,20 @@ export async function tryClassifyDomainName(
 }
 
 export async function ensureDomainNotRegistered(ctx: DotnsContext, name: string): Promise<void> {
-  const label = normaliseLabel(name);
-  const owner = await readDomainOwner(ctx, label);
-  if (owner !== zeroAddress) throw new DomainUnavailableError(`${label}.dot`);
+  const label = await normaliseName(ctx, name);
+  // Ask the controller directly: `available(label)` is the exact predicate the
+  // on-chain `register()` enforces. Reading `ownerOf` instead would wrongly pass a
+  // name that is unavailable yet not currently minted (for example one in its
+  // post-expiry grace period), because `ownerOf` reverts and that revert is
+  // swallowed as "no owner", so the pre-check would disagree with the reveal.
+  const available = await read<boolean>(
+    ctx,
+    ctx.contracts.DOTNS_REGISTRAR_CONTROLLER,
+    DOTNS_REGISTRAR_CONTROLLER_ABI,
+    "available",
+    [label],
+  );
+  if (!available) throw new DomainUnavailableError(await formatDomainName(ctx, label));
 }
 
 export type GenerateCommitmentOptions = {
@@ -197,7 +207,7 @@ export async function generateCommitment(
   name: string,
   opts: GenerateCommitmentOptions = {},
 ): Promise<GeneratedCommitment> {
-  const label = normaliseLabel(name);
+  const label = await normaliseName(ctx, name);
   if (opts.governance) {
     validateGovernanceLabel(label);
   } else {
@@ -315,8 +325,8 @@ export async function waitForMinimumCommitmentAge(
 }
 
 export async function readDomainOwner(ctx: DotnsContext, name: string): Promise<Address> {
-  const label = normaliseLabel(name);
-  const tokenId = computeDomainTokenId(label);
+  const label = await normaliseName(ctx, name);
+  const tokenId = await computeDomainTokenId(ctx, label);
   try {
     return await read<Address>(ctx, ctx.contracts.DOTNS_REGISTRAR, DOTNS_REGISTRAR_ABI, "ownerOf", [
       tokenId,
@@ -382,7 +392,7 @@ export async function getPriceAndValidateEligibility(
   name: string,
   ownerAddress: Address,
 ): Promise<PricingAndEligibility> {
-  const label = normaliseLabel(name);
+  const label = await normaliseName(ctx, name);
   validateDomainLabel(label);
 
   const baseName = stripTrailingDigits(label);
@@ -450,7 +460,7 @@ export async function quoteCrossPayerFriction(
   callerEvmAddress: Address,
   ownerEvmAddress: Address,
 ): Promise<bigint> {
-  const label = normaliseLabel(name);
+  const label = await normaliseName(ctx, name);
   return read<bigint>(ctx, ctx.contracts.DOTNS_RULES, POP_RULES_ABI, "transferFloor", [
     label,
     callerEvmAddress,
@@ -489,7 +499,7 @@ export async function finalizeRegularRegistration(
   );
 
   return {
-    name: `${registration.label}.dot`,
+    name: await formatDomainName(ctx, registration.label),
     owner: registration.owner,
     priceWei,
     frictionWei,
@@ -512,7 +522,11 @@ export async function finalizeGovernanceRegistration(
     [registration],
     "Governance Registration",
   );
-  return { name: `${registration.label}.dot`, owner: registration.owner, txHash };
+  return {
+    name: await formatDomainName(ctx, registration.label),
+    owner: registration.owner,
+    txHash,
+  };
 }
 
 export type SubnameResult = {
@@ -527,10 +541,10 @@ export async function registerSubnode(
   parentLabel: string,
   ownerAddress: Address,
 ): Promise<SubnameResult> {
-  const subLabel = normaliseLabel(sublabel);
-  const parent = normaliseLabel(parentLabel);
+  const subLabel = await normaliseName(ctx, sublabel);
+  const parent = await normaliseName(ctx, parentLabel);
   const subnodeRecord: SubnodeRecord = {
-    parentNode: namehash(`${parent}.dot`),
+    parentNode: await domainNode(ctx, parent),
     subLabel,
     parentLabel: parent,
     owner: ownerAddress,
@@ -546,7 +560,11 @@ export async function registerSubnode(
     "Subname registration",
   );
 
-  return { name: `${subLabel}.${parent}.dot`, owner: ownerAddress, txHash };
+  return {
+    name: `${subLabel}.${await formatDomainName(ctx, parent)}`,
+    owner: ownerAddress,
+    txHash,
+  };
 }
 
 export async function verifyDomainOwnership(
@@ -554,8 +572,8 @@ export async function verifyDomainOwnership(
   name: string,
   expectedOwner: Address,
 ): Promise<Address> {
-  const label = normaliseLabel(name);
-  const tokenId = computeDomainTokenId(label);
+  const label = await normaliseName(ctx, name);
+  const tokenId = await computeDomainTokenId(ctx, label);
   const actualOwner = await read<Address>(
     ctx,
     ctx.contracts.DOTNS_REGISTRAR,
@@ -565,7 +583,7 @@ export async function verifyDomainOwnership(
   );
 
   if (checksumAddress(actualOwner) !== checksumAddress(expectedOwner)) {
-    throw new Error(`Owner mismatch for ${label}.dot`);
+    throw new Error(`Owner mismatch for ${await formatDomainName(ctx, label)}`);
   }
   return actualOwner;
 }
@@ -676,7 +694,7 @@ export async function registerName(
   name: string,
   opts: RegisterNameOptions = {},
 ): Promise<RegistrationResult> {
-  const label = normaliseLabel(name);
+  const label = await normaliseName(ctx, name);
   await ensureDomainNotRegistered(ctx, label);
 
   const { commitment, registration } = await generateCommitment(ctx, label, opts);

@@ -16,6 +16,8 @@
     "lint": "bun run --cwd packages/cli lint && bun run --cwd packages/ui lint && bun run lint:workflows",
     "lint:fix": "bun run --cwd packages/cli lint:fix && bun run --cwd packages/ui lint:fix && bun run lint:workflows",
     "lint:workflows": "node scripts/lintWorkflows.mjs",
+    "check:types": "bun scripts/checkDanglingTypes.mjs",
+    "check:types:staged": "bun scripts/checkDanglingTypes.mjs --staged",
     "check:release-scope": "bun scripts/releaseGuard.mjs",
     "precommit": "bun run format:fix && bun run lint:fix && bun run format && bun run lint"
   },

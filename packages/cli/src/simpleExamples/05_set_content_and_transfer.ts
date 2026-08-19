@@ -2,6 +2,7 @@ import { connectDotns } from "./00_shared";
 import { setContentHash } from "../commands/contentHash";
 import { resolveTransferRecipient, transferName } from "../cli/transfer";
 import { validateDomainLabel } from "../utils/validation";
+import { formatDomainName } from "../core/naming";
 
 async function main() {
   const { ctx } = await connectDotns();
@@ -10,8 +11,9 @@ async function main() {
   validateDomainLabel(label);
 
   const cid = process.env.DOTNS_CID ?? "bafybeigdyr...replace_me";
-  await setContentHash(ctx, `${label}.dot`, cid);
-  console.log("Set content hash:", `${label}.dot -> ${cid}`);
+  const domain = await formatDomainName(ctx, label);
+  await setContentHash(ctx, label, cid);
+  console.log("Set content hash:", `${domain} -> ${cid}`);
 
   const transferTo = process.env.DOTNS_TO;
   if (!transferTo) return;

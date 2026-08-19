@@ -19,6 +19,14 @@ import { attachDelegateCommands } from "../../src/cli/commands/delegate";
 import { attachPrimaryCommands } from "../../src/cli/commands/primary";
 import { generateRandomLabel } from "../../src/cli/labels";
 import { ProofOfPersonhoodStatus } from "../../src/types/types";
+import { createClient } from "polkadot-api";
+import { getWsProvider } from "polkadot-api/ws-provider/node";
+import { paseo } from "@polkadot-api/descriptors";
+import { ReviveClientWrapper, type PolkadotApiClient } from "../../src/client/polkadotClient";
+import { createDotnsContext } from "../../src/core/context";
+import { resolveTldInfo } from "../../src/core/naming";
+import { ENV } from "../../src/cli/env";
+import { resolveRpc } from "../../src/cli/env";
 
 export const HARNESS_SUCCESS_EXIT_CODE = 1;
 export const HARNESS_HELP_SUCCESS_EXIT_CODE = 0;
@@ -287,6 +295,28 @@ export async function expectJsonHelpOption(args: string[]): Promise<void> {
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
   expect(result.combinedOutput).toContain("--json");
   expect(result.combinedOutput).toContain("Output result as JSON");
+}
+
+// The TLD of the deployment under test, read from chain once so integration
+// assertions build fully-qualified names against the right suffix rather than a
+// hardcoded ".dot". The target environment is chosen with DOTNS_ENV, so pointing
+// the suite at a different deployment keeps its expectations correct.
+let cachedExpectedTld: string | undefined;
+
+export async function resolveExpectedTld(): Promise<string> {
+  if (cachedExpectedTld !== undefined) return cachedExpectedTld;
+  const environment = process.env[ENV.DOTNS_ENV];
+  const rpc = resolveRpc(undefined, environment);
+  const client = createClient(getWsProvider(rpc));
+  try {
+    const clientWrapper = new ReviveClientWrapper(client.getTypedApi(paseo) as PolkadotApiClient);
+    const ctx = createDotnsContext({ clientWrapper, origin: ALICE_SS58, environment });
+    const { tld } = await resolveTldInfo(ctx);
+    cachedExpectedTld = tld;
+    return tld;
+  } finally {
+    client.destroy();
+  }
 }
 
 export function generateGovernanceLabel(maxLen = 5): string {
