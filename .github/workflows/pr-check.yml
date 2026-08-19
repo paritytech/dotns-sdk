@@ -264,3 +264,29 @@ jobs:
             } else {
               await github.rest.issues.createComment({ owner, repo, issue_number, body });
             }
+
+  scope:
+    name: Scope
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history and tags so the guard can diff against the PR base and
+          # read the latest release tag for the version-bump check.
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.6"
+          no-cache: true
+
+      # A required, hard-failing gate: rejects a PR that changes both the CLI and
+      # the UI, and requires the changed package's version to lead its latest
+      # release tag. Kept standalone rather than duplicating the CI-summary
+      # comment script the other jobs carry.
+      - name: Check release scope and version bump
+        shell: bash
+        run: |
+          bun scripts/releaseGuard.mjs pr \
+            --base "${{ github.event.pull_request.base.sha }}" \
+            --head "${{ github.event.pull_request.head.sha }}"
