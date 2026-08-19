@@ -7,15 +7,20 @@ afterEach(() => {
 
 test("paseo-v2 emits only its paseo.li gateway", () => {
   setActiveDotnsEnvironment("paseo-v2");
-  expect(dotliViewUrls("alice.dot")).toEqual(["https://alice.paseo.li"]);
+  expect(dotliViewUrls("alice")).toEqual(["https://alice.paseo.li"]);
 });
 
 test("devnet emits only its dev-dot.li gateway", () => {
   setActiveDotnsEnvironment("devnet");
-  expect(dotliViewUrls("alice.dot")).toEqual(["https://alice.dev-dot.li"]);
+  expect(dotliViewUrls("alice")).toEqual(["https://alice.dev-dot.li"]);
 });
 
 test("previewnet emits no dot.li gateway", () => {
   setActiveDotnsEnvironment("previewnet");
-  expect(dotliViewUrls("alice.dot")).toEqual([]);
+  expect(dotliViewUrls("alice")).toEqual([]);
+});
+
+test("passes the label through unchanged, so the TLD is never duplicated", () => {
+  setActiveDotnsEnvironment("paseo-v2");
+  expect(dotliViewUrls("blog.alice")).toEqual(["https://blog.alice.paseo.li"]);
 });
