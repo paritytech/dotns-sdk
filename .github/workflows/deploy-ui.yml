@@ -10,7 +10,9 @@ on:
       - ".github/actions/**"
   push:
     tags:
-      - "v*"
+      # UI releases use their own tag namespace so a CLI `v*` release never
+      # deploys the UI, and vice versa.
+      - "ui-v*"
 
 permissions:
   contents: read
@@ -29,11 +31,20 @@ jobs:
       details: ${{ steps.result.outputs.details }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history and tags so the release guard can find the previous tag
+          # and diff the range for cross-package changes.
+          fetch-depth: 0
 
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.6"
           no-cache: true
+
+      - name: Guard release scope
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: bun scripts/releaseGuard.mjs release --tag "${GITHUB_REF_NAME}"
 
       - name: Install dependencies
         shell: bash
