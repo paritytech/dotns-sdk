@@ -1,5 +1,4 @@
 import type { Abi, Address, Hex } from "viem";
-import { normaliseLabel } from "./validation";
 import DotnsRegistrarController from "../../abis/DotnsRegistrarController.json" with { type: "json" };
 import DotnsRegistry from "../../abis/DotnsRegistry.json" with { type: "json" };
 import DotnsRegistrar from "../../abis/DotnsRegistrar.json" with { type: "json" };
@@ -16,10 +15,13 @@ import DotnsPopController from "../../abis/DotnsPopController.json" with { type:
 
 const DEFAULT_DOTLI_GATEWAYS = ["dot.li", "paseo.li"] as const;
 
-export function dotliViewUrls(name: string): string[] {
-  const stem = normaliseLabel(name);
+// `label` is the bare second-level label, without any TLD. The dot.li gateways
+// already carry their own domain (for example `paseo.li`), so the view URL is
+// `${label}.${gateway}`. Callers must pass the resolved label, not a
+// fully-qualified name, otherwise the TLD would be duplicated.
+export function dotliViewUrls(label: string): string[] {
   const gateways = getActiveDotnsEnvironment().dotliGateways ?? DEFAULT_DOTLI_GATEWAYS;
-  return gateways.map((gateway) => `https://${stem}.${gateway}`);
+  return gateways.map((gateway) => `https://${label}.${gateway}`);
 }
 export const PASEO_ASSET_HUB_URL = "wss://paseo-asset-hub-next-rpc.polkadot.io";
 export const PREVIEWNET_ASSET_HUB_URL = "wss://previewnet.substrate.dev/asset-hub";

@@ -103,7 +103,7 @@ export function attachContentCommands(root: Command) {
           console.log(chalk.gray("  cid:    ") + chalk.cyan(result.cid));
           console.log(chalk.gray("  tx:     ") + chalk.blue(result.txHash));
           console.log(chalk.green("\n✓ Complete\n"));
-          const viewUrls = dotliViewUrls(name);
+          const viewUrls = dotliViewUrls(result.label);
           if (viewUrls.length > 0) {
             console.log(chalk.gray("  View on dot.li:"));
             for (const url of viewUrls) {

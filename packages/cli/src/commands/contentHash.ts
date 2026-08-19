@@ -24,6 +24,7 @@ export type ContentViewResult = {
 
 export type ContentSetResult = {
   domain: string;
+  label: string;
   cid: string;
   contenthash: string;
   txHash: string;
@@ -95,5 +96,5 @@ export async function setContentHash(
     "Setting content hash",
   );
 
-  return { domain, cid, contenthash, txHash };
+  return { domain, label, cid, contenthash, txHash };
 }
