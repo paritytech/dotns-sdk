@@ -126,7 +126,10 @@ export class ReviveClientWrapper {
     proof_size: 18446744073709551615n,
   };
 
-  constructor(client: PolkadotApiClient, nativeTokenDecimals: number = DEFAULT_NATIVE_TOKEN_DECIMALS) {
+  constructor(
+    client: PolkadotApiClient,
+    nativeTokenDecimals: number = DEFAULT_NATIVE_TOKEN_DECIMALS,
+  ) {
     this.client = client;
     this.nativeTokenDecimals = nativeTokenDecimals;
   }
