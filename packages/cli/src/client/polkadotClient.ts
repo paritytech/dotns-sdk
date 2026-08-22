@@ -4,6 +4,7 @@ import { decodeAddress } from "@polkadot/util-crypto";
 import { isAddress, type Address, type Hash } from "viem";
 import type { ReviveCallResult, SubstrateWeight, TransactionStatus } from "../types/types";
 import { ensureError, formatDispatchError } from "../utils/formatting";
+import { DEFAULT_NATIVE_TOKEN_DECIMALS } from "../utils/constants";
 
 export type PolkadotApiClient = TypedApi<Paseo>;
 
@@ -115,6 +116,7 @@ function isSameSubstrateAccount(a: string, b: string): boolean {
 
 export class ReviveClientWrapper {
   public client: PolkadotApiClient;
+  private readonly nativeTokenDecimals: number;
   private mappedAccounts: Set<string> = new Set();
 
   private static readonly DRY_RUN_STORAGE_LIMIT: bigint = 18446744073709551615n;
@@ -124,8 +126,9 @@ export class ReviveClientWrapper {
     proof_size: 18446744073709551615n,
   };
 
-  constructor(client: PolkadotApiClient) {
+  constructor(client: PolkadotApiClient, nativeTokenDecimals: number = DEFAULT_NATIVE_TOKEN_DECIMALS) {
     this.client = client;
+    this.nativeTokenDecimals = nativeTokenDecimals;
   }
 
   async getEvmAddress(substrateAddress: string): Promise<Address> {
@@ -414,8 +417,11 @@ export class ReviveClientWrapper {
       ref_time: gasEstimate.gasRequired.referenceTime,
     };
 
-    // Add 20% buffer to storage deposit, minimum 2 PAS
-    const minimumStorageDeposit = 2_000_000_000_000n;
+    // Add 20% buffer to storage deposit, floored at 2 native tokens.
+    // The floor is derived from the connected chain's tokenDecimals rather
+    // than a hardcoded planck literal, so "2 tokens" is two tokens on
+    // whatever chain is connected (e.g. 2e10 planck at 10 decimals).
+    const minimumStorageDeposit = 2n * 10n ** BigInt(this.nativeTokenDecimals);
     let storageDepositLimit =
       gasEstimate.storageDeposit === 0n
         ? minimumStorageDeposit
