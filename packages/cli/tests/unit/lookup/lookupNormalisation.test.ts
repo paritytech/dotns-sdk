@@ -52,7 +52,7 @@ beforeEach(() => {
   clearTldInfoCache();
 });
 
-describe("lookup normalises fully-qualified names (dotns#257)", () => {
+describe("lookup normalises fully-qualified names", () => {
   test("performDomainLookup derives the same node for `alice` and `alice.paseo`", async () => {
     const bare = await performDomainLookup(namingCtx, "alice");
     const qualified = await performDomainLookup(namingCtx, "alice.paseo");
