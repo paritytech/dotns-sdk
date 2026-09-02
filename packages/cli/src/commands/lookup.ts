@@ -10,7 +10,7 @@ import {
   DOTNS_POP_RESOLVER_ABI,
 } from "../utils/constants";
 import { stripTrailingDigits } from "../utils/validation";
-import { computeDomainTokenId, domainNode, formatDomainName } from "../core/naming";
+import { computeDomainTokenId, domainNode, formatDomainName, normaliseName } from "../core/naming";
 import { formatNativeBalance, formatErrorMessage } from "../utils/formatting";
 import type { DomainLookupResult, BaseNameReservation, DomainOwnership } from "../types/types";
 
@@ -22,8 +22,9 @@ export type RegisteredNamesResult = {
 
 export async function performDomainLookup(
   ctx: DotnsContext,
-  label: string,
+  name: string,
 ): Promise<DomainLookupResult> {
+  const label = await normaliseName(ctx, name);
   const domain = await formatDomainName(ctx, label);
   const node = await domainNode(ctx, label);
 
@@ -178,7 +179,7 @@ export async function performOwnerOfLookup(
     throw new Error("--owner-of requires a <label>");
   }
 
-  const label = name.trim();
+  const label = await normaliseName(ctx, name);
   const tokenId = await computeDomainTokenId(ctx, label);
 
   let actualOwner: Address;

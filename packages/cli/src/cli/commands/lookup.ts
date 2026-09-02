@@ -26,7 +26,7 @@ import {
 } from "../context";
 import { makeOnStatus } from "../txStatus";
 import { resolveTransferRecipient, transferName } from "../transfer";
-import { formatDomainName } from "../../core/naming";
+import { formatDomainName, normaliseName } from "../../core/naming";
 import { isValidTransferDestination } from "./register";
 import type {
   AuthSource,
@@ -429,7 +429,8 @@ export function attachLookupCommands(root: Command): void {
 
         const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(merged));
         const ctx = buildDotnsContext(context);
-        const domain = await formatDomainName(ctx, label);
+        const domainLabel = await normaliseName(ctx, label);
+        const domain = await formatDomainName(ctx, domainLabel);
 
         if (!jsonOutput) {
           printCommandHeader("Transfer");
@@ -442,19 +443,21 @@ export function attachLookupCommands(root: Command): void {
         );
 
         await maybeQuiet(jsonOutput, () =>
-          step("Transferring domain", async () => transferName(ctx, label, recipient as Address)),
+          step("Transferring domain", async () =>
+            transferName(ctx, domainLabel, recipient as Address),
+          ),
         );
 
         await maybeQuiet(jsonOutput, () =>
           step("Verifying ownership", async () =>
-            verifyDomainOwnership(ctx, label, recipient as Address),
+            verifyDomainOwnership(ctx, domainLabel, recipient as Address),
           ),
         );
 
         if (jsonOutput) {
           console.log(
             JSON.stringify({
-              label,
+              label: domainLabel,
               domain,
               destination,
               recipient,
