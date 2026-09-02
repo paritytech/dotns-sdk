@@ -6,6 +6,11 @@
         "name": "protocolRegistry_",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "owner_",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "nonpayable"

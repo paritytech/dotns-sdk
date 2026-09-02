@@ -83,11 +83,6 @@
     "name": "initialize",
     "inputs": [
       {
-        "name": "_startingPrice",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
         "name": "registry",
         "type": "address",
         "internalType": "contract IDotnsProtocolRegistry"
@@ -159,6 +154,25 @@
   },
   {
     "type": "function",
+    "name": "personhoodOf",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "tier",
+        "type": "uint8",
+        "internalType": "enum IPopRules.PopStatus"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "price",
     "inputs": [
       {
@@ -189,6 +203,57 @@
         "name": "userAddress",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "metadata",
+        "type": "tuple",
+        "internalType": "struct IPopRules.PriceWithMeta",
+        "components": [
+          {
+            "name": "price",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "status",
+            "type": "uint8",
+            "internalType": "enum IPopRules.PopStatus"
+          },
+          {
+            "name": "userStatus",
+            "type": "uint8",
+            "internalType": "enum IPopRules.PopStatus"
+          },
+          {
+            "name": "message",
+            "type": "string",
+            "internalType": "string"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "priceWithCheckAtVersion",
+    "inputs": [
+      {
+        "name": "name",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "userAddress",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "pricingVersionValue",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [
@@ -270,6 +335,70 @@
   },
   {
     "type": "function",
+    "name": "priceWithoutCheckAtVersion",
+    "inputs": [
+      {
+        "name": "name",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "userAddress",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "pricingVersionValue",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "metadata",
+        "type": "tuple",
+        "internalType": "struct IPopRules.PriceWithMeta",
+        "components": [
+          {
+            "name": "price",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "status",
+            "type": "uint8",
+            "internalType": "enum IPopRules.PopStatus"
+          },
+          {
+            "name": "userStatus",
+            "type": "uint8",
+            "internalType": "enum IPopRules.PopStatus"
+          },
+          {
+            "name": "message",
+            "type": "string",
+            "internalType": "string"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pricingVersion",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "modelVersion",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "protocolRegistry",
     "inputs": [],
     "outputs": [
@@ -290,30 +419,6 @@
         "name": "",
         "type": "bytes32",
         "internalType": "bytes32"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "reachFee",
-    "inputs": [
-      {
-        "name": "name",
-        "type": "string",
-        "internalType": "string"
-      },
-      {
-        "name": "account",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "fee",
-        "type": "uint256",
-        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -423,13 +528,26 @@
   },
   {
     "type": "function",
-    "name": "startingPrice",
+    "name": "setShortNamesEnabled",
+    "inputs": [
+      {
+        "name": "enabled",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "shortNamesEnabled",
     "inputs": [],
     "outputs": [
       {
         "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
@@ -509,19 +627,6 @@
         "name": "newOwner",
         "type": "address",
         "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "updateStartingPrice",
-    "inputs": [
-      {
-        "name": "newStartingPrice",
-        "type": "uint256",
-        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -630,19 +735,13 @@
   },
   {
     "type": "event",
-    "name": "StartingPriceUpdated",
+    "name": "ShortNamesEnabledUpdated",
     "inputs": [
       {
-        "name": "oldPrice",
-        "type": "uint256",
+        "name": "enabled",
+        "type": "bool",
         "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "newPrice",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
+        "internalType": "bool"
       }
     ],
     "anonymous": false
@@ -694,8 +793,30 @@
   },
   {
     "type": "error",
+    "name": "GovernanceReserved",
+    "inputs": [
+      {
+        "name": "label",
+        "type": "string",
+        "internalType": "string"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "InvalidInitialization",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NameReserved",
+    "inputs": [
+      {
+        "name": "label",
+        "type": "string",
+        "internalType": "string"
+      }
+    ]
   },
   {
     "type": "error",
@@ -726,6 +847,27 @@
         "name": "account",
         "type": "address",
         "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "OwnerStatusInsufficient",
+    "inputs": [
+      {
+        "name": "label",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "userStatus",
+        "type": "uint8",
+        "internalType": "enum IPopRules.PopStatus"
+      },
+      {
+        "name": "required",
+        "type": "uint8",
+        "internalType": "enum IPopRules.PopStatus"
       }
     ]
   },

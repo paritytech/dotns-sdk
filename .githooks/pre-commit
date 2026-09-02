@@ -24,3 +24,6 @@ fi
 
 echo "Checking for new dangling inline types..."
 bun run check:types:staged
+
+echo "Checking comment style (no trailing inline or decorative separator comments)..."
+sh scripts/checkComments.sh

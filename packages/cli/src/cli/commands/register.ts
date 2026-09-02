@@ -45,7 +45,7 @@ import {
 } from "../../types/types";
 import { step, printCommandHeader } from "../ui";
 import { buildDotnsContext, prepareAssetHubContext } from "../context";
-import { formatDomainName, normaliseName } from "../../core/naming";
+import { formatDomainName, normaliseName, readCurrentPricingVersion } from "../../core/naming";
 import { makeOnStatus } from "../txStatus";
 import type { DotnsContext } from "../../core/context";
 import { prepareReadOnlyContext } from "./lookup";
@@ -380,6 +380,8 @@ function persistCommitment(
     owner: Address;
     reserved: boolean;
     governance: boolean;
+    maxPrice: bigint;
+    pricingVersion: bigint;
     secret: Hex;
     commitmentHash: Hex;
     transferDestination?: string;
@@ -393,6 +395,8 @@ function persistCommitment(
       owner: params.owner,
       reserved: params.reserved,
       governance: params.governance,
+      maxPrice: params.maxPrice,
+      pricingVersion: params.pricingVersion,
       secret: params.secret,
       commitmentHash: params.commitmentHash,
       committedAtIso: new Date().toISOString(),
@@ -583,6 +587,8 @@ async function executeGovernanceRegistration(
     owner: session.caller,
     reserved: true,
     governance: true,
+    maxPrice: registration.maxPrice,
+    pricingVersion: registration.pricingVersion,
     secret,
     commitmentHash: commitment,
     transferDestination,
@@ -647,6 +653,8 @@ async function executeRegularRegistration(
     owner: ownerEvmAddress,
     reserved: enableReverseRecord,
     governance: false,
+    maxPrice: registration.maxPrice,
+    pricingVersion: registration.pricingVersion,
     secret,
     commitmentHash: commitment,
     transferDestination,
@@ -697,11 +705,20 @@ async function resumeRegistration(
   const domain = await formatDomainName(session.ctx, label);
   printCommandHeader("Resuming", domain);
 
+  if (record.pricingVersion == null || record.maxPrice == null) {
+    throw new Error(
+      `Cached commitment for ${label} predates pricing binding and can no longer be revealed. ` +
+        `Discard it with \`dotns register clear ${label} --discard\` and register again.`,
+    );
+  }
+
   const registration: DomainRegistration = {
     label,
     owner: record.owner,
     secret: decryptCommitmentSecret(record, credential),
     reserved: record.reserved,
+    maxPrice: BigInt(record.maxPrice),
+    pricingVersion: BigInt(record.pricingVersion),
   };
 
   const alreadyOwned = await step("Checking on-chain ownership", async () =>
@@ -729,6 +746,21 @@ async function resumeRegistration(
     status.committedTimestampSeconds === 0 || commitmentAge > status.maxAgeSeconds;
 
   if (needsRecommit) {
+    // Re-committing re-stamps committedPricingVersion to the version live now, but
+    // the reveal still supplies the cached pricingVersion baked into the commitment
+    // hash. If the cost model has rotated since the original commit, that reveal is
+    // doomed to PricingVersionMismatch, so fail before spending a recommit.
+    const livePricingVersion = await step("Checking pricing version", async () =>
+      readCurrentPricingVersion(session.ctx),
+    );
+    if (livePricingVersion !== registration.pricingVersion) {
+      throw new Error(
+        `Cost-model version changed since this commitment was created ` +
+          `(committed ${registration.pricingVersion}, now ${livePricingVersion}); it can no ` +
+          `longer be revealed. Discard it with \`dotns register clear ${label} --discard\` and ` +
+          `register again.`,
+      );
+    }
     await step("Re-submitting commitment", async () =>
       submitCommitment(session.ctx, record.commitmentHash),
     );
@@ -805,6 +837,7 @@ type ClearSummary = {
   purged: string[];
   discarded: string[];
   resumed: string[];
+  failed: string[];
   cancelled: boolean;
 };
 
@@ -853,6 +886,7 @@ export async function executeClear(
     purged: [],
     discarded: [],
     resumed: [],
+    failed: [],
     cancelled: false,
   };
 
@@ -905,9 +939,18 @@ export async function executeClear(
   }
 
   const credential = requireManifestCredential(context, options);
+  // Resume each record independently: one unrevealable record (for example a legacy
+  // commitment that predates pricing binding) must not abort the others in the batch.
   for (const record of pending) {
-    await resumeRegistration(context, record, credential, options.commitmentBuffer);
-    summary.resumed.push(record.label);
+    try {
+      await resumeRegistration(context, record, credential, options.commitmentBuffer);
+      summary.resumed.push(record.label);
+    } catch (error) {
+      summary.failed.push(record.label);
+      console.warn(
+        chalk.yellow(`  ⚠ Could not resume ${record.label}: ${formatErrorMessage(error)}`),
+      );
+    }
   }
 
   return summary;

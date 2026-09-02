@@ -43,7 +43,13 @@ import {
   stripTrailingDigits,
 } from "../utils/validation";
 import { ContractRevertError } from "../utils/contractInteractions";
-import { computeDomainTokenId, domainNode, formatDomainName, normaliseName } from "../core/naming";
+import {
+  computeDomainTokenId,
+  domainNode,
+  formatDomainName,
+  normaliseName,
+  readCurrentPricingVersion,
+} from "../core/naming";
 import { convertWeiToNative } from "../utils/formatting";
 import { isSameEvmAddress } from "../utils/address";
 
@@ -189,6 +195,45 @@ export type GeneratedCommitment = {
   secret: Hex;
 };
 
+// Headroom added over the quoted price when sealing maxPrice into a commitment.
+// register() reverts once the charged amount exceeds maxPrice; the pricingVersion
+// stamp already pins the price deterministically, so this margin only absorbs a
+// rounding difference between the quote and the reveal charge. The margin has no
+// cost because the reveal refunds any excess msg.value on-chain.
+const MAX_PRICE_SLIPPAGE_PERCENT = 10n;
+
+function bufferedMaxPriceWei(priceWei: bigint): bigint {
+  return priceWei + (priceWei * MAX_PRICE_SLIPPAGE_PERCENT) / 100n;
+}
+
+// PopRules' price quote for a label and owner at the current cost-model version,
+// before any eligibility enforcement. The commit-time maxPrice seal and the
+// reveal-time eligibility check both start from this read, so the knowledge of
+// which PopRules call and field carry the price stays in one place.
+async function readNamePricing(
+  ctx: DotnsContext,
+  label: string,
+  owner: Address,
+): Promise<PricingAndEligibility> {
+  return read<PricingAndEligibility>(
+    ctx,
+    ctx.contracts.DOTNS_RULES,
+    POP_RULES_ABI,
+    "priceWithoutCheck",
+    [label, owner],
+  );
+}
+
+// The quoted price for maxPrice, read without enforcing eligibility. The reveal
+// (register) re-prices and enforces eligibility itself; sealing maxPrice must not
+// throw here for an ineligible owner, or a name that only the reveal can reject
+// would fail at commit time instead with a misleading error. register() compares
+// its charge against the name price alone, so this cap tracks the name price.
+async function quoteMaxPriceWei(ctx: DotnsContext, label: string, owner: Address): Promise<bigint> {
+  const priced = await readNamePricing(ctx, label, owner);
+  return bufferedMaxPriceWei(priced.price);
+}
+
 function resolveSecret(secret?: Hex): Hex {
   if (secret !== undefined) {
     if (!isHex(secret) || secret.length !== 66) {
@@ -216,11 +261,22 @@ export async function generateCommitment(
 
   const owner = opts.owner ?? (await ownEvmAddress(ctx));
   const secret = resolveSecret(opts.secret);
+
+  // maxPrice and pricingVersion are part of the commitment preimage, so they must
+  // be sealed here and reused verbatim at reveal. pricingVersion binds the live
+  // cost-model version (commit() stamps it and register() rejects a mismatch). The
+  // governance path (registerReserved) charges nothing and never reads maxPrice, so
+  // a zero cap keeps the preimage stable without constraining it.
+  const pricingVersion = await readCurrentPricingVersion(ctx);
+  const maxPrice = opts.governance ? 0n : await quoteMaxPriceWei(ctx, label, owner);
+
   const registration: DomainRegistration = {
     label,
     owner,
     secret,
     reserved: opts.includeReverse ?? false,
+    maxPrice,
+    pricingVersion,
   };
 
   const commitment = await read<Hex>(
@@ -408,13 +464,7 @@ export async function getPriceAndValidateEligibility(
     throw new Error("Base name reserved for original Lite registrant");
   }
 
-  const classificationResult = await read<PricingAndEligibility>(
-    ctx,
-    ctx.contracts.DOTNS_RULES,
-    POP_RULES_ABI,
-    "priceWithoutCheck",
-    [label, ownerAddress],
-  );
+  const classificationResult = await readNamePricing(ctx, label, ownerAddress);
   const requiredStatus = convertToProofOfPersonhoodStatus(classificationResult.status);
   const message = classificationResult.message;
 
@@ -439,7 +489,7 @@ export async function getPriceAndValidateEligibility(
   // so no caller-side check fires here. Reservation collisions and any other
   // protocol-side guards are enforced by PopRules at submission time.
 
-  const resolvedPriceWei = classificationResult.price ?? classificationResult.priceWei;
+  const resolvedPriceWei = classificationResult.price;
 
   return {
     priceWei: resolvedPriceWei,

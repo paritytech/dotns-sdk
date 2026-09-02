@@ -19,6 +19,19 @@
   },
   {
     "type": "function",
+    "name": "MAX_REDEEM_WINDOW",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MAX_REFUND_PAGE_SIZE",
     "inputs": [],
     "outputs": [
@@ -33,6 +46,19 @@
   {
     "type": "function",
     "name": "MAX_RELEASED_PAGE_SIZE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MIN_REDEEM_WINDOW",
     "inputs": [],
     "outputs": [
       {
@@ -71,7 +97,7 @@
             "internalType": "uint256"
           },
           {
-            "name": "reachFloor",
+            "name": "transferFee",
             "type": "uint256",
             "internalType": "uint256"
           },
@@ -211,12 +237,12 @@
   },
   {
     "type": "function",
-    "name": "depositInsurance",
+    "name": "depositProtocolFee",
     "inputs": [
       {
         "name": "params",
         "type": "tuple",
-        "internalType": "struct IDotnsNameEscrow.InsuranceDepositParams",
+        "internalType": "struct IDotnsNameEscrow.ProtocolFeeDepositParams",
         "components": [
           {
             "name": "tokenId",
@@ -284,6 +310,11 @@
             "name": "claimed",
             "type": "bool",
             "internalType": "bool"
+          },
+          {
+            "name": "redeemableUntil",
+            "type": "uint64",
+            "internalType": "uint64"
           }
         ]
       }
@@ -303,6 +334,11 @@
         "name": "cooldownSeconds",
         "type": "uint256",
         "internalType": "uint256"
+      },
+      {
+        "name": "redeemWindowSeconds",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -310,13 +346,19 @@
   },
   {
     "type": "function",
-    "name": "insuranceFund",
-    "inputs": [],
-    "outputs": [
+    "name": "isReclaimable",
+    "inputs": [
       {
-        "name": "",
+        "name": "tokenId",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "reclaimable",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
@@ -493,6 +535,19 @@
   },
   {
     "type": "function",
+    "name": "protocolFees",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "protocolRegistry",
     "inputs": [],
     "outputs": [
@@ -534,6 +589,32 @@
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "redeem",
+    "inputs": [
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "redeemWindow",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -718,6 +799,19 @@
   },
   {
     "type": "function",
+    "name": "updateRedeemWindow",
+    "inputs": [
+      {
+        "name": "newRedeemWindow",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "upgradeToAndCall",
     "inputs": [
       {
@@ -831,25 +925,6 @@
   },
   {
     "type": "event",
-    "name": "InsuranceDraw",
-    "inputs": [
-      {
-        "name": "tokenId",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
     "name": "NameReclaimed",
     "inputs": [
       {
@@ -866,6 +941,25 @@
       },
       {
         "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "NameRedeemed",
+    "inputs": [
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "recipient",
         "type": "address",
         "indexed": true,
         "internalType": "address"
@@ -903,6 +997,12 @@
       },
       {
         "name": "withdrawAvailableAt",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "redeemableUntil",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -963,6 +1063,25 @@
         "type": "address",
         "indexed": true,
         "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RedeemWindowUpdated",
+    "inputs": [
+      {
+        "name": "currentRedeemWindow",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "newRedeemWindow",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
@@ -1313,6 +1432,17 @@
   },
   {
     "type": "error",
+    "name": "NotRedeemable",
+    "inputs": [
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "NotRefundRecipient",
     "inputs": [
       {
@@ -1377,6 +1507,43 @@
     "inputs": [
       {
         "name": "tokenId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "RedeemWindowNotConfigured",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "RedeemWindowTooLong",
+    "inputs": [
+      {
+        "name": "supplied",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "maxAllowed",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "RedeemWindowTooShort",
+    "inputs": [
+      {
+        "name": "supplied",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minAllowed",
         "type": "uint256",
         "internalType": "uint256"
       }

@@ -18,6 +18,7 @@
     "lint:workflows": "node scripts/lintWorkflows.mjs",
     "check:types": "bun scripts/checkDanglingTypes.mjs",
     "check:types:staged": "bun scripts/checkDanglingTypes.mjs --staged",
+    "check:comments": "sh scripts/checkComments.sh",
     "check:release-scope": "bun scripts/releaseGuard.mjs",
     "precommit": "bun run format:fix && bun run lint:fix && bun run format && bun run lint"
   },

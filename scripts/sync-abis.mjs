@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-// Syncs Dotns contract ABIs from the latest paritytech/dotns GitHub release.
+// Syncs Dotns contract ABIs from the newest paritytech/dotns GitHub release,
+// including prereleases, because the testnets the SDK targets deploy release
+// candidates ahead of any stable tag.
 //
 // - Downloads only the ABIs the SDK consumes (see ABI_NAMES below).
 // - Writes to packages/cli/abis/ (the UI consumes ABIs via cdm.json + the SDK).
@@ -50,11 +52,7 @@ function authHeaders() {
 	return headers;
 }
 
-async function fetchRelease() {
-	const tag = process.env.DOTNS_ABIS_TAG;
-	const url = tag
-		? `https://api.github.com/repos/${REPO}/releases/tags/${tag}`
-		: `https://api.github.com/repos/${REPO}/releases/latest`;
+async function fetchGitHubJson(url) {
 	const res = await fetch(url, { headers: authHeaders() });
 	if (res.status === 404 || res.status === 401) {
 		throw new Error(
@@ -62,9 +60,27 @@ async function fetchRelease() {
 		);
 	}
 	if (!res.ok) throw new Error(`GitHub API ${res.status}: ${await res.text()}`);
-	const body = await res.json();
-	if (!body.tag_name) throw new Error("release missing tag_name");
-	return body;
+	return res.json();
+}
+
+// The testnets the SDK targets run release-candidate contract deployments, so the
+// ABIs the SDK must match are published as prereleases. The default therefore
+// follows the newest release on any channel rather than the newest stable one:
+// /releases/latest omits prereleases, whereas the list endpoint returns every
+// release newest-first. DOTNS_ABIS_TAG still pins an exact tag when a caller needs
+// a specific set.
+async function fetchRelease() {
+	const tag = process.env.DOTNS_ABIS_TAG;
+	if (tag) {
+		const pinned = await fetchGitHubJson(`https://api.github.com/repos/${REPO}/releases/tags/${tag}`);
+		if (!pinned.tag_name) throw new Error(`release ${tag} missing tag_name`);
+		return pinned;
+	}
+	const releases = await fetchGitHubJson(`https://api.github.com/repos/${REPO}/releases?per_page=30`);
+	if (!Array.isArray(releases)) throw new Error("releases endpoint did not return a list");
+	const newest = releases.find((release) => !release.draft && release.tag_name);
+	if (!newest) throw new Error("no published (non-draft) release found");
+	return newest;
 }
 
 async function readCachedTag() {
