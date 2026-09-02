@@ -332,3 +332,28 @@ test("auth set rejects weak password supplied by env for new keystore", async ()
   expect(result.exitCode).toBe(1);
   expect(result.combinedOutput).toContain("Password too short");
 });
+
+test("resolveAuthSource default branch carries the dev credential for the retry cache", async () => {
+  // dotns#264: the fallback branch was the only one returning no credential, so
+  // `register` with the implicit shared dev account failed the retry-cache check
+  // after resolving a perfectly usable signer.
+  // The pre-resolved default keystore path is not a selection hint (unlike a
+  // custom path), so with no env credential this falls through to the default
+  // branch — the same route `dotns register` takes with no account configured.
+  const previousMnemonic = process.env[ENV.MNEMONIC];
+  const previousKeyUri = process.env[ENV.KEY_URI];
+  delete process.env[ENV.MNEMONIC];
+  delete process.env[ENV.KEY_URI];
+  try {
+    const resolved = await resolveAuthSource({ keystorePath: resolveKeystorePath(undefined) });
+
+    expect(resolved.resolvedFrom).toBe("default");
+    expect(resolved.source).toBe(DEFAULT_MNEMONIC);
+    expect(resolved.credential).toBe(DEFAULT_MNEMONIC);
+  } finally {
+    if (previousMnemonic === undefined) delete process.env[ENV.MNEMONIC];
+    else process.env[ENV.MNEMONIC] = previousMnemonic;
+    if (previousKeyUri === undefined) delete process.env[ENV.KEY_URI];
+    else process.env[ENV.KEY_URI] = previousKeyUri;
+  }
+});
