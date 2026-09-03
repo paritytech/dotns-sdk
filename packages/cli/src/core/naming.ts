@@ -1,13 +1,14 @@
 import type { Abi, Address, Hex } from "viem";
 import type { ReviveClientWrapper } from "../client/polkadotClient";
 import { type DotnsContext, read } from "./context";
-import { DOTNS_REGISTRAR_CONTROLLER_ABI } from "../utils/constants";
+import { COST_MODEL_REGISTRY_KEY, DOTNS_REGISTRAR_CONTROLLER_ABI } from "../utils/constants";
 import { deriveDomainNode, deriveDomainTokenId } from "../utils/contractInteractions";
 import { normaliseLabel } from "../utils/validation";
 
 // Minimal view surface of DotnsProtocolRegistry. The full ABI is not synced into
-// the SDK because these two immutable getters are all the naming layer needs; the
-// TLD is fixed at the registry's initialisation and never changes for a deployment.
+// the SDK because these getters are all the naming layer needs: the immutable TLD
+// pair (fixed at initialisation), and get(key) to resolve a component address such
+// as the cost-model registry from the deployment's own address book.
 const PROTOCOL_REGISTRY_ABI = [
   {
     type: "function",
@@ -22,6 +23,26 @@ const PROTOCOL_REGISTRY_ABI = [
     stateMutability: "view",
     inputs: [],
     outputs: [{ type: "string" }],
+  },
+  {
+    type: "function",
+    name: "get",
+    stateMutability: "view",
+    inputs: [{ type: "bytes32" }],
+    outputs: [{ type: "address" }],
+  },
+] as const satisfies Abi;
+
+// Minimal view surface of DotnsCostModelRegistry. currentVersion() identifies the
+// live cost-model configuration; a registration must be priced against, and stamped
+// with, the version current when its commitment is submitted.
+const COST_MODEL_REGISTRY_ABI = [
+  {
+    type: "function",
+    name: "currentVersion",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
   },
 ] as const satisfies Abi;
 
@@ -102,6 +123,30 @@ export function resolveTldInfo(ctx: DotnsContext): Promise<TldInfo> {
 // Clears the cached TLD. Intended for tests that exercise multiple deployments.
 export function clearTldInfoCache(): void {
   tldInfoCache = new WeakMap();
+}
+
+// The controller's protocol registry, the address book every deployment component
+// is resolved through. Read live (not cached) so it always reflects the context's
+// controller.
+async function readProtocolRegistry(ctx: DotnsContext): Promise<Address> {
+  return read<Address>(
+    ctx,
+    ctx.contracts.DOTNS_REGISTRAR_CONTROLLER,
+    DOTNS_REGISTRAR_CONTROLLER_ABI,
+    "protocolRegistry",
+    [],
+  );
+}
+
+// The cost model's current version, read fresh each call. Unlike the TLD it is not
+// immutable: it changes whenever the cost model is reconfigured, and a commitment
+// must bind the version live at commit time, so this must never be cached.
+export async function readCurrentPricingVersion(ctx: DotnsContext): Promise<bigint> {
+  const protocolRegistry = await readProtocolRegistry(ctx);
+  const costModel = await read<Address>(ctx, protocolRegistry, PROTOCOL_REGISTRY_ABI, "get", [
+    COST_MODEL_REGISTRY_KEY,
+  ]);
+  return read<bigint>(ctx, costModel, COST_MODEL_REGISTRY_ABI, "currentVersion", []);
 }
 
 // The namehash of `label` under the active TLD (the on-chain `node`).

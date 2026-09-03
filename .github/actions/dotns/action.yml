@@ -47,23 +47,49 @@ runs:
       id: check-base
       shell: bash
       run: |
-        if RESULT=$(dotns lookup name "$BASENAME" --json 2>&1); then
-          EXISTS=$(echo "$RESULT" | jq -r '.exists')
-          OWNER=$(echo "$RESULT" | jq -r '.owner')
-          echo "exists=$EXISTS" >> "$GITHUB_OUTPUT"
-          echo "owner=$OWNER" >> "$GITHUB_OUTPUT"
+        set -euo pipefail
 
-          if [[ "$EXISTS" == "true" ]]; then
-            echo "::notice::Base domain ${BASENAME}.dot is registered (owner: $OWNER)"
+        # Retry the lookup: a transient RPC failure must not be read as "the name
+        # is unregistered". Treating an errored lookup as unregistered fails open,
+        # and the register step then submits a doomed commit-reveal that reverts
+        # with "already registered". Only stdout is captured, so a decoded lookup
+        # is clean JSON for jq; a lookup that never succeeds fails the step closed,
+        # and under `set -o pipefail` a malformed payload fails closed too.
+        RESULT=""
+        for attempt in $(seq 1 "$MAX_RETRIES"); do
+          if RESULT=$(dotns lookup name "$BASENAME" --json); then
+            break
           fi
-        else
-          echo "exists=false" >> "$GITHUB_OUTPUT"
-          echo "owner=" >> "$GITHUB_OUTPUT"
-          echo "::warning::Base domain lookup failed — treating as unregistered"
+          RESULT=""
+          if [[ "$attempt" -lt "$MAX_RETRIES" ]]; then
+            echo "::warning::Base domain lookup attempt ${attempt}/${MAX_RETRIES} failed; retrying in ${RETRY_DELAY}s"
+            sleep "$RETRY_DELAY"
+          fi
+        done
+
+        if [[ -z "$RESULT" ]]; then
+          echo "::error::Could not determine whether ${BASENAME}.dot is registered after ${MAX_RETRIES} attempts."
+          echo "Refusing to assume it is unregistered (that would drive a doomed registration)."
+          echo "This is usually a transient RPC failure; re-run the job."
+          exit 1
+        fi
+
+        EXISTS=$(echo "$RESULT" | jq -r '.exists')
+        OWNER=$(echo "$RESULT" | jq -r '.owner')
+        {
+          echo "exists=$EXISTS"
+          echo "owner=$OWNER"
+        } >> "$GITHUB_OUTPUT"
+
+        if [[ "$EXISTS" == "true" ]]; then
+          echo "::notice::Base domain ${BASENAME}.dot is registered (owner: $OWNER)"
         fi
       env:
         BASENAME: ${{ inputs.basename }}
         DOTNS_ENV: ${{ inputs.env }}
+        MAX_RETRIES: ${{ inputs.max-retries }}
+        RETRY_DELAY: ${{ inputs.retry-delay }}
+        NODE_NO_WARNINGS: "1"
 
     - name: Fail if base domain not registered
       if: steps.check-base.outputs.exists != 'true' && inputs.register-base != 'true'

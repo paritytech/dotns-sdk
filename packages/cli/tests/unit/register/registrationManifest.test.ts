@@ -23,6 +23,10 @@ const OWNER = "0x2222222222222222222222222222222222222222" as const;
 const SECRET = ("0x" + "ab".repeat(32)) as `0x${string}`;
 const HASH = ("0x" + "cd".repeat(32)) as `0x${string}`;
 const PASSWORD = "correct horse battery staple";
+const MAX_PRICE = 11_000_000_000_000_000_000n;
+// A full-width uint256 version, past Number.MAX_SAFE_INTEGER, to prove lossless storage.
+const PRICING_VERSION =
+  26713409351715620920611153708050090579513471009420165942748436106067806057195n;
 
 let tempDir: string;
 
@@ -34,6 +38,8 @@ function save(label: string, committedAtIso: string, overrides: Record<string, u
     owner: OWNER,
     reserved: false,
     governance: false,
+    maxPrice: MAX_PRICE,
+    pricingVersion: PRICING_VERSION,
     secret: SECRET,
     commitmentHash: HASH,
     committedAtIso,
@@ -64,6 +70,17 @@ describe("registration manifest persistence", () => {
     expect(record?.label).toBe("coolname");
     expect(record?.owner).toBe(OWNER);
     expect(record?.commitmentHash).toBe(HASH);
+  });
+
+  test("stores the sealed pricing fields losslessly as decimal strings", () => {
+    save("coolname", "2026-06-02T12:00:00.000Z");
+    const record = findCommitmentRecord(ENV, CALLER, "coolname")!;
+    expect(record.maxPrice).toBe(MAX_PRICE.toString());
+    expect(record.pricingVersion).toBe(PRICING_VERSION.toString());
+    // The reveal reconstructs the commitment preimage from these, so BigInt() must
+    // round-trip the full uint256 without precision loss.
+    expect(BigInt(record.maxPrice!)).toBe(MAX_PRICE);
+    expect(BigInt(record.pricingVersion!)).toBe(PRICING_VERSION);
   });
 
   test("encrypts the secret at rest (never stored in plaintext)", () => {
@@ -103,6 +120,8 @@ describe("registration manifest persistence", () => {
       owner: OWNER,
       reserved: false,
       governance: false,
+      maxPrice: MAX_PRICE,
+      pricingVersion: PRICING_VERSION,
       secret: SECRET,
       commitmentHash: HASH,
       committedAtIso: "2026-06-02T12:00:00.000Z",

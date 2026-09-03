@@ -38,6 +38,11 @@ export const PERSONHOOD_PRECOMPILE_ADDRESS =
   "0x000000000000000000000000000000000a010000" as Address;
 export const PERSONHOOD_CONTEXT =
   "0x646f746e73000000000000000000000000000000000000000000000000000000" as Hex;
+// bytes32("costModel"): the protocol-registry key the controller resolves the
+// cost-model registry under (DotnsConstants.COST_MODEL). Read its currentVersion()
+// to stamp a registration's pricingVersion.
+export const COST_MODEL_REGISTRY_KEY =
+  "0x636f73744d6f64656c0000000000000000000000000000000000000000000000" as Hex;
 export const DEFAULT_BULLETIN_RPC = "wss://paseo-bulletin-next-rpc.polkadot.io";
 export const DEFAULT_CHUNK_SIZE_BYTES = 2 * 1024 * 1024;
 // Chain MaxTransactionSize; larger single uploads must be chunked.

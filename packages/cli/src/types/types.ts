@@ -20,6 +20,19 @@ export type DomainRegistration = {
   secret: Hex;
   /** Whether this registration includes reverse record setup */
   reserved: boolean;
+  /**
+   * Slippage ceiling in wei: register() reverts with PriceExceedsMax when the
+   * charged amount exceeds this. Bound into the commitment hash, so it must be
+   * identical at commit and reveal.
+   */
+  maxPrice: bigint;
+  /**
+   * Cost-model version the registration is priced against. commit() stamps the
+   * live version; register() rejects a reveal whose pricingVersion differs from
+   * that stamp. Bound into the commitment hash, so it must be identical at commit
+   * and reveal.
+   */
+  pricingVersion: bigint;
 };
 
 export type TransactionStatus = "signing" | "broadcasting" | "included" | "finalized" | "failed";

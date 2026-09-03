@@ -6,7 +6,7 @@ import {
   deriveDomainNode,
   deriveDomainTokenId,
   isRevertFlag,
-  UNMAPPED_ORIGIN_REVERT_HINT,
+  EMPTY_DATA_REVERT_HINT,
 } from "../../../src/utils/contractInteractions";
 import { POP_RULES_ABI } from "../../../src/utils/constants";
 
@@ -55,8 +55,12 @@ describe("isRevertFlag matches the EVM revert bit", () => {
 });
 
 describe("buildRevertError", () => {
-  test("empty data returns the unmapped-origin hint", () => {
-    expect(buildRevertError("0x", POP_RULES_ABI).message).toBe(UNMAPPED_ORIGIN_REVERT_HINT);
+  test("empty data names both the unmapped-origin and stale-ABI causes", () => {
+    const message = buildRevertError("0x", POP_RULES_ABI).message;
+    expect(message).toContain("Contract reverted with empty data");
+    expect(message).toContain(EMPTY_DATA_REVERT_HINT);
+    expect(message).toContain("not mapped");
+    expect(message).toContain("out of date");
   });
 
   test("known ABI selector decodes to the named error", () => {
@@ -81,7 +85,7 @@ describe("decodeContractRevertError", () => {
   test("empty data includes operation context", () => {
     const error = decodeContractRevertError("0x", POP_RULES_ABI, "Registration");
     expect(error.message).toContain("Registration reverted with empty data");
-    expect(error.message).toContain(UNMAPPED_ORIGIN_REVERT_HINT);
+    expect(error.message).toContain(EMPTY_DATA_REVERT_HINT);
   });
 
   test("non-empty data decodes against the ABI", () => {

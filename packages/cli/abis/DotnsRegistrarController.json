@@ -96,6 +96,25 @@
   },
   {
     "type": "function",
+    "name": "committedPricingVersion",
+    "inputs": [
+      {
+        "name": "hash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "version",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "getRoleAdmin",
     "inputs": [
       {
@@ -225,6 +244,16 @@
             "name": "reserved",
             "type": "bool",
             "internalType": "bool"
+          },
+          {
+            "name": "maxPrice",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "pricingVersion",
+            "type": "uint256",
+            "internalType": "uint256"
           }
         ]
       }
@@ -331,6 +360,16 @@
             "name": "reserved",
             "type": "bool",
             "internalType": "bool"
+          },
+          {
+            "name": "maxPrice",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "pricingVersion",
+            "type": "uint256",
+            "internalType": "uint256"
           }
         ]
       }
@@ -366,6 +405,16 @@
             "name": "reserved",
             "type": "bool",
             "internalType": "bool"
+          },
+          {
+            "name": "maxPrice",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "pricingVersion",
+            "type": "uint256",
+            "internalType": "uint256"
           }
         ]
       }
@@ -1015,6 +1064,43 @@
         "name": "required",
         "type": "uint8",
         "internalType": "enum IPopRules.PopStatus"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "PriceExceedsMax",
+    "inputs": [
+      {
+        "name": "label",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "charged",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "maxPrice",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "PricingVersionMismatch",
+    "inputs": [
+      {
+        "name": "committed",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "revealed",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ]
   },

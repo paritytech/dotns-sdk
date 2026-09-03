@@ -37,7 +37,18 @@ export type CommitmentRecord = {
   reserved: boolean;
   /** True when the reveal must use registerReserved (governance) rather than register. */
   governance: boolean;
-  /** keccak(label, owner, secret, reserved) as submitted on-chain. */
+  /**
+   * Slippage ceiling (wei) sealed into the commitment, as a decimal string so the
+   * JSON stays lossless for values beyond Number.MAX_SAFE_INTEGER. Optional for
+   * backward compatibility with records written before pricing binding existed.
+   */
+  maxPrice?: string;
+  /**
+   * Cost-model version (uint256) sealed into the commitment, as a decimal string.
+   * Optional for the same backward-compatibility reason as {@link maxPrice}.
+   */
+  pricingVersion?: string;
+  /** The commitment as submitted on-chain; its preimage binds every registration field, including maxPrice and pricingVersion. */
   commitmentHash: Hex;
   /** Transaction hash of the commit, if known. */
   commitTxHash?: string;
@@ -100,6 +111,8 @@ export function saveCommitmentRecord(params: {
   owner: Address;
   reserved: boolean;
   governance: boolean;
+  maxPrice: bigint;
+  pricingVersion: bigint;
   secret: Hex;
   commitmentHash: Hex;
   commitTxHash?: string;
@@ -114,6 +127,8 @@ export function saveCommitmentRecord(params: {
     owner: params.owner,
     reserved: params.reserved,
     governance: params.governance,
+    maxPrice: params.maxPrice.toString(),
+    pricingVersion: params.pricingVersion.toString(),
     commitmentHash: params.commitmentHash,
     commitTxHash: params.commitTxHash,
     committedAtIso: params.committedAtIso,

@@ -32,6 +32,30 @@
   },
   {
     "type": "function",
+    "name": "isAuthorised",
+    "inputs": [
+      {
+        "name": "node",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "authorisedFlag",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "owner",
     "inputs": [
       {

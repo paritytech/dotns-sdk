@@ -45,12 +45,23 @@ import {
 } from "../../types/types";
 import { step, stepStart, stepOk, printCommandHeader } from "../ui";
 import { buildDotnsContext, prepareAssetHubContext } from "../context";
-import { formatDomainName, normaliseName } from "../../core/naming";
+import { formatDomainName, normaliseName, readCurrentPricingVersion } from "../../core/naming";
 import { makeOnStatus } from "../txStatus";
 import type { DotnsContext } from "../../core/context";
 import { prepareReadOnlyContext } from "./lookup";
 import { generateRandomLabel } from "../labels";
 import { resolveTransferRecipient, transferName } from "../transfer";
+
+// A cached commitment that can no longer be revealed: its preimage predates the
+// pricing fields, or the cost-model version has rotated since it was committed.
+// Distinct from an unexpected failure (RPC, decrypt), so a batch resume can skip
+// exactly this case and surface everything else.
+export class UnrevealableCommitmentError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UnrevealableCommitmentError";
+  }
+}
 
 type PersistContext = {
   env: string;
@@ -380,6 +391,8 @@ function persistCommitment(
     owner: Address;
     reserved: boolean;
     governance: boolean;
+    maxPrice: bigint;
+    pricingVersion: bigint;
     secret: Hex;
     commitmentHash: Hex;
     transferDestination?: string;
@@ -393,6 +406,8 @@ function persistCommitment(
       owner: params.owner,
       reserved: params.reserved,
       governance: params.governance,
+      maxPrice: params.maxPrice,
+      pricingVersion: params.pricingVersion,
       secret: params.secret,
       commitmentHash: params.commitmentHash,
       committedAtIso: new Date().toISOString(),
@@ -583,6 +598,8 @@ async function executeGovernanceRegistration(
     owner: session.caller,
     reserved: true,
     governance: true,
+    maxPrice: registration.maxPrice,
+    pricingVersion: registration.pricingVersion,
     secret,
     commitmentHash: commitment,
     transferDestination,
@@ -673,6 +690,8 @@ async function executeRegularRegistration(
     owner: ownerEvmAddress,
     reserved: enableReverseRecord,
     governance: false,
+    maxPrice: registration.maxPrice,
+    pricingVersion: registration.pricingVersion,
     secret,
     commitmentHash: commitment,
     transferDestination,
@@ -721,11 +740,20 @@ async function resumeRegistration(
   const domain = await formatDomainName(session.ctx, label);
   printCommandHeader("Resuming", domain);
 
+  if (record.pricingVersion == null || record.maxPrice == null) {
+    throw new UnrevealableCommitmentError(
+      `Cached commitment for ${label} predates pricing binding and can no longer be revealed. ` +
+        `Discard it with \`dotns register clear ${label} --discard\` and register again.`,
+    );
+  }
+
   const registration: DomainRegistration = {
     label,
     owner: record.owner,
     secret: decryptCommitmentSecret(record, credential),
     reserved: record.reserved,
+    maxPrice: BigInt(record.maxPrice),
+    pricingVersion: BigInt(record.pricingVersion),
   };
 
   const alreadyOwned = await step("Checking on-chain ownership", async () =>
@@ -753,6 +781,21 @@ async function resumeRegistration(
     status.committedTimestampSeconds === 0 || commitmentAge > status.maxAgeSeconds;
 
   if (needsRecommit) {
+    // Re-committing re-stamps committedPricingVersion to the version live now, but
+    // the reveal still supplies the cached pricingVersion baked into the commitment
+    // hash. If the cost model has rotated since the original commit, that reveal is
+    // doomed to PricingVersionMismatch, so fail before spending a recommit.
+    const livePricingVersion = await step("Checking pricing version", async () =>
+      readCurrentPricingVersion(session.ctx),
+    );
+    if (livePricingVersion !== registration.pricingVersion) {
+      throw new UnrevealableCommitmentError(
+        `Cost-model version changed since this commitment was created ` +
+          `(committed ${registration.pricingVersion}, now ${livePricingVersion}); it can no ` +
+          `longer be revealed. Discard it with \`dotns register clear ${label} --discard\` and ` +
+          `register again.`,
+      );
+    }
     await step("Re-submitting commitment", async () =>
       submitCommitment(session.ctx, record.commitmentHash),
     );
@@ -825,10 +868,11 @@ export async function executeRetry(
 }
 
 type ClearSummary = {
-  ok: true;
+  ok: boolean;
   purged: string[];
   discarded: string[];
   resumed: string[];
+  failed: string[];
   cancelled: boolean;
 };
 
@@ -873,10 +917,11 @@ export async function executeClear(
   const records = loadCommitmentRecordsForClear(env, caller, options.name);
 
   const summary: ClearSummary = {
-    ok: true as const,
+    ok: true,
     purged: [],
     discarded: [],
     resumed: [],
+    failed: [],
     cancelled: false,
   };
 
@@ -929,9 +974,27 @@ export async function executeClear(
   }
 
   const credential = requireManifestCredential(context, options);
+  // Resume each record independently: one unrevealable record (for example a legacy
+  // commitment that predates pricing binding) must not abort the others in the batch.
+  // Only that expected case is swallowed; any other error (RPC, decrypt, chain) is
+  // unexpected and propagates.
   for (const record of pending) {
-    await resumeRegistration(context, record, credential, options.commitmentBuffer);
-    summary.resumed.push(record.label);
+    try {
+      await resumeRegistration(context, record, credential, options.commitmentBuffer);
+      summary.resumed.push(record.label);
+    } catch (error) {
+      if (!(error instanceof UnrevealableCommitmentError)) throw error;
+      summary.failed.push(record.label);
+    }
+  }
+
+  if (summary.failed.length > 0) {
+    summary.ok = false;
+    console.warn(
+      chalk.yellow(
+        `  ⚠ ${summary.failed.length} of ${pending.length} could not be resumed: ${summary.failed.join(", ")}`,
+      ),
+    );
   }
 
   return summary;
