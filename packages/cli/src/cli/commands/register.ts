@@ -43,7 +43,7 @@ import {
   type RegistrationCommandOptions,
   ProofOfPersonhoodStatus,
 } from "../../types/types";
-import { step, printCommandHeader } from "../ui";
+import { step, stepStart, stepOk, printCommandHeader } from "../ui";
 import { buildDotnsContext, prepareAssetHubContext } from "../context";
 import { formatDomainName, normaliseName } from "../../core/naming";
 import { makeOnStatus } from "../txStatus";
@@ -611,26 +611,31 @@ async function executeGovernanceRegistration(
 }
 
 // The name is registered and its ownership verified before this runs, so a
-// store-sync failure is reported but must not fail the command (dotns#265).
+// store-sync failure is reported but must not fail the command. The step's
+// success line only prints for an actually synced result.
 async function syncLabelStoreBestEffort(session: RegistrationSession): Promise<void> {
+  const stepLabel = "Ensuring label store";
+  stepStart(stepLabel);
+  let error: unknown;
+  let pending: string[] = [];
   try {
-    const result = await step("Ensuring label store", async () =>
-      ensureLabelStoreReady(session.ctx, session.caller),
-    );
-    if (!result.synced) {
-      console.warn(
-        chalk.yellow("  ⚠ Label store not synced; ") +
-          chalk.gray(
-            `pending labels (${result.pending.join(", ")}) settle with a later registration or claim`,
-          ),
-      );
+    const result = await ensureLabelStoreReady(session.ctx, session.caller);
+    if (result.synced) {
+      stepOk(stepLabel);
+      return;
     }
-  } catch (error) {
-    console.warn(
-      chalk.yellow("  ⚠ Label-store sync failed; the registration itself is complete: ") +
-        chalk.gray(formatErrorMessage(error)),
-    );
+    error = result.error;
+    pending = result.pending;
+  } catch (readError) {
+    error = readError;
   }
+  console.warn(
+    chalk.yellow("  ⚠ Label store not synced; the registration itself is complete. ") +
+      chalk.gray(
+        (pending.length > 0 ? `Pending labels: ${pending.join(", ")}. ` : "") +
+          formatErrorMessage(error),
+      ),
+  );
 }
 
 async function executeRegularRegistration(

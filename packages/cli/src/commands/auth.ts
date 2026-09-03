@@ -203,7 +203,7 @@ export async function resolveAuthSource(opts: AuthSource): Promise<ResolvedAuthS
     resolvedFrom: "default",
     account: accountName,
     // The shared dev phrase is public, so it can key the registration retry
-    // cache like every other branch's credential does (dotns#264).
+    // cache like every other branch's credential does.
     credential: DEFAULT_MNEMONIC,
   };
 }

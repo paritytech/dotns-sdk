@@ -334,16 +334,18 @@ test("auth set rejects weak password supplied by env for new keystore", async ()
 });
 
 test("resolveAuthSource default branch carries the dev credential for the retry cache", async () => {
-  // dotns#264: the fallback branch was the only one returning no credential, so
-  // `register` with the implicit shared dev account failed the retry-cache check
-  // after resolving a perfectly usable signer.
-  // The pre-resolved default keystore path is not a selection hint (unlike a
-  // custom path), so with no env credential this falls through to the default
-  // branch — the same route `dotns register` takes with no account configured.
+  // The fallback branch was the only one returning no credential, so `register`
+  // with the implicit shared dev account failed the retry-cache check.
+  // DOTNS_KEYSTORE_PATH points at a per-test directory that does not exist, so
+  // resolution cannot pick up a real keystore on the machine running the tests
+  // and deterministically falls through to the default branch.
+  const { keystoreDirectoryPath } = createPathsForTest("auth_default_branch_credential");
   const previousMnemonic = process.env[ENV.MNEMONIC];
   const previousKeyUri = process.env[ENV.KEY_URI];
+  const previousKeystorePath = process.env[ENV.KEYSTORE_PATH];
   delete process.env[ENV.MNEMONIC];
   delete process.env[ENV.KEY_URI];
+  process.env[ENV.KEYSTORE_PATH] = keystoreDirectoryPath;
   try {
     const resolved = await resolveAuthSource({ keystorePath: resolveKeystorePath(undefined) });
 
@@ -355,5 +357,7 @@ test("resolveAuthSource default branch carries the dev credential for the retry 
     else process.env[ENV.MNEMONIC] = previousMnemonic;
     if (previousKeyUri === undefined) delete process.env[ENV.KEY_URI];
     else process.env[ENV.KEY_URI] = previousKeyUri;
+    if (previousKeystorePath === undefined) delete process.env[ENV.KEYSTORE_PATH];
+    else process.env[ENV.KEYSTORE_PATH] = previousKeystorePath;
   }
 });

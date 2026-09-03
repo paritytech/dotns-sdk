@@ -638,6 +638,8 @@ export type LabelStoreSyncResult = {
   labelStore: Address;
   pending: string[];
   synced: boolean;
+  /** The last claim failure when `synced` is false. */
+  error?: unknown;
 };
 
 // Reconciles on-chain state for the caller: a fresh registration parks the name
@@ -677,8 +679,7 @@ export async function ensureLabelStoreReady(
     }
   }
 
-  void lastError;
-  return { labelStore, pending: pendingLabels, synced: false };
+  return { labelStore, pending: pendingLabels, synced: false, error: lastError };
 }
 
 export type RegisterNameOptions = GenerateCommitmentOptions & {
