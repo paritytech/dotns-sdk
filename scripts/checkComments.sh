@@ -8,9 +8,12 @@ set -eu
 #   2. Trailing inline comments, a line comment that follows code on the same
 #      line. A comment belongs on its own line above the code it describes.
 #
-# Full-line comments, doc comments, the `://` in a URL, a `//` inside a string
-# or regular-expression literal, and inline tool directives (eslint, prettier,
-# @ts-, SPDX) are left alone.
+# Full-line comments, doc comments, the `://` in a URL, and inline tool
+# directives (eslint, prettier, @ts-, SPDX) are left alone. Single-, double- and
+# back-quoted strings are blanked before the trailing check, so a `//` inside a
+# string literal (for example the key URI "//Alice") is not mistaken for a
+# comment. A `//` inside a regular-expression literal is a known residual: it is
+# genuinely ambiguous to a line scanner, and rare enough to accept.
 #
 # packages/ui is excluded: its ABIs and registration flow are tracked upstream
 # in paritytech/dotns and it is not cleaned to this rule yet. Pass explicit file
@@ -18,7 +21,10 @@ set -eu
 # are checked.
 
 SEPARATOR_PATTERN='^[[:space:]]*(//+|/\*|\*|#)[[:space:]]*[-=*_~#]{6,}|^[[:space:]]*/{6,}[[:space:]]*$'
-TRAILING_PATTERN="^[[:space:]]*[^/*[:space:]].*[^:/'\"\\\\]//([^/]|\$)"
+# Applied to a line whose string literals have already been blanked, so the
+# quote-preceded exclusions are no longer needed: code before `//`, and `//` not
+# preceded by `:` or `/` (a URL scheme or the start of a doc comment).
+TRAILING_PATTERN='^[[:space:]]*[^/*[:space:]].*[^:/]//([^/]|$)'
 DIRECTIVE_ALLOW='//[[:space:]]*(eslint|prettier|@ts-|ts-node|SPDX)'
 
 is_checkable() {
@@ -49,7 +55,17 @@ for file in $(collect_targets "$@"); do
     status=1
   fi
 
-  trailing="$(grep -nE "$TRAILING_PATTERN" "$file" 2>/dev/null | grep -vE "$DIRECTIVE_ALLOW" 2>/dev/null || true)"
+  trailing="$(
+    awk -v dq='"' -v sq="'" -v bt='`' -v pat="$TRAILING_PATTERN" '
+      {
+        code = $0
+        gsub(dq "[^" dq "]*" dq, "", code)
+        gsub(sq "[^" sq "]*" sq, "", code)
+        gsub(bt "[^" bt "]*" bt, "", code)
+        if (code ~ pat) print NR ": " $0
+      }
+    ' "$file" 2>/dev/null | grep -vE "$DIRECTIVE_ALLOW" 2>/dev/null || true
+  )"
   if [ -n "$trailing" ]; then
     echo "$file: trailing inline comment (move it to its own line above the code)" >&2
     printf '%s\n' "$trailing" | sed 's/^/  /' >&2

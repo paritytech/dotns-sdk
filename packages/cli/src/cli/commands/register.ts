@@ -52,6 +52,17 @@ import { prepareReadOnlyContext } from "./lookup";
 import { generateRandomLabel } from "../labels";
 import { resolveTransferRecipient, transferName } from "../transfer";
 
+// A cached commitment that can no longer be revealed: its preimage predates the
+// pricing fields, or the cost-model version has rotated since it was committed.
+// Distinct from an unexpected failure (RPC, decrypt), so a batch resume can skip
+// exactly this case and surface everything else.
+export class UnrevealableCommitmentError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UnrevealableCommitmentError";
+  }
+}
+
 type PersistContext = {
   env: string;
   caller: Address;
@@ -730,7 +741,7 @@ async function resumeRegistration(
   printCommandHeader("Resuming", domain);
 
   if (record.pricingVersion == null || record.maxPrice == null) {
-    throw new Error(
+    throw new UnrevealableCommitmentError(
       `Cached commitment for ${label} predates pricing binding and can no longer be revealed. ` +
         `Discard it with \`dotns register clear ${label} --discard\` and register again.`,
     );
@@ -778,7 +789,7 @@ async function resumeRegistration(
       readCurrentPricingVersion(session.ctx),
     );
     if (livePricingVersion !== registration.pricingVersion) {
-      throw new Error(
+      throw new UnrevealableCommitmentError(
         `Cost-model version changed since this commitment was created ` +
           `(committed ${registration.pricingVersion}, now ${livePricingVersion}); it can no ` +
           `longer be revealed. Discard it with \`dotns register clear ${label} --discard\` and ` +
@@ -857,7 +868,7 @@ export async function executeRetry(
 }
 
 type ClearSummary = {
-  ok: true;
+  ok: boolean;
   purged: string[];
   discarded: string[];
   resumed: string[];
@@ -906,7 +917,7 @@ export async function executeClear(
   const records = loadCommitmentRecordsForClear(env, caller, options.name);
 
   const summary: ClearSummary = {
-    ok: true as const,
+    ok: true,
     purged: [],
     discarded: [],
     resumed: [],
@@ -965,16 +976,25 @@ export async function executeClear(
   const credential = requireManifestCredential(context, options);
   // Resume each record independently: one unrevealable record (for example a legacy
   // commitment that predates pricing binding) must not abort the others in the batch.
+  // Only that expected case is swallowed; any other error (RPC, decrypt, chain) is
+  // unexpected and propagates.
   for (const record of pending) {
     try {
       await resumeRegistration(context, record, credential, options.commitmentBuffer);
       summary.resumed.push(record.label);
     } catch (error) {
+      if (!(error instanceof UnrevealableCommitmentError)) throw error;
       summary.failed.push(record.label);
-      console.warn(
-        chalk.yellow(`  ⚠ Could not resume ${record.label}: ${formatErrorMessage(error)}`),
-      );
     }
+  }
+
+  if (summary.failed.length > 0) {
+    summary.ok = false;
+    console.warn(
+      chalk.yellow(
+        `  ⚠ ${summary.failed.length} of ${pending.length} could not be resumed: ${summary.failed.join(", ")}`,
+      ),
+    );
   }
 
   return summary;

@@ -161,7 +161,9 @@ export function attachRegisterCommand(root: Command) {
         const result = await maybeQuiet(jsonOutput, () => executeClear(merged));
 
         emitJsonResult(jsonOutput, result);
-        process.exit(0);
+        // A partial failure (some pending commitments could not be resumed) exits
+        // non-zero so a caller or CI can tell it apart from a clean run.
+        process.exit(result.ok ? 0 : 1);
       } catch (error) {
         handleCommandError(jsonOutput, error);
       }
