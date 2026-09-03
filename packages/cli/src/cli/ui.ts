@@ -17,7 +17,7 @@ export function printCommandHeader(action: string, target?: string): void {
   printHumanLine(segments.join("  "));
 }
 
-function stepStart(label: string) {
+export function stepStart(label: string) {
   printHumanLine(chalk.gray(label));
 }
 
