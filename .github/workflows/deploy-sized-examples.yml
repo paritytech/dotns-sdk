@@ -39,6 +39,13 @@ jobs:
     name: Deploy ${{ matrix.size }}
     strategy:
       fail-fast: false
+      # Run the sizes one at a time. They share the deployer and operator keys,
+      # and each size flows through deploy.yml's `dotns-deploy-<env>` concurrency
+      # group. In parallel that group admits one run plus one pending and cancels
+      # the rest, so most sizes were cancelled rather than deployed. Serialising
+      # here lets every size take its turn, and matches the nonce serialisation
+      # deploy.yml already relies on.
+      max-parallel: 1
       matrix: ${{ fromJSON(needs.config.outputs.matrix) }}
     uses: ./.github/workflows/deploy-sized-benchmark-entry.yml
     with:
