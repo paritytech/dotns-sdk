@@ -132,15 +132,14 @@ Select an environment with either an environment variable or a per-command optio
 
 ```bash
 # Default: Paseo V2
-dotns account is-whitelisted 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
+dotns account is-mapped 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
 
 # Explicitly use Paseo V2 for this shell
 export DOTNS_ENV=paseo-v2
-dotns account is-whitelisted 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
+dotns account is-mapped 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
 
 # Or override for a single command
-dotns --env paseo-v2 account is-whitelisted 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
-dotns account whitelist 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY --env paseo-v2 --key-uri //Alice
+dotns --env paseo-v2 account grant somelabel 0x1234567890AbcdEF1234567890aBcdef12345678
 ```
 
 `--rpc` still overrides the endpoint URL, but it does not change the selected DotNS contract addresses. Use `--env`/`DOTNS_ENV` to select the DotNS deployment.
@@ -348,9 +347,9 @@ echo "https://alice.dev" | dotns --password test-password text set alice url --a
 The CLI reads PoP status directly from the personhood precompile at
 `0x000000000000000000000000000000000a010000` using the `bytes32("dotns")`
 context. Returned tiers are `none`, `lite`, `full`, or `reserved`; DotNS does
-not set this status. `pop info` also reports whether the account is whitelisted
-for governance-reserved registrations (independent of the PoP tier) and any
-names pending settlement into the Label Store (run `store sync` to settle them).
+not set this status. `pop info` also reports any names pending settlement into
+the Label Store (run `store sync` to settle them). Governance-reserved
+registration is gated on a per-name grant; check it with `account grant`.
 
 ```bash
 # Check PoP status from the personhood precompile
@@ -359,7 +358,7 @@ dotns pop status --password test-password --account default
 dotns pop --mnemonic "bottom drive obey lake curtain smoke basket hold race lonely fit walk" status
 dotns pop --key-uri //Alice status
 
-# Full info: status, whitelist eligibility, and pending names
+# Full info: status and pending names
 dotns pop --password test-password --account default info
 dotns pop --mnemonic "bottom drive obey lake curtain smoke basket hold race lonely fit walk" info
 dotns pop --key-uri //Alice info
@@ -500,14 +499,11 @@ dotns --password test-password account map --account default
 # Check if address is mapped on-chain
 dotns account is-mapped 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
 
-# Check if address is whitelisted
-dotns account is-whitelisted 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
+# Show a name's grant on the name whitelist (status, grantee, claim window)
+dotns account grant somelabel
 
-# Whitelist an address (admin only)
-dotns --key-uri //Alice account whitelist 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
-
-# Remove from whitelist
-dotns --key-uri //Alice account whitelist 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY --remove
+# Check whether registerReserved would accept the name for an owner
+dotns account grant somelabel 0x1234567890AbcdEF1234567890aBcdef12345678
 ```
 
 ### Store

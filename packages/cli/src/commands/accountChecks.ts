@@ -3,6 +3,7 @@ import { type DotnsContext, read } from "../core/context";
 import type { IsMappedResult, NameGrantResult, ResolvedAddress } from "../types/types";
 import { DOTNS_NAME_WHITELIST_ABI, DOTNS_REGISTRAR_CONTROLLER_ABI } from "../utils/constants";
 import { isValidSubstrateAddress } from "../utils/validation";
+import { normaliseName } from "../core/naming";
 
 async function resolveToEvmAddress(ctx: DotnsContext, address: string): Promise<ResolvedAddress> {
   if (isAddress(address)) {
@@ -62,7 +63,8 @@ export async function resolveNameWhitelist(ctx: DotnsContext): Promise<Address> 
 
 // Grant record of `label` on the name whitelist: status, the beneficiary a
 // grant names, and whether the claim window is open.
-export async function getNameGrant(ctx: DotnsContext, label: string): Promise<NameGrantResult> {
+export async function getNameGrant(ctx: DotnsContext, name: string): Promise<NameGrantResult> {
+  const label = await normaliseName(ctx, name);
   const whitelist = await resolveNameWhitelist(ctx);
   const [statusIndex, grantee, windowOpen] = await Promise.all([
     read<number>(ctx, whitelist, DOTNS_NAME_WHITELIST_ABI, "statusOf", [label]),
@@ -81,9 +83,14 @@ export async function getNameGrant(ctx: DotnsContext, label: string): Promise<Na
 // the controller requires `isGrantedTo(label, owner)` on the name whitelist.
 export async function isNameGrantedTo(
   ctx: DotnsContext,
-  label: string,
-  owner: Address,
+  name: string,
+  owner: string,
 ): Promise<boolean> {
+  const label = await normaliseName(ctx, name);
+  const { evmAddress } = await resolveToEvmAddress(ctx, owner);
   const whitelist = await resolveNameWhitelist(ctx);
-  return read<boolean>(ctx, whitelist, DOTNS_NAME_WHITELIST_ABI, "isGrantedTo", [label, owner]);
+  return read<boolean>(ctx, whitelist, DOTNS_NAME_WHITELIST_ABI, "isGrantedTo", [
+    label,
+    evmAddress,
+  ]);
 }

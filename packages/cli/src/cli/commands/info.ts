@@ -1,5 +1,4 @@
 import { Command } from "commander";
-import { getAddress, type Address } from "viem";
 import chalk from "chalk";
 import ora from "ora";
 import { createClient } from "polkadot-api";
@@ -201,9 +200,7 @@ export function attachAccountCommands(root: Command) {
         });
         const grant = await maybeQuiet(jsonOutput, () => getNameGrant(ctx, label));
         const grantedTo = address
-          ? await maybeQuiet(jsonOutput, () =>
-              isNameGrantedTo(ctx, label, getAddress(address) as Address),
-            )
+          ? await maybeQuiet(jsonOutput, () => isNameGrantedTo(ctx, label, address))
           : undefined;
         if (jsonOutput) {
           console.log(JSON.stringify({ ...grant, grantedTo }));
