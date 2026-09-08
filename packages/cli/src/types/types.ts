@@ -767,24 +767,14 @@ export type IsMappedResult = {
   isMapped: boolean;
 };
 
-export type IsWhitelistedResult = {
-  /** SS58 substrate address that was checked */
-  address: string;
-  /** Corresponding EVM address (H160) */
-  evmAddress: string;
-  /** Whether the address is on the whitelist */
-  isWhitelisted: boolean;
-};
-
-export type WhitelistResult = {
-  /** SS58 substrate address that was whitelisted */
-  address: string;
-  /** Corresponding EVM address (H160) */
-  evmAddress: string;
-  /** Whether the whitelist operation succeeded */
-  whitelisted: boolean;
-  /** Transaction hash of the whitelist extrinsic */
-  txHash: string;
+export type NameGrantResult = {
+  label: string;
+  /** `DotnsNameWhitelist.statusOf`: Open, Reserved, or Granted. */
+  status: string;
+  /** Beneficiary a grant names; zero address while no grant stands. */
+  grantee: string;
+  /** Whether the claim window is currently open. */
+  windowOpen: boolean;
 };
 
 export type UploadManifest = {

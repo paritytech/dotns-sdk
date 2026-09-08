@@ -648,32 +648,28 @@ async function readLabelStore(ctx: DotnsContext, ownerAddress: Address): Promise
 
 type PendingClaim = { label: string; mintedAt: bigint };
 
-// Governance whitelist authorising registerReserved. Independent of the account's
-// PoP tier: a whitelisted address may register Reserved names regardless of its
-// own personhood status.
-export async function getWhitelistStatus(ctx: DotnsContext, address: Address): Promise<boolean> {
-  return read<boolean>(
-    ctx,
-    ctx.contracts.DOTNS_REGISTRAR_CONTROLLER,
-    DOTNS_REGISTRAR_CONTROLLER_ABI,
-    "isWhiteListed",
-    [address],
-  );
-}
+// `pendingClaims(address,uint256,uint256)` pages since dotns v0.6.0.
+const PENDING_CLAIM_PAGE_LIMIT = 16n;
+const PENDING_CLAIM_PAGE_MAX = 16n;
 
 async function readPendingClaims(
   ctx: DotnsContext,
   ownerAddress: Address,
 ): Promise<readonly PendingClaim[]> {
-  return (
-    (await read<readonly PendingClaim[]>(
-      ctx,
-      ctx.contracts.DOTNS_POP_CONTROLLER,
-      DOTNS_POP_CONTROLLER_ABI,
-      "pendingClaims",
-      [ownerAddress],
-    )) ?? []
-  );
+  const claims: PendingClaim[] = [];
+  for (let page = 0n; page < PENDING_CLAIM_PAGE_MAX; page += 1n) {
+    const chunk =
+      (await read<readonly PendingClaim[]>(
+        ctx,
+        ctx.contracts.DOTNS_POP_CONTROLLER,
+        DOTNS_POP_CONTROLLER_ABI,
+        "pendingClaims",
+        [ownerAddress, page * PENDING_CLAIM_PAGE_LIMIT, PENDING_CLAIM_PAGE_LIMIT],
+      )) ?? [];
+    claims.push(...chunk);
+    if (BigInt(chunk.length) < PENDING_CLAIM_PAGE_LIMIT) break;
+  }
+  return claims;
 }
 
 export async function getPendingClaimLabels(

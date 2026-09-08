@@ -121,19 +121,12 @@ describe("validateDomainLabel digit-suffix rule", () => {
     expect(() => validateDomainLabel("andrew01")).not.toThrow();
   });
 
-  test("rejects labels with exactly one trailing digit", () => {
-    expect(() => validateDomainLabel("andrew1")).toThrow(
-      /must have either no trailing digits or exactly two/,
-    );
-  });
-
-  test("rejects labels with three or more trailing digits", () => {
-    expect(() => validateDomainLabel("andrew123")).toThrow(
-      /must have either no trailing digits or exactly two/,
-    );
-    expect(() => validateDomainLabel("andrew9999")).toThrow(
-      /must have either no trailing digits or exactly two/,
-    );
+  // dotns v0.6.0 measures ordinary labels as written: any digit count is a
+  // different name, none is rejected.
+  test("accepts labels with any trailing digit count", () => {
+    expect(() => validateDomainLabel("andrew1")).not.toThrow();
+    expect(() => validateDomainLabel("andrew123")).not.toThrow();
+    expect(() => validateDomainLabel("andrew9999")).not.toThrow();
   });
 
   test("rejects labels shorter than three characters", () => {
@@ -200,15 +193,9 @@ describe("validateGovernanceLabel is independent of the PopRules digit-suffix ru
     expect(() => validateGovernanceLabel("dim22")).not.toThrow();
   });
 
-  // Guards the scope of the relaxation: normal registration is untouched, so every
-  // non-governance name still obeys the 0-or-2 rule.
-  test("the NORMAL path still enforces 0-or-2 trailing digits", () => {
-    expect(() => validateDomainLabel("dim2")).toThrow(
-      /must have either no trailing digits or exactly two/,
-    );
-    expect(() => validateDomainLabel("dim123")).toThrow(
-      /must have either no trailing digits or exactly two/,
-    );
+  test("the NORMAL path accepts any digit count too", () => {
+    expect(() => validateDomainLabel("dim2")).not.toThrow();
+    expect(() => validateDomainLabel("dim123")).not.toThrow();
     expect(() => validateDomainLabel("dimtwo")).not.toThrow();
     expect(() => validateDomainLabel("dimtwo01")).not.toThrow();
   });

@@ -192,6 +192,25 @@
   },
   {
     "type": "function",
+    "name": "isSoulbound",
+    "inputs": [
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "soulbound",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "labelOf",
     "inputs": [
       {
@@ -638,6 +657,12 @@
         "type": "address",
         "indexed": true,
         "internalType": "address"
+      },
+      {
+        "name": "soulbound",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
       }
     ],
     "anonymous": false
@@ -857,6 +882,17 @@
   {
     "type": "error",
     "name": "NameNotAvailable",
+    "inputs": [
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "NameSoulbound",
     "inputs": [
       {
         "name": "tokenId",

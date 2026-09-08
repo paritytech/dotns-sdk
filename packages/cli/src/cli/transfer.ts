@@ -118,6 +118,21 @@ export async function transferName(
     );
   }
 
+  // Gateway-minted PoP names are soulbound since dotns v0.6.0; the registrar
+  // would revert the transfer, so refuse with the reason instead.
+  const soulbound = await read<boolean>(
+    ctx,
+    ctx.contracts.DOTNS_REGISTRAR,
+    DOTNS_REGISTRAR_ABI,
+    "isSoulbound",
+    [tokenId],
+  ).catch(() => false);
+  if (soulbound) {
+    throw new Error(
+      `Cannot transfer: ${await formatDomainName(ctx, label)} is a soulbound personhood name`,
+    );
+  }
+
   if (opts.syncLabel) {
     await syncLabelWithRegistrar(ctx, label, tokenId);
   }

@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { getAddress, type Address } from "viem";
 import chalk from "chalk";
 import ora from "ora";
 import { createClient } from "polkadot-api";
@@ -6,13 +7,7 @@ import { getWsProvider } from "polkadot-api/ws-provider/node";
 import { paseo } from "@polkadot-api/descriptors";
 import { ReviveClientWrapper, type PolkadotApiClient } from "../../client/polkadotClient";
 import type { AccountInfoOptions, CommandOptions } from "../../types/types";
-import {
-  displayAccountInformation,
-  prepareContext,
-  prepareAssetHubContext,
-  buildDotnsContext,
-  buildReadOnlyDotnsContext,
-} from "../context";
+import { displayAccountInformation, prepareContext, buildReadOnlyDotnsContext } from "../context";
 import { makeOnStatus } from "../txStatus";
 import { addAuthOptions } from "./authOptions";
 import { resolveRpc, resolveKeystorePath } from "../env";
@@ -21,11 +16,7 @@ import { resolveAuthSource, createAccountFromSource } from "../../commands/auth"
 import { step } from "../ui";
 import { prepareReadOnlyContext } from "./lookup";
 import { getJsonFlag, getMergedOptions, maybeQuiet } from "./jsonHelpers";
-import {
-  checkAccountMapped,
-  getWhitelistStatus,
-  whitelistAddress,
-} from "../../commands/accountChecks";
+import { checkAccountMapped, getNameGrant, isNameGrantedTo } from "../../commands/accountChecks";
 
 export function attachAccountCommands(root: Command) {
   const accountCommand = root.command("account").description("Account management utilities");
@@ -191,75 +182,52 @@ export function attachAccountCommands(root: Command) {
     }
   });
 
-  const isWhitelistedCommand = accountCommand
-    .command("is-whitelisted <address>")
-    .alias("iw")
-    .description("Check if an address is whitelisted on the DotNS Controller")
+  const grantCommand = accountCommand
+    .command("grant <label> [address]")
+    .description(
+      "Show a name's grant on the name whitelist; with an address, check whether registerReserved would accept it",
+    )
     .option("--json", "Output result as JSON (suppresses all other output)", false);
 
-  addAuthOptions(isWhitelistedCommand).action(async (address: string, options: any, cmd: any) => {
-    const jsonOutput = getJsonFlag(cmd);
-    try {
-      const mergedOptions = getMergedOptions(cmd, options);
-      const context = await maybeQuiet(jsonOutput, () => prepareReadOnlyContext(mergedOptions));
-      const spinner = ora();
-      const ctx = buildReadOnlyDotnsContext(context, {
-        onStatus: makeOnStatus(spinner, "whitelist"),
-      });
-      const result = await maybeQuiet(jsonOutput, () => getWhitelistStatus(ctx, address));
-      if (jsonOutput) {
-        console.log(JSON.stringify(result));
-      } else {
-        console.log(chalk.gray("\n  address:     ") + chalk.white(result.address));
-        console.log(chalk.gray("  evm:         ") + chalk.cyan(result.evmAddress));
-        console.log(
-          chalk.gray("  whitelisted: ") +
-            (result.isWhitelisted ? chalk.green("true") : chalk.yellow("false")),
-        );
-        console.log(chalk.green("\n  Complete\n"));
+  addAuthOptions(grantCommand).action(
+    async (label: string, address: string | undefined, options: any, cmd: any) => {
+      const jsonOutput = getJsonFlag(cmd);
+      try {
+        const mergedOptions = getMergedOptions(cmd, options);
+        const context = await maybeQuiet(jsonOutput, () => prepareReadOnlyContext(mergedOptions));
+        const spinner = ora();
+        const ctx = buildReadOnlyDotnsContext(context, {
+          onStatus: makeOnStatus(spinner, "name grant"),
+        });
+        const grant = await maybeQuiet(jsonOutput, () => getNameGrant(ctx, label));
+        const grantedTo = address
+          ? await maybeQuiet(jsonOutput, () =>
+              isNameGrantedTo(ctx, label, getAddress(address) as Address),
+            )
+          : undefined;
+        if (jsonOutput) {
+          console.log(JSON.stringify({ ...grant, grantedTo }));
+        } else {
+          console.log(chalk.gray("\n  label:      ") + chalk.white(grant.label));
+          console.log(chalk.gray("  status:     ") + chalk.cyan(grant.status));
+          console.log(chalk.gray("  grantee:    ") + chalk.white(grant.grantee));
+          console.log(
+            chalk.gray("  window:     ") +
+              (grant.windowOpen ? chalk.green("open") : chalk.yellow("closed")),
+          );
+          if (grantedTo !== undefined) {
+            console.log(
+              chalk.gray("  granted to: ") + (grantedTo ? chalk.green("yes") : chalk.yellow("no")),
+            );
+          }
+          console.log(chalk.green("\n  Complete\n"));
+        }
+        process.exit(0);
+      } catch (error) {
+        if (jsonOutput) console.error(JSON.stringify({ error: formatErrorMessage(error) }));
+        else console.error(chalk.red(`\n  Error: ${formatErrorMessage(error)}\n`));
+        process.exit(1);
       }
-      process.exit(0);
-    } catch (error) {
-      if (jsonOutput) console.error(JSON.stringify({ error: formatErrorMessage(error) }));
-      else console.error(chalk.red(`\n  Error: ${formatErrorMessage(error)}\n`));
-      process.exit(1);
-    }
-  });
-
-  const whitelistCommand = accountCommand
-    .command("whitelist <address>")
-    .description("Whitelist an address on the DotNS Controller (admin only)")
-    .option("-r, --remove", "Remove address from whitelist instead of adding", false)
-    .option("--json", "Output result as JSON (suppresses all other output)", false);
-
-  addAuthOptions(whitelistCommand).action(async (address: string, options: any, cmd: any) => {
-    const jsonOutput = getJsonFlag(cmd);
-    try {
-      const mergedOptions = getMergedOptions(cmd, options);
-      const enable = !mergedOptions.remove;
-      const context = await maybeQuiet(jsonOutput, () => prepareAssetHubContext(mergedOptions));
-      const spinner = ora();
-      const ctx = buildDotnsContext(context, {
-        onStatus: makeOnStatus(spinner, enable ? "Whitelist" : "Un-whitelist"),
-      });
-      const result = await maybeQuiet(jsonOutput, () => whitelistAddress(ctx, address, enable));
-      if (jsonOutput) {
-        console.log(JSON.stringify(result));
-      } else {
-        console.log(chalk.gray("\n  address:     ") + chalk.white(result.address));
-        console.log(chalk.gray("  evm:         ") + chalk.cyan(result.evmAddress));
-        console.log(chalk.gray("  txHash:      ") + chalk.white(result.txHash));
-        console.log(
-          chalk.gray("  whitelisted: ") +
-            (result.whitelisted ? chalk.green("true") : chalk.yellow("false")),
-        );
-        console.log(chalk.green("\n  Complete\n"));
-      }
-      process.exit(0);
-    } catch (error) {
-      if (jsonOutput) console.error(JSON.stringify({ error: formatErrorMessage(error) }));
-      else console.error(chalk.red(`\n  Error: ${formatErrorMessage(error)}\n`));
-      process.exit(1);
-    }
-  });
+    },
+  );
 }

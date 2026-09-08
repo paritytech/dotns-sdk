@@ -65,16 +65,9 @@ export function validateDomainLabel(label: string): void {
     throw new Error("Invalid domain label: cannot start or end with hyphen");
   }
 
-  // PopRules accepts exactly zero or exactly two trailing digits. One, three, or more
-  // are rejected outright. The two-digit lite-gateway suffix is the only digit shape
-  // the protocol issues; allowing other counts would let users masquerade as gateway
-  // names or create labels no class cleanly owns.
-  const trailingDigitCount = countTrailingDigits(label);
-  if (trailingDigitCount !== 0 && trailingDigitCount !== 2) {
-    throw new Error(
-      `Invalid domain label: must have either no trailing digits or exactly two, found ${trailingDigitCount}`,
-    );
-  }
+  // Since dotns v0.6.0 an ordinary label is measured as written: digits carry no
+  // special meaning and no count is privileged or rejected ("web3", "blink182").
+  // A lite name is the dotted form issued by the gateway and never enters here.
 }
 
 /**

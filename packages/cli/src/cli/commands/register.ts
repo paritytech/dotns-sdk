@@ -7,7 +7,6 @@ import {
   tryClassifyDomainName,
   ensureDomainNotRegistered,
   generateCommitment,
-  getWhitelistStatus,
   submitCommitment,
   waitForMinimumCommitmentAge,
   getPriceAndValidateEligibility,
@@ -21,6 +20,7 @@ import {
   readDomainOwner,
   type RegistrationResult,
 } from "../../commands/register";
+import { isNameGrantedTo } from "../../commands/accountChecks";
 import {
   saveCommitmentRecord,
   loadCommitmentRecords,
@@ -534,21 +534,19 @@ async function executeGovernanceRegistration(
   // rather than silently widening what a whitelisted account can mint here.
   validateGovernanceLabel(label);
 
-  // registerReserved is gated on the whitelist (or the controller owner), not on the
-  // caller's PoP tier. Surfaced as information only: the controller owner is also
-  // authorised, so a `false` here is a warning rather than a hard stop.
-  const whitelisted = await step("Checking governance whitelist", async () =>
-    getWhitelistStatus(session.ctx, session.caller).catch(() => null),
+  // registerReserved is gated on the name whitelist (or Root), not on the
+  // caller's PoP tier. Surfaced as information only: a Root-origin mint skips
+  // the grant check, so a `false` here is a warning rather than a hard stop.
+  const granted = await step("Checking name grant", async () =>
+    isNameGrantedTo(session.ctx, label, session.caller).catch(() => null),
   );
-  if (whitelisted === false) {
+  if (granted === false) {
     console.log(
-      chalk.yellow("  ⚠ caller is not whitelisted; ") +
-        chalk.gray(
-          "registerReserved reverts with NotWhiteListedOrOwner unless you own the controller",
-        ),
+      chalk.yellow("  ⚠ name is not granted to the caller; ") +
+        chalk.gray("registerReserved reverts with NameNotGranted unless the origin is Root"),
     );
-  } else if (whitelisted === true) {
-    console.log(chalk.gray("  whitelisted: ") + chalk.green("yes"));
+  } else if (granted === true) {
+    console.log(chalk.gray("  granted:   ") + chalk.green("yes"));
   }
 
   // A null classification means PopRules refuses to classify the label's *shape*

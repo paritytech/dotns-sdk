@@ -26,7 +26,6 @@ export {
   finalizeGovernanceRegistration,
   registerSubnode,
   verifyDomainOwnership,
-  getWhitelistStatus,
   getPendingClaimLabels,
   ensureLabelStoreReady,
   registerName,

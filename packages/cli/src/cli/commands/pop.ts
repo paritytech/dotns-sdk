@@ -1,10 +1,6 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import {
-  getUserProofOfPersonhoodStatus,
-  getWhitelistStatus,
-  getPendingClaimLabels,
-} from "../../commands/register";
+import { getUserProofOfPersonhoodStatus, getPendingClaimLabels } from "../../commands/register";
 import { addAuthOptions } from "./authOptions";
 import type { CommandOptions } from "../../types/types";
 import { ProofOfPersonhoodStatus } from "../../types/types";
@@ -23,7 +19,6 @@ type PopInfoResult = {
   substrate: string;
   evm: string;
   status: ProofOfPersonhoodStatus;
-  whitelisted: boolean;
   pendingClaims: string[];
 };
 
@@ -45,9 +40,8 @@ async function readPopInfo(options: CommandOptions): Promise<PopInfoResult> {
   const context = await prepareReadOnlyContext(options as any);
   const ctx = buildReadOnlyDotnsContext(context);
   const evm = context.evmAddress as Address;
-  const [status, whitelisted, pendingClaims] = await Promise.all([
+  const [status, pendingClaims] = await Promise.all([
     getUserProofOfPersonhoodStatus(ctx, evm),
-    getWhitelistStatus(ctx, evm),
     getPendingClaimLabels(ctx, evm),
   ]);
 
@@ -55,7 +49,6 @@ async function readPopInfo(options: CommandOptions): Promise<PopInfoResult> {
     substrate: context.account.address,
     evm: context.evmAddress!,
     status,
-    whitelisted,
     pendingClaims,
   };
 }
@@ -83,7 +76,6 @@ export function attachPopCommands(root: Command): void {
           evm: info.evm,
           status: formatPopStatus(info.status),
           statusCode: info.status,
-          whitelisted: info.whitelisted,
           pendingClaims: info.pendingClaims,
         })
       ) {
@@ -91,13 +83,6 @@ export function attachPopCommands(root: Command): void {
         console.log(chalk.gray("  substrate:  ") + chalk.white(info.substrate));
         console.log(chalk.gray("  evm:        ") + chalk.white(info.evm));
         console.log(chalk.gray("  status:     ") + chalk.white(formatPopStatus(info.status)));
-        console.log(
-          chalk.gray("  whitelisted:") +
-            " " +
-            (info.whitelisted
-              ? chalk.green("yes (may register governance-reserved names)")
-              : chalk.gray("no")),
-        );
         if (info.pendingClaims.length > 0) {
           console.log(
             chalk.gray("  pending:    ") +
