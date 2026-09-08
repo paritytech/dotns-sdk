@@ -121,8 +121,8 @@ runs:
 
         # Names of 5 characters or fewer classify as Reserved and must be
         # registered through the governance (registerReserved) path, which is
-        # gated on the caller being whitelisted (the "Whitelist deployer" step
-        # authorises exactly this). Longer names use regular registration.
+        # gated on a name grant to the owner (`DotnsNameWhitelist.isGrantedTo`)
+        # or a Root origin. Longer names use regular registration.
         # Base registration is commit-reveal, so retries are delegated to the
         # CLI's --retry: on failure it resumes from the cached commitment rather
         # than submitting a fresh commit each attempt. --retry counts retries on
@@ -143,13 +143,13 @@ runs:
 
         echo "::error::Base domain registration failed after $MAX_RETRIES attempts."
         echo ""
-        echo "For reserved names (5 characters or fewer) the deployer must be"
-        echo "whitelisted for governance registration. For longer names the"
+        echo "For reserved names (5 characters or fewer) the name must be"
+        echo "granted to the owner on the name whitelist. For longer names the"
         echo "account must hold the required Proof-of-Personhood status."
         echo ""
         echo "To fix this:"
-        echo "  1. Confirm the deployer is whitelisted:  dotns account is-whitelisted <address>"
-        echo "  2. Check PoP status (longer names):       dotns pop status"
+        echo "  1. Check the name grant:            dotns account grant <label> <address>"
+        echo "  2. Check PoP status (longer names): dotns pop status"
         echo "  3. Then re-run this workflow."
         echo ""
         echo "You can also register manually at https://dotns.paseo.li"

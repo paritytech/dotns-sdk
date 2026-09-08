@@ -1,7 +1,11 @@
 import { checksumAddress, isAddress, zeroAddress, type Address, type Hex } from "viem";
 import { type DotnsContext, read, write, ownEvmAddress } from "../core/context";
 import { DOTNS_REGISTRAR_ABI } from "../utils/constants";
-import { validateDomainLabel, isValidSubstrateAddress } from "../utils/validation";
+import {
+  validateExistingNameLabel,
+  isLitePersonLabel,
+  isValidSubstrateAddress,
+} from "../utils/validation";
 import { formatErrorMessage, convertWeiToNativeCeil } from "../utils/formatting";
 import { computeDomainTokenId, formatDomainName, normaliseName } from "../core/naming";
 
@@ -10,7 +14,9 @@ function toChecksummed(a: Address): Address {
 }
 
 function isLabelLike(input: string): boolean {
-  return /^[a-z0-9-]{3,}$/.test(input);
+  // A lite name carries a separator and is still one label, so it is a valid
+  // recipient even though it does not match the ordinary shape.
+  return /^[a-z0-9-]{3,}$/.test(input) || isLitePersonLabel(input);
 }
 
 async function ownerOfLabel(ctx: DotnsContext, label: string): Promise<Address> {
@@ -35,9 +41,10 @@ export async function resolveTransferRecipient(
     return toChecksummed(await ctx.clientWrapper.getEvmAddress(input));
   }
 
-  // A name is a label plus at most one TLD segment. Reject anything else here so
-  // clearly-invalid input fails without a chain read for the TLD.
-  if (/^[a-z0-9-]+(\.[a-z0-9-]+)?$/.test(input.toLowerCase())) {
+  // A name is a label plus at most one TLD segment, and a lite name carries a
+  // separator of its own, so allow one segment more for `joseph.42.dot`. Reject
+  // anything else here so clearly-invalid input fails without a chain read.
+  if (/^[a-z0-9-]+(\.[a-z0-9-]+){0,2}$/.test(input.toLowerCase())) {
     const label = await normaliseName(ctx, input);
     if (isLabelLike(label)) {
       const ownerAddress = await ownerOfLabel(ctx, label);
@@ -100,7 +107,7 @@ export async function transferName(
   opts: TransferNameOptions = {},
 ): Promise<TransferResult> {
   const label = await normaliseName(ctx, name);
-  validateDomainLabel(label);
+  validateExistingNameLabel(label);
 
   const tokenId = await computeDomainTokenId(ctx, label);
   const from = await ownEvmAddress(ctx);
@@ -115,6 +122,21 @@ export async function transferName(
   if (currentOwnerC !== fromC) {
     throw new Error(
       `Cannot transfer: ${await formatDomainName(ctx, label)} owned by ${currentOwnerC}`,
+    );
+  }
+
+  // Gateway-minted PoP names are soulbound since dotns v0.6.0; the registrar
+  // would revert the transfer, so refuse with the reason instead.
+  const soulbound = await read<boolean>(
+    ctx,
+    ctx.contracts.DOTNS_REGISTRAR,
+    DOTNS_REGISTRAR_ABI,
+    "isSoulbound",
+    [tokenId],
+  ).catch(() => false);
+  if (soulbound) {
+    throw new Error(
+      `Cannot transfer: ${await formatDomainName(ctx, label)} is a soulbound personhood name`,
     );
   }
 

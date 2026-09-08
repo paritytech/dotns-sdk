@@ -19,9 +19,10 @@ export function generateRandomLabel(status: ProofOfPersonhoodStatus): string {
     return randomCharacters(alphanumeric, length - 1) + randomCharacters(alphabet, 1);
   };
 
+  // Since dotns v0.6.0 a lite name is only the dotted form the gateway issues, and its
+  // stem follows the person rule: lowercase letters, no digits or hyphens.
   if (status === ProofOfPersonhoodStatus.ProofOfPersonhoodLite) {
-    const baseLength = 6 + randomInteger(3);
-    return baseEndingWithLetter(baseLength) + twoDigits();
+    return `${randomCharacters(alphabet, 6 + randomInteger(3))}.${twoDigits()}`;
   }
 
   if (status === ProofOfPersonhoodStatus.NoStatus) {
@@ -29,9 +30,10 @@ export function generateRandomLabel(status: ProofOfPersonhoodStatus): string {
     return baseEndingWithLetter(baseLength) + twoDigits();
   }
 
+  // A full-person name is letters only.
   if (status === ProofOfPersonhoodStatus.ProofOfPersonhoodFull) {
     const baseLength = randomInteger(2) === 0 ? 6 + randomInteger(3) : 9 + randomInteger(6);
-    return baseEndingWithLetter(baseLength);
+    return randomCharacters(alphabet, baseLength);
   }
 
   throw new Error("Cannot auto-generate Reserved names");

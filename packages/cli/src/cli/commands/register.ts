@@ -7,7 +7,6 @@ import {
   tryClassifyDomainName,
   ensureDomainNotRegistered,
   generateCommitment,
-  getWhitelistStatus,
   submitCommitment,
   waitForMinimumCommitmentAge,
   getPriceAndValidateEligibility,
@@ -21,6 +20,7 @@ import {
   readDomainOwner,
   type RegistrationResult,
 } from "../../commands/register";
+import { isNameGrantedTo } from "../../commands/accountChecks";
 import {
   saveCommitmentRecord,
   loadCommitmentRecords,
@@ -35,6 +35,7 @@ import {
 import {
   isValidSubstrateAddress,
   validateCanonicalLabel,
+  isLitePersonLabel,
   validateDomainLabel,
   validateGovernanceLabel,
 } from "../../utils/validation";
@@ -150,6 +151,10 @@ export function classifyTransferDestination(destination: string): TransferDestin
 export function isValidTransferDestination(destination: string): boolean {
   const kind = classifyTransferDestination(destination);
   if (kind === "evm" || kind === "substrate") return true;
+
+  // A lite name carries a separator and still names one owner, so it resolves the
+  // same way an ordinary label does.
+  if (isLitePersonLabel(destination)) return true;
 
   const domainLabelPattern = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
   return (
@@ -355,9 +360,15 @@ export async function executeSubnameRegistration(
   const session = buildSession(context, "Subname");
 
   const sublabel = options.name;
-  const parentLabel = options.parent;
+  // Strip the TLD before classifying: `--parent joseph.42.dot` and `--parent joseph.42`
+  // name the same parent, and `formatDomainName` below appends the TLD itself.
+  const parentLabel = await normaliseName(session.ctx, options.parent);
+  // The new label must never carry a separator: that is what keeps the dotted space
+  // exclusive to the gateway. The parent may be a lite name, which legitimately has one.
   validateCanonicalLabel(sublabel, "subname");
-  validateCanonicalLabel(parentLabel, "parent label");
+  if (!isLitePersonLabel(parentLabel)) {
+    validateCanonicalLabel(parentLabel, "parent label");
+  }
   const ownerAddress = (options.owner as Address) ?? evmAddress;
 
   const parentDomain = await formatDomainName(session.ctx, parentLabel);
@@ -524,31 +535,28 @@ async function executeGovernanceRegistration(
   // This path submits through DotnsRegistrarController.registerReserved, which
   // never consults PopRules: its only on-chain label checks are isSingleLabel()
   // (InvalidLabel) and length >= 3 (LabelTooShort). Hence validateGovernanceLabel
-  // rather than validateDomainLabel — the latter's "zero or exactly two trailing
-  // digits" rule mirrors PopRules and would reject labels the contract accepts,
-  // e.g. "dim2" (stem "dim" plus one trailing digit).
+  // rather than validateDomainLabel, which refuses a lite name outright because
+  // only the gateway issues one.
   //
-  // The stem <= 5 bound it does apply is likewise not a registerReserved
-  // requirement; it mirrors PopRules' `stemLen <= 5 -> Reserved` classification.
-  // Kept deliberately: it holds this command to the reserved class it is for,
-  // rather than silently widening what a whitelisted account can mint here.
+  // The base <= 5 bound it does apply is not a registerReserved requirement; it
+  // mirrors PopRules' `baseLength <= 5 -> Reserved` classification. Kept
+  // deliberately: it holds this command to the reserved class it is for, rather
+  // than silently widening what a grant holder can mint here.
   validateGovernanceLabel(label);
 
-  // registerReserved is gated on the whitelist (or the controller owner), not on the
-  // caller's PoP tier. Surfaced as information only: the controller owner is also
-  // authorised, so a `false` here is a warning rather than a hard stop.
-  const whitelisted = await step("Checking governance whitelist", async () =>
-    getWhitelistStatus(session.ctx, session.caller).catch(() => null),
+  // registerReserved is gated on the name whitelist (or Root), not on the
+  // caller's PoP tier. Surfaced as information only: a Root-origin mint skips
+  // the grant check, so a `false` here is a warning rather than a hard stop.
+  const granted = await step("Checking name grant", async () =>
+    isNameGrantedTo(session.ctx, label, session.caller).catch(() => null),
   );
-  if (whitelisted === false) {
+  if (granted === false) {
     console.log(
-      chalk.yellow("  ⚠ caller is not whitelisted; ") +
-        chalk.gray(
-          "registerReserved reverts with NotWhiteListedOrOwner unless you own the controller",
-        ),
+      chalk.yellow("  ⚠ name is not granted to the caller; ") +
+        chalk.gray("registerReserved reverts with NameNotGranted unless the origin is Root"),
     );
-  } else if (whitelisted === true) {
-    console.log(chalk.gray("  whitelisted: ") + chalk.green("yes"));
+  } else if (granted === true) {
+    console.log(chalk.gray("  granted:   ") + chalk.green("yes"));
   }
 
   // A null classification means PopRules refuses to classify the label's *shape*

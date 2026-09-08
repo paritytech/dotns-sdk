@@ -26,11 +26,16 @@ export {
   finalizeGovernanceRegistration,
   registerSubnode,
   verifyDomainOwnership,
-  getWhitelistStatus,
   getPendingClaimLabels,
   ensureLabelStoreReady,
   registerName,
 } from "../commands/register";
+export {
+  resolveNameWhitelist,
+  getNameGrant,
+  isNameGrantedTo,
+  NAME_GRANT_STATUS,
+} from "../commands/accountChecks";
 export type {
   GenerateCommitmentOptions,
   GeneratedCommitment,

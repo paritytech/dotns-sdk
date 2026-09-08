@@ -88,79 +88,62 @@ test(
 );
 
 test(
-  "account is-whitelisted with SS58 address returns whitelist status",
+  "account grant reads a name's grant record",
   async () => {
     const result = await runDotnsCli([
       "account",
-      "is-whitelisted",
+      "grant",
+      "getsomecash",
+      "--key-uri",
+      ALICE_KEY_URI,
+    ]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+    expect(result.combinedOutput).not.toContain("Error:");
+    expect(result.combinedOutput).toContain("status:");
+    expect(result.combinedOutput).toContain("grantee:");
+  },
+  { timeout: TEST_TIMEOUT_MS },
+);
+
+test(
+  "account grant with an owner address answers the registerReserved gate",
+  async () => {
+    const result = await runDotnsCli([
+      "account",
+      "grant",
+      "getsomecash",
+      ALICE_EVM,
+      "--key-uri",
+      ALICE_KEY_URI,
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
+    const parsed = JSON.parse(result.combinedOutput.trim());
+    expect(parsed.label).toBeString();
+    expect(parsed.status).toBeString();
+    expect(typeof parsed.grantedTo).toBe("boolean");
+  },
+  { timeout: TEST_TIMEOUT_MS },
+);
+
+test(
+  "account grant resolves an SS58 owner address",
+  async () => {
+    const result = await runDotnsCli([
+      "account",
+      "grant",
+      "getsomecash",
       ALICE_SS58,
       "--key-uri",
       ALICE_KEY_URI,
-    ]);
-
-    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
-    expect(result.combinedOutput).not.toContain("Error:");
-    expect(result.combinedOutput).toContain("whitelisted:");
-  },
-  { timeout: TEST_TIMEOUT_MS },
-);
-
-test(
-  "account is-whitelisted with EVM address returns whitelist status",
-  async () => {
-    const result = await runDotnsCli([
-      "account",
-      "is-whitelisted",
-      ALICE_EVM,
-      "--key-uri",
-      ALICE_KEY_URI,
-    ]);
-
-    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
-    expect(result.combinedOutput).not.toContain("Error:");
-    expect(result.combinedOutput).toContain("whitelisted:");
-  },
-  { timeout: TEST_TIMEOUT_MS },
-);
-
-test(
-  "account is-whitelisted --json returns structured result",
-  async () => {
-    const result = await runDotnsCli([
-      "account",
-      "is-whitelisted",
-      ALICE_EVM,
-      "--key-uri",
-      ALICE_KEY_URI,
-      "--json",
-    ]);
-
-    expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
-    expect(result.combinedOutput).not.toContain("Connecting");
-
-    const parsed = JSON.parse(result.combinedOutput.trim());
-    expect(parsed.address).toBeString();
-    expect(parsed.evmAddress).toBeString();
-    expect(typeof parsed.isWhitelisted).toBe("boolean");
-  },
-  { timeout: TEST_TIMEOUT_MS },
-);
-
-test(
-  "account iw alias works for is-whitelisted",
-  async () => {
-    const result = await runDotnsCli([
-      "account",
-      "iw",
-      ALICE_EVM,
-      "--key-uri",
-      ALICE_KEY_URI,
       "--json",
     ]);
 
     expect(result.exitCode).toBe(HARNESS_SUCCESS_EXIT_CODE);
     const parsed = JSON.parse(result.combinedOutput.trim());
-    expect(typeof parsed.isWhitelisted).toBe("boolean");
+    expect(typeof parsed.grantedTo).toBe("boolean");
   },
   { timeout: TEST_TIMEOUT_MS },
 );

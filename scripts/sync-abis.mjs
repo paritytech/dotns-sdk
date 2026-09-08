@@ -28,6 +28,8 @@ const REPO = "paritytech/dotns";
 const ABI_NAMES = [
 	"DotnsContentResolver",
 	"DotnsNameEscrow",
+	"DotnsNameWhitelist",
+	"DotnsPopController",
 	"DotnsRegistrar",
 	"DotnsRegistrarController",
 	"DotnsRegistry",
