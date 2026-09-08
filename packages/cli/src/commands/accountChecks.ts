@@ -40,7 +40,7 @@ const PROTOCOL_REGISTRY_GET_ABI = [
 ] as const;
 
 /// Grant states of `DotnsNameWhitelist.statusOf`.
-export const NAME_GRANT_STATUS = ["Open", "Reserved", "Granted"] as const;
+export const NAME_GRANT_STATUS = ["Open", "Reserved", "Claimed"] as const;
 
 // Resolves the name whitelist the way the controller does: from the protocol
 // registry, so the CLI never holds a second copy of the address.

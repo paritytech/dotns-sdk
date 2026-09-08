@@ -769,7 +769,7 @@ export type IsMappedResult = {
 
 export type NameGrantResult = {
   label: string;
-  /** `DotnsNameWhitelist.statusOf`: Open, Reserved, or Granted. */
+  /** `DotnsNameWhitelist.statusOf`: Open, Reserved, or Claimed. */
   status: string;
   /** Beneficiary a grant names; zero address while no grant stands. */
   grantee: string;

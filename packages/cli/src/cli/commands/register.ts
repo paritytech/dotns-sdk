@@ -152,6 +152,10 @@ export function isValidTransferDestination(destination: string): boolean {
   const kind = classifyTransferDestination(destination);
   if (kind === "evm" || kind === "substrate") return true;
 
+  // A lite name carries a separator and still names one owner, so it resolves the
+  // same way an ordinary label does.
+  if (isLitePersonLabel(destination)) return true;
+
   const domainLabelPattern = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
   return (
     domainLabelPattern.test(destination) && destination.length >= 3 && destination.length <= 63
