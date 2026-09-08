@@ -1,7 +1,8 @@
-import { zeroAddress, type Address } from "viem";
+import { namehash, zeroAddress, type Address } from "viem";
 import { type DotnsContext, read, write } from "../core/context";
 import { DOTNS_REGISTRY_ABI, DOTNS_CONTENT_RESOLVER_ABI } from "../utils/constants";
 import { domainNode, formatDomainName, normaliseName } from "../core/naming";
+import { isLitePersonLabel } from "../utils/validation";
 import { getResolverNodeInfo, requireResolverAuthorization } from "./resolverAuth";
 
 export type TextViewResult = {
@@ -26,7 +27,7 @@ export async function getTextRecord(
 ): Promise<TextViewResult> {
   const label = await normaliseName(ctx, name);
   const domain = await formatDomainName(ctx, label);
-  const namehashNode = await domainNode(ctx, label);
+  const namehashNode = isLitePersonLabel(label) ? await domainNode(ctx, label) : namehash(domain);
 
   const recordExists = await read<boolean>(
     ctx,
@@ -72,7 +73,7 @@ export async function setTextRecord(
 ): Promise<TextSetResult> {
   const label = await normaliseName(ctx, name);
   const domain = await formatDomainName(ctx, label);
-  const namehashNode = await domainNode(ctx, label);
+  const namehashNode = isLitePersonLabel(label) ? await domainNode(ctx, label) : namehash(domain);
 
   const { exists, owner, caller } = await getResolverNodeInfo(ctx, namehashNode);
   if (!exists) {
