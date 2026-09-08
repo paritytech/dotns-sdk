@@ -2,7 +2,7 @@ import { zeroAddress, type Address } from "viem";
 import { type DotnsContext, read, write, ownEvmAddress } from "../core/context";
 import { DOTNS_REGISTRAR_ABI, DOTNS_CONTENT_RESOLVER_ABI } from "../utils/constants";
 import { computeDomainTokenId, formatDomainName, normaliseName } from "../core/naming";
-import { validateDomainLabel } from "../utils/validation";
+import { validateExistingNameLabel } from "../utils/validation";
 
 export type DelegateResult = {
   name: string;
@@ -23,7 +23,7 @@ async function approveDelegate(
   action: string,
 ): Promise<DelegateResult> {
   const label = await normaliseName(ctx, name);
-  validateDomainLabel(label);
+  validateExistingNameLabel(label);
   const tokenId = await computeDomainTokenId(ctx, label);
   const txHash = await write(
     ctx,
@@ -51,7 +51,7 @@ export async function revokeNameDelegate(ctx: DotnsContext, name: string): Promi
 
 export async function getNameDelegate(ctx: DotnsContext, name: string): Promise<Address | null> {
   const label = await normaliseName(ctx, name);
-  validateDomainLabel(label);
+  validateExistingNameLabel(label);
   const tokenId = await computeDomainTokenId(ctx, label);
   const delegate = await read<Address>(
     ctx,

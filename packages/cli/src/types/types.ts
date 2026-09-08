@@ -682,7 +682,7 @@ export type SubnodeRecord = {
 };
 
 export type BaseNameReservation = {
-  /** Base name with trailing digits stripped (e.g. "mysite" from "mysite42"). */
+  /** The label as written, or a lite name's stem (e.g. "joseph" from "joseph.42"). */
   baseName: string;
   /** Whether the base name is currently reserved via the PopRules oracle. */
   isReserved: boolean;
@@ -714,7 +714,7 @@ export type DomainLookupResult = {
     /** Human-readable free balance in native token units. */
     free: string;
   } | null;
-  /** PopRules reservation status for the base name, or null if the label has no trailing digits. */
+  /** PopRules reservation status for the base name, or null if the base is the whole label. */
   baseNameReservation: BaseNameReservation | null;
   /** The name's chat key from the PoP resolver (hex), or null if none is set. */
   chatKey: string | null;

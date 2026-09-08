@@ -1,7 +1,7 @@
 import type { Address } from "viem";
 import { type DotnsContext, read, write, ownEvmAddress } from "../core/context";
 import { DOTNS_REVERSE_RESOLVER_ABI } from "../utils/constants";
-import { validateDomainLabel } from "../utils/validation";
+import { validateExistingNameLabel } from "../utils/validation";
 import { formatDomainName, normaliseName } from "../core/naming";
 
 export type PrimaryNameResult = {
@@ -11,7 +11,7 @@ export type PrimaryNameResult = {
 
 export async function setPrimaryName(ctx: DotnsContext, name: string): Promise<PrimaryNameResult> {
   const label = await normaliseName(ctx, name);
-  validateDomainLabel(label);
+  validateExistingNameLabel(label);
   const txHash = await write(
     ctx,
     ctx.contracts.DOTNS_REVERSE_RESOLVER,

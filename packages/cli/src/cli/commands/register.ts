@@ -35,6 +35,7 @@ import {
 import {
   isValidSubstrateAddress,
   validateCanonicalLabel,
+  isLitePersonLabel,
   validateDomainLabel,
   validateGovernanceLabel,
 } from "../../utils/validation";
@@ -355,9 +356,15 @@ export async function executeSubnameRegistration(
   const session = buildSession(context, "Subname");
 
   const sublabel = options.name;
-  const parentLabel = options.parent;
+  // Strip the TLD before classifying: `--parent joseph.42.dot` and `--parent joseph.42`
+  // name the same parent, and `formatDomainName` below appends the TLD itself.
+  const parentLabel = await normaliseName(session.ctx, options.parent);
+  // The new label must never carry a separator: that is what keeps the dotted space
+  // exclusive to the gateway. The parent may be a lite name, which legitimately has one.
   validateCanonicalLabel(sublabel, "subname");
-  validateCanonicalLabel(parentLabel, "parent label");
+  if (!isLitePersonLabel(parentLabel)) {
+    validateCanonicalLabel(parentLabel, "parent label");
+  }
   const ownerAddress = (options.owner as Address) ?? evmAddress;
 
   const parentDomain = await formatDomainName(session.ctx, parentLabel);
@@ -524,14 +531,13 @@ async function executeGovernanceRegistration(
   // This path submits through DotnsRegistrarController.registerReserved, which
   // never consults PopRules: its only on-chain label checks are isSingleLabel()
   // (InvalidLabel) and length >= 3 (LabelTooShort). Hence validateGovernanceLabel
-  // rather than validateDomainLabel — the latter's "zero or exactly two trailing
-  // digits" rule mirrors PopRules and would reject labels the contract accepts,
-  // e.g. "dim2" (stem "dim" plus one trailing digit).
+  // rather than validateDomainLabel, which refuses a lite name outright because
+  // only the gateway issues one.
   //
-  // The stem <= 5 bound it does apply is likewise not a registerReserved
-  // requirement; it mirrors PopRules' `stemLen <= 5 -> Reserved` classification.
-  // Kept deliberately: it holds this command to the reserved class it is for,
-  // rather than silently widening what a whitelisted account can mint here.
+  // The base <= 5 bound it does apply is not a registerReserved requirement; it
+  // mirrors PopRules' `baseLength <= 5 -> Reserved` classification. Kept
+  // deliberately: it holds this command to the reserved class it is for, rather
+  // than silently widening what a grant holder can mint here.
   validateGovernanceLabel(label);
 
   // registerReserved is gated on the name whitelist (or Root), not on the

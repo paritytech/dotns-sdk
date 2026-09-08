@@ -195,16 +195,15 @@ To sign with a QR-paired mobile wallet programmatically, build the signer with
 All registration commands require authentication.
 
 ```bash
-# Register a NoStatus name (stem ≥ 9, open to all)
+# Register a NoStatus name (base ≥ 9, open to all)
 dotns --password test-password register domain --account default --name coolwebsite
 
-# Register a name that requires PoP Lite (stem 6-8 + 2-digit suffix)
-dotns --password test-password register domain --account default --name premium12
+# A PoP Lite name is `stem.NN`, issued by the gateway and not registrable here.
 
-# Register a name that requires PoP Full (stem 6-8, no suffix)
+# Register a name that requires PoP Full (base 6-8, letters only)
 dotns --password test-password register domain --account default --name premium
 
-# Governance registration (stem ≤ 5, reserved names)
+# Governance registration (base ≤ 5, reserved names)
 dotns --password test-password register domain --account default --name short --governance
 
 # Register for another owner
@@ -616,16 +615,22 @@ dotns --password test-password escrow refunds claim-batch <id1> <id2> --account 
 
 ## Domain Classification
 
-A name's tier is decided by its **stem length** — the label length excluding an
-optional trailing digit suffix. The suffix must be either absent or exactly two
-digits; any other trailing-digit count is rejected.
+A name's tier is decided by its **base length**. Since dotns v0.6.0 that is the
+label as written, so digits carry no special meaning and no digit count is
+privileged or rejected: `web3` measures 4 and `alice123` measures 8. The one
+exception is a lite personhood name, which the gateway stores with its separator
+(`joseph.42`); the separator and the two digits it allocated are not part of the
+name the person chose, so they come off first and `joseph.42` measures 6.
 
-| Type     | Stem length | Digit suffix | Requirement       |
-| -------- | ----------- | ------------ | ----------------- |
-| Reserved | ≤ 5         | none or 2    | Governance only   |
-| PoP Full | 6–8         | none         | Full verification |
-| PoP Lite | 6–8         | exactly 2    | Lite verification |
-| NoStatus | ≥ 9         | none or 2    | Open to all       |
+Only the gateway issues a lite name, and only a letters-only stem can carry one,
+so `web3.42` is not a lite name and no ordinary label reaches this tier.
+
+| Type     | Base length | Shape                      | Requirement       |
+| -------- | ----------- | -------------------------- | ----------------- |
+| Reserved | ≤ 5         | any label                  | Governance only   |
+| PoP Full | 6–8         | letters only, no separator | Full verification |
+| PoP Lite | 6–8         | `stem.NN`, gateway-issued  | Lite verification |
+| NoStatus | ≥ 9         | any label                  | Open to all       |
 
 ## Transfer Recipients
 

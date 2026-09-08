@@ -37,11 +37,7 @@ import {
   COMMITMENT_POLL_TIMEOUT_MS,
   COMMITMENT_POLL_INTERVAL_MS,
 } from "../utils/constants";
-import {
-  validateDomainLabel,
-  validateGovernanceLabel,
-  stripTrailingDigits,
-} from "../utils/validation";
+import { validateDomainLabel, validateGovernanceLabel, baseLabelOf } from "../utils/validation";
 import { ContractRevertError } from "../utils/contractInteractions";
 import {
   computeDomainTokenId,
@@ -133,7 +129,7 @@ export async function classifyDomainName(
  * classify* the label at all rather than throwing.
  *
  * `classifyName` is `pure`, yet it reverts with `PopError` for label shapes
- * PopRules rejects outright (one, or three or more, trailing digits). For callers
+ * PopRules rejects outright (a non-canonical label). For callers
  * that treat the classification as advisory — notably the governance path, which
  * submits through `registerReserved` and bypasses PopRules entirely — that revert
  * is an answer, not a failure.
@@ -451,7 +447,7 @@ export async function getPriceAndValidateEligibility(
   const label = await normaliseName(ctx, name);
   validateDomainLabel(label);
 
-  const baseName = stripTrailingDigits(label);
+  const baseName = baseLabelOf(label);
   const [isReserved, reservationOwner] = await read<ReservationInfoLike>(
     ctx,
     ctx.contracts.DOTNS_RULES,

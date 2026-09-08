@@ -9,7 +9,7 @@ import {
   DOTNS_REGISTRAR_ABI,
   DOTNS_POP_RESOLVER_ABI,
 } from "../utils/constants";
-import { stripTrailingDigits } from "../utils/validation";
+import { baseLabelOf } from "../utils/validation";
 import { computeDomainTokenId, domainNode, formatDomainName, normaliseName } from "../core/naming";
 import { formatNativeBalance, formatErrorMessage } from "../utils/formatting";
 import type { DomainLookupResult, BaseNameReservation, DomainOwnership } from "../types/types";
@@ -55,7 +55,7 @@ export async function performDomainLookup(
     await read<Address>(ctx, ctx.contracts.DOTNS_REGISTRY, DOTNS_REGISTRY_ABI, "resolver", [node]),
   );
 
-  const baseName = stripTrailingDigits(label);
+  const baseName = baseLabelOf(label);
 
   if (!result.exists || result.owner === zeroAddress) {
     if (baseName !== label) {

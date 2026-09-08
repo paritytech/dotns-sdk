@@ -53,9 +53,6 @@ on:
       bulletin-mnemonic:
         required: false
 
-      registrar-operator-mnemonic:
-        required: false
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -101,7 +98,6 @@ jobs:
     secrets:
       dotns-mnemonic: ${{ secrets.dotns-mnemonic }}
       bulletin-mnemonic: ${{ secrets.bulletin-mnemonic }}
-      registrar-operator-mnemonic: ${{ secrets.registrar-operator-mnemonic }}
 
   report:
     needs: deploy
