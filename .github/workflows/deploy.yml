@@ -201,37 +201,10 @@ jobs:
         with:
           source: ${{ inputs.cli-source }}
 
-      - name: Whitelist deployer for DotNS name registrations
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "::add-mask::$DOTNS_MNEMONIC"
-          echo "::add-mask::$OPERATOR_MNEMONIC"
-
-          ADDRESS=$(dotns account address)
-
-          # SURI like //Alice goes via --key-uri; everything else is a BIP39 mnemonic.
-          if [[ "$OPERATOR_MNEMONIC" == //* ]]; then
-            AUTH_ARGS=(--key-uri "$OPERATOR_MNEMONIC")
-          else
-            AUTH_ARGS=(-m "$OPERATOR_MNEMONIC")
-          fi
-
-          if dotns account whitelist "$ADDRESS" --env "$DOTNS_ENV" "${AUTH_ARGS[@]}" --json; then
-            echo "::notice::Deployer ${ADDRESS} whitelisted on ${DOTNS_ENV}"
-          else
-            echo "::error::Failed to whitelist deployer ${ADDRESS} on ${DOTNS_ENV}"
-            exit 1
-          fi
-        env:
-          DOTNS_MNEMONIC: ${{ secrets.dotns-mnemonic }}
-          OPERATOR_MNEMONIC: ${{ secrets.registrar-operator-mnemonic || '//Alice' }}
-          DOTNS_ENV: ${{ inputs.env }}
-          CI: "true"
-          FORCE_COLOR: "0"
-          NODE_NO_WARNINGS: "1"
-          NODE_OPTIONS: "--max-old-space-size=4096"
-
+      # The v0.6.0 contracts removed address whitelisting; reserved registration
+      # is gated on a per-name grant (`DotnsNameWhitelist.isGrantedTo`) or Root,
+      # which CI cannot self-serve. `dotns account grant <label> [address]` reads
+      # the grant when a pre-check is needed.
       - name: Record deploy start
         id: timer-start
         run: echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
