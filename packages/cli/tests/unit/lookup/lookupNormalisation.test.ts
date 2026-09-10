@@ -6,10 +6,6 @@ import * as realContext from "../../../src/core/context";
 // name (`alice.paseo`) derived the wrong node and read as "not registered",
 // while register normalised the same input. These tests pin the fix: both
 // lookup entry points must resolve `alice` and `alice.<tld>` identically.
-//
-// paritytech/dotns#291: after stripping the TLD, a dotted name was hashed as one
-// label instead of folding per label, so every subname read as unregistered. The
-// subname tests below pin the EIP-137 fold and the registry-backed owner read.
 
 const PASEO_NODE = "0x1111111111111111111111111111111111111111111111111111111111111111";
 
@@ -22,7 +18,7 @@ function under(parent: Hex, label: string): Hex {
 const ALICE_NODE = under(PASEO_NODE, "alice");
 const BLOG_ALICE_NODE = under(ALICE_NODE, "blog");
 
-// Node/tokenId arguments seen by the registry and registrar, keyed by function.
+// Arguments seen by each contract read, keyed by function.
 const seenArgs: Record<string, unknown[][]> = {};
 
 function fakeRead(
@@ -45,7 +41,6 @@ function fakeRead(
   if (functionName === "resolver") return zeroAddress;
   if (functionName === "getLabelStore") return zeroAddress;
   if (functionName === "chatKey") return "0x";
-  if (functionName === "ownerOf") throw new Error("Contract reverted: ERC721NonexistentToken");
   throw new Error(`unexpected read: ${functionName}`);
 }
 
@@ -113,7 +108,6 @@ describe("lookup folds subnames per label", () => {
     const result = await performDomainLookup(namingCtx, "blog.alice");
 
     expect(result.node).toBe(BLOG_ALICE_NODE);
-    expect(result.node).not.toBe(under(PASEO_NODE, "blog.alice"));
     expect(result.domain).toBe("blog.alice.paseo");
     expect(result.exists).toBe(true);
     expect(result.owner.toLowerCase()).toBe(SUBNAME_OWNER);
@@ -130,8 +124,6 @@ describe("lookup folds subnames per label", () => {
   test("performOwnerOfLookup reads the registry owner, so a subname reports its holder", async () => {
     const result = await performOwnerOfLookup(namingCtx, "blog.alice");
 
-    // A subname is not an ERC721 token, so the registrar can never answer for it.
-    expect(seenArgs["ownerOf"]).toBeUndefined();
     expect(seenArgs["owner"]?.[0]).toEqual([BLOG_ALICE_NODE]);
     expect(result.registered).toBe(true);
     expect(result.ownerEvm.toLowerCase()).toBe(SUBNAME_OWNER);

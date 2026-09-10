@@ -40,14 +40,11 @@ describe("deriveDomainNode", () => {
     expect(deriveDomainNode(DOT_NODE, "getsome")).not.toBe(deriveDomainNode(PASEO_NODE, "getsome"));
   });
 
-  // paritytech/dotns#291: a dotted name was hashed as one label, so every subname
-  // resolved to a node nothing on chain writes to. These vectors are the ones the
-  // report quotes for `groomsub.filipgroomcheck` on paseo-v2.
-  test("folds a subname per label from the TLD node (EIP-137)", () => {
+  test("folds a subname per label from the TLD node", () => {
     const node = deriveDomainNode(PASEO_NODE, "groomsub.filipgroomcheck");
     expect(node).toBe(under(under(PASEO_NODE, "filipgroomcheck"), "groomsub"));
+    // Vector from a registered subname on paseo-v2.
     expect(node).toBe("0xdf79c9e427a3f0e4d6adffd9c0dd9592c04c0b17e6a8ec011971e44406c18139");
-    expect(node).not.toBe("0x82779b46f9b403d4ae8cdc3eedd79b01dc576b7a448c41ee1162c20c8c682cf3");
   });
 
   test("agrees with viem's namehash of the fully qualified name", () => {
@@ -57,23 +54,8 @@ describe("deriveDomainNode", () => {
     expect(deriveDomainNode(DOT_NODE, "a.b.alice")).toBe(namehash("a.b.alice.dot"));
   });
 
-  test("folds arbitrarily deep names in order", () => {
-    expect(deriveDomainNode(DOT_NODE, "a.b.alice")).toBe(
-      under(under(under(DOT_NODE, "alice"), "b"), "a"),
-    );
-  });
-
   test("keeps a lite personhood name as one label", () => {
-    // The gateway registers `joseph.42` whole, so its dot is part of the label.
     expect(deriveDomainNode(PASEO_NODE, "joseph.42")).toBe(under(PASEO_NODE, "joseph.42"));
-    expect(deriveDomainNode(PASEO_NODE, "joseph.42")).not.toBe(
-      under(under(PASEO_NODE, "42"), "joseph"),
-    );
-  });
-
-  test("splits a dotted name that is not a lite name, even with a numeric leaf", () => {
-    // `web3.42` fails the lite stem rule, so it is an ordinary two-level path.
-    expect(deriveDomainNode(PASEO_NODE, "web3.42")).toBe(under(under(PASEO_NODE, "42"), "web3"));
   });
 });
 

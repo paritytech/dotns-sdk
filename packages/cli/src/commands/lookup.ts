@@ -184,11 +184,8 @@ export async function performOwnerOfLookup(
   let actualOwner: Address;
   let isRegistered: boolean;
 
-  // The registry's owner(node) answers for every level of the tree: a subname's
-  // owner is stored in its registry record, while a second-level name has no
-  // stored owner and the registry defers to the registrar's ERC721 holder. Asking
-  // the registrar directly, as this did before, could only ever see the tokenised
-  // level and reported every subname as unregistered.
+  // The registry's owner(node) covers every level: a subname's owner is stored in
+  // its record, and a second-level name defers to the registrar's ERC721 holder.
   try {
     actualOwner = getAddress(
       await read<Address>(ctx, ctx.contracts.DOTNS_REGISTRY, DOTNS_REGISTRY_ABI, "owner", [node]),

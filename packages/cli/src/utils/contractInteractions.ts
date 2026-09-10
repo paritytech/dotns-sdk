@@ -187,29 +187,16 @@ function namehashUnder(parent: Hex, label: string): Hex {
   return keccak256(concatHex([parent, keccak256(toBytes(label))]));
 }
 
-// EIP-137 namehash of `name` rooted at `tldNode`, where `name` is the bare name
-// with the TLD already stripped (`alice`, `blog.alice`, `joseph.42`). Dotted names
-// fold one label at a time from the right, exactly as `DotnsRegistry._parentNamehash`
-// does, so `blog.alice` hashes `alice` under the TLD and then `blog` under that.
-// Hashing the dotted string as one label produced a node nothing on chain ever
-// writes to (paritytech/dotns#291).
-//
-// The one label shape that legitimately carries a dot is a lite personhood name:
-// the gateway registers `joseph.42` as a single label under the TLD, so it must
-// not be split. That is the only place the CLI treats a dot as part of a label.
-//
-// The TLD node is a runtime value (`DotnsProtocolRegistry.tldNode()`), not a
-// constant: distinct deployments use distinct TLDs (for example `dot` on mainnet,
-// `paseo` on the Paseo testnet), so the caller must supply the node read from chain
-// rather than assuming `.dot`.
+// EIP-137 namehash of a bare name (TLD already stripped) under `tldNode`: labels
+// fold right to left, as in `DotnsRegistry._parentNamehash`. A lite personhood name
+// (`joseph.42`) is registered as one label despite its dot, so it is not split.
+// `tldNode` is read from the protocol registry; each deployment has its own TLD.
 export function deriveDomainNode(tldNode: Hex, name: string): Hex {
   if (isLitePersonLabel(name)) return namehashUnder(tldNode, name);
   return name.split(".").reduceRight<Hex>((parent, label) => namehashUnder(parent, label), tldNode);
 }
 
-// The minted ERC721 tokenId is `uint256(node)` (see DotnsRegistrarController).
-// Only a second-level name is tokenised; a subname's node converts the same way but
-// no token exists for it.
+// The minted ERC721 tokenId is `uint256(node)`; only second-level names are tokenised.
 export function deriveDomainTokenId(tldNode: Hex, name: string): bigint {
   return BigInt(deriveDomainNode(tldNode, name));
 }
