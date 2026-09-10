@@ -668,7 +668,7 @@ export type BulletinContext = BaseChainContext & {
 };
 
 export type SubnodeRecord = {
-  /** Parent node hash (keccak256 of parent full name) */
+  /** EIP-137 namehash of the parent name, folded per label from the TLD node. */
   parentNode: Hex;
 
   /** Label of the subnode to register (single label, no dots) */

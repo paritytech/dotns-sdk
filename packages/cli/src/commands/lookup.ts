@@ -6,11 +6,10 @@ import {
   POP_RULES_ABI,
   STORE_FACTORY_ABI,
   LABEL_STORE_ABI,
-  DOTNS_REGISTRAR_ABI,
   DOTNS_POP_RESOLVER_ABI,
 } from "../utils/constants";
 import { baseLabelOf } from "../utils/validation";
-import { computeDomainTokenId, domainNode, formatDomainName, normaliseName } from "../core/naming";
+import { domainNode, formatDomainName, normaliseName } from "../core/naming";
 import { formatNativeBalance, formatErrorMessage } from "../utils/formatting";
 import type { DomainLookupResult, BaseNameReservation, DomainOwnership } from "../types/types";
 
@@ -180,18 +179,19 @@ export async function performOwnerOfLookup(
   }
 
   const label = await normaliseName(ctx, name);
-  const tokenId = await computeDomainTokenId(ctx, label);
+  const node = await domainNode(ctx, label);
 
   let actualOwner: Address;
   let isRegistered: boolean;
 
+  // The registry's owner(node) answers for every level of the tree: a subname's
+  // owner is stored in its registry record, while a second-level name has no
+  // stored owner and the registry defers to the registrar's ERC721 holder. Asking
+  // the registrar directly, as this did before, could only ever see the tokenised
+  // level and reported every subname as unregistered.
   try {
-    actualOwner = await read<Address>(
-      ctx,
-      ctx.contracts.DOTNS_REGISTRAR,
-      DOTNS_REGISTRAR_ABI,
-      "ownerOf",
-      [tokenId],
+    actualOwner = getAddress(
+      await read<Address>(ctx, ctx.contracts.DOTNS_REGISTRY, DOTNS_REGISTRY_ABI, "owner", [node]),
     );
     isRegistered = actualOwner !== zeroAddress;
   } catch (error) {
