@@ -2,7 +2,9 @@ import type { Abi, Address, Hex } from "viem";
 import type { ReviveClientWrapper } from "../client/polkadotClient";
 import { type DotnsContext, read } from "./context";
 import { COST_MODEL_REGISTRY_KEY, DOTNS_REGISTRAR_CONTROLLER_ABI } from "../utils/constants";
-import { deriveDomainNode, deriveDomainTokenId } from "../utils/contractInteractions";
+import { deriveDomainNode, deriveLegacyLiteNode } from "../utils/contractInteractions";
+import { isLitePersonLabel } from "../utils/validation";
+import { DOTNS_REGISTRY_ABI } from "../utils/constants";
 import { normaliseLabel } from "../utils/validation";
 
 // Minimal view surface of DotnsProtocolRegistry. The full ABI is not synced into
@@ -152,13 +154,31 @@ export async function readCurrentPricingVersion(ctx: DotnsContext): Promise<bigi
 // The namehash of `label` under the active TLD (the on-chain `node`).
 export async function domainNode(ctx: DotnsContext, label: string): Promise<Hex> {
   const { tldNode } = await resolveTldInfo(ctx);
-  return deriveDomainNode(tldNode, label);
+  if (!isLitePersonLabel(label)) return deriveDomainNode(tldNode, label);
+  return resolveLiteNode(ctx, tldNode, label);
+}
+
+// A lite name has two possible homes. Deployments on dotns v0.7.0 issue it as a
+// subname beneath its numeric container (the plain per-label fold); older
+// deployments — and names minted before an in-place upgrade — hold it as one
+// flat label under the TLD. The registry says which applies to this name: the
+// folded node wins when it has a record, otherwise the legacy node is used
+// (which also answers "unregistered" correctly on every deployment).
+async function resolveLiteNode(ctx: DotnsContext, tldNode: Hex, label: string): Promise<Hex> {
+  const folded = deriveDomainNode(tldNode, label);
+  const foldedExists = await read<boolean>(
+    ctx,
+    ctx.contracts.DOTNS_REGISTRY,
+    DOTNS_REGISTRY_ABI,
+    "recordExists",
+    [folded],
+  );
+  return foldedExists ? folded : deriveLegacyLiteNode(tldNode, label);
 }
 
 // The ERC721 tokenId of `label` under the active TLD.
 export async function computeDomainTokenId(ctx: DotnsContext, label: string): Promise<bigint> {
-  const { tldNode } = await resolveTldInfo(ctx);
-  return deriveDomainTokenId(tldNode, label);
+  return BigInt(await domainNode(ctx, label));
 }
 
 // The fully-qualified name for display (for example `alice.paseo`), using the TLD

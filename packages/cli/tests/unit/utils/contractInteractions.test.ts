@@ -13,6 +13,7 @@ import {
   decodeContractRevertError,
   deriveDomainNode,
   deriveDomainTokenId,
+  deriveLegacyLiteNode,
   isRevertFlag,
   EMPTY_DATA_REVERT_HINT,
 } from "../../../src/utils/contractInteractions";
@@ -54,8 +55,17 @@ describe("deriveDomainNode", () => {
     expect(deriveDomainNode(DOT_NODE, "a.b.alice")).toBe(namehash("a.b.alice.dot"));
   });
 
-  test("keeps a lite personhood name as one label", () => {
-    expect(deriveDomainNode(PASEO_NODE, "joseph.42")).toBe(under(PASEO_NODE, "joseph.42"));
+  test("folds a lite personhood name beneath its numeric container (v0.7.0)", () => {
+    expect(deriveDomainNode(PASEO_NODE, "joseph.42")).toBe(
+      under(under(PASEO_NODE, "42"), "joseph"),
+    );
+  });
+
+  test("deriveLegacyLiteNode hashes the whole lite label flat (pre-v0.7.0)", () => {
+    expect(deriveLegacyLiteNode(PASEO_NODE, "joseph.42")).toBe(under(PASEO_NODE, "joseph.42"));
+    expect(deriveLegacyLiteNode(PASEO_NODE, "joseph.42")).not.toBe(
+      deriveDomainNode(PASEO_NODE, "joseph.42"),
+    );
   });
 });
 
