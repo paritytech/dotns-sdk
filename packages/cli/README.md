@@ -282,6 +282,10 @@ dotns lookup name dotns
 # Check ownership
 dotns lookup owner-of dotns
 
+# Subnames resolve too, at any depth (owner-of reports the registry owner)
+dotns lookup name blog.dotns
+dotns lookup owner-of blog.dotns
+
 # Using alias
 dotns lookup oo dotns
 

@@ -1,5 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { concatHex, encodeErrorResult, keccak256, stringToBytes, toBytes, type Hex } from "viem";
+import {
+  concatHex,
+  encodeErrorResult,
+  keccak256,
+  namehash,
+  stringToBytes,
+  toBytes,
+  type Hex,
+} from "viem";
 import {
   buildRevertError,
   decodeContractRevertError,
@@ -18,6 +26,10 @@ function tldNodeOf(tldLabel: string): Hex {
 const DOT_NODE = tldNodeOf("dot");
 const PASEO_NODE = tldNodeOf("paseo");
 
+function under(parent: Hex, label: string): Hex {
+  return keccak256(concatHex([parent, keccak256(toBytes(label))]));
+}
+
 describe("deriveDomainNode", () => {
   test("matches namehashUnder(tldNode, labelhash)", () => {
     const expected = keccak256(concatHex([PASEO_NODE, keccak256(toBytes("getsome"))]));
@@ -26,6 +38,24 @@ describe("deriveDomainNode", () => {
 
   test("different TLDs yield different nodes for the same label", () => {
     expect(deriveDomainNode(DOT_NODE, "getsome")).not.toBe(deriveDomainNode(PASEO_NODE, "getsome"));
+  });
+
+  test("folds a subname per label from the TLD node", () => {
+    const node = deriveDomainNode(PASEO_NODE, "groomsub.filipgroomcheck");
+    expect(node).toBe(under(under(PASEO_NODE, "filipgroomcheck"), "groomsub"));
+    // Vector from a registered subname on paseo-v2.
+    expect(node).toBe("0xdf79c9e427a3f0e4d6adffd9c0dd9592c04c0b17e6a8ec011971e44406c18139");
+  });
+
+  test("agrees with viem's namehash of the fully qualified name", () => {
+    expect(deriveDomainNode(PASEO_NODE, "groomsub.filipgroomcheck")).toBe(
+      namehash("groomsub.filipgroomcheck.paseo"),
+    );
+    expect(deriveDomainNode(DOT_NODE, "a.b.alice")).toBe(namehash("a.b.alice.dot"));
+  });
+
+  test("keeps a lite personhood name as one label", () => {
+    expect(deriveDomainNode(PASEO_NODE, "joseph.42")).toBe(under(PASEO_NODE, "joseph.42"));
   });
 });
 
