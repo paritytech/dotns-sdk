@@ -20,6 +20,8 @@ const BLOG_ALICE_NODE = under(ALICE_NODE, "blog");
 
 // Arguments seen by each contract read, keyed by function.
 const seenArgs: Record<string, unknown[][]> = {};
+// Per-test switchboard for which lite node currently has a registry record.
+const liteNodes: { folded?: Hex; legacy?: Hex } = {};
 
 function fakeRead(
   _ctx: unknown,
@@ -33,11 +35,12 @@ function fakeRead(
   if (functionName === "tldNode") return PASEO_NODE;
   // The registry returns the suffix with its leading dot; resolveTldInfo strips it.
   if (functionName === "tld") return ".paseo";
-  // Only the subname `blog.alice` exists in this fake chain.
+  // The subname `blog.alice` plus whatever lite nodes a test arms exist here.
   const node = args[0];
-  const isSubname = node === BLOG_ALICE_NODE;
-  if (functionName === "recordExists") return isSubname;
-  if (functionName === "owner") return isSubname ? SUBNAME_OWNER : zeroAddress;
+  const isKnown =
+    node === BLOG_ALICE_NODE || node === liteNodes.folded || node === liteNodes.legacy;
+  if (functionName === "recordExists") return isKnown;
+  if (functionName === "owner") return isKnown ? SUBNAME_OWNER : zeroAddress;
   if (functionName === "resolver") return zeroAddress;
   if (functionName === "getLabelStore") return zeroAddress;
   if (functionName === "chatKey") return "0x";
@@ -100,6 +103,33 @@ describe("lookup normalises fully-qualified names", () => {
 
     expect(foreign.node).not.toBe(bare.node);
     expect(foreign.domain).toBe("alice.dot.paseo");
+  });
+});
+
+describe("lite names resolve on both node schemes", () => {
+  const FOLDED_LITE = under(under(PASEO_NODE, "42"), "joseph");
+  const LEGACY_LITE = under(PASEO_NODE, "maria.07");
+
+  test("a v0.7.0 lite name resolves at its folded subnode", async () => {
+    liteNodes.folded = FOLDED_LITE;
+    const result = await performDomainLookup(namingCtx, "joseph.42");
+    expect(result.node).toBe(FOLDED_LITE);
+    expect(result.exists).toBe(true);
+    liteNodes.folded = undefined;
+  });
+
+  test("a pre-v0.7.0 lite name falls back to its flat node", async () => {
+    liteNodes.legacy = LEGACY_LITE;
+    const result = await performDomainLookup(namingCtx, "maria.07");
+    expect(result.node).toBe(LEGACY_LITE);
+    expect(result.exists).toBe(true);
+    liteNodes.legacy = undefined;
+  });
+
+  test("an unregistered lite name reports the legacy node and no record", async () => {
+    const result = await performDomainLookup(namingCtx, "nobody.99");
+    expect(result.node).toBe(under(PASEO_NODE, "nobody.99"));
+    expect(result.exists).toBe(false);
   });
 });
 

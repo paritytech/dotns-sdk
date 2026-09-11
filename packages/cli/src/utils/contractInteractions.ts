@@ -13,7 +13,6 @@ import type { PolkadotSigner } from "polkadot-api";
 import type { ReviveClientWrapper } from "../client/polkadotClient";
 import type { TransactionStatus } from "../types/types";
 import { withTimeout } from "./formatting";
-import { isLitePersonLabel } from "./validation";
 
 // An empty-data revert has two common, unrelated causes, so the hint names both
 // rather than asserting the origin is unmapped: a genuinely unmapped origin makes
@@ -188,12 +187,20 @@ function namehashUnder(parent: Hex, label: string): Hex {
 }
 
 // EIP-137 namehash of a bare name (TLD already stripped) under `tldNode`: labels
-// fold right to left, as in `DotnsRegistry._parentNamehash`. A lite personhood name
-// (`joseph.42`) is registered as one label despite its dot, so it is not split.
+// fold right to left, as in `DotnsRegistry._parentNamehash`. Since dotns v0.7.0
+// this also covers a lite personhood name: `joseph.42` is `joseph` beneath the
+// container `42` (`SubnodeUtils.liteSubnodeOf`), which is exactly this fold.
 // `tldNode` is read from the protocol registry; each deployment has its own TLD.
 export function deriveDomainNode(tldNode: Hex, name: string): Hex {
-  if (isLitePersonLabel(name)) return namehashUnder(tldNode, name);
   return name.split(".").reduceRight<Hex>((parent, label) => namehashUnder(parent, label), tldNode);
+}
+
+// Pre-v0.7.0 deployments minted a lite name as ONE label — the whole dotted
+// string hashed flat under the TLD. Names minted before an in-place upgrade
+// keep living at this node, so readers fall back to it when the folded node
+// has no record (see `domainNode` in core/naming.ts).
+export function deriveLegacyLiteNode(tldNode: Hex, liteLabel: string): Hex {
+  return namehashUnder(tldNode, liteLabel);
 }
 
 // The minted ERC721 tokenId is `uint256(node)`; only second-level names are tokenised.
