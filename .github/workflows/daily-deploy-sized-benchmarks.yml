@@ -347,6 +347,7 @@ jobs:
                   repo,
                   title,
                   existingIssueNumber: existingIssue?.number ?? null,
+                  previousIssueNumber: previousIssue?.number ?? null,
                 },
                 null,
                 2,
@@ -457,6 +458,25 @@ jobs:
 
             core.setOutput("issue-number", String(created.data.number));
             core.setOutput("issue-url", created.data.html_url);
+
+            // The report is cumulative (the hidden payload carries the run
+            // history), so the previous day's issue is superseded: close it
+            // instead of letting reports accumulate as open issues.
+            if (metadata.previousIssueNumber) {
+              await github.rest.issues.createComment({
+                owner: metadata.owner,
+                repo: metadata.repo,
+                issue_number: metadata.previousIssueNumber,
+                body: `Superseded by the latest daily benchmark report (#${created.data.number}).`,
+              });
+              await github.rest.issues.update({
+                owner: metadata.owner,
+                repo: metadata.repo,
+                issue_number: metadata.previousIssueNumber,
+                state: "closed",
+                state_reason: "completed",
+              });
+            }
 
       - name: Summarize published issue
         shell: bash
