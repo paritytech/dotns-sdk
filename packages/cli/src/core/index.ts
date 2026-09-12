@@ -66,7 +66,14 @@ export {
   formatCooldown,
   formatPositionStatus,
 } from "../commands/escrow";
-export type { EscrowPositionView, RefundEntryView, RefundsListResult } from "../commands/escrow";
+export type {
+  EscrowPositionView,
+  ReleaseResult,
+  RefundEntryView,
+  RefundsListResult,
+} from "../commands/escrow";
+export { inspectName, formatUnixSeconds } from "../commands/inspectName";
+export type { NameInspection, ReleasePosition } from "../commands/inspectName";
 
 export { getContentHash, setContentHash } from "../commands/contentHash";
 export type { ContentViewResult, ContentSetResult } from "../commands/contentHash";

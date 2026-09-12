@@ -7,6 +7,7 @@ import {
   isValidSubstrateAddress,
 } from "../utils/validation";
 import { formatErrorMessage, convertWeiToNativeCeil } from "../utils/formatting";
+import { inspectName } from "../commands/inspectName";
 import { computeDomainTokenId, formatDomainName, normaliseName } from "../core/naming";
 
 function toChecksummed(a: Address): Address {
@@ -109,35 +110,28 @@ export async function transferName(
   const label = await normaliseName(ctx, name);
   validateExistingNameLabel(label);
 
-  const tokenId = await computeDomainTokenId(ctx, label);
   const from = await ownEvmAddress(ctx);
   const fromC = toChecksummed(from);
   const toC = toChecksummed(recipient);
 
-  const currentOwner = await ownerOfLabel(ctx, label);
-  if (currentOwner === zeroAddress) {
-    throw new Error(`Cannot transfer: ${await formatDomainName(ctx, label)} is not registered`);
+  // Read what the registrar would reject before touching `ownerOf`, which reverts on a
+  // node that has no token and would otherwise surface as a decoded ERC721 error.
+  const { domain, tokenId, owner, hasToken, soulbound } = await inspectName(ctx, label);
+  if (owner === null) {
+    throw new Error(`Cannot transfer: ${domain} is not registered`);
   }
-  const currentOwnerC = toChecksummed(currentOwner);
-  if (currentOwnerC !== fromC) {
+  if (!hasToken) {
     throw new Error(
-      `Cannot transfer: ${await formatDomainName(ctx, label)} owned by ${currentOwnerC}`,
+      `Cannot transfer: ${domain} is a subname, not a registrar token. Lite personhood names and subnames cannot be transferred.`,
     );
+  }
+  if (soulbound) {
+    throw new Error(`Cannot transfer: ${domain} is a soulbound personhood name`);
   }
 
-  // Gateway-minted PoP names are soulbound since dotns v0.6.0; the registrar
-  // would revert the transfer, so refuse with the reason instead.
-  const soulbound = await read<boolean>(
-    ctx,
-    ctx.contracts.DOTNS_REGISTRAR,
-    DOTNS_REGISTRAR_ABI,
-    "isSoulbound",
-    [tokenId],
-  ).catch(() => false);
-  if (soulbound) {
-    throw new Error(
-      `Cannot transfer: ${await formatDomainName(ctx, label)} is a soulbound personhood name`,
-    );
+  const currentOwnerC = toChecksummed(await ownerOfLabel(ctx, label));
+  if (currentOwnerC !== fromC) {
+    throw new Error(`Cannot transfer: ${domain} owned by ${currentOwnerC}`);
   }
 
   if (opts.syncLabel) {
@@ -166,5 +160,5 @@ export async function transferName(
     "Transfer",
   );
 
-  return { name: await formatDomainName(ctx, label), from: fromC, to: toC, feeWei, txHash };
+  return { name: domain, from: fromC, to: toC, feeWei, txHash };
 }

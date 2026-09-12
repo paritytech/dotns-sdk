@@ -46,6 +46,7 @@ import {
   normaliseName,
   readCurrentPricingVersion,
 } from "../core/naming";
+import { formatUnixSeconds, inspectName } from "./inspectName";
 import { convertWeiToNative } from "../utils/formatting";
 import { isSameEvmAddress } from "../utils/address";
 
@@ -170,7 +171,22 @@ export async function ensureDomainNotRegistered(ctx: DotnsContext, name: string)
     "available",
     [label],
   );
-  if (!available) throw new DomainUnavailableError(await formatDomainName(ctx, label));
+  if (available) return;
+
+  // `available` is false for a live registration and for a released name still inside its
+  // redeem window, where only the previous holder may act. Tell those apart so a registrant
+  // learns when the name opens instead of being told it is taken.
+  const domain = await formatDomainName(ctx, label);
+  const position = await inspectName(ctx, label)
+    .then((inspection) => inspection.position)
+    .catch(() => null);
+  if (position?.released) {
+    throw new DomainUnavailableError(
+      domain,
+      `${domain} was released and is reserved for its previous holder until ${formatUnixSeconds(position.redeemableUntil)}; registration opens once that redeem window closes.`,
+    );
+  }
+  throw new DomainUnavailableError(domain);
 }
 
 export type GenerateCommitmentOptions = {

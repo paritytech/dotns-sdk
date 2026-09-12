@@ -1,8 +1,9 @@
 import { type Address } from "viem";
-import { type DotnsContext, read, write } from "../core/context";
+import { type DotnsContext, read, write, ownEvmAddress } from "../core/context";
 import { DOTNS_NAME_ESCROW_ABI, DOTNS_REGISTRAR_ABI } from "../utils/constants";
-import { computeDomainTokenId, formatDomainName, normaliseName } from "../core/naming";
+import { computeDomainTokenId, normaliseName } from "../core/naming";
 import { isSameEvmAddress } from "../utils/address";
+import { inspectName, formatUnixSeconds, nowSeconds } from "./inspectName";
 
 /// On-chain release position for a token.
 export type EscrowPositionView = {
@@ -12,6 +13,7 @@ export type EscrowPositionView = {
   asset: Address;
   amount: bigint;
   withdrawAvailableAt: bigint;
+  redeemableUntil: bigint;
   released: boolean;
   claimed: boolean;
 };
@@ -34,15 +36,6 @@ export type RefundsListResult = {
   entries: RefundEntryView[];
 };
 
-type RawReleasePosition = {
-  recipient: Address;
-  asset: Address;
-  amount: bigint;
-  withdrawAvailableAt: bigint;
-  released: boolean;
-  claimed: boolean;
-};
-
 type RawRefundEntry = {
   recipient: Address;
   amount: bigint;
@@ -50,38 +43,14 @@ type RawRefundEntry = {
   tokenId: bigint;
 };
 
-const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as Address;
-
 /// Reads one release position by name. Returns null when the slot is empty.
 async function readPositionForName(
   ctx: DotnsContext,
   name: string,
 ): Promise<EscrowPositionView | null> {
-  const label = await normaliseName(ctx, name);
-  const tokenId = await computeDomainTokenId(ctx, label);
-
-  const raw = await read<RawReleasePosition>(
-    ctx,
-    ctx.contracts.DOTNS_NAME_ESCROW,
-    DOTNS_NAME_ESCROW_ABI,
-    "getReleasePosition",
-    [tokenId],
-  );
-
-  if (raw.recipient === ZERO_ADDRESS && raw.amount === 0n && !raw.released) {
-    return null;
-  }
-
-  return {
-    domain: await formatDomainName(ctx, label),
-    tokenId,
-    recipient: raw.recipient,
-    asset: raw.asset,
-    amount: raw.amount,
-    withdrawAvailableAt: raw.withdrawAvailableAt,
-    released: raw.released,
-    claimed: raw.claimed,
-  };
+  const { domain, tokenId, position } = await inspectName(ctx, name);
+  if (position === null) return null;
+  return { domain, tokenId, ...position };
 }
 
 /// Reads the current release position for a name. Returns null when the slot is empty.
@@ -165,12 +134,46 @@ export async function getPendingWithdrawal(ctx: DotnsContext, recipient: Address
   );
 }
 
-/// Approves the escrow on the registrar then calls `release`. The caller must own the NFT.
-export async function releaseName(
-  ctx: DotnsContext,
-  label: string,
-): Promise<{ approveTxHash: string; releaseTxHash: string; tokenId: bigint }> {
-  const tokenId = await computeDomainTokenId(ctx, await normaliseName(ctx, label));
+export type ReleaseResult = { approveTxHash: string; releaseTxHash: string; tokenId: bigint };
+
+/// Approves the escrow on the registrar then calls `release`. Each refusal mirrors a `require`
+/// in DotnsNameEscrow.release, or the registrar gate the custody move would hit, and is read
+/// before the approve so a name the contract would reject never leaves a dangling approval.
+export async function releaseName(ctx: DotnsContext, name: string): Promise<ReleaseResult> {
+  const { domain, tokenId, owner, hasToken, soulbound, position } = await inspectName(ctx, name);
+
+  if (owner === null) {
+    throw new Error(`Cannot release: ${domain} is not registered.`);
+  }
+  if (!hasToken) {
+    throw new Error(
+      `Cannot release: ${domain} is a subname, not a registrar token, so it has no escrow position. Lite personhood names and subnames cannot be released.`,
+    );
+  }
+  if (soulbound) {
+    throw new Error(
+      `Cannot release: ${domain} is a soulbound personhood name and cannot move into escrow.`,
+    );
+  }
+  if (position === null) {
+    throw new Error(
+      `Cannot release: ${domain} has no escrow position. Only names registered through the public registrar carry one; names granted from the whitelist cannot be released.`,
+    );
+  }
+  if (position.released) {
+    const until = formatUnixSeconds(position.redeemableUntil);
+    const phase =
+      nowSeconds() < position.redeemableUntil
+        ? `redeemable by the previous holder until ${until}`
+        : `its redeem window closed at ${until}, so anyone may register it`;
+    throw new Error(`Cannot release: ${domain} is already released; ${phase}.`);
+  }
+  const self = await ownEvmAddress(ctx);
+  if (!isSameEvmAddress(position.recipient, self)) {
+    throw new Error(
+      `Cannot release: ${domain} is held by ${position.recipient}, not by the signing account ${self}.`,
+    );
+  }
 
   const approveTxHash = await write(
     ctx,

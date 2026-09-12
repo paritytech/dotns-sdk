@@ -11,6 +11,7 @@ import {
   getRecordDelegate,
 } from "../../commands/delegate";
 import { resolveTransferRecipient } from "../transfer";
+import { inspectName } from "../../commands/inspectName";
 import { addAuthOptions } from "./authOptions";
 import { prepareAssetHubContext, buildDotnsContext, buildReadOnlyDotnsContext } from "../context";
 import { makeOnStatus } from "../txStatus";
@@ -63,11 +64,31 @@ export function attachDelegateCommands(root: Command) {
           console.log(chalk.gray("  delegate: ") + chalk.white(delegateAddress));
         }
 
+        // `approve` reverts on a node with no token, so refuse that up front. It succeeds on
+        // a soulbound name even though the delegate can never transfer it; whether that
+        // approval is still worth granting is the user's call, so warn rather than refuse.
+        const inspection = await maybeQuiet(jsonOutput, () => inspectName(ctx, name));
+        if (inspection.owner === null) {
+          throw new Error(`Cannot delegate: ${inspection.domain} is not registered`);
+        }
+        if (!inspection.hasToken) {
+          throw new Error(
+            `Cannot delegate: ${inspection.domain} is a subname, not a registrar token. Lite personhood names and subnames cannot be delegated.`,
+          );
+        }
+        if (inspection.soulbound && !jsonOutput) {
+          console.log(
+            chalk.yellow(
+              "  warning:  soulbound personhood name; the delegate can never transfer or release it",
+            ),
+          );
+        }
+
         const result = await maybeQuiet(jsonOutput, () =>
           setNameDelegate(ctx, name, delegateAddress as Address),
         );
 
-        if (!emitJsonResult(jsonOutput, result)) {
+        if (!emitJsonResult(jsonOutput, { ...result, soulbound: inspection.soulbound })) {
           console.log(chalk.gray("  tx:       ") + chalk.blue(result.txHash));
           console.log(chalk.green("\n✓ Complete\n"));
         }

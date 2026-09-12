@@ -590,6 +590,12 @@ Names registered without PoP verification (NoStatus) hold a refundable deposit
 in escrow. Release a name to start its cooldown, withdraw the deposit onto the
 pull-payment ledger, then claim your balance.
 
+`release`, `transfer` and `delegate` read the name's on-chain facts before
+submitting and refuse with the reason when the contracts would reject the call:
+a name granted from the whitelist has no escrow position to release, a
+gateway-minted personhood name is soulbound and cannot move, and a subname
+(including a lite personhood name) has no registrar token at all.
+
 ```bash
 # Show the escrow position for a name (no auth)
 dotns escrow status coolwebsite
