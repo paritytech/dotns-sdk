@@ -24,7 +24,6 @@ jobs:
             const codeOwners = [
               "filvecchiato",
               "waytwotall",
-              "andrew-ifrita",
               "corey-hathaway",
               "sphamjoli",
             ];
