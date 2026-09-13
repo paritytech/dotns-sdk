@@ -679,6 +679,10 @@ export type SubnodeRecord = {
 
   /** Address that will own the new subnode */
   owner: Address;
+
+  /** Whether the registry indexes the subname into the owner's LabelStore.
+   *  When false only the ownership and resolver record is written. */
+  persist: boolean;
 };
 
 export type BaseNameReservation = {

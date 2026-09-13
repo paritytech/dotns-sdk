@@ -581,11 +581,17 @@ export type SubnameResult = {
   txHash: Hex;
 };
 
+export type RegisterSubnodeOptions = {
+  /** Index the subname into the owner's Label Store (default true). */
+  persist?: boolean;
+};
+
 export async function registerSubnode(
   ctx: DotnsContext,
   sublabel: string,
   parentLabel: string,
   ownerAddress: Address,
+  opts: RegisterSubnodeOptions = {},
 ): Promise<SubnameResult> {
   const subLabel = await normaliseName(ctx, sublabel);
   const parent = await normaliseName(ctx, parentLabel);
@@ -594,6 +600,9 @@ export async function registerSubnode(
     subLabel,
     parentLabel: parent,
     owner: ownerAddress,
+    // Index into the owner's LabelStore by default, so the name shows up in
+    // listings the way every other registration does.
+    persist: opts.persist ?? true,
   };
 
   const txHash = await write(

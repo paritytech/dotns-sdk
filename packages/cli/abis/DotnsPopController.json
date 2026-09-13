@@ -74,6 +74,11 @@
     "name": "initialize",
     "inputs": [
       {
+        "name": "initialOwner",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
         "name": "registry",
         "type": "address",
         "internalType": "contract IDotnsProtocolRegistry"
@@ -1063,6 +1068,11 @@
   },
   {
     "type": "error",
+    "name": "LiteNameAlreadyIssued",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "NoActiveReservation",
     "inputs": [
       {
@@ -1071,6 +1081,11 @@
         "internalType": "address"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "NotAuthorised",
+    "inputs": []
   },
   {
     "type": "error",

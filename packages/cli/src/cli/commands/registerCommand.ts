@@ -93,6 +93,7 @@ export function attachRegisterCommand(root: Command) {
     .requiredOption("-n, --name <label>", "Subname label to register")
     .requiredOption("-p, --parent <label>", "Parent domain label (bare label, without the TLD)")
     .option("-o, --owner <address>", "Owner address (EVM or Substrate, or label)")
+    .option("--no-persist", "Skip indexing the subname into the owner's Label Store (record only)")
     .option("--json", "Output result as JSON (suppresses all other output)", false)
     .action(async (options: any, cmd: any) => {
       const jsonOutput = getJsonFlag(cmd);
