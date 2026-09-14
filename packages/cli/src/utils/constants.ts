@@ -222,6 +222,13 @@ export type DotnsEnvironmentConfig = {
    */
   dotliGateways?: readonly string[];
   /**
+   * Genesis hash of the Asset Hub chain this environment's addresses belong
+   * to. Checked after connect so a stray `--rpc`/`DOTNS_RPC` cannot silently
+   * point the address book at a different chain. `null` skips the check.
+   */
+  genesisHash: `0x${string}` | null;
+
+  /**
    * Contract address book. `null` when contracts have not been deployed to (or
    * recorded for) this environment; createDotnsContext throws in that case.
    */
@@ -274,6 +281,7 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
     label: "Paseo V2",
     aliases: ["paseo-v2", "paseo_v2", "v2", "next", "next-v2"],
     rpc: RPC_ENDPOINTS[0],
+    genesisHash: "0x4349b00e54897e21196fd331015fc5be0f14e118beb0375ed2bb1793737bb57a",
     blockExplorerUrl: "https://blockscout-testnet.polkadot.io",
     previewBaseUrl: "https://dotns.paseo.li/#/preview",
     dotliGateways: ["paseo.li"],
@@ -287,6 +295,8 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
     label: "Paseo Asset Hub Previewnet",
     aliases: ["previewnet", "preview-net", "preview", "ppn"],
     rpc: PREVIEWNET_ASSET_HUB_URL,
+    // Previewnet relaunches from fresh genesis on resets; update on relaunch.
+    genesisHash: "0xc27c8bf3f13f96dc2130cd2b0a3debe57618fd02521ecc1902bd7dd4ed83d2fe",
     blockExplorerUrl: "https://blockscout-testnet.polkadot.io",
     previewBaseUrl: null,
     // Served via its own substrate.dev gateway, not a dot.li host.
@@ -301,6 +311,7 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
     label: "Products Devnet (Paseo Asset Hub)",
     aliases: ["devnet", "dev", "products-devnet"],
     rpc: DEVNET_ASSET_HUB_URL,
+    genesisHash: "0xd6eec26135305a8ad257a20d003357284c8aa03d0bdb2b357ab0a22371e11ef2",
     // No public block explorer wired for this deployment yet.
     blockExplorerUrl: "",
     // No devnet-hosted dotns web app; preview-link helpers stay disabled.

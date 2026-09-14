@@ -14,6 +14,7 @@ import {
   resolveQrAppId,
   resolveQrPeopleEndpoints,
   assertSignerOptions,
+  ENV,
 } from "./env";
 import { createQrSigner } from "./qrSigner";
 import { step, versionLabel } from "./ui";
@@ -28,7 +29,7 @@ import type {
   ChainContext,
   ReadOnlyContext,
 } from "../types/types";
-import { DEFAULT_NATIVE_TOKEN_DECIMALS } from "../utils/constants";
+import { DEFAULT_NATIVE_TOKEN_DECIMALS, getActiveDotnsEnvironment } from "../utils/constants";
 import { createDotnsContext, type DotnsContext, type OperationStatus } from "../core/context";
 
 type BuildContextOptions = {
@@ -107,6 +108,27 @@ function firstPropertyValue(value: unknown): unknown {
   return Array.isArray(value) ? value[0] : value;
 }
 
+// Fails when the connected chain is not the one the selected environment's
+// address book belongs to. `--rpc`/`DOTNS_RPC` override the endpoint without
+// touching the environment, and the three testnets even share contract
+// addresses, so without this check a mismatch answers (and signs) confidently
+// on the wrong chain. `DOTNS_SKIP_CHAIN_CHECK=1` bypasses it, for the window
+// right after an intentional chain relaunch.
+export async function assertExpectedChain(rawClient: PolkadotClient): Promise<void> {
+  if (process.env[ENV.SKIP_CHAIN_CHECK] === "1") return;
+  const environment = getActiveDotnsEnvironment();
+  const expected = environment.genesisHash;
+  if (!expected) return;
+  const actual = (await rawClient.getChainSpecData()).genesisHash;
+  if (typeof actual === "string" && actual.toLowerCase() === expected.toLowerCase()) return;
+  throw new Error(
+    `Connected chain is not ${environment.id}: the endpoint reports genesis ${actual}, ` +
+      `but ${environment.id} expects ${expected}. Check --env, --rpc and DOTNS_RPC. ` +
+      `If the chain was intentionally relaunched, set DOTNS_SKIP_CHAIN_CHECK=1 and update ` +
+      `the environment's genesis hash.`,
+  );
+}
+
 export async function getChainTokenInfo(rawClient: PolkadotClient): Promise<{
   nativeTokenDecimals: number;
   nativeTokenSymbol: string;
@@ -176,6 +198,7 @@ async function connectAndAuthenticate(options: any, rpc: string): Promise<Connec
   const rawClient = await step(`Connecting RPC ${rpc}`, async () =>
     createClient(getWsProvider(rpc)),
   );
+  await step("Checking chain identity", async () => assertExpectedChain(rawClient));
   const tokenInfo = await step("Reading chain token metadata", async () =>
     getChainTokenInfo(rawClient),
   );
