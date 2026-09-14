@@ -29,6 +29,15 @@ export async function checkAccountMapped(
 // uses to locate the name whitelist (`DotnsConstants.NAME_WHITELIST`).
 const NAME_WHITELIST_KEY = "0x6e616d6557686974656c69737400000000000000000000000000000000000000";
 
+// `bytes32("rootGateway")`: the ProtocolRegistry key for `DotnsRootGateway`, the
+// contract Root-origin governance calls must now be routed through (dotns
+// fix/root-origin-gates). Nothing in this SDK constructs a governance dispatch
+// today, so nothing resolves this yet; it is exported so a future
+// governance-dispatch helper does not have to duplicate this lookup. Prefer
+// this over hardcoding an address: the gateway has no CREATE3 book entry yet
+// and its exported name may still change before that PR merges.
+const ROOT_GATEWAY_KEY = "0x726f6f7447617465776179000000000000000000000000000000000000000000";
+
 const PROTOCOL_REGISTRY_GET_ABI = [
   {
     type: "function",
@@ -61,6 +70,31 @@ export async function resolveNameWhitelist(ctx: DotnsContext): Promise<Address> 
   return whitelist;
 }
 
+// Resolves DotnsRootGateway from the protocol registry, the same way
+// resolveNameWhitelist resolves the whitelist. Governance calls to the 16 entry
+// points listed in the dotns fix/root-origin-gates change (grantName,
+// setReserved, reserveLiteName, the governance branch of registerReserved, and
+// so on) must now be dispatched as `DotnsRootGateway.execute(targets,
+// payloads)` with the gateway itself as the direct Root callee, rather than
+// straight at the target contract. Unused today: nothing in this SDK builds a
+// Root dispatch.
+export async function resolveRootGateway(ctx: DotnsContext): Promise<Address> {
+  const registry = await read<Address>(
+    ctx,
+    ctx.contracts.DOTNS_REGISTRAR_CONTROLLER,
+    DOTNS_REGISTRAR_CONTROLLER_ABI,
+    "protocolRegistry",
+    [],
+  );
+  const gateway = await read<Address>(ctx, registry, PROTOCOL_REGISTRY_GET_ABI, "get", [
+    ROOT_GATEWAY_KEY,
+  ]);
+  if (gateway === "0x0000000000000000000000000000000000000000") {
+    throw new Error("No DotnsRootGateway is configured on this network's protocol registry.");
+  }
+  return gateway;
+}
+
 // Grant record of `label` on the name whitelist: status, the beneficiary a
 // grant names, and whether the claim window is open.
 export async function getNameGrant(ctx: DotnsContext, name: string): Promise<NameGrantResult> {
@@ -79,8 +113,9 @@ export async function getNameGrant(ctx: DotnsContext, name: string): Promise<Nam
   };
 }
 
-// Whether `registerReserved` would accept `label` for `owner` without Root:
-// the controller requires `isGrantedTo(label, owner)` on the name whitelist.
+// Whether `registerReserved` would accept `label` for `owner` without a call
+// through the DotnsRootGateway: the controller requires `isGrantedTo(label,
+// owner)` on the name whitelist.
 export async function isNameGrantedTo(
   ctx: DotnsContext,
   name: string,
