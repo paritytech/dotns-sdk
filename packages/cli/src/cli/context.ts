@@ -191,14 +191,24 @@ type ConnectionAndAuth = {
 
 // Connect to `rpc`, read token metadata, resolve the account and build its signer:
 // the work shared by every chain context regardless of descriptor.
-async function connectAndAuthenticate(options: any, rpc: string): Promise<ConnectionAndAuth> {
+type ConnectedChainKind = "asset-hub" | "bulletin";
+
+async function connectAndAuthenticate(
+  options: any,
+  rpc: string,
+  chainKind: ConnectedChainKind = "asset-hub",
+): Promise<ConnectionAndAuth> {
   assertSignerOptions(options);
   const keystorePath = resolveKeystorePath(options.keystorePath);
 
   const rawClient = await step(`Connecting RPC ${rpc}`, async () =>
     createClient(getWsProvider(rpc)),
   );
-  await step("Checking chain identity", async () => assertExpectedChain(rawClient));
+  // The pinned genesis belongs to the environment's Asset Hub; the bulletin
+  // chain is a different chain by design and keeps its own spec-name check.
+  if (chainKind === "asset-hub") {
+    await step("Checking chain identity", async () => assertExpectedChain(rawClient));
+  }
   const tokenInfo = await step("Reading chain token metadata", async () =>
     getChainTokenInfo(rawClient),
   );
@@ -340,7 +350,7 @@ async function prepareBulletinContext(options: any): Promise<BulletinContext> {
   const environment = resolveDotnsEnvironment(resolveRpcEnvironment(options));
   const rpc = resolveBulletinRpc(options.bulletinRpc ?? options.rpc, environment.id);
   const { keystorePath, rawClient, tokenInfo, auth, account, substrateAddress, signer } =
-    await connectAndAuthenticate(options, rpc);
+    await connectAndAuthenticate(options, rpc, "bulletin");
 
   const client = rawClient.getTypedApi(bulletin);
 
