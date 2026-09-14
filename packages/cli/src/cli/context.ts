@@ -158,7 +158,9 @@ export async function assertExpectedChain(
       `WRONG CHAIN — refusing to continue.`,
       `Selected environment: ${environment.id} (expects ${chainName} genesis ${expected})`,
       `Connected endpoint:   ${actualLine}`,
-      `Check --env, --rpc and DOTNS_RPC. If the chain was intentionally relaunched,`,
+      chainKind === "bulletin"
+        ? `Check --env, --bulletin-rpc and DOTNS_BULLETIN_RPC. If the chain was intentionally relaunched,`
+        : `Check --env, --rpc and DOTNS_RPC. If the chain was intentionally relaunched,`,
       `set DOTNS_SKIP_CHAIN_CHECK=1 and update the environment's genesis hash.`,
     ].join("\n  "),
   );

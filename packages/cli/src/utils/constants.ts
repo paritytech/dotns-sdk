@@ -320,8 +320,7 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
     aliases: ["devnet", "dev", "products-devnet"],
     rpc: DEVNET_ASSET_HUB_URL,
     genesisHash: "0xd6eec26135305a8ad257a20d003357284c8aa03d0bdb2b357ab0a22371e11ef2",
-    // The devnet bulletin endpoint does not answer at the time of pinning.
-    bulletinGenesisHash: null,
+    bulletinGenesisHash: "0xe101f0fa4627d29a257645e02be86d80378fea1a2bf8fa6a918d150ebc760a59",
     // No public block explorer wired for this deployment yet.
     blockExplorerUrl: "",
     // No devnet-hosted dotns web app; preview-link helpers stay disabled.

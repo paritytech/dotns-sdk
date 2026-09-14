@@ -25,7 +25,24 @@ describe("assertExpectedChain", () => {
     setActiveDotnsEnvironment("paseo-v2");
     const previewnet = DOTNS_ENVIRONMENTS.previewnet.genesisHash!;
     await expect(assertExpectedChain(clientReporting(previewnet))).rejects.toThrow(
-      /not paseo-v2.*reports genesis 0xc27c.*expects 0x4349/s,
+      /WRONG CHAIN.*paseo-v2.*expects Asset Hub genesis 0x4349.*genesis 0xc27c/s,
+    );
+  });
+
+  test("hash comparison is case-insensitive", async () => {
+    setActiveDotnsEnvironment("paseo-v2");
+    await assertExpectedChain(clientReporting(PASEO_GENESIS.toUpperCase().replace("0X", "0x")));
+  });
+
+  test("a null pinned hash skips the check", async () => {
+    const noBulletinPin = { ...DOTNS_ENVIRONMENTS["paseo-v2"], bulletinGenesisHash: null };
+    await assertExpectedChain(clientReporting("0xdead"), "bulletin", noBulletinPin);
+  });
+
+  test("a bulletin mismatch points at the bulletin knobs", async () => {
+    setActiveDotnsEnvironment("paseo-v2");
+    await expect(assertExpectedChain(clientReporting("0xdead"), "bulletin")).rejects.toThrow(
+      /--bulletin-rpc and DOTNS_BULLETIN_RPC/,
     );
   });
 
