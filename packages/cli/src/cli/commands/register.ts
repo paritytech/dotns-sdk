@@ -548,16 +548,19 @@ async function executeGovernanceRegistration(
   // than silently widening what a grant holder can mint here.
   validateGovernanceLabel(label);
 
-  // registerReserved is gated on the name whitelist (or Root), not on the
-  // caller's PoP tier. Surfaced as information only: a Root-origin mint skips
-  // the grant check, so a `false` here is a warning rather than a hard stop.
+  // registerReserved is gated on the name whitelist (or a call from the
+  // DotnsRootGateway), not on the caller's PoP tier. Surfaced as information
+  // only: a gateway-routed governance mint skips the grant check, so a
+  // `false` here is a warning rather than a hard stop.
   const granted = await step("Checking name grant", async () =>
     isNameGrantedTo(session.ctx, label, session.caller).catch(() => null),
   );
   if (granted === false) {
     console.log(
       chalk.yellow("  ⚠ name is not granted to the caller; ") +
-        chalk.gray("registerReserved reverts with NameNotGranted unless the origin is Root"),
+        chalk.gray(
+          "registerReserved reverts with NameNotGranted unless called through the DotnsRootGateway",
+        ),
     );
   } else if (granted === true) {
     console.log(chalk.gray("  granted:   ") + chalk.green("yes"));
