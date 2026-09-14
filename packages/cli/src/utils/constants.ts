@@ -13,9 +13,9 @@ import LabelStore from "../../abis/LabelStore.json" with { type: "json" };
 import UserStore from "../../abis/UserStore.json" with { type: "json" };
 import DotnsPopController from "../../abis/DotnsPopController.json" with { type: "json" };
 import DotnsNameWhitelist from "../../abis/DotnsNameWhitelist.json" with { type: "json" };
-// Forwards Root-origin governance calls to the 16 gated entry points listed in
-// the dotns fix/root-origin-gates change; see resolveRootGateway in
-// accountChecks.ts. Vendored ahead of the SDK actually dispatching through it.
+// Forwards governance calls to the 16 gated entry points listed in the dotns
+// fix/root-origin-gates change; see resolveRootGateway in accountChecks.ts.
+// Vendored ahead of the SDK actually dispatching through it.
 import DotnsRootGateway from "../../abis/DotnsRootGateway.json" with { type: "json" };
 
 const DEFAULT_DOTLI_GATEWAYS = ["dot.li", "paseo.li"] as const;

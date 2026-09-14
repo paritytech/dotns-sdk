@@ -30,12 +30,15 @@ export async function checkAccountMapped(
 const NAME_WHITELIST_KEY = "0x6e616d6557686974656c69737400000000000000000000000000000000000000";
 
 // `bytes32("rootGateway")`: the ProtocolRegistry key for `DotnsRootGateway`, the
-// contract Root-origin governance calls must now be routed through (dotns
-// fix/root-origin-gates). Nothing in this SDK constructs a governance dispatch
-// today, so nothing resolves this yet; it is exported so a future
-// governance-dispatch helper does not have to duplicate this lookup. Prefer
-// this over hardcoding an address: the gateway has no CREATE3 book entry yet
-// and its exported name may still change before that PR merges.
+// contract governance calls must now be routed through (dotns
+// fix/root-origin-gates, checked against the branch's finalized tip: the ABI,
+// this key, and the gateway-address authorisation model below all match).
+// Nothing in this SDK constructs a governance dispatch today, so nothing
+// resolves this yet; it is exported so a future governance-dispatch helper
+// does not have to duplicate this lookup. Prefer this over hardcoding an
+// address: the gateway still has no CREATE3 book entry in either address
+// book below, so a hardcoded address would need updating the moment it
+// deploys anyway.
 const ROOT_GATEWAY_KEY = "0x726f6f7447617465776179000000000000000000000000000000000000000000";
 
 const PROTOCOL_REGISTRY_GET_ABI = [
@@ -71,13 +74,16 @@ export async function resolveNameWhitelist(ctx: DotnsContext): Promise<Address> 
 }
 
 // Resolves DotnsRootGateway from the protocol registry, the same way
-// resolveNameWhitelist resolves the whitelist. Governance calls to the 16 entry
-// points listed in the dotns fix/root-origin-gates change (grantName,
-// setReserved, reserveLiteName, the governance branch of registerReserved, and
-// so on) must now be dispatched as `DotnsRootGateway.execute(targets,
-// payloads)` with the gateway itself as the direct Root callee, rather than
-// straight at the target contract. Unused today: nothing in this SDK builds a
-// Root dispatch.
+// resolveNameWhitelist resolves the whitelist. Governance calls to the 16
+// gated entry points across the name whitelist, PopRules, the PoP controller,
+// and the governance branch of registerReserved (grantName, setReserved,
+// reserveLiteName, and so on) must now be dispatched as
+// `DotnsRootGateway.execute(targets, payloads)`, with the gateway itself as
+// the direct Root callee: it is the only contract that reads Root origin
+// directly (via `callerIsRoot`, non-proxied so the check survives), and every
+// gated contract downstream instead authorises on
+// `msg.sender == protocolRegistry.get(ROOT_GATEWAY)`. Unused today: nothing
+// in this SDK builds a Root dispatch.
 export async function resolveRootGateway(ctx: DotnsContext): Promise<Address> {
   const registry = await read<Address>(
     ctx,
