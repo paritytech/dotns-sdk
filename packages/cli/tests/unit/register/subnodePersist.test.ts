@@ -60,8 +60,8 @@ describe("registerSubnode encodes the persist flag", () => {
     await registerSubnode(ctx, "blog", "alice", OWNER);
 
     expect(writes).toHaveLength(1);
-    expect(writes[0].functionName).toBe("setSubnodeOwner");
-    const record = writes[0].args[0] as EncodedSubnodeRecord;
+    expect(writes[0]!.functionName).toBe("setSubnodeOwner");
+    const record = writes[0]!.args[0] as EncodedSubnodeRecord;
     expect(record.persist).toBe(true);
     expect(record.subLabel).toBe("blog");
   });
@@ -69,7 +69,7 @@ describe("registerSubnode encodes the persist flag", () => {
   test("skips store indexing when persist is disabled", async () => {
     await registerSubnode(ctx, "blog", "alice", OWNER, { persist: false });
 
-    const record = writes[0].args[0] as EncodedSubnodeRecord;
+    const record = writes[0]!.args[0] as EncodedSubnodeRecord;
     expect(record.persist).toBe(false);
   });
 });
