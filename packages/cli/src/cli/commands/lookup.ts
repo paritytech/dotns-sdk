@@ -23,6 +23,7 @@ import {
   prepareAssetHubContext,
   buildDotnsContext,
   buildReadOnlyDotnsContext,
+  assertExpectedChain,
 } from "../context";
 import { makeOnStatus } from "../txStatus";
 import { resolveTransferRecipient, transferName } from "../transfer";
@@ -123,6 +124,7 @@ function renderBaseNameReservation(
 
 async function createReadOnlyChainContext(rpc: string) {
   const rawClient = createClient(getWsProvider(rpc));
+  await assertExpectedChain(rawClient);
   const client = rawClient.getTypedApi(paseo);
   const tokenInfo = await getChainTokenInfo(rawClient);
   return {
