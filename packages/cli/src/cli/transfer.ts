@@ -8,7 +8,12 @@ import {
 } from "../utils/validation";
 import { formatErrorMessage, convertWeiToNativeCeil } from "../utils/formatting";
 import { inspectName } from "../commands/inspectName";
-import { assertIsToken, assertNotSoulbound, assertRegistered } from "../commands/preflight";
+import {
+  assertIsToken,
+  assertNotSoulbound,
+  assertIsOwner,
+  assertRegistered,
+} from "../commands/preflight";
 import { computeDomainTokenId, formatDomainName, normaliseName } from "../core/naming";
 
 function isLabelLike(input: string): boolean {
@@ -112,12 +117,10 @@ export async function transferName(
   const toC = checksumAddress(recipient);
 
   const inspection = await inspectName(ctx, label);
-  const currentOwnerC = checksumAddress(assertRegistered(inspection, "transfer"));
+  assertRegistered(inspection, "transfer");
   assertIsToken(inspection, "transfer");
   assertNotSoulbound(inspection, "transfer");
-  if (currentOwnerC !== fromC) {
-    throw new Error(`Cannot transfer: ${inspection.domain} owned by ${currentOwnerC}`);
-  }
+  assertIsOwner(inspection, fromC, "transfer");
   const { domain, tokenId } = inspection;
 
   if (opts.syncLabel) {

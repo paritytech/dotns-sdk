@@ -166,6 +166,12 @@ describe("transferName refuses before the write", () => {
     expect(writes).toEqual([]);
   });
 
+  test("a name owned by another account", async () => {
+    owner = STRANGER;
+    await expect(transferName(ctx, "alice", HOLDER)).rejects.toThrow(`owned by ${STRANGER}`);
+    expect(writes).toEqual([]);
+  });
+
   test("otherwise submits the transfer", async () => {
     const result = await transferName(ctx, "alice", STRANGER);
     expect(result.name).toBe("alice.paseo");

@@ -12,7 +12,7 @@ import {
 } from "../../commands/delegate";
 import { resolveTransferRecipient } from "../transfer";
 import { inspectName } from "../../commands/inspectName";
-import { assertIsToken, assertRegistered } from "../../commands/preflight";
+import { assertIsToken, assertIsOwner, assertRegistered } from "../../commands/preflight";
 import { addAuthOptions } from "./authOptions";
 import { prepareAssetHubContext, buildDotnsContext, buildReadOnlyDotnsContext } from "../context";
 import { makeOnStatus } from "../txStatus";
@@ -71,6 +71,7 @@ export function attachDelegateCommands(root: Command) {
         const inspection = await maybeQuiet(jsonOutput, () => inspectName(ctx, name));
         assertRegistered(inspection, "delegate");
         assertIsToken(inspection, "delegate");
+        assertIsOwner(inspection, context.evmAddress as Address, "delegate");
         if (inspection.soulbound && !jsonOutput) {
           console.log(
             chalk.yellow(

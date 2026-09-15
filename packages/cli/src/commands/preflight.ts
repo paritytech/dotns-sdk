@@ -12,6 +12,14 @@ export function assertRegistered(n: NameInspection, verb: NameAction): Address {
   return n.owner;
 }
 
+export function assertIsOwner(n: NameInspection, signer: Address, verb: NameAction): void {
+  if (n.owner === null || !isSameEvmAddress(n.owner, signer)) {
+    throw new Error(
+      `Cannot ${verb}: ${n.domain} is owned by ${n.owner ?? "nobody"}, not by the signing account ${signer}.`,
+    );
+  }
+}
+
 /// Subnames, including lite personhood names, are registry records with no registrar token.
 export function assertIsToken(n: NameInspection, verb: NameAction): void {
   if (!n.hasToken) {

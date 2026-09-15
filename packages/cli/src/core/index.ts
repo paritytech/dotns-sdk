@@ -77,6 +77,7 @@ export {
   assertRegistered,
   assertIsToken,
   assertNotSoulbound,
+  assertIsOwner,
   assertReleasable,
   explainUnavailable,
 } from "../commands/preflight";
