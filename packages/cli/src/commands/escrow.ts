@@ -3,7 +3,8 @@ import { type DotnsContext, read, write, ownEvmAddress } from "../core/context";
 import { DOTNS_NAME_ESCROW_ABI, DOTNS_REGISTRAR_ABI } from "../utils/constants";
 import { computeDomainTokenId, normaliseName } from "../core/naming";
 import { isSameEvmAddress } from "../utils/address";
-import { inspectName, formatUnixSeconds, nowSeconds } from "./inspectName";
+import { inspectName } from "./inspectName";
+import { assertIsToken, assertNotSoulbound, assertRegistered, assertReleasable } from "./preflight";
 
 /// On-chain release position for a token.
 export type EscrowPositionView = {
@@ -136,44 +137,15 @@ export async function getPendingWithdrawal(ctx: DotnsContext, recipient: Address
 
 export type ReleaseResult = { approveTxHash: string; releaseTxHash: string; tokenId: bigint };
 
-/// Approves the escrow on the registrar then calls `release`. Each refusal mirrors a `require`
-/// in DotnsNameEscrow.release, or the registrar gate the custody move would hit, and is read
-/// before the approve so a name the contract would reject never leaves a dangling approval.
+/// Approves the escrow on the registrar then calls `release`. The preflight checks run before
+/// the approve so a name the escrow would reject never leaves a dangling approval behind.
 export async function releaseName(ctx: DotnsContext, name: string): Promise<ReleaseResult> {
-  const { domain, tokenId, owner, hasToken, soulbound, position } = await inspectName(ctx, name);
-
-  if (owner === null) {
-    throw new Error(`Cannot release: ${domain} is not registered.`);
-  }
-  if (!hasToken) {
-    throw new Error(
-      `Cannot release: ${domain} is a subname, not a registrar token, so it has no escrow position. Lite personhood names and subnames cannot be released.`,
-    );
-  }
-  if (soulbound) {
-    throw new Error(
-      `Cannot release: ${domain} is a soulbound personhood name and cannot move into escrow.`,
-    );
-  }
-  if (position === null) {
-    throw new Error(
-      `Cannot release: ${domain} has no escrow position. Only names registered through the public registrar carry one; names granted from the whitelist cannot be released.`,
-    );
-  }
-  if (position.released) {
-    const until = formatUnixSeconds(position.redeemableUntil);
-    const phase =
-      nowSeconds() < position.redeemableUntil
-        ? `redeemable by the previous holder until ${until}`
-        : `its redeem window closed at ${until}, so anyone may register it`;
-    throw new Error(`Cannot release: ${domain} is already released; ${phase}.`);
-  }
-  const self = await ownEvmAddress(ctx);
-  if (!isSameEvmAddress(position.recipient, self)) {
-    throw new Error(
-      `Cannot release: ${domain} is held by ${position.recipient}, not by the signing account ${self}.`,
-    );
-  }
+  const inspection = await inspectName(ctx, name);
+  assertRegistered(inspection, "release");
+  assertIsToken(inspection, "release");
+  assertNotSoulbound(inspection, "release");
+  assertReleasable(inspection, await ownEvmAddress(ctx));
+  const { tokenId } = inspection;
 
   const approveTxHash = await write(
     ctx,

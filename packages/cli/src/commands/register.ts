@@ -46,7 +46,8 @@ import {
   normaliseName,
   readCurrentPricingVersion,
 } from "../core/naming";
-import { formatUnixSeconds, inspectName } from "./inspectName";
+import { inspectName } from "./inspectName";
+import { explainUnavailable } from "./preflight";
 import { convertWeiToNative } from "../utils/formatting";
 import { isSameEvmAddress } from "../utils/address";
 
@@ -173,20 +174,11 @@ export async function ensureDomainNotRegistered(ctx: DotnsContext, name: string)
   );
   if (available) return;
 
-  // `available` is false for a live registration and for a released name still inside its
-  // redeem window, where only the previous holder may act. Tell those apart so a registrant
-  // learns when the name opens instead of being told it is taken.
-  const domain = await formatDomainName(ctx, label);
-  const position = await inspectName(ctx, label)
-    .then((inspection) => inspection.position)
-    .catch(() => null);
-  if (position?.released) {
-    throw new DomainUnavailableError(
-      domain,
-      `${domain} was released and is reserved for its previous holder until ${formatUnixSeconds(position.redeemableUntil)}; registration opens once that redeem window closes.`,
-    );
-  }
-  throw new DomainUnavailableError(domain);
+  // The explanation is best effort: a failed read must not turn the refusal into an RPC error.
+  const detail = await inspectName(ctx, label)
+    .then(explainUnavailable)
+    .catch(() => undefined);
+  throw new DomainUnavailableError(await formatDomainName(ctx, label), detail);
 }
 
 export type GenerateCommitmentOptions = {

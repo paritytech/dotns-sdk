@@ -73,6 +73,14 @@ export type {
   RefundsListResult,
 } from "../commands/escrow";
 export { inspectName, formatUnixSeconds } from "../commands/inspectName";
+export {
+  assertRegistered,
+  assertIsToken,
+  assertNotSoulbound,
+  assertReleasable,
+  explainUnavailable,
+} from "../commands/preflight";
+export type { NameAction } from "../commands/preflight";
 export type { NameInspection, ReleasePosition } from "../commands/inspectName";
 
 export { getContentHash, setContentHash } from "../commands/contentHash";

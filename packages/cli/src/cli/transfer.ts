@@ -8,6 +8,7 @@ import {
 } from "../utils/validation";
 import { formatErrorMessage, convertWeiToNativeCeil } from "../utils/formatting";
 import { inspectName } from "../commands/inspectName";
+import { assertIsToken, assertNotSoulbound, assertRegistered } from "../commands/preflight";
 import { computeDomainTokenId, formatDomainName, normaliseName } from "../core/naming";
 
 function isLabelLike(input: string): boolean {
@@ -110,25 +111,14 @@ export async function transferName(
   const fromC = checksumAddress(from);
   const toC = checksumAddress(recipient);
 
-  // Read what the registrar would reject before touching `ownerOf`, which reverts on a
-  // node that has no token and would otherwise surface as a decoded ERC721 error.
-  const { domain, tokenId, owner, hasToken, soulbound } = await inspectName(ctx, label);
-  if (owner === null) {
-    throw new Error(`Cannot transfer: ${domain} is not registered`);
-  }
-  if (!hasToken) {
-    throw new Error(
-      `Cannot transfer: ${domain} is a subname, not a registrar token. Lite personhood names and subnames cannot be transferred.`,
-    );
-  }
-  if (soulbound) {
-    throw new Error(`Cannot transfer: ${domain} is a soulbound personhood name`);
-  }
-
-  const currentOwnerC = checksumAddress(await ownerOfLabel(ctx, label));
+  const inspection = await inspectName(ctx, label);
+  const currentOwnerC = checksumAddress(assertRegistered(inspection, "transfer"));
+  assertIsToken(inspection, "transfer");
+  assertNotSoulbound(inspection, "transfer");
   if (currentOwnerC !== fromC) {
-    throw new Error(`Cannot transfer: ${domain} owned by ${currentOwnerC}`);
+    throw new Error(`Cannot transfer: ${inspection.domain} owned by ${currentOwnerC}`);
   }
+  const { domain, tokenId } = inspection;
 
   if (opts.syncLabel) {
     await syncLabelWithRegistrar(ctx, label, tokenId);

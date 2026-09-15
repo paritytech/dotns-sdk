@@ -115,7 +115,7 @@ describe("releaseName refuses before the approve", () => {
 
   test("a subname or lite name, which has no registrar token", async () => {
     hasToken = false;
-    await expect(releaseName(ctx, "alice")).rejects.toThrow("not a registrar token");
+    await expect(releaseName(ctx, "alice")).rejects.toThrow("no token to release");
     expect(writes).toEqual([]);
   });
 
@@ -156,7 +156,7 @@ describe("releaseName refuses before the approve", () => {
 describe("transferName refuses before the write", () => {
   test("a subname or lite name, which has no registrar token", async () => {
     hasToken = false;
-    await expect(transferName(ctx, "alice", STRANGER)).rejects.toThrow("not a registrar token");
+    await expect(transferName(ctx, "alice", STRANGER)).rejects.toThrow("no token to transfer");
     expect(writes).toEqual([]);
   });
 

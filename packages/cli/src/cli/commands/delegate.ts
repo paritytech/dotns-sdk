@@ -12,6 +12,7 @@ import {
 } from "../../commands/delegate";
 import { resolveTransferRecipient } from "../transfer";
 import { inspectName } from "../../commands/inspectName";
+import { assertIsToken, assertRegistered } from "../../commands/preflight";
 import { addAuthOptions } from "./authOptions";
 import { prepareAssetHubContext, buildDotnsContext, buildReadOnlyDotnsContext } from "../context";
 import { makeOnStatus } from "../txStatus";
@@ -68,14 +69,8 @@ export function attachDelegateCommands(root: Command) {
         // a soulbound name even though the delegate can never transfer it; whether that
         // approval is still worth granting is the user's call, so warn rather than refuse.
         const inspection = await maybeQuiet(jsonOutput, () => inspectName(ctx, name));
-        if (inspection.owner === null) {
-          throw new Error(`Cannot delegate: ${inspection.domain} is not registered`);
-        }
-        if (!inspection.hasToken) {
-          throw new Error(
-            `Cannot delegate: ${inspection.domain} is a subname, not a registrar token. Lite personhood names and subnames cannot be delegated.`,
-          );
-        }
+        assertRegistered(inspection, "delegate");
+        assertIsToken(inspection, "delegate");
         if (inspection.soulbound && !jsonOutput) {
           console.log(
             chalk.yellow(
