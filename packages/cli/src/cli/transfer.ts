@@ -10,10 +10,6 @@ import { formatErrorMessage, convertWeiToNativeCeil } from "../utils/formatting"
 import { inspectName } from "../commands/inspectName";
 import { computeDomainTokenId, formatDomainName, normaliseName } from "../core/naming";
 
-function toChecksummed(a: Address): Address {
-  return checksumAddress(a) as Address;
-}
-
 function isLabelLike(input: string): boolean {
   // A lite name carries a separator and is still one label, so it is a valid
   // recipient even though it does not match the ordinary shape.
@@ -36,10 +32,10 @@ export async function resolveTransferRecipient(
 ): Promise<Address> {
   const input = recipientIdentifier.trim();
 
-  if (isAddress(input)) return toChecksummed(input as Address);
+  if (isAddress(input)) return checksumAddress(input as Address);
 
   if (isValidSubstrateAddress(input)) {
-    return toChecksummed(await ctx.clientWrapper.getEvmAddress(input));
+    return checksumAddress(await ctx.clientWrapper.getEvmAddress(input));
   }
 
   // A name is a label plus at most one TLD segment, and a lite name carries a
@@ -52,7 +48,7 @@ export async function resolveTransferRecipient(
       if (ownerAddress === zeroAddress) {
         throw new Error(`Domain ${await formatDomainName(ctx, label)} has no owner`);
       }
-      return toChecksummed(ownerAddress);
+      return checksumAddress(ownerAddress);
     }
   }
 
@@ -111,8 +107,8 @@ export async function transferName(
   validateExistingNameLabel(label);
 
   const from = await ownEvmAddress(ctx);
-  const fromC = toChecksummed(from);
-  const toC = toChecksummed(recipient);
+  const fromC = checksumAddress(from);
+  const toC = checksumAddress(recipient);
 
   // Read what the registrar would reject before touching `ownerOf`, which reverts on a
   // node that has no token and would otherwise surface as a decoded ERC721 error.
@@ -129,7 +125,7 @@ export async function transferName(
     throw new Error(`Cannot transfer: ${domain} is a soulbound personhood name`);
   }
 
-  const currentOwnerC = toChecksummed(await ownerOfLabel(ctx, label));
+  const currentOwnerC = checksumAddress(await ownerOfLabel(ctx, label));
   if (currentOwnerC !== fromC) {
     throw new Error(`Cannot transfer: ${domain} owned by ${currentOwnerC}`);
   }
