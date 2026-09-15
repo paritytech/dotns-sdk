@@ -67,15 +67,15 @@ describe("formatRefundEntryLine", () => {
   });
 });
 
-function makePosition(
-  overrides: Partial<{
-    amount: bigint;
-    released: boolean;
-    claimed: boolean;
-    withdrawAvailableAt: bigint;
-    domain: string;
-  }> = {},
-) {
+type PositionOverrides = Partial<{
+  amount: bigint;
+  released: boolean;
+  claimed: boolean;
+  withdrawAvailableAt: bigint;
+  domain: string;
+}>;
+
+function makePosition(overrides: PositionOverrides = {}) {
   return {
     domain: overrides.domain ?? "alice.paseo",
     tokenId: 1n,
@@ -83,6 +83,7 @@ function makePosition(
     asset: "0x0000000000000000000000000000000000000000" as Address,
     amount: overrides.amount ?? 1n,
     withdrawAvailableAt: overrides.withdrawAvailableAt ?? 0n,
+    redeemableUntil: 0n,
     released: overrides.released ?? false,
     claimed: overrides.claimed ?? false,
   };

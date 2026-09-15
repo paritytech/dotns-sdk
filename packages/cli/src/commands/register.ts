@@ -46,6 +46,8 @@ import {
   normaliseName,
   readCurrentPricingVersion,
 } from "../core/naming";
+import { inspectName } from "./inspectName";
+import { explainUnavailable } from "./preflight";
 import { convertWeiToNative } from "../utils/formatting";
 import { isSameEvmAddress } from "../utils/address";
 
@@ -170,7 +172,13 @@ export async function ensureDomainNotRegistered(ctx: DotnsContext, name: string)
     "available",
     [label],
   );
-  if (!available) throw new DomainUnavailableError(await formatDomainName(ctx, label));
+  if (available) return;
+
+  // The explanation is best effort: a failed read must not turn the refusal into an RPC error.
+  const detail = await inspectName(ctx, label)
+    .then(explainUnavailable)
+    .catch(() => undefined);
+  throw new DomainUnavailableError(await formatDomainName(ctx, label), detail);
 }
 
 export type GenerateCommitmentOptions = {
