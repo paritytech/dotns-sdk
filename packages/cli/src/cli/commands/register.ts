@@ -120,6 +120,8 @@ function printRegistrationResult(result: RegistrationResult): void {
 export type TransferDestinationKind = "evm" | "substrate" | "label";
 
 export type RegisterActionOptions = RegistrationCommandOptions & {
+  /** Subname registration: index into the owner's Label Store (default true). */
+  persist?: boolean;
   transfer?: boolean;
   to?: string;
   parent?: string;
@@ -380,7 +382,9 @@ export async function executeSubnameRegistration(
   console.log(chalk.gray("  Owner:     ") + chalk.white(ownerAddress));
 
   const result = await step("Registering subname", async () =>
-    registerSubnode(session.ctx, sublabel, parentLabel, ownerAddress),
+    registerSubnode(session.ctx, sublabel, parentLabel, ownerAddress, {
+      persist: options.persist !== false,
+    }),
   );
   console.log(chalk.gray("  tx:        ") + chalk.blue(result.txHash));
 

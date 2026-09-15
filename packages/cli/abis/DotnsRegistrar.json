@@ -148,6 +148,11 @@
     "name": "initialize",
     "inputs": [
       {
+        "name": "initialOwner",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
         "name": "name",
         "type": "string",
         "internalType": "string"
@@ -878,6 +883,27 @@
     "type": "error",
     "name": "InvalidOwner",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "LabelEntryConflict",
+    "inputs": [
+      {
+        "name": "store",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "labelhash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "existing",
+        "type": "string",
+        "internalType": "string"
+      }
+    ]
   },
   {
     "type": "error",

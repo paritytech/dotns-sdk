@@ -105,6 +105,11 @@
     "name": "initialize",
     "inputs": [
       {
+        "name": "initialOwner",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
         "name": "registry",
         "type": "address",
         "internalType": "contract IDotnsProtocolRegistry"
@@ -628,6 +633,27 @@
     "type": "error",
     "name": "InvalidLabel",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "LabelEntryConflict",
+    "inputs": [
+      {
+        "name": "store",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "labelhash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "existing",
+        "type": "string",
+        "internalType": "string"
+      }
+    ]
   },
   {
     "type": "error",
