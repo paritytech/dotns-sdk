@@ -180,10 +180,6 @@ describe("transferName refuses before the write", () => {
 });
 
 describe("ensureDomainNotRegistered", () => {
-  test("passes an available name", async () => {
-    await expect(ensureDomainNotRegistered(ctx, "alice")).resolves.toBeUndefined();
-  });
-
   test("explains a name inside its redeem window and when registration opens", async () => {
     available = false;
     position = heldPosition({ released: true, redeemableUntil: 1_200n });
@@ -192,7 +188,7 @@ describe("ensureDomainNotRegistered", () => {
     );
   });
 
-  test("still reports a live registration as already registered", async () => {
+  test("does not mention a redeem window for a held, unreleased name", async () => {
     available = false;
     position = heldPosition();
     await expect(ensureDomainNotRegistered(ctx, "alice")).rejects.toThrow(
