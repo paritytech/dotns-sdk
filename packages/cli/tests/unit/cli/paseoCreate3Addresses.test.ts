@@ -2,8 +2,9 @@ import { expect, test } from "bun:test";
 import { DOTNS_ENVIRONMENTS } from "../../../src/utils/constants";
 
 // paseo-v2 and previewnet are distinct chains that both host the CREATE3 factory
-// at the same address, so they resolve to the identical address book recorded in
-// the dotns contracts repo at deployments/paseo-assethub/420420417.json. Their
+// at the same address, so they resolve to the same address book recorded in the
+// dotns contracts repo at deployments/paseo-assethub/420420417.json, bar the
+// StoreFactory previewnet redeployed after its reset. Their
 // shared chain id is not what makes the book shared: devnet reports 420420417 too
 // and has its own deployment. Drift here silently points the CLI at retired
 // contracts, so pin the canonical addresses explicitly.
@@ -27,9 +28,14 @@ test("paseo-v2 uses the canonical 420420417 deployment address book", () => {
   expect(DOTNS_ENVIRONMENTS["paseo-v2"].contracts).toEqual(CANONICAL_PASEO_ADDRESSES);
 });
 
-test("previewnet shares the same canonical address book as paseo-v2", () => {
-  expect(DOTNS_ENVIRONMENTS.previewnet.contracts).toEqual(CANONICAL_PASEO_ADDRESSES);
-  expect(DOTNS_ENVIRONMENTS.previewnet.contracts).toBe(DOTNS_ENVIRONMENTS["paseo-v2"].contracts);
+test("previewnet shares the paseo-v2 book except for its own StoreFactory", () => {
+  // previewnet's September 2026 reset redeployed the store contracts; the
+  // protocol registry on that chain reports this StoreFactory, and nothing is
+  // deployed at paseo-v2's address there.
+  expect(DOTNS_ENVIRONMENTS.previewnet.contracts).toEqual({
+    ...CANONICAL_PASEO_ADDRESSES,
+    STORE_FACTORY: "0x99605a926FcB40aB520F659c6505E5ff862771f6",
+  });
 });
 
 test("devnet keeps its own distinct deployment, not the shared book", () => {
