@@ -2,6 +2,7 @@ import { zeroAddress, type Address, type Hex } from "viem";
 import { type DotnsContext, read } from "../core/context";
 import { DOTNS_NAME_ESCROW_ABI, DOTNS_REGISTRAR_ABI, DOTNS_REGISTRY_ABI } from "../utils/constants";
 import { domainNode, formatDomainName, normaliseName } from "../core/naming";
+import { EMPTY_DATA_REVERT_HINT } from "../utils/contractInteractions";
 
 /// The escrow's ReleasePosition struct as `getReleasePosition` returns it.
 export type ReleasePosition = {
@@ -41,8 +42,8 @@ function isEmptyPosition(position: ReleasePosition): boolean {
   return position.recipient === zeroAddress && position.amount === 0n && !position.released;
 }
 
-/// A registrar without `isSoulbound` (a deployment older than v0.6.0) has no soulbound
-/// names, so a failed read resolves to false rather than blocking the command.
+/// Only an unknown selector (a registrar without `isSoulbound`) reads as false; any other
+/// failure aborts rather than risk a wrong "not soulbound" before release's approve.
 async function readSoulbound(ctx: DotnsContext, tokenId: bigint): Promise<boolean> {
   try {
     return await read<boolean>(
@@ -52,8 +53,9 @@ async function readSoulbound(ctx: DotnsContext, tokenId: bigint): Promise<boolea
       "isSoulbound",
       [tokenId],
     );
-  } catch {
-    return false;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes(EMPTY_DATA_REVERT_HINT)) return false;
+    throw error;
   }
 }
 

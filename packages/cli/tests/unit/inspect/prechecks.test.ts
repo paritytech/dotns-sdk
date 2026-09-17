@@ -35,7 +35,7 @@ const EMPTY_POSITION: Position = {
 // Chain state each test arranges before calling in.
 let owner: Address = HOLDER;
 let hasToken = true;
-let soulbound = false;
+let soulbound: boolean | Error = false;
 let position: Position = EMPTY_POSITION;
 let available = true;
 const writes: { functionName: string; args: unknown[] }[] = [];
@@ -46,7 +46,10 @@ function fakeRead(_ctx: unknown, _address: string, _abi: unknown, functionName: 
   if (functionName === "tld") return ".paseo";
   if (functionName === "owner") return owner;
   if (functionName === "exists") return hasToken;
-  if (functionName === "isSoulbound") return soulbound;
+  if (functionName === "isSoulbound") {
+    if (soulbound instanceof Error) throw soulbound;
+    return soulbound;
+  }
   if (functionName === "getReleasePosition") return position;
   if (functionName === "available") return available;
   if (functionName === "ownerOf") return owner;
@@ -122,6 +125,12 @@ describe("releaseName refuses before the approve", () => {
   test("a soulbound personhood name", async () => {
     soulbound = true;
     await expect(releaseName(ctx, "alice")).rejects.toThrow("soulbound");
+    expect(writes).toEqual([]);
+  });
+
+  test("a failed soulbound read, rather than treating it as not soulbound", async () => {
+    soulbound = new Error("RPC timeout");
+    await expect(releaseName(ctx, "alice")).rejects.toThrow("RPC timeout");
     expect(writes).toEqual([]);
   });
 
