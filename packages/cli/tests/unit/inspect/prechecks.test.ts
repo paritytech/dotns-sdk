@@ -147,9 +147,10 @@ describe("releaseName refuses before the approve", () => {
     expect(writes).toEqual([]);
   });
 
-  test("a name held by another account", async () => {
+  test("a name owned by another account", async () => {
+    owner = STRANGER;
     position = heldPosition({ recipient: STRANGER });
-    await expect(releaseName(ctx, "alice")).rejects.toThrow(`held by ${STRANGER}`);
+    await expect(releaseName(ctx, "alice")).rejects.toThrow(`owned by ${STRANGER}`);
     expect(writes).toEqual([]);
   });
 

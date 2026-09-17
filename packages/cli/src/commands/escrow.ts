@@ -4,7 +4,13 @@ import { DOTNS_NAME_ESCROW_ABI, DOTNS_REGISTRAR_ABI } from "../utils/constants";
 import { computeDomainTokenId, normaliseName } from "../core/naming";
 import { isSameEvmAddress } from "../utils/address";
 import { inspectName } from "./inspectName";
-import { assertIsToken, assertNotSoulbound, assertRegistered, assertReleasable } from "./preflight";
+import {
+  assertIsOwner,
+  assertIsToken,
+  assertNotSoulbound,
+  assertRegistered,
+  assertReleasable,
+} from "./preflight";
 
 /// On-chain release position for a token.
 export type EscrowPositionView = {
@@ -144,7 +150,9 @@ export async function releaseName(ctx: DotnsContext, name: string): Promise<Rele
   assertRegistered(inspection, "release");
   assertIsToken(inspection, "release");
   assertNotSoulbound(inspection, "release");
-  assertReleasable(inspection, await ownEvmAddress(ctx));
+  const signer = await ownEvmAddress(ctx);
+  assertIsOwner(inspection, signer, "release");
+  assertReleasable(inspection, signer);
   const { tokenId } = inspection;
 
   const approveTxHash = await write(
