@@ -23,8 +23,10 @@ export type NameInspection = {
   domain: string;
   node: Hex;
   tokenId: bigint;
-  /// Registry owner of the node; null when no record exists. Answers ownership for tokens and
-  /// subnames alike, which the registrar's `ownerOf` cannot.
+  /// Whether the registry holds a record for the node; true for tokens and subnames alike.
+  registered: boolean;
+  /// The registrar's `ownerOf`, the address `approve` and `transferFrom` check; null when no
+  /// token exists.
   owner: Address | null;
   /// Whether the registrar minted a token for this node. Only second-level names have one;
   /// subnames, including lite personhood names since dotns v0.7.0, are registry records only
@@ -65,9 +67,9 @@ export async function inspectName(ctx: DotnsContext, name: string): Promise<Name
   const node = await domainNode(ctx, label);
   const tokenId = BigInt(node);
 
-  const [domain, owner, hasToken, position] = await Promise.all([
+  const [domain, registered, hasToken, position] = await Promise.all([
     formatDomainName(ctx, label),
-    read<Address>(ctx, ctx.contracts.DOTNS_REGISTRY, DOTNS_REGISTRY_ABI, "owner", [node]),
+    read<boolean>(ctx, ctx.contracts.DOTNS_REGISTRY, DOTNS_REGISTRY_ABI, "recordExists", [node]),
     read<boolean>(ctx, ctx.contracts.DOTNS_REGISTRAR, DOTNS_REGISTRAR_ABI, "exists", [tokenId]),
     read<ReleasePosition>(
       ctx,
@@ -77,14 +79,23 @@ export async function inspectName(ctx: DotnsContext, name: string): Promise<Name
       [tokenId],
     ),
   ]);
-  const soulbound = hasToken ? await readSoulbound(ctx, tokenId) : false;
+  // `ownerOf` reverts on a node with no token, so both registrar reads wait on `exists`.
+  const [owner, soulbound] = hasToken
+    ? await Promise.all([
+        read<Address>(ctx, ctx.contracts.DOTNS_REGISTRAR, DOTNS_REGISTRAR_ABI, "ownerOf", [
+          tokenId,
+        ]),
+        readSoulbound(ctx, tokenId),
+      ])
+    : [null, false];
 
   return {
     label,
     domain,
     node,
     tokenId,
-    owner: owner === zeroAddress ? null : owner,
+    registered,
+    owner,
     hasToken,
     soulbound,
     position: isEmptyPosition(position) ? null : position,

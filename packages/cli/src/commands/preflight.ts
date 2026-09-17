@@ -7,9 +7,8 @@ import { formatUnixSeconds, nowSeconds, type NameInspection } from "./inspectNam
 
 export type NameAction = "release" | "transfer" | "delegate";
 
-export function assertRegistered(n: NameInspection, verb: NameAction): Address {
-  if (n.owner === null) throw new Error(`Cannot ${verb}: ${n.domain} is not registered.`);
-  return n.owner;
+export function assertRegistered(n: NameInspection, verb: NameAction): void {
+  if (!n.registered) throw new Error(`Cannot ${verb}: ${n.domain} is not registered.`);
 }
 
 export function assertIsOwner(n: NameInspection, signer: Address, verb: NameAction): void {

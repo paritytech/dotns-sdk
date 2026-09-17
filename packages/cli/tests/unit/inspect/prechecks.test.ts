@@ -33,6 +33,7 @@ const EMPTY_POSITION: Position = {
 };
 
 // Chain state each test arranges before calling in.
+let registered = true;
 let owner: Address = HOLDER;
 let hasToken = true;
 let soulbound: boolean | Error = false;
@@ -44,7 +45,7 @@ function fakeRead(_ctx: unknown, _address: string, _abi: unknown, functionName: 
   if (functionName === "protocolRegistry") return "0x00000000000000000000000000000000000000ff";
   if (functionName === "tldNode") return TLD_NODE;
   if (functionName === "tld") return ".paseo";
-  if (functionName === "owner") return owner;
+  if (functionName === "recordExists") return registered;
   if (functionName === "exists") return hasToken;
   if (functionName === "isSoulbound") {
     if (soulbound instanceof Error) throw soulbound;
@@ -99,6 +100,7 @@ function heldPosition(overrides: Partial<Position> = {}): Position {
 }
 
 beforeEach(() => {
+  registered = true;
   owner = HOLDER;
   hasToken = true;
   soulbound = false;
@@ -110,7 +112,7 @@ beforeEach(() => {
 
 describe("releaseName refuses before the approve", () => {
   test("a name that is not registered", async () => {
-    owner = zeroAddress;
+    registered = false;
     hasToken = false;
     await expect(releaseName(ctx, "alice")).rejects.toThrow("is not registered");
     expect(writes).toEqual([]);
