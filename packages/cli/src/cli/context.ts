@@ -14,6 +14,7 @@ import {
   resolveQrAppId,
   resolveQrPeopleEndpoints,
   assertSignerOptions,
+  ENV,
 } from "./env";
 import { createQrSigner } from "./qrSigner";
 import { step, versionLabel } from "./ui";
@@ -28,7 +29,12 @@ import type {
   ChainContext,
   ReadOnlyContext,
 } from "../types/types";
-import { DEFAULT_NATIVE_TOKEN_DECIMALS } from "../utils/constants";
+import {
+  DEFAULT_NATIVE_TOKEN_DECIMALS,
+  DOTNS_ENVIRONMENTS,
+  getActiveDotnsEnvironment,
+  type DotnsEnvironmentConfig,
+} from "../utils/constants";
 import { createDotnsContext, type DotnsContext, type OperationStatus } from "../core/context";
 
 type BuildContextOptions = {
@@ -107,6 +113,59 @@ function firstPropertyValue(value: unknown): unknown {
   return Array.isArray(value) ? value[0] : value;
 }
 
+export type ExpectedChainKind = "asset-hub" | "bulletin";
+
+// Names the chain a genesis hash belongs to when it is one we pin, so a
+// mismatch error can say "that endpoint is previewnet's bulletin chain"
+// instead of only printing hashes.
+function describeKnownChain(genesisHash: string): string | undefined {
+  const needle = genesisHash.toLowerCase();
+  for (const environment of Object.values(DOTNS_ENVIRONMENTS)) {
+    if (environment.genesisHash?.toLowerCase() === needle) {
+      return `${environment.id}'s Asset Hub`;
+    }
+    if (environment.bulletinGenesisHash?.toLowerCase() === needle) {
+      return `${environment.id}'s bulletin chain`;
+    }
+  }
+  return undefined;
+}
+
+// Fails when the connected chain is not the one the selected environment's
+// address book belongs to. `--rpc`/`DOTNS_RPC` override the endpoint without
+// touching the environment, and the three testnets even share contract
+// addresses, so without this check a mismatch answers (and signs) confidently
+// on the wrong chain. `DOTNS_SKIP_CHAIN_CHECK=1` bypasses it, for the window
+// right after an intentional chain relaunch.
+export async function assertExpectedChain(
+  rawClient: PolkadotClient,
+  chainKind: ExpectedChainKind = "asset-hub",
+  environment: DotnsEnvironmentConfig = getActiveDotnsEnvironment(),
+): Promise<void> {
+  if (process.env[ENV.SKIP_CHAIN_CHECK] === "1") return;
+  const expected =
+    chainKind === "bulletin" ? environment.bulletinGenesisHash : environment.genesisHash;
+  if (!expected) return;
+  const actual = (await rawClient.getChainSpecData()).genesisHash;
+  if (typeof actual === "string" && actual.toLowerCase() === expected.toLowerCase()) return;
+  const chainName = chainKind === "bulletin" ? "bulletin chain" : "Asset Hub";
+  const known = typeof actual === "string" ? describeKnownChain(actual) : undefined;
+  const actualLine = known
+    ? `the endpoint is ${known} (genesis ${actual})`
+    : `the endpoint reports genesis ${actual}`;
+  throw new Error(
+    [
+      `WRONG CHAIN — refusing to continue.`,
+      `Selected environment: ${environment.id} (expects ${chainName} genesis ${expected})`,
+      `Connected endpoint:   ${actualLine}`,
+      chainKind === "bulletin"
+        ? `Check --env, --bulletin-rpc and DOTNS_BULLETIN_RPC. If the chain was intentionally relaunched,`
+        : `Check --env, --rpc and DOTNS_RPC. If the chain was intentionally relaunched,`,
+      `set DOTNS_SKIP_CHAIN_CHECK=1 and update the environment's genesis hash.`,
+    ].join("\n  "),
+  );
+}
+
 export async function getChainTokenInfo(rawClient: PolkadotClient): Promise<{
   nativeTokenDecimals: number;
   nativeTokenSymbol: string;
@@ -169,13 +228,18 @@ type ConnectionAndAuth = {
 
 // Connect to `rpc`, read token metadata, resolve the account and build its signer:
 // the work shared by every chain context regardless of descriptor.
-async function connectAndAuthenticate(options: any, rpc: string): Promise<ConnectionAndAuth> {
+async function connectAndAuthenticate(
+  options: any,
+  rpc: string,
+  chainKind: ExpectedChainKind = "asset-hub",
+): Promise<ConnectionAndAuth> {
   assertSignerOptions(options);
   const keystorePath = resolveKeystorePath(options.keystorePath);
 
   const rawClient = await step(`Connecting RPC ${rpc}`, async () =>
     createClient(getWsProvider(rpc)),
   );
+  await step("Checking chain identity", async () => assertExpectedChain(rawClient, chainKind));
   const tokenInfo = await step("Reading chain token metadata", async () =>
     getChainTokenInfo(rawClient),
   );
@@ -317,7 +381,7 @@ async function prepareBulletinContext(options: any): Promise<BulletinContext> {
   const environment = resolveDotnsEnvironment(resolveRpcEnvironment(options));
   const rpc = resolveBulletinRpc(options.bulletinRpc ?? options.rpc, environment.id);
   const { keystorePath, rawClient, tokenInfo, auth, account, substrateAddress, signer } =
-    await connectAndAuthenticate(options, rpc);
+    await connectAndAuthenticate(options, rpc, "bulletin");
 
   const client = rawClient.getTypedApi(bulletin);
 
