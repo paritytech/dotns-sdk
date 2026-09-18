@@ -7,11 +7,14 @@ import {
   isValidSubstrateAddress,
 } from "../utils/validation";
 import { formatErrorMessage, convertWeiToNativeCeil } from "../utils/formatting";
+import { inspectName } from "../commands/inspectName";
+import {
+  assertIsToken,
+  assertNotSoulbound,
+  assertIsOwner,
+  assertRegistered,
+} from "../commands/preflight";
 import { computeDomainTokenId, formatDomainName, normaliseName } from "../core/naming";
-
-function toChecksummed(a: Address): Address {
-  return checksumAddress(a) as Address;
-}
 
 function isLabelLike(input: string): boolean {
   // A lite name carries a separator and is still one label, so it is a valid
@@ -35,10 +38,10 @@ export async function resolveTransferRecipient(
 ): Promise<Address> {
   const input = recipientIdentifier.trim();
 
-  if (isAddress(input)) return toChecksummed(input as Address);
+  if (isAddress(input)) return checksumAddress(input as Address);
 
   if (isValidSubstrateAddress(input)) {
-    return toChecksummed(await ctx.clientWrapper.getEvmAddress(input));
+    return checksumAddress(await ctx.clientWrapper.getEvmAddress(input));
   }
 
   // A name is a label plus at most one TLD segment, and a lite name carries a
@@ -51,7 +54,7 @@ export async function resolveTransferRecipient(
       if (ownerAddress === zeroAddress) {
         throw new Error(`Domain ${await formatDomainName(ctx, label)} has no owner`);
       }
-      return toChecksummed(ownerAddress);
+      return checksumAddress(ownerAddress);
     }
   }
 
@@ -109,36 +112,16 @@ export async function transferName(
   const label = await normaliseName(ctx, name);
   validateExistingNameLabel(label);
 
-  const tokenId = await computeDomainTokenId(ctx, label);
   const from = await ownEvmAddress(ctx);
-  const fromC = toChecksummed(from);
-  const toC = toChecksummed(recipient);
+  const fromC = checksumAddress(from);
+  const toC = checksumAddress(recipient);
 
-  const currentOwner = await ownerOfLabel(ctx, label);
-  if (currentOwner === zeroAddress) {
-    throw new Error(`Cannot transfer: ${await formatDomainName(ctx, label)} is not registered`);
-  }
-  const currentOwnerC = toChecksummed(currentOwner);
-  if (currentOwnerC !== fromC) {
-    throw new Error(
-      `Cannot transfer: ${await formatDomainName(ctx, label)} owned by ${currentOwnerC}`,
-    );
-  }
-
-  // Gateway-minted PoP names are soulbound since dotns v0.6.0; the registrar
-  // would revert the transfer, so refuse with the reason instead.
-  const soulbound = await read<boolean>(
-    ctx,
-    ctx.contracts.DOTNS_REGISTRAR,
-    DOTNS_REGISTRAR_ABI,
-    "isSoulbound",
-    [tokenId],
-  ).catch(() => false);
-  if (soulbound) {
-    throw new Error(
-      `Cannot transfer: ${await formatDomainName(ctx, label)} is a soulbound personhood name`,
-    );
-  }
+  const inspection = await inspectName(ctx, label);
+  assertRegistered(inspection, "transfer");
+  assertIsToken(inspection, "transfer");
+  assertNotSoulbound(inspection, "transfer");
+  assertIsOwner(inspection, fromC, "transfer");
+  const { domain, tokenId } = inspection;
 
   if (opts.syncLabel) {
     await syncLabelWithRegistrar(ctx, label, tokenId);
@@ -166,5 +149,5 @@ export async function transferName(
     "Transfer",
   );
 
-  return { name: await formatDomainName(ctx, label), from: fromC, to: toC, feeWei, txHash };
+  return { name: domain, from: fromC, to: toC, feeWei, txHash };
 }
