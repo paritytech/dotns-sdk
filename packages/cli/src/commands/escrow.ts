@@ -8,6 +8,7 @@ import {
   assertIsOwner,
   assertIsToken,
   assertNotSoulbound,
+  assertRedeemable,
   assertRegistered,
   assertReleasable,
 } from "./preflight";
@@ -176,6 +177,26 @@ export async function releaseName(ctx: DotnsContext, name: string): Promise<Rele
   );
 
   return { approveTxHash, releaseTxHash, tokenId };
+}
+
+export type RedeemResult = { domain: string; tokenId: bigint; txHash: string };
+
+/// Returns a released name to its previous holder while the redeem window is open.
+export async function redeemName(ctx: DotnsContext, name: string): Promise<RedeemResult> {
+  const inspection = await inspectName(ctx, name);
+  assertRedeemable(inspection, await ownEvmAddress(ctx));
+  const { domain, tokenId } = inspection;
+
+  const txHash = await write(
+    ctx,
+    ctx.contracts.DOTNS_NAME_ESCROW,
+    0n,
+    DOTNS_NAME_ESCROW_ABI,
+    "redeem",
+    [tokenId],
+    "Redeem",
+  );
+  return { domain, tokenId, txHash };
 }
 
 /// Calls `withdraw` to credit the original depositor's pull-payment balance. Reverts before

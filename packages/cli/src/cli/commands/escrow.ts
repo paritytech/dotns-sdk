@@ -10,6 +10,7 @@ import {
   formatPositionStatus,
   cooldownRemainingSeconds,
   releaseName,
+  redeemName,
   withdrawName,
   claimWithdrawal,
   getPendingWithdrawal,
@@ -17,6 +18,7 @@ import {
   claimRefund,
   claimRefundsBatch,
 } from "../../commands/escrow";
+import { formatReleasePhase, releasePhase } from "../../commands/preflight";
 import { formatPositionsTable, formatRefundEntryLine } from "../views/escrow";
 import { listStoreNames } from "../../commands/storeManagement";
 import { resolveTransferRecipient } from "../transfer";
@@ -92,8 +94,11 @@ export function attachEscrowCommands(root: Command) {
         });
 
         const position = await maybeQuiet(jsonOutput, () => getEscrowPosition(ctx, name));
+        const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
 
-        if (!emitJsonResult(jsonOutput, position)) {
+        const jsonPosition =
+          position === null ? null : { ...position, phase: releasePhase(position, nowSeconds) };
+        if (!emitJsonResult(jsonOutput, jsonPosition)) {
           if (position === null) {
             console.log(chalk.gray("  no release position recorded for this name"));
           } else {
@@ -103,9 +108,11 @@ export function attachEscrowCommands(root: Command) {
             );
             console.log(chalk.gray("  released:  ") + chalk.white(String(position.released)));
             console.log(chalk.gray("  claimed:   ") + chalk.white(String(position.claimed)));
-            const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
             console.log(
               chalk.gray("  status:    ") + chalk.white(formatPositionStatus(position, nowSeconds)),
+            );
+            console.log(
+              chalk.gray("  phase:     ") + chalk.white(formatReleasePhase(position, nowSeconds)),
             );
             if (position.withdrawAvailableAt > 0n) {
               const t = new Date(Number(position.withdrawAvailableAt) * 1000).toISOString();
@@ -196,6 +203,8 @@ export function attachEscrowCommands(root: Command) {
           released: position.released,
           claimed: position.claimed,
           withdrawAvailableAt: position.withdrawAvailableAt.toString(),
+          redeemableUntil: position.redeemableUntil.toString(),
+          phase: releasePhase(position, nowSeconds),
           status: formatPositionStatus(position, nowSeconds),
           cooldownSeconds: cooldownRemainingSeconds(position, nowSeconds).toString(),
         })),
@@ -243,6 +252,40 @@ export function attachEscrowCommands(root: Command) {
         if (!emitJsonResult(jsonOutput, result)) {
           console.log(chalk.gray("  approve tx: ") + chalk.blue(result.approveTxHash));
           console.log(chalk.gray("  release tx: ") + chalk.blue(result.releaseTxHash));
+          console.log(chalk.green("\n✓ Complete\n"));
+        }
+        process.exit(0);
+      } catch (error) {
+        handleCommandError(jsonOutput, error);
+      }
+    },
+  );
+
+  // escrow redeem <name>
+  const redeemCommand = escrowCommand
+    .command("redeem <name>")
+    .description("Take a released name back while its redeem window is still open")
+    .option("--json", "Output result as JSON (suppresses all other output)", false);
+  addAuthOptions(redeemCommand).action(
+    async (name: string, options: EscrowCommonOptions, command: Command) => {
+      const jsonOutput = getJsonFlag(command);
+      try {
+        const mergedOptions = getMergedOptions(command, options);
+        const context = await maybeQuiet(jsonOutput, () =>
+          prepareContext({ ...mergedOptions, useRevive: true }),
+        );
+
+        if (!jsonOutput) printCommandHeader("Escrow redeem");
+        const spinner = ora();
+        const ctx = buildDotnsContext(context as AssetHubContext, {
+          onStatus: makeOnStatus(spinner, "Escrow"),
+        });
+
+        const result = await maybeQuiet(jsonOutput, () => redeemName(ctx, name));
+
+        if (!emitJsonResult(jsonOutput, result)) {
+          console.log(chalk.gray("  name: ") + chalk.cyan(result.domain));
+          console.log(chalk.gray("  tx:   ") + chalk.blue(result.txHash));
           console.log(chalk.green("\n✓ Complete\n"));
         }
         process.exit(0);

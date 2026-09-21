@@ -56,6 +56,7 @@ export {
   getPendingWithdrawal,
   listRefunds,
   releaseName,
+  redeemName,
   withdrawName,
   claimWithdrawal,
   claimRefund,
@@ -69,6 +70,7 @@ export {
 export type {
   EscrowPositionView,
   ReleaseResult,
+  RedeemResult,
   RefundEntryView,
   RefundsListResult,
 } from "../commands/escrow";
@@ -79,9 +81,12 @@ export {
   assertNotSoulbound,
   assertIsOwner,
   assertReleasable,
+  assertRedeemable,
   explainUnavailable,
+  releasePhase,
+  formatReleasePhase,
 } from "../commands/preflight";
-export type { NameAction } from "../commands/preflight";
+export type { NameAction, ReleasePhase } from "../commands/preflight";
 export type { NameInspection, ReleasePosition } from "../commands/inspectName";
 
 export { getContentHash, setContentHash } from "../commands/contentHash";
