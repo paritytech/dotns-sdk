@@ -24,9 +24,13 @@ describe("assertExpectedChain", () => {
   test("fails naming both chains on a mismatch", async () => {
     setActiveDotnsEnvironment("paseo-v2");
     const previewnet = DOTNS_ENVIRONMENTS.previewnet.genesisHash!;
-    await expect(assertExpectedChain(clientReporting(previewnet))).rejects.toThrow(
-      /WRONG CHAIN.*paseo-v2.*expects Asset Hub genesis 0x4349.*genesis 0xc27c/s,
+    // Both prefixes come from the constants: previewnet relaunches change its hash, and a
+    // hardcoded prefix here would break on every repin.
+    const pattern = new RegExp(
+      `WRONG CHAIN.*paseo-v2.*expects Asset Hub genesis ${PASEO_GENESIS.slice(0, 6)}.*genesis ${previewnet.slice(0, 6)}`,
+      "s",
     );
+    await expect(assertExpectedChain(clientReporting(previewnet))).rejects.toThrow(pattern);
   });
 
   test("hash comparison is case-insensitive", async () => {
