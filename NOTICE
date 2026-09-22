@@ -1,0 +1,11 @@
+dotns-sdk
+© 2026 Parity Technologies
+
+This product is licensed under the MIT License; see the LICENSE file.
+
+The vendored contract ABIs under packages/cli/abis/ and
+packages/ui/src/lib/abis/ are generated from the dotNS contracts
+(https://github.com/paritytech/dotns, MIT).
+
+Build and runtime dependencies are fetched at install time under their
+own licences and stay outside this repository.
