@@ -281,6 +281,15 @@ const PASEO_CREATE3_CONTRACTS: DotnsContractAddresses = {
   MULTICALL3: "0xB4468000abD87D3c56cbFBd153161223D7b109e5" as Address,
 };
 
+// previewnet was reset in September 2026 and its StoreFactory came back at a new
+// address (dotns deployments/expected.json; the on-chain DotnsProtocolRegistry
+// `storeFactory` role agrees). Everything else still sits at the shared CREATE3
+// addresses, so the book is the paseo one with that single entry replaced.
+const PREVIEWNET_CREATE3_CONTRACTS: DotnsContractAddresses = {
+  ...PASEO_CREATE3_CONTRACTS,
+  STORE_FACTORY: "0x99605a926FcB40aB520F659c6505E5ff862771f6" as Address,
+};
+
 export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConfig> = {
   "paseo-v2": {
     id: "paseo-v2",
@@ -309,7 +318,7 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
     previewBaseUrl: null,
     // Served via its own substrate.dev gateway, not a dot.li host.
     dotliGateways: [],
-    contracts: PASEO_CREATE3_CONTRACTS,
+    contracts: PREVIEWNET_CREATE3_CONTRACTS,
     bulletinRpc: "wss://previewnet.substrate.dev/bulletin",
     ipfsGatewayUrl: "https://previewnet.substrate.dev/ipfs",
     bulletinP2pPeers: [],

@@ -56,8 +56,8 @@ export class UnmappedOriginError extends Error {
 }
 
 export class DomainUnavailableError extends Error {
-  constructor(name: string) {
-    super(`${name} is already registered.`);
+  constructor(name: string, detail?: string) {
+    super(detail ?? `${name} is already registered.`);
     this.name = "DomainUnavailableError";
   }
 }
