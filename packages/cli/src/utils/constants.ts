@@ -312,8 +312,8 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
     aliases: ["previewnet", "preview-net", "preview", "ppn"],
     rpc: PREVIEWNET_ASSET_HUB_URL,
     // Previewnet relaunches from fresh genesis on resets; update on relaunch.
-    genesisHash: "0xc27c8bf3f13f96dc2130cd2b0a3debe57618fd02521ecc1902bd7dd4ed83d2fe",
-    bulletinGenesisHash: "0xea9158d768971553e315b76323cbffda238b6b865f3d3d5e138350b12312173d",
+    genesisHash: "0xbac97e23fc8f4bccae72a98f8aeb2bcab20bf755862304e4b46ad6473456e896",
+    bulletinGenesisHash: "0xa081192b90c1f6a3f8e9ce7b2a8246f41af805c66456c84e05fd97c2b3502425",
     blockExplorerUrl: "https://blockscout-testnet.polkadot.io",
     previewBaseUrl: null,
     // Served via its own substrate.dev gateway, not a dot.li host.
