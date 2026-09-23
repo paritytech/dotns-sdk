@@ -6,8 +6,9 @@ import {
   cooldownRemainingSeconds,
   formatCooldown,
   formatPositionStatus,
+  releasePhase,
+  formatReleasePhase,
 } from "../../../src/commands/escrow";
-import { releasePhase, formatReleasePhase } from "../../../src/commands/preflight";
 import { formatRefundEntryLine, formatPositionsTable } from "../../../src/cli/views/escrow";
 import { DOTNS_NAME_ESCROW_ABI } from "../../../src/utils/constants";
 
