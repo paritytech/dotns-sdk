@@ -1,5 +1,9 @@
 > [!WARNING]
-> This open source code is provided for research, experimentation, and developer education only. This code has not been audited, is actively experimental, and may contain bugs, vulnerabilities, or incomplete features. Use at your own risk.
+> This open source code is provided for research, experimentation, and developer education only. This code has not been audited, is actively experimental, and may contain bugs, vulnerabilities, or incomplete features. Use at your own risk and obtain legal advice as appropriate - DYOR.
+>
+> Parity doesn’t deploy the code but may update it based on community feedback.
+>
+> If you experience problems with any product or service that was built on or deployed from this code, you should contact the third party who deployed the code in its amended form, not Parity.
 
 # dotns-sdk
 
@@ -177,5 +181,5 @@ For Parity's security disclosure process, and Bug Bounty program, feel free to v
 
 ## License
 
-Licensed under the MIT License. See [LICENSE](./LICENSE). Security policy and disclosure: see [SECURITY.md](./SECURITY.md).
+Licensed under the MIT License. See [LICENSE](./LICENSE) and [NOTICE](./NOTICE). Security policy and disclosure: see [SECURITY.md](./SECURITY.md).
 
