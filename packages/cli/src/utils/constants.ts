@@ -96,8 +96,8 @@ export const DOTNS_POP_RESOLVER_ABI = DotnsPopResolver as Abi;
 export const DOTNS_NAME_ESCROW_ABI = DotnsNameEscrow as Abi;
 export const POP_RULES_ABI = PopRules as Abi;
 export const STORE_FACTORY_ABI = StoreFactory as Abi;
-export const LABEL_STORE_ABI = LabelStore.abi as Abi;
-export const USER_STORE_ABI = UserStore.abi as Abi;
+export const LABEL_STORE_ABI = LabelStore as Abi;
+export const USER_STORE_ABI = UserStore as Abi;
 export const DOTNS_POP_CONTROLLER_ABI = DotnsPopController as Abi;
 export const DOTNS_NAME_WHITELIST_ABI = DotnsNameWhitelist as Abi;
 export const PERSONHOOD_ABI = [
@@ -257,8 +257,9 @@ export type DotnsEnvironmentConfig = {
   bulletinP2pPeers: readonly string[];
 };
 
-// CREATE3 address book from the canonical dotns deployment (dotns repo,
-// deployments/paseo-assethub/420420417.json). Every contract is deployed through
+// CREATE3 address book matching the canonical fresh-deploy set (dotns repo,
+// deployments/expected.json; the protocol registry on each chain is the runtime
+// authority). Every contract is deployed through
 // the shared CREATE3 factory with a chain-independent salt, so these addresses
 // are identical on every chain that reuses that factory. paseo-v2 and previewnet
 // are distinct chains with distinct genesis hashes, but both host the factory at
@@ -274,20 +275,11 @@ const PASEO_CREATE3_CONTRACTS: DotnsContractAddresses = {
   DOTNS_REVERSE_RESOLVER: "0xee3883d7eB60Ee9BCD7F3bcD8f2f05302A9Cc035" as Address,
   DOTNS_POP_RESOLVER: "0xDaC984884EcA8Fc44011f1D6C49B27828390A72B" as Address,
   DOTNS_CONTENT_RESOLVER: "0x7F74D7CD50f5a834270E2ad395a01b01891AB37d" as Address,
-  STORE_FACTORY: "0x709A027F446a9e2a4BB9cb9a9c754435b19e32B7" as Address,
+  STORE_FACTORY: "0x99605a926FcB40aB520F659c6505E5ff862771f6" as Address,
   DOTNS_RULES: "0x747B456bE03aec0b42bd85C51513730FBD45DA31" as Address,
   DOTNS_POP_CONTROLLER: "0xCC932348606cc1f3318cADeC5A5Cd2CA447f8a4b" as Address,
   DOTNS_NAME_ESCROW: "0x4881Afb78e7C908cAe818168B926229D93376520" as Address,
   MULTICALL3: "0xB4468000abD87D3c56cbFBd153161223D7b109e5" as Address,
-};
-
-// previewnet was reset in September 2026 and its StoreFactory came back at a new
-// address (dotns deployments/expected.json; the on-chain DotnsProtocolRegistry
-// `storeFactory` role agrees). Everything else still sits at the shared CREATE3
-// addresses, so the book is the paseo one with that single entry replaced.
-const PREVIEWNET_CREATE3_CONTRACTS: DotnsContractAddresses = {
-  ...PASEO_CREATE3_CONTRACTS,
-  STORE_FACTORY: "0x99605a926FcB40aB520F659c6505E5ff862771f6" as Address,
 };
 
 export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConfig> = {
@@ -318,7 +310,7 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
     previewBaseUrl: null,
     // Served via its own substrate.dev gateway, not a dot.li host.
     dotliGateways: [],
-    contracts: PREVIEWNET_CREATE3_CONTRACTS,
+    contracts: PASEO_CREATE3_CONTRACTS,
     bulletinRpc: "wss://previewnet.substrate.dev/bulletin",
     ipfsGatewayUrl: "https://previewnet.substrate.dev/ipfs",
     bulletinP2pPeers: [],
