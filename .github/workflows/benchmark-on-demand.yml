@@ -293,7 +293,7 @@ jobs:
             const codeownersPath = path.join(process.cwd(), ".github", "CODEOWNERS");
             if (fs.existsSync(codeownersPath)) {
               const mentions = [...new Set(
-                (fs.readFileSync(codeownersPath, "utf8").match(/@[A-Za-z0-9][A-Za-z0-9-_]*/g) ?? [])
+                (fs.readFileSync(codeownersPath, "utf8").match(/@[A-Za-z0-9][A-Za-z0-9-_/]*/g) ?? [])
               )];
               if (mentions.length > 0) {
                 lines.push("");

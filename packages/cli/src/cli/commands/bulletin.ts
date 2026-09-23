@@ -61,7 +61,7 @@ function cleanupHeliaAndExit(code: number): never {
 }
 import { normalizeUploadMaxRetries } from "../../bulletin/uploadRetry";
 import { addAuthOptions } from "./authOptions";
-import { prepareContext } from "../context";
+import { assertExpectedChain, prepareContext } from "../context";
 import { ENV, resolveBulletinRpc, resolveDotnsEnvironment, resolveRpc } from "../env";
 import {
   DEFAULT_CHUNK_SIZE_BYTES,
@@ -502,7 +502,13 @@ export function attachBulletinCommands(root: Command): void {
         );
 
         const signerContext = await withBulletinHumanOutput(reporterMode, () =>
-          prepareContext({ keyUri: signerKeyUri, useBulletin: true, bulletinRpc }),
+          prepareContext({
+            keyUri: signerKeyUri,
+            useBulletin: true,
+            bulletinRpc,
+            env: mergedOptions.env,
+            network: mergedOptions.network,
+          }),
         );
 
         if (!jsonOutput) {
@@ -622,6 +628,8 @@ export function attachBulletinCommands(root: Command): void {
           keyUri: signerKeyUri,
           useBulletin: true,
           bulletinRpc,
+          env: mergedOptions.env,
+          network: mergedOptions.network,
         });
 
         const result = await refreshAccountAuthorization({
@@ -1034,7 +1042,9 @@ export function attachBulletinCommands(root: Command): void {
             const { paseo } = await import("@polkadot-api/descriptors");
             const { ReviveClientWrapper } = await import("../../client/polkadotClient");
             const rpc = resolveBulletinCacheAssetHubRpc(mergedOptions);
-            const typedApi = createClient(getWsProvider(rpc)).getTypedApi(paseo);
+            const cacheClient = createClient(getWsProvider(rpc));
+            await assertExpectedChain(cacheClient);
+            const typedApi = cacheClient.getTypedApi(paseo);
             const clientWrapper = new ReviveClientWrapper(typedApi as any);
             const evmAddress = await clientWrapper.getEvmAddress(context.substrateAddress);
 
