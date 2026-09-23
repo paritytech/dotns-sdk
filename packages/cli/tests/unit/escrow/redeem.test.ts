@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { zeroAddress, type Address } from "viem";
 import * as realContext from "../../../src/core/context";
+import type { ReleasePosition } from "../../../src/commands/inspectName";
+import { nowSeconds } from "../../../src/utils/formatting";
 
 // Each refusal is a preflight assert reading the fact the escrow's own `require` checks, so no
 // write is submitted for a redeem the chain would reject.
@@ -10,17 +12,7 @@ const HOLDER = "0x1111111111111111111111111111111111111111" as Address;
 const STRANGER = "0x2222222222222222222222222222222222222222" as Address;
 const ESCROW = "0x00000000000000000000000000000000000000ee" as Address;
 
-type Position = {
-  recipient: Address;
-  asset: Address;
-  amount: bigint;
-  withdrawAvailableAt: bigint;
-  redeemableUntil: bigint;
-  released: boolean;
-  claimed: boolean;
-};
-
-let position: Position;
+let position: ReleasePosition;
 const writes: { functionName: string; args: unknown[] }[] = [];
 
 function fakeRead(_ctx: unknown, _address: string, _abi: unknown, functionName: string): unknown {
@@ -67,15 +59,13 @@ const ctx = {
   },
 } as unknown as realContext.DotnsContext;
 
-const now = () => BigInt(Math.floor(Date.now() / 1000));
-
-function releasedPosition(overrides: Partial<Position> = {}): Position {
+function releasedPosition(overrides: Partial<ReleasePosition> = {}): ReleasePosition {
   return {
     recipient: HOLDER,
     asset: zeroAddress,
     amount: 5n,
     withdrawAvailableAt: 0n,
-    redeemableUntil: now() + 3_600n,
+    redeemableUntil: nowSeconds() + 3_600n,
     released: true,
     claimed: false,
     ...overrides,

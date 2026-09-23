@@ -133,7 +133,7 @@ export function releasePhase(position: ReleasePhaseFields, nowSeconds: bigint): 
   return position.claimed ? "awaiting" : "redeemable";
 }
 
-/// The phase and, where it changes on a clock, when.
+/// One line naming the phase and, when a clock decides it, the time it changes.
 export function formatReleasePhase(position: ReleasePhaseFields, nowSeconds: bigint): string {
   const until = formatUnixSeconds(position.redeemableUntil);
   switch (releasePhase(position, nowSeconds)) {
