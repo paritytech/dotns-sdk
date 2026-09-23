@@ -3,27 +3,19 @@ import { type DotnsContext, read, write, ownEvmAddress } from "../core/context";
 import { DOTNS_NAME_ESCROW_ABI, DOTNS_REGISTRAR_ABI } from "../utils/constants";
 import { computeDomainTokenId, normaliseName } from "../core/naming";
 import { isSameEvmAddress } from "../utils/address";
-import { inspectName } from "./inspectName";
+import { inspectName, type ReleasePosition } from "./inspectName";
+import { formatUnixSeconds, nowSeconds } from "../utils/formatting";
 import {
   assertIsOwner,
   assertIsToken,
   assertNotSoulbound,
+  assertRedeemable,
   assertRegistered,
   assertReleasable,
 } from "./preflight";
 
-/// On-chain release position for a token.
-export type EscrowPositionView = {
-  domain: string;
-  tokenId: bigint;
-  recipient: Address;
-  asset: Address;
-  amount: bigint;
-  withdrawAvailableAt: bigint;
-  redeemableUntil: bigint;
-  released: boolean;
-  claimed: boolean;
-};
+/// A release position with the name it belongs to.
+export type EscrowPositionView = ReleasePosition & { domain: string; tokenId: bigint };
 
 export type RefundEntryView = {
   entryId: bigint;
@@ -128,6 +120,34 @@ export function formatPositionStatus(position: EscrowPositionView, nowSeconds: b
   return remaining > 0n ? `cooldown ${formatCooldown(remaining)}` : "claimable";
 }
 
+export type ReleasePhase = "held" | "redeemable" | "awaiting" | "reclaimable";
+
+type ReleasePhaseFields = Pick<ReleasePosition, "released" | "claimed" | "redeemableUntil">;
+
+/// The escrow's own predicates: `redeem` needs `released && !claimed && now < redeemableUntil`,
+/// `isReclaimable` is `released && now >= redeemableUntil`. "awaiting" is the gap where the
+/// holder withdrew the deposit inside the window, forfeiting redemption, and nobody can act yet.
+export function releasePhase(position: ReleasePhaseFields, nowSeconds: bigint): ReleasePhase {
+  if (!position.released) return "held";
+  if (nowSeconds >= position.redeemableUntil) return "reclaimable";
+  return position.claimed ? "awaiting" : "redeemable";
+}
+
+/// One line naming the phase and, when a clock decides it, the time it changes.
+export function formatReleasePhase(position: ReleasePhaseFields, nowSeconds: bigint): string {
+  const until = formatUnixSeconds(position.redeemableUntil);
+  switch (releasePhase(position, nowSeconds)) {
+    case "held":
+      return "held; not released";
+    case "redeemable":
+      return `released; redeemable by the previous holder until ${until}, then reclaimable by anyone`;
+    case "awaiting":
+      return `released; deposit withdrawn so no longer redeemable; reclaimable by anyone from ${until}`;
+    case "reclaimable":
+      return `released; redeem window closed at ${until}; reclaimable by anyone through registration`;
+  }
+}
+
 /// Reads the caller's pull-payment ledger balance (withdrawn deposits plus
 /// registration-overpayment refunds). This is what `claimWithdrawal` drains and is
 /// independent of any open release position.
@@ -152,7 +172,7 @@ export async function releaseName(ctx: DotnsContext, name: string): Promise<Rele
   assertNotSoulbound(inspection, "release");
   const signer = await ownEvmAddress(ctx);
   assertIsOwner(inspection, signer, "release");
-  assertReleasable(inspection, signer);
+  assertReleasable(inspection, signer, nowSeconds());
   const { tokenId } = inspection;
 
   const approveTxHash = await write(
@@ -176,6 +196,26 @@ export async function releaseName(ctx: DotnsContext, name: string): Promise<Rele
   );
 
   return { approveTxHash, releaseTxHash, tokenId };
+}
+
+export type RedeemResult = { domain: string; tokenId: bigint; txHash: string };
+
+/// Returns a released name to its previous holder while the redeem window is open.
+export async function redeemName(ctx: DotnsContext, name: string): Promise<RedeemResult> {
+  const inspection = await inspectName(ctx, name);
+  assertRedeemable(inspection, await ownEvmAddress(ctx), nowSeconds());
+  const { domain, tokenId } = inspection;
+
+  const txHash = await write(
+    ctx,
+    ctx.contracts.DOTNS_NAME_ESCROW,
+    0n,
+    DOTNS_NAME_ESCROW_ABI,
+    "redeem",
+    [tokenId],
+    "Redeem",
+  );
+  return { domain, tokenId, txHash };
 }
 
 /// Calls `withdraw` to credit the original depositor's pull-payment balance. Reverts before

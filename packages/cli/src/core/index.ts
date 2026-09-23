@@ -56,6 +56,9 @@ export {
   getPendingWithdrawal,
   listRefunds,
   releaseName,
+  redeemName,
+  releasePhase,
+  formatReleasePhase,
   withdrawName,
   claimWithdrawal,
   claimRefund,
@@ -69,16 +72,20 @@ export {
 export type {
   EscrowPositionView,
   ReleaseResult,
+  RedeemResult,
+  ReleasePhase,
   RefundEntryView,
   RefundsListResult,
 } from "../commands/escrow";
-export { inspectName, formatUnixSeconds } from "../commands/inspectName";
+export { inspectName } from "../commands/inspectName";
+export { formatUnixSeconds, nowSeconds } from "../utils/formatting";
 export {
   assertRegistered,
   assertIsToken,
   assertNotSoulbound,
   assertIsOwner,
   assertReleasable,
+  assertRedeemable,
   explainUnavailable,
 } from "../commands/preflight";
 export type { NameAction } from "../commands/preflight";

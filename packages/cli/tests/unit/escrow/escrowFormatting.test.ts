@@ -6,6 +6,8 @@ import {
   cooldownRemainingSeconds,
   formatCooldown,
   formatPositionStatus,
+  releasePhase,
+  formatReleasePhase,
 } from "../../../src/commands/escrow";
 import { formatRefundEntryLine, formatPositionsTable } from "../../../src/cli/views/escrow";
 import { DOTNS_NAME_ESCROW_ABI } from "../../../src/utils/constants";
@@ -72,6 +74,7 @@ type PositionOverrides = Partial<{
   released: boolean;
   claimed: boolean;
   withdrawAvailableAt: bigint;
+  redeemableUntil: bigint;
   domain: string;
 }>;
 
@@ -83,7 +86,7 @@ function makePosition(overrides: PositionOverrides = {}) {
     asset: "0x0000000000000000000000000000000000000000" as Address,
     amount: overrides.amount ?? 1n,
     withdrawAvailableAt: overrides.withdrawAvailableAt ?? 0n,
-    redeemableUntil: 0n,
+    redeemableUntil: overrides.redeemableUntil ?? 0n,
     released: overrides.released ?? false,
     claimed: overrides.claimed ?? false,
   };
@@ -150,6 +153,49 @@ describe("formatPositionStatus", () => {
     expect(formatPositionStatus(makePosition({ released: true, claimed: true }), NOW)).toBe(
       "claimed",
     );
+  });
+});
+
+describe("releasePhase", () => {
+  test("held while the name is not released", () => {
+    expect(releasePhase(makePosition(), NOW)).toBe("held");
+  });
+
+  test("redeemable while released, unwithdrawn and inside the window", () => {
+    expect(releasePhase(makePosition({ released: true, redeemableUntil: NOW + 1n }), NOW)).toBe(
+      "redeemable",
+    );
+  });
+
+  test("awaiting when the deposit was withdrawn inside the window", () => {
+    expect(
+      releasePhase(makePosition({ released: true, claimed: true, redeemableUntil: NOW + 1n }), NOW),
+    ).toBe("awaiting");
+  });
+
+  test("reclaimable once the window elapses, matching the escrow's isReclaimable", () => {
+    expect(releasePhase(makePosition({ released: true, redeemableUntil: NOW }), NOW)).toBe(
+      "reclaimable",
+    );
+  });
+});
+
+describe("formatReleasePhase", () => {
+  // 1970-01-01T00:20:00.000Z is 1200 seconds after the epoch.
+  const UNTIL = 1_200n;
+
+  test("names the phase and the time it changes", () => {
+    const redeemable = formatReleasePhase(
+      makePosition({ released: true, redeemableUntil: UNTIL }),
+      NOW,
+    );
+    expect(redeemable).toContain("redeemable by the previous holder until 1970-01-01T00:20:00");
+
+    const reclaimable = formatReleasePhase(
+      makePosition({ released: true, redeemableUntil: UNTIL }),
+      UNTIL,
+    );
+    expect(reclaimable).toContain("closed at 1970-01-01T00:20:00");
   });
 });
 

@@ -101,11 +101,3 @@ export async function inspectName(ctx: DotnsContext, name: string): Promise<Name
     position: isEmptyPosition(position) ? null : position,
   };
 }
-
-export function formatUnixSeconds(seconds: bigint): string {
-  return new Date(Number(seconds) * 1000).toISOString();
-}
-
-export function nowSeconds(): bigint {
-  return BigInt(Math.floor(Date.now() / 1000));
-}
