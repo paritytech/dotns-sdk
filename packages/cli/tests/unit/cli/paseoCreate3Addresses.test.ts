@@ -3,8 +3,7 @@ import { DOTNS_ENVIRONMENTS } from "../../../src/utils/constants";
 
 // paseo-v2 and previewnet are distinct chains that both host the CREATE3 factory
 // at the same address, so they resolve to the same address book recorded in the
-// dotns contracts repo at deployments/paseo-assethub/420420417.json, bar the
-// StoreFactory previewnet redeployed after its reset. Their
+// dotns contracts repo at deployments/paseo-assethub/420420417.json. Their
 // shared chain id is not what makes the book shared: devnet reports 420420417 too
 // and has its own deployment. Drift here silently points the CLI at retired
 // contracts, so pin the canonical addresses explicitly.
@@ -16,7 +15,7 @@ const CANONICAL_PASEO_ADDRESSES = {
   DOTNS_REVERSE_RESOLVER: "0xee3883d7eB60Ee9BCD7F3bcD8f2f05302A9Cc035",
   DOTNS_POP_RESOLVER: "0xDaC984884EcA8Fc44011f1D6C49B27828390A72B",
   DOTNS_CONTENT_RESOLVER: "0x7F74D7CD50f5a834270E2ad395a01b01891AB37d",
-  STORE_FACTORY: "0x709A027F446a9e2a4BB9cb9a9c754435b19e32B7",
+  STORE_FACTORY: "0x99605a926FcB40aB520F659c6505E5ff862771f6",
   // PopRules in the manifest.
   DOTNS_RULES: "0x747B456bE03aec0b42bd85C51513730FBD45DA31",
   DOTNS_POP_CONTROLLER: "0xCC932348606cc1f3318cADeC5A5Cd2CA447f8a4b",
@@ -28,14 +27,8 @@ test("paseo-v2 uses the canonical 420420417 deployment address book", () => {
   expect(DOTNS_ENVIRONMENTS["paseo-v2"].contracts).toEqual(CANONICAL_PASEO_ADDRESSES);
 });
 
-test("previewnet shares the paseo-v2 book except for its own StoreFactory", () => {
-  // previewnet's September 2026 reset redeployed the store contracts; the
-  // protocol registry on that chain reports this StoreFactory, and nothing is
-  // deployed at paseo-v2's address there.
-  expect(DOTNS_ENVIRONMENTS.previewnet.contracts).toEqual({
-    ...CANONICAL_PASEO_ADDRESSES,
-    STORE_FACTORY: "0x99605a926FcB40aB520F659c6505E5ff862771f6",
-  });
+test("previewnet shares the whole paseo-v2 book", () => {
+  expect(DOTNS_ENVIRONMENTS.previewnet.contracts).toEqual(CANONICAL_PASEO_ADDRESSES);
 });
 
 test("devnet keeps its own distinct deployment, not the shared book", () => {
