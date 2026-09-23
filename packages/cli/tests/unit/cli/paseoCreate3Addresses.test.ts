@@ -25,7 +25,7 @@ const CANONICAL_PASEO_ADDRESSES = {
   MULTICALL3: "0xB4468000abD87D3c56cbFBd153161223D7b109e5",
 } as const;
 
-test("paseo-v2 uses the canonical 420420417 deployment address book", () => {
+test("paseo-v2 uses the canonical fresh-deploy address book", () => {
   expect(DOTNS_ENVIRONMENTS["paseo-v2"].contracts).toEqual(CANONICAL_PASEO_ADDRESSES);
 });
 
@@ -33,6 +33,6 @@ test("previewnet shares the whole paseo-v2 book", () => {
   expect(DOTNS_ENVIRONMENTS.previewnet.contracts).toEqual(CANONICAL_PASEO_ADDRESSES);
 });
 
-test("devnet keeps its own distinct deployment, not the shared book", () => {
+test("devnet keeps its own distinct deployment", () => {
   expect(DOTNS_ENVIRONMENTS.devnet.contracts).not.toEqual(CANONICAL_PASEO_ADDRESSES);
 });
