@@ -14,18 +14,8 @@ import {
   assertReleasable,
 } from "./preflight";
 
-/// On-chain release position for a token.
-export type EscrowPositionView = {
-  domain: string;
-  tokenId: bigint;
-  recipient: Address;
-  asset: Address;
-  amount: bigint;
-  withdrawAvailableAt: bigint;
-  redeemableUntil: bigint;
-  released: boolean;
-  claimed: boolean;
-};
+/// A release position with the name it belongs to.
+export type EscrowPositionView = ReleasePosition & { domain: string; tokenId: bigint };
 
 export type RefundEntryView = {
   entryId: bigint;
