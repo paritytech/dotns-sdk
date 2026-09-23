@@ -162,7 +162,7 @@ jobs:
 
             const codeownersPath = path.join(process.cwd(), ".github", "CODEOWNERS");
             const codeownerMentions = fs.existsSync(codeownersPath)
-              ? [...new Set((fs.readFileSync(codeownersPath, "utf8").match(/@[A-Za-z0-9][A-Za-z0-9-_]*/g) ?? []))]
+              ? [...new Set((fs.readFileSync(codeownersPath, "utf8").match(/@[A-Za-z0-9][A-Za-z0-9-_/]*/g) ?? []))]
               : [];
 
             const extractPayload = (body) => {
