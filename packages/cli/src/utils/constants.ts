@@ -96,8 +96,8 @@ export const DOTNS_POP_RESOLVER_ABI = DotnsPopResolver as Abi;
 export const DOTNS_NAME_ESCROW_ABI = DotnsNameEscrow as Abi;
 export const POP_RULES_ABI = PopRules as Abi;
 export const STORE_FACTORY_ABI = StoreFactory as Abi;
-export const LABEL_STORE_ABI = LabelStore.abi as Abi;
-export const USER_STORE_ABI = UserStore.abi as Abi;
+export const LABEL_STORE_ABI = LabelStore as Abi;
+export const USER_STORE_ABI = UserStore as Abi;
 export const DOTNS_POP_CONTROLLER_ABI = DotnsPopController as Abi;
 export const DOTNS_NAME_WHITELIST_ABI = DotnsNameWhitelist as Abi;
 export const PERSONHOOD_ABI = [
@@ -257,8 +257,9 @@ export type DotnsEnvironmentConfig = {
   bulletinP2pPeers: readonly string[];
 };
 
-// CREATE3 address book from the canonical dotns deployment (dotns repo,
-// deployments/paseo-assethub/420420417.json). Every contract is deployed through
+// CREATE3 address book matching the canonical fresh-deploy set (dotns repo,
+// deployments/expected.json; the protocol registry on each chain is the runtime
+// authority). Every contract is deployed through
 // the shared CREATE3 factory with a chain-independent salt, so these addresses
 // are identical on every chain that reuses that factory. paseo-v2 and previewnet
 // are distinct chains with distinct genesis hashes, but both host the factory at
@@ -280,7 +281,6 @@ const PASEO_CREATE3_CONTRACTS: DotnsContractAddresses = {
   DOTNS_NAME_ESCROW: "0x4881Afb78e7C908cAe818168B926229D93376520" as Address,
   MULTICALL3: "0xB4468000abD87D3c56cbFBd153161223D7b109e5" as Address,
 };
-
 
 export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConfig> = {
   "paseo-v2": {

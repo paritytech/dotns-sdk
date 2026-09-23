@@ -2,8 +2,8 @@ import { expect, test } from "bun:test";
 import { DOTNS_ENVIRONMENTS } from "../../../src/utils/constants";
 
 // paseo-v2 and previewnet are distinct chains that both host the CREATE3 factory
-// at the same address, so they resolve to the same address book recorded in the
-// dotns contracts repo at deployments/paseo-assethub/420420417.json. Their
+// at the same address, so they resolve to the same address book: the canonical
+// fresh-deploy set in the dotns contracts repo at deployments/expected.json. Their
 // shared chain id is not what makes the book shared: devnet reports 420420417 too
 // and has its own deployment. Drift here silently points the CLI at retired
 // contracts, so pin the canonical addresses explicitly.
@@ -15,6 +15,8 @@ const CANONICAL_PASEO_ADDRESSES = {
   DOTNS_REVERSE_RESOLVER: "0xee3883d7eB60Ee9BCD7F3bcD8f2f05302A9Cc035",
   DOTNS_POP_RESOLVER: "0xDaC984884EcA8Fc44011f1D6C49B27828390A72B",
   DOTNS_CONTENT_RESOLVER: "0x7F74D7CD50f5a834270E2ad395a01b01891AB37d",
+  // The protocol registry on both chains reports this proxy; the pre-proxy
+  // factory at 0x709A027F446a9e2a4BB9cb9a9c754435b19e32B7 is retired.
   STORE_FACTORY: "0x99605a926FcB40aB520F659c6505E5ff862771f6",
   // PopRules in the manifest.
   DOTNS_RULES: "0x747B456bE03aec0b42bd85C51513730FBD45DA31",
