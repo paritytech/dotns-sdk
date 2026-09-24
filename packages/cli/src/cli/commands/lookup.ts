@@ -128,7 +128,7 @@ async function createReadOnlyChainContext(rpc: string) {
   const client = rawClient.getTypedApi(paseo);
   const tokenInfo = await getChainTokenInfo(rawClient);
   return {
-    clientWrapper: new ReviveClientWrapper(client as PolkadotApiClient),
+    clientWrapper: new ReviveClientWrapper(client as PolkadotApiClient, tokenInfo),
     ...tokenInfo,
   };
 }

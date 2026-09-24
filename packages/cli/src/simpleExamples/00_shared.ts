@@ -9,6 +9,7 @@ import { DEFAULT_BULLETIN_RPC, DEFAULT_MNEMONIC, RPC_ENDPOINTS } from "../utils/
 import { createAccountFromSource, createSubstrateSigner } from "../commands/auth";
 import { createDotnsContext, type DotnsContext } from "../core/context";
 import { createKeyringSigner } from "../core/keyring";
+import { getChainTokenInfo } from "../cli/context";
 
 export type ConnectedDotns = {
   client: PolkadotApiClient;
@@ -28,8 +29,9 @@ export async function connectDotns(): Promise<ConnectedDotns> {
   const source = process.env.DOTNS_KEY_URI ?? process.env.DOTNS_MNEMONIC ?? DEFAULT_MNEMONIC;
   const isKeyUri = Boolean(process.env.DOTNS_KEY_URI);
 
-  const client = createClient(getWsProvider(rpc)).getTypedApi(paseo) as PolkadotApiClient;
-  const clientWrapper = new ReviveClientWrapper(client);
+  const rawClient = createClient(getWsProvider(rpc));
+  const client = rawClient.getTypedApi(paseo) as PolkadotApiClient;
+  const clientWrapper = new ReviveClientWrapper(client, await getChainTokenInfo(rawClient));
 
   const { origin, signer } = await createKeyringSigner({ source, isKeyUri });
   const evmAddress = await clientWrapper.getEvmAddress(origin);

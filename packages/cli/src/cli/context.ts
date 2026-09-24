@@ -3,7 +3,11 @@ import { createClient, type PolkadotClient } from "polkadot-api";
 import { getWsProvider } from "polkadot-api/ws-provider/node";
 import { bulletin, paseo } from "@polkadot-api/descriptors";
 import { type Address } from "viem";
-import { ReviveClientWrapper, type PolkadotApiClient } from "../client/polkadotClient";
+import {
+  ReviveClientWrapper,
+  type NativeTokenInfo,
+  type PolkadotApiClient,
+} from "../client/polkadotClient";
 import { formatNativeBalance } from "../utils/formatting";
 import {
   resolveRpc,
@@ -31,6 +35,7 @@ import type {
 } from "../types/types";
 import {
   DEFAULT_NATIVE_TOKEN_DECIMALS,
+  DEFAULT_NATIVE_TOKEN_SYMBOL,
   DOTNS_ENVIRONMENTS,
   getActiveDotnsEnvironment,
   type DotnsEnvironmentConfig,
@@ -54,7 +59,6 @@ export function buildDotnsContext(
     origin: context.substrateAddress,
     signer: context.signer,
     environment: context.environment,
-    nativeTokenDecimals: context.nativeTokenDecimals,
     onStatus: opts?.onStatus,
     signal: opts?.signal,
   });
@@ -70,7 +74,6 @@ export function buildReadOnlyDotnsContext(
     clientWrapper: context.clientWrapper,
     origin: context.account.address,
     environment: context.environment,
-    nativeTokenDecimals: context.nativeTokenDecimals,
     onStatus: opts?.onStatus,
     signal: opts?.signal,
   });
@@ -166,18 +169,38 @@ export async function assertExpectedChain(
   );
 }
 
-export async function getChainTokenInfo(rawClient: PolkadotClient): Promise<{
-  nativeTokenDecimals: number;
-  nativeTokenSymbol: string;
-}> {
+function parseTokenDecimals(value: unknown): number | undefined {
+  if (typeof value === "number") return Number.isInteger(value) && value >= 0 ? value : undefined;
+  if (typeof value === "string" && /^\d+$/.test(value)) return Number(value);
+  return undefined;
+}
+
+function parseTokenSymbol(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+// Reads the chain's native token decimals and symbol from its chain spec properties. A
+// missing or unusable property falls back to the default with a warning, since the
+// decimals set the storage deposit floor on every write.
+export async function getChainTokenInfo(rawClient: PolkadotClient): Promise<NativeTokenInfo> {
   const properties = (await rawClient.getChainSpecData()).properties ?? {};
-  const decimals = Number(firstPropertyValue(properties.tokenDecimals));
-  const symbol = firstPropertyValue(properties.tokenSymbol);
+  const decimals = parseTokenDecimals(firstPropertyValue(properties.tokenDecimals));
+  const symbol = parseTokenSymbol(firstPropertyValue(properties.tokenSymbol));
+
+  if (decimals === undefined) {
+    console.warn(
+      `Warning: chain reports no usable tokenDecimals, assuming ${DEFAULT_NATIVE_TOKEN_DECIMALS}.`,
+    );
+  }
+  if (symbol === undefined) {
+    console.warn(
+      `Warning: chain reports no usable tokenSymbol, assuming ${DEFAULT_NATIVE_TOKEN_SYMBOL}.`,
+    );
+  }
 
   return {
-    nativeTokenDecimals:
-      Number.isInteger(decimals) && decimals >= 0 ? decimals : DEFAULT_NATIVE_TOKEN_DECIMALS,
-    nativeTokenSymbol: typeof symbol === "string" && symbol.length > 0 ? symbol : "PAS",
+    nativeTokenDecimals: decimals ?? DEFAULT_NATIVE_TOKEN_DECIMALS,
+    nativeTokenSymbol: symbol ?? DEFAULT_NATIVE_TOKEN_SYMBOL,
   };
 }
 
@@ -186,7 +209,7 @@ export async function displayAccountInformation(
   evmAddress: Address,
   substrateAddress: string,
   nativeTokenDecimals: number = DEFAULT_NATIVE_TOKEN_DECIMALS,
-  nativeTokenSymbol: string = "PAS",
+  nativeTokenSymbol: string = DEFAULT_NATIVE_TOKEN_SYMBOL,
 ): Promise<void> {
   const accountInfo = await (client as any).query.System.Account.getValue(substrateAddress);
 
@@ -333,7 +356,7 @@ export async function prepareAssetHubContext(options: any): Promise<AssetHubCont
     await connectAndAuthenticate(options, rpc);
 
   const client = rawClient.getTypedApi(paseo);
-  const clientWrapper = new ReviveClientWrapper(client as PolkadotApiClient);
+  const clientWrapper = new ReviveClientWrapper(client as PolkadotApiClient, tokenInfo);
   const evmAddress = await step("Resolving EVM address", async () =>
     clientWrapper.getEvmAddress(substrateAddress),
   );

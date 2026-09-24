@@ -4,8 +4,14 @@ import { decodeAddress } from "@polkadot/util-crypto";
 import { isAddress, type Address, type Hash } from "viem";
 import type { ReviveCallResult, SubstrateWeight, TransactionStatus } from "../types/types";
 import { ensureError, formatDispatchError } from "../utils/formatting";
+import { DEFAULT_NATIVE_TOKEN_DECIMALS, DEFAULT_NATIVE_TOKEN_SYMBOL } from "../utils/constants";
 
 export type PolkadotApiClient = TypedApi<Paseo>;
+
+export type NativeTokenInfo = {
+  nativeTokenDecimals: number;
+  nativeTokenSymbol: string;
+};
 
 function normalizeFlags(flags: any): bigint {
   return convertToBigInt(flags, 0n);
@@ -113,8 +119,23 @@ function isSameSubstrateAccount(a: string, b: string): boolean {
   }
 }
 
+const STORAGE_DEPOSIT_FLOOR_TOKENS = 2n;
+
+// The storage deposit limit caps what a write may charge: the dry-run estimate plus 20%,
+// floored at two whole native tokens of the connected chain.
+export function computeStorageDepositLimit(
+  estimatedStorageDeposit: bigint,
+  nativeTokenDecimals: number,
+): bigint {
+  const floor = STORAGE_DEPOSIT_FLOOR_TOKENS * 10n ** BigInt(nativeTokenDecimals);
+  const buffered = (estimatedStorageDeposit * 120n) / 100n;
+  return buffered > floor ? buffered : floor;
+}
+
 export class ReviveClientWrapper {
   public client: PolkadotApiClient;
+  public readonly nativeTokenDecimals: number;
+  public readonly nativeTokenSymbol: string;
   private mappedAccounts: Set<string> = new Set();
 
   private static readonly DRY_RUN_STORAGE_LIMIT: bigint = 18446744073709551615n;
@@ -124,8 +145,20 @@ export class ReviveClientWrapper {
     proof_size: 18446744073709551615n,
   };
 
-  constructor(client: PolkadotApiClient) {
+  constructor(client: PolkadotApiClient, tokenInfo: Partial<NativeTokenInfo> = {}) {
+    const {
+      nativeTokenDecimals = DEFAULT_NATIVE_TOKEN_DECIMALS,
+      nativeTokenSymbol = DEFAULT_NATIVE_TOKEN_SYMBOL,
+    } = tokenInfo;
+    if (!Number.isInteger(nativeTokenDecimals) || nativeTokenDecimals < 0) {
+      throw new Error(`Invalid native token decimals: ${nativeTokenDecimals}`);
+    }
+    if (nativeTokenSymbol.length === 0) {
+      throw new Error("Native token symbol must not be empty");
+    }
     this.client = client;
+    this.nativeTokenDecimals = nativeTokenDecimals;
+    this.nativeTokenSymbol = nativeTokenSymbol;
   }
 
   async getEvmAddress(substrateAddress: string): Promise<Address> {
@@ -414,16 +447,10 @@ export class ReviveClientWrapper {
       ref_time: gasEstimate.gasRequired.referenceTime,
     };
 
-    // Add 20% buffer to storage deposit, minimum 2 PAS
-    const minimumStorageDeposit = 2_000_000_000_000n;
-    let storageDepositLimit =
-      gasEstimate.storageDeposit === 0n
-        ? minimumStorageDeposit
-        : (gasEstimate.storageDeposit * 120n) / 100n;
-
-    if (storageDepositLimit < minimumStorageDeposit) {
-      storageDepositLimit = minimumStorageDeposit;
-    }
+    const storageDepositLimit = computeStorageDepositLimit(
+      gasEstimate.storageDeposit,
+      this.nativeTokenDecimals,
+    );
 
     const callExtrinsic = this.client.tx.Revive.call({
       dest: Binary.fromHex(contractAddress),

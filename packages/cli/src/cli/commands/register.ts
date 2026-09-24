@@ -102,18 +102,21 @@ function redactSecret(secret: Hex): string {
   return `${secret.slice(0, 6)}${"*".repeat(secret.length - 10)}${secret.slice(-4)}`;
 }
 
-function printRegistrationResult(result: RegistrationResult): void {
+function printRegistrationResult(result: RegistrationResult, nativeTokenSymbol: string): void {
   console.log(
-    chalk.gray("  cost:      ") + chalk.green(formatWeiAsEther(result.priceWei) + " PAS"),
+    chalk.gray("  cost:      ") +
+      chalk.green(`${formatWeiAsEther(result.priceWei)} ${nativeTokenSymbol}`),
   );
   if (result.frictionWei > 0n) {
     console.log(
-      chalk.gray("  friction:  ") + chalk.yellow(formatWeiAsEther(result.frictionWei) + " PAS"),
+      chalk.gray("  friction:  ") +
+        chalk.yellow(`${formatWeiAsEther(result.frictionWei)} ${nativeTokenSymbol}`),
     );
   }
   console.log(chalk.gray("  tx:        ") + chalk.blue(result.txHash));
   console.log(
-    chalk.gray("  note:      ") + chalk.gray(`sent ${formatWeiAsEther(result.bufferedWei)} PAS`),
+    chalk.gray("  note:      ") +
+      chalk.gray(`sent ${formatWeiAsEther(result.bufferedWei)} ${nativeTokenSymbol}`),
   );
 }
 
@@ -454,6 +457,7 @@ function printPricing(
   },
   owner: Address,
   registeringForOther: boolean,
+  nativeTokenSymbol: string,
 ): void {
   console.log(
     chalk.gray("  name tier:  ") + chalk.white(ProofOfPersonhoodStatus[pricing.requiredStatus]),
@@ -470,7 +474,8 @@ function printPricing(
   }
   console.log(chalk.gray("  message:    ") + chalk.white(pricing.message));
   console.log(
-    chalk.gray("  price:      ") + chalk.green(`${formatWeiAsEther(pricing.priceWei)} PAS`),
+    chalk.gray("  price:      ") +
+      chalk.green(`${formatWeiAsEther(pricing.priceWei)} ${nativeTokenSymbol}`),
   );
 }
 
@@ -493,7 +498,10 @@ async function replayTransfer(
   console.log(chalk.gray("  from: ") + chalk.yellow(result.from));
   console.log(chalk.gray("  to:   ") + chalk.green(result.to));
   if (result.feeWei > 0n) {
-    console.log(chalk.gray("  fee:  ") + chalk.green(formatWeiAsEther(result.feeWei) + " PAS"));
+    console.log(
+      chalk.gray("  fee:  ") +
+        chalk.green(`${formatWeiAsEther(result.feeWei)} ${session.ctx.nativeTokenSymbol}`),
+    );
   }
 
   await step("Verifying ownership", async () =>
@@ -513,7 +521,7 @@ async function finalizeRegularReveal(
   const pricing = await step("Pricing and eligibility", async () =>
     getPriceAndValidateEligibility(session.ctx, label, ownerEvmAddress),
   );
-  printPricing(pricing, ownerEvmAddress, isCrossPayer);
+  printPricing(pricing, ownerEvmAddress, isCrossPayer, session.ctx.nativeTokenSymbol);
 
   const frictionWei: bigint = isCrossPayer
     ? await step("Quoting cross-payer friction", async () =>
@@ -524,7 +532,7 @@ async function finalizeRegularReveal(
   const result = await step("Finalizing registration", async () =>
     finalizeRegularRegistration(session.ctx, registration, pricing.priceWei, frictionWei),
   );
-  printRegistrationResult(result);
+  printRegistrationResult(result, session.ctx.nativeTokenSymbol);
 }
 
 async function executeGovernanceRegistration(

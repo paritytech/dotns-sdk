@@ -99,7 +99,8 @@ export function attachEscrowCommands(root: Command) {
           } else {
             console.log(chalk.gray("  recipient: ") + chalk.white(position.recipient));
             console.log(
-              chalk.gray("  amount:    ") + chalk.green(formatWeiAsEther(position.amount) + " PAS"),
+              chalk.gray("  amount:    ") +
+                chalk.green(`${formatWeiAsEther(position.amount)} ${ctx.nativeTokenSymbol}`),
             );
             console.log(chalk.gray("  released:  ") + chalk.white(String(position.released)));
             console.log(chalk.gray("  claimed:   ") + chalk.white(String(position.claimed)));
@@ -147,7 +148,10 @@ export function attachEscrowCommands(root: Command) {
       const balance = await maybeQuiet(jsonOutput, () => getPendingWithdrawal(ctx, recipient));
 
       if (!emitJsonResult(jsonOutput, { recipient, balance: balance.toString() })) {
-        console.log(chalk.gray("  claimable: ") + chalk.green(formatWeiAsEther(balance) + " PAS"));
+        console.log(
+          chalk.gray("  claimable: ") +
+            chalk.green(`${formatWeiAsEther(balance)} ${ctx.nativeTokenSymbol}`),
+        );
         console.log(chalk.green("\n✓ Complete\n"));
       }
       process.exit(0);
@@ -205,10 +209,12 @@ export function attachEscrowCommands(root: Command) {
         if (positions.length === 0) {
           console.log(chalk.gray("  no escrow positions"));
         } else {
-          for (const line of formatPositionsTable(positions, nowSeconds)) console.log("  " + line);
+          for (const line of formatPositionsTable(positions, nowSeconds, ctx.nativeTokenSymbol))
+            console.log("  " + line);
         }
         console.log(
-          chalk.gray("\n  total in escrow: ") + chalk.green(formatWeiAsEther(total) + " PAS"),
+          chalk.gray("\n  total in escrow: ") +
+            chalk.green(`${formatWeiAsEther(total)} ${ctx.nativeTokenSymbol}`),
         );
         console.log(chalk.green("\n✓ Complete\n"));
       }
@@ -383,7 +389,7 @@ export function attachEscrowCommands(root: Command) {
             console.log(chalk.gray("  no entries in this page"));
           } else {
             for (const entry of result.entries) {
-              console.log("  " + formatRefundEntryLine(entry));
+              console.log("  " + formatRefundEntryLine(entry, ctx.nativeTokenSymbol));
             }
           }
           console.log(chalk.green("\n✓ Complete\n"));
