@@ -65,7 +65,17 @@ dotns pop status --account karim
 ```
 
 Read-only commands can run without configured credentials. In that case the CLI uses a shared dev
-account only as the origin for read calls.
+account only as the origin for read calls, and says so on stderr — including under `--json`, where
+stdout stays clean machine-readable output. Every address and status such a run reports belongs to
+the dev account, not to you.
+
+Write commands refuse to start when nothing but that default resolves. To sign with the dev account
+on purpose (local chains, throwaway testnet runs) opt in explicitly:
+
+```bash
+dotns --allow-dev-account <command>
+export DOTNS_ALLOW_DEV_ACCOUNT=1
+```
 
 Auth precedence is explicit: command-line `--mnemonic` / `--key-uri` wins first. If you pass
 `--account`, `--keystore-path`, or `--password`, the CLI uses the encrypted keystore and will not

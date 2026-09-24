@@ -22,7 +22,11 @@ export function addAuthOptions(cmd: Command): Command {
       "--qr-people-rpc <stageOrUrls>",
       `QR pairing relay: paseo|preview|stable or wss URLs (env: ${ENV.QR_PEOPLE_RPC})`,
     )
-    .option("--qr-fresh", "Force a fresh QR pairing, ignoring any cached session");
+    .option("--qr-fresh", "Force a fresh QR pairing, ignoring any cached session")
+    .option(
+      "--allow-dev-account",
+      `Sign with the shared public dev account when no auth is configured (env: ${ENV.ALLOW_DEV_ACCOUNT})`,
+    );
 }
 
 // Global options such as `--env` are declared on the program root, but every

@@ -37,7 +37,7 @@ import type {
   DomainLookupResult,
 } from "../../types/types";
 import type { DotnsContext } from "../../core/context";
-import { getJsonFlag, maybeQuiet } from "./jsonHelpers";
+import { getJsonFlag, maybeQuiet, writeSecurityWarning } from "./jsonHelpers";
 import { zeroAddress, checksumAddress, type Address } from "viem";
 
 function renderDomainLookup(
@@ -155,6 +155,14 @@ function withReadOnlyPasswordFallback<T extends AuthSource>(opts: T): T {
   return opts;
 }
 
+// Reads never sign, so the dev-account fallback stays a warning rather than the
+// refusal the signing path raises: every address this context reports is the
+// dev account's, not the caller's.
+function warnReadOnlyDefaultAccount(resolvedFrom: ResolvedReadOnlyAuth["resolvedFrom"]): void {
+  if (resolvedFrom !== "default") return;
+  writeSecurityWarning("⚠  No account configured — reporting on the shared public dev account.");
+}
+
 export async function prepareReadOnlyContext(
   options: AuthSource & { rpc?: string },
 ): Promise<ReadOnlyContext> {
@@ -185,6 +193,8 @@ export async function prepareReadOnlyContext(
       account: resolved.account,
     } as ResolvedReadOnlyAuth;
   });
+
+  warnReadOnlyDefaultAccount(auth.resolvedFrom);
 
   const keypair = await step("Loading keypair", async () =>
     createAccountFromSource(auth.source, auth.isKeyUri),

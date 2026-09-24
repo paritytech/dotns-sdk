@@ -141,6 +141,8 @@ export type AuthOptionValues = {
   qrPeopleRpc?: string;
   /** Force a fresh QR pairing instead of reusing the cached session */
   qrFresh?: boolean;
+  /** Opt in to signing with the shared public dev account when no auth resolves */
+  allowDevAccount?: boolean;
 };
 
 export type AccountKeystorePayload = {

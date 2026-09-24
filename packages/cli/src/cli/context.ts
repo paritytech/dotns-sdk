@@ -16,6 +16,7 @@ import {
   assertSignerOptions,
   ENV,
 } from "./env";
+import { writeSecurityWarning } from "./commands/jsonHelpers";
 import { createQrSigner } from "./qrSigner";
 import { step, versionLabel } from "./ui";
 import {
@@ -80,13 +81,27 @@ function resolveRpcEnvironment(options: any): string | undefined {
   return options.env ?? options.network;
 }
 
-function warnIfDefaultSigner(resolvedFrom: string): void {
-  if (resolvedFrom === "default") {
-    console.warn(
-      "Warning: no account configured, signing with the shared public dev account that anyone can control. " +
-        "Set DOTNS_MNEMONIC / DOTNS_KEY_URI or run 'dotns auth set'.",
-    );
+// Nothing but the built-in default resolved, so the run would sign with the
+// mnemonic published in every Substrate tutorial. Refuse unless the caller says
+// that is what they want.
+export function assertSigningAccountConfigured(
+  resolvedFrom: string,
+  allowDevAccount: boolean,
+): void {
+  if (resolvedFrom !== "default") return;
+
+  if (allowDevAccount) {
+    writeSecurityWarning("⚠  Signing with the shared public dev account that anyone can control.");
+    return;
   }
+
+  throw new Error(
+    [
+      "No signing account configured — refusing to sign with the shared public dev account.",
+      `Set ${ENV.MNEMONIC} or ${ENV.KEY_URI}, run 'dotns auth set', or pass --allow-dev-account`,
+      `(env: ${ENV.ALLOW_DEV_ACCOUNT}=1) to sign with the dev account on purpose.`,
+    ].join("\n  "),
+  );
 }
 
 async function logFreeBalance(
@@ -281,7 +296,10 @@ async function connectAndAuthenticate(
     }),
   );
 
-  warnIfDefaultSigner(auth.resolvedFrom);
+  assertSigningAccountConfigured(
+    auth.resolvedFrom,
+    options.allowDevAccount === true || process.env[ENV.ALLOW_DEV_ACCOUNT] === "1",
+  );
   const account = await step("Loading keypair", async () =>
     createAccountFromSource(auth.source, auth.isKeyUri),
   );

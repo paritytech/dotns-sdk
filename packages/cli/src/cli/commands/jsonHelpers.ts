@@ -89,6 +89,14 @@ export function handleCommandError(jsonOutput: boolean, error: unknown): never {
   process.exit(1);
 }
 
+// Bound before withCapturedConsole can replace it, so a warning about which key
+// is signing still reaches stderr under --json. stdout stays clean.
+const originalStderrWrite = process.stderr.write.bind(process.stderr);
+
+export function writeSecurityWarning(message: string): void {
+  originalStderrWrite(`${message}\n`);
+}
+
 /**
  * Suppress all console and stream output during a callback, restoring the
  * originals afterwards. Used in --json/quiet mode so human-readable spinner
