@@ -36,7 +36,7 @@ function makeEntry(
 describe("formatRefundEntryLine", () => {
   test("marks entries past their cooldown as claimable", () => {
     const past = BigInt(Math.floor(Date.now() / 1000) - 60);
-    const line = stripAnsi(formatRefundEntryLine(makeEntry({ availableAt: past })));
+    const line = stripAnsi(formatRefundEntryLine(makeEntry({ availableAt: past }), "PAS"));
     expect(line).toContain("#7");
     expect(line).toContain("claimable");
     expect(line).not.toContain("cooldown");
@@ -44,23 +44,24 @@ describe("formatRefundEntryLine", () => {
 
   test("marks entries inside their cooldown window with remaining seconds", () => {
     const future = BigInt(Math.floor(Date.now() / 1000) + 120);
-    const line = stripAnsi(formatRefundEntryLine(makeEntry({ availableAt: future })));
+    const line = stripAnsi(formatRefundEntryLine(makeEntry({ availableAt: future }), "PAS"));
     expect(line).toContain("#7");
     expect(line).toMatch(/cooldown \d+s/);
     expect(line).not.toContain("claimable");
   });
 
-  test("renders the amount as a PAS decimal string", () => {
+  test("renders the amount in the chain's native token symbol", () => {
     const entry = makeEntry({ amount: 10n * 10n ** 18n });
-    const line = stripAnsi(formatRefundEntryLine(entry));
+    const line = stripAnsi(formatRefundEntryLine(entry, "DOT"));
     // formatWeiAsEther prints 10 ether as "10.000000000000000000".
     expect(line).toContain("10");
-    expect(line).toContain("PAS");
+    expect(line).toContain("DOT");
+    expect(line).not.toContain("PAS");
   });
 
   test("truncates large tokenIds for terminal display", () => {
     const entry = makeEntry({ tokenId: 12345678901234567890n });
-    const line = stripAnsi(formatRefundEntryLine(entry));
+    const line = stripAnsi(formatRefundEntryLine(entry, "PAS"));
     expect(line).toContain("123456789012");
     expect(line).toContain("...");
     expect(line).not.toContain("12345678901234567890");
@@ -155,18 +156,20 @@ describe("formatPositionStatus", () => {
 
 describe("formatPositionsTable", () => {
   test("returns no lines for an empty set", () => {
-    expect(formatPositionsTable([], NOW)).toEqual([]);
+    expect(formatPositionsTable([], NOW, "PAS")).toEqual([]);
   });
 
   test("renders a header plus one aligned row per position with the cooldown", () => {
     const lines = formatPositionsTable(
       [makePosition({ released: true, withdrawAvailableAt: NOW + 60n, domain: "alice.paseo" })],
       NOW,
+      "DOT",
     ).map(stripAnsi);
     expect(lines[0]).toContain("NAME");
     expect(lines[0]).toContain("DEPOSIT");
     expect(lines[0]).toContain("STATUS");
     expect(lines[1]).toContain("alice.paseo");
+    expect(lines[1]).toContain("DOT");
     expect(lines[1]).toContain("cooldown 1m 0s");
   });
 });

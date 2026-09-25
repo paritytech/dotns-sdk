@@ -1035,17 +1035,23 @@ export function attachBulletinCommands(root: Command): void {
             state: "start",
             message: "Saving CID to on-chain Store...",
           });
+          // Set once Asset Hub reports it; a failure before that names no symbol.
+          let assetHubTokenSymbol: string | undefined;
           try {
             const { cacheCidToStore } = await import("../../commands/storeManagement");
             const { createClient } = await import("polkadot-api");
             const { getWsProvider } = await import("polkadot-api/ws-provider/node");
             const { paseo } = await import("@polkadot-api/descriptors");
-            const { ReviveClientWrapper } = await import("../../client/polkadotClient");
+            const { ReviveClientWrapper, getChainTokenInfo } =
+              await import("../../client/polkadotClient");
             const rpc = resolveBulletinCacheAssetHubRpc(mergedOptions);
             const cacheClient = createClient(getWsProvider(rpc));
             await assertExpectedChain(cacheClient);
             const typedApi = cacheClient.getTypedApi(paseo);
-            const clientWrapper = new ReviveClientWrapper(typedApi as any);
+            // The Store lives on Asset Hub, so the write uses Asset Hub's token info.
+            const tokenInfo = await getChainTokenInfo(cacheClient);
+            assetHubTokenSymbol = tokenInfo.nativeTokenSymbol;
+            const clientWrapper = new ReviveClientWrapper(typedApi as any, tokenInfo);
             const evmAddress = await clientWrapper.getEvmAddress(context.substrateAddress);
 
             await cacheCidToStore({
@@ -1060,8 +1066,8 @@ export function attachBulletinCommands(root: Command): void {
             const msg = formatErrorMessage(cacheError);
             let reason: string;
             if (/insufficient|balance/i.test(msg)) {
-              reason =
-                "insufficient PAS balance on Asset Hub — fund the account and retry with --cache";
+              const balance = assetHubTokenSymbol ? `${assetHubTokenSymbol} balance` : "balance";
+              reason = `insufficient ${balance} on Asset Hub — fund the account and retry with --cache`;
             } else if (/no store deployed|store not deployed/i.test(msg)) {
               reason = "no Store deployed — register a domain first or deploy a Store manually";
             } else if (/not authorized|unauthorized/i.test(msg)) {

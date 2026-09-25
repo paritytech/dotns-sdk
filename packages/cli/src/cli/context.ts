@@ -3,7 +3,11 @@ import { createClient, type PolkadotClient } from "polkadot-api";
 import { getWsProvider } from "polkadot-api/ws-provider/node";
 import { bulletin, paseo } from "@polkadot-api/descriptors";
 import { type Address } from "viem";
-import { ReviveClientWrapper, type PolkadotApiClient } from "../client/polkadotClient";
+import {
+  getChainTokenInfo,
+  ReviveClientWrapper,
+  type PolkadotApiClient,
+} from "../client/polkadotClient";
 import { formatNativeBalance } from "../utils/formatting";
 import {
   resolveRpc,
@@ -31,6 +35,7 @@ import type {
 } from "../types/types";
 import {
   DEFAULT_NATIVE_TOKEN_DECIMALS,
+  DEFAULT_NATIVE_TOKEN_SYMBOL,
   DOTNS_ENVIRONMENTS,
   getActiveDotnsEnvironment,
   type DotnsEnvironmentConfig,
@@ -54,7 +59,6 @@ export function buildDotnsContext(
     origin: context.substrateAddress,
     signer: context.signer,
     environment: context.environment,
-    nativeTokenDecimals: context.nativeTokenDecimals,
     onStatus: opts?.onStatus,
     signal: opts?.signal,
   });
@@ -70,7 +74,6 @@ export function buildReadOnlyDotnsContext(
     clientWrapper: context.clientWrapper,
     origin: context.account.address,
     environment: context.environment,
-    nativeTokenDecimals: context.nativeTokenDecimals,
     onStatus: opts?.onStatus,
     signal: opts?.signal,
   });
@@ -107,10 +110,6 @@ async function logFreeBalance(
   } catch {
     console.log(chalk.gray("  Balance:   ") + chalk.yellow("(unavailable)"));
   }
-}
-
-function firstPropertyValue(value: unknown): unknown {
-  return Array.isArray(value) ? value[0] : value;
 }
 
 export type ExpectedChainKind = "asset-hub" | "bulletin";
@@ -166,27 +165,12 @@ export async function assertExpectedChain(
   );
 }
 
-export async function getChainTokenInfo(rawClient: PolkadotClient): Promise<{
-  nativeTokenDecimals: number;
-  nativeTokenSymbol: string;
-}> {
-  const properties = (await rawClient.getChainSpecData()).properties ?? {};
-  const decimals = Number(firstPropertyValue(properties.tokenDecimals));
-  const symbol = firstPropertyValue(properties.tokenSymbol);
-
-  return {
-    nativeTokenDecimals:
-      Number.isInteger(decimals) && decimals >= 0 ? decimals : DEFAULT_NATIVE_TOKEN_DECIMALS,
-    nativeTokenSymbol: typeof symbol === "string" && symbol.length > 0 ? symbol : "PAS",
-  };
-}
-
 export async function displayAccountInformation(
   client: PolkadotApiClient,
   evmAddress: Address,
   substrateAddress: string,
   nativeTokenDecimals: number = DEFAULT_NATIVE_TOKEN_DECIMALS,
-  nativeTokenSymbol: string = "PAS",
+  nativeTokenSymbol: string = DEFAULT_NATIVE_TOKEN_SYMBOL,
 ): Promise<void> {
   const accountInfo = await (client as any).query.System.Account.getValue(substrateAddress);
 
@@ -333,7 +317,7 @@ export async function prepareAssetHubContext(options: any): Promise<AssetHubCont
     await connectAndAuthenticate(options, rpc);
 
   const client = rawClient.getTypedApi(paseo);
-  const clientWrapper = new ReviveClientWrapper(client as PolkadotApiClient);
+  const clientWrapper = new ReviveClientWrapper(client as PolkadotApiClient, tokenInfo);
   const evmAddress = await step("Resolving EVM address", async () =>
     clientWrapper.getEvmAddress(substrateAddress),
   );
