@@ -125,7 +125,7 @@ export { checkAccountMapped } from "../commands/accountChecks";
 
 export { DOTNS_ENVIRONMENTS } from "../utils/constants";
 export type { DotnsEnvironmentId, DotnsContractAddresses } from "../utils/constants";
-export { ReviveClientWrapper } from "../client/polkadotClient";
-export type { PolkadotApiClient } from "../client/polkadotClient";
+export { ReviveClientWrapper, getChainTokenInfo } from "../client/polkadotClient";
+export type { PolkadotApiClient, NativeTokenInfo } from "../client/polkadotClient";
 export { ProofOfPersonhoodStatus } from "../types/types";
 export type { TransactionStatus, DomainLookupResult } from "../types/types";

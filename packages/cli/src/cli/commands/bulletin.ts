@@ -61,7 +61,7 @@ function cleanupHeliaAndExit(code: number): never {
 }
 import { normalizeUploadMaxRetries } from "../../bulletin/uploadRetry";
 import { addAuthOptions } from "./authOptions";
-import { assertExpectedChain, getChainTokenInfo, prepareContext } from "../context";
+import { assertExpectedChain, prepareContext } from "../context";
 import { ENV, resolveBulletinRpc, resolveDotnsEnvironment, resolveRpc } from "../env";
 import {
   DEFAULT_CHUNK_SIZE_BYTES,
@@ -69,7 +69,6 @@ import {
   DEFAULT_BULLETIN_AUTHORIZER_KEY_URI,
   DEFAULT_AUTHORIZATION_TRANSACTIONS,
   DEFAULT_AUTHORIZATION_BYTES,
-  DEFAULT_NATIVE_TOKEN_SYMBOL,
 } from "../../utils/constants";
 import { getJsonFlag, getMergedOptions, withCapturedConsole } from "./jsonHelpers";
 import { clampChunkSizeBytes } from "../../bulletin/store";
@@ -1036,13 +1035,15 @@ export function attachBulletinCommands(root: Command): void {
             state: "start",
             message: "Saving CID to on-chain Store...",
           });
-          let assetHubTokenSymbol = DEFAULT_NATIVE_TOKEN_SYMBOL;
+          // Set once Asset Hub reports it; a failure before that names no symbol.
+          let assetHubTokenSymbol: string | undefined;
           try {
             const { cacheCidToStore } = await import("../../commands/storeManagement");
             const { createClient } = await import("polkadot-api");
             const { getWsProvider } = await import("polkadot-api/ws-provider/node");
             const { paseo } = await import("@polkadot-api/descriptors");
-            const { ReviveClientWrapper } = await import("../../client/polkadotClient");
+            const { ReviveClientWrapper, getChainTokenInfo } =
+              await import("../../client/polkadotClient");
             const rpc = resolveBulletinCacheAssetHubRpc(mergedOptions);
             const cacheClient = createClient(getWsProvider(rpc));
             await assertExpectedChain(cacheClient);
@@ -1065,7 +1066,8 @@ export function attachBulletinCommands(root: Command): void {
             const msg = formatErrorMessage(cacheError);
             let reason: string;
             if (/insufficient|balance/i.test(msg)) {
-              reason = `insufficient ${assetHubTokenSymbol} balance on Asset Hub — fund the account and retry with --cache`;
+              const balance = assetHubTokenSymbol ? `${assetHubTokenSymbol} balance` : "balance";
+              reason = `insufficient ${balance} on Asset Hub — fund the account and retry with --cache`;
             } else if (/no store deployed|store not deployed/i.test(msg)) {
               reason = "no Store deployed — register a domain first or deploy a Store manually";
             } else if (/not authorized|unauthorized/i.test(msg)) {

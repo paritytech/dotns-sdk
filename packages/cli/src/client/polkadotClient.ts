@@ -1,5 +1,5 @@
 import type { Paseo } from "@polkadot-api/descriptors";
-import { Binary, type PolkadotSigner, type TypedApi } from "polkadot-api";
+import { Binary, type PolkadotClient, type PolkadotSigner, type TypedApi } from "polkadot-api";
 import { decodeAddress } from "@polkadot/util-crypto";
 import { isAddress, type Address, type Hash } from "viem";
 import type { ReviveCallResult, SubstrateWeight, TransactionStatus } from "../types/types";
@@ -8,10 +8,52 @@ import { DEFAULT_NATIVE_TOKEN_DECIMALS, DEFAULT_NATIVE_TOKEN_SYMBOL } from "../u
 
 export type PolkadotApiClient = TypedApi<Paseo>;
 
+/** Native token decimals and symbol of a chain, as reported by its chain spec properties. */
 export type NativeTokenInfo = {
   nativeTokenDecimals: number;
   nativeTokenSymbol: string;
 };
+
+function firstPropertyValue(value: unknown): unknown {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function parseTokenDecimals(value: unknown): number | undefined {
+  if (typeof value === "number") return Number.isInteger(value) && value >= 0 ? value : undefined;
+  if (typeof value === "string" && /^\d+$/.test(value)) return Number(value);
+  return undefined;
+}
+
+function parseTokenSymbol(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+/**
+ * Reads the chain's native token decimals and symbol from its chain spec properties. A
+ * missing or unusable property falls back to the default with a warning, since the
+ * decimals set the storage deposit floor on every write.
+ */
+export async function getChainTokenInfo(rawClient: PolkadotClient): Promise<NativeTokenInfo> {
+  const properties = (await rawClient.getChainSpecData()).properties ?? {};
+  const decimals = parseTokenDecimals(firstPropertyValue(properties.tokenDecimals));
+  const symbol = parseTokenSymbol(firstPropertyValue(properties.tokenSymbol));
+
+  if (decimals === undefined) {
+    console.warn(
+      `Warning: chain reports no usable tokenDecimals, assuming ${DEFAULT_NATIVE_TOKEN_DECIMALS}.`,
+    );
+  }
+  if (symbol === undefined) {
+    console.warn(
+      `Warning: chain reports no usable tokenSymbol, assuming ${DEFAULT_NATIVE_TOKEN_SYMBOL}.`,
+    );
+  }
+
+  return {
+    nativeTokenDecimals: decimals ?? DEFAULT_NATIVE_TOKEN_DECIMALS,
+    nativeTokenSymbol: symbol ?? DEFAULT_NATIVE_TOKEN_SYMBOL,
+  };
+}
 
 function normalizeFlags(flags: any): bigint {
   return convertToBigInt(flags, 0n);

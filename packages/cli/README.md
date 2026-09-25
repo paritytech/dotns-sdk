@@ -158,6 +158,7 @@ import { getWsProvider } from "polkadot-api/ws-provider/node";
 import { paseo } from "@polkadot-api/descriptors";
 import {
   createDotnsContext,
+  getChainTokenInfo,
   ReviveClientWrapper,
   registerName,
   registerSubnode,
@@ -168,8 +169,13 @@ import {
 } from "@parity/dotns-cli/core";
 
 const client = createClient(getWsProvider("wss://paseo-asset-hub-next-rpc.polkadot.io"));
+// Token decimals and symbol come from the chain, so deposit caps and amounts match it.
+const clientWrapper = new ReviveClientWrapper(
+  client.getTypedApi(paseo),
+  await getChainTokenInfo(client),
+);
 const ctx = createDotnsContext({
-  clientWrapper: new ReviveClientWrapper(client.getTypedApi(paseo)),
+  clientWrapper,
   origin, // your SS58 address
   signer, // your PolkadotSigner
   environment: "paseo-v2",

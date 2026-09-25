@@ -4,8 +4,8 @@ import { getWsProvider } from "polkadot-api/ws-provider/node";
 import { bulletin, paseo } from "@polkadot-api/descriptors";
 import { type Address } from "viem";
 import {
+  getChainTokenInfo,
   ReviveClientWrapper,
-  type NativeTokenInfo,
   type PolkadotApiClient,
 } from "../client/polkadotClient";
 import { formatNativeBalance } from "../utils/formatting";
@@ -112,10 +112,6 @@ async function logFreeBalance(
   }
 }
 
-function firstPropertyValue(value: unknown): unknown {
-  return Array.isArray(value) ? value[0] : value;
-}
-
 export type ExpectedChainKind = "asset-hub" | "bulletin";
 
 // Names the chain a genesis hash belongs to when it is one we pin, so a
@@ -167,41 +163,6 @@ export async function assertExpectedChain(
       `set DOTNS_SKIP_CHAIN_CHECK=1 and update the environment's genesis hash.`,
     ].join("\n  "),
   );
-}
-
-function parseTokenDecimals(value: unknown): number | undefined {
-  if (typeof value === "number") return Number.isInteger(value) && value >= 0 ? value : undefined;
-  if (typeof value === "string" && /^\d+$/.test(value)) return Number(value);
-  return undefined;
-}
-
-function parseTokenSymbol(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-// Reads the chain's native token decimals and symbol from its chain spec properties. A
-// missing or unusable property falls back to the default with a warning, since the
-// decimals set the storage deposit floor on every write.
-export async function getChainTokenInfo(rawClient: PolkadotClient): Promise<NativeTokenInfo> {
-  const properties = (await rawClient.getChainSpecData()).properties ?? {};
-  const decimals = parseTokenDecimals(firstPropertyValue(properties.tokenDecimals));
-  const symbol = parseTokenSymbol(firstPropertyValue(properties.tokenSymbol));
-
-  if (decimals === undefined) {
-    console.warn(
-      `Warning: chain reports no usable tokenDecimals, assuming ${DEFAULT_NATIVE_TOKEN_DECIMALS}.`,
-    );
-  }
-  if (symbol === undefined) {
-    console.warn(
-      `Warning: chain reports no usable tokenSymbol, assuming ${DEFAULT_NATIVE_TOKEN_SYMBOL}.`,
-    );
-  }
-
-  return {
-    nativeTokenDecimals: decimals ?? DEFAULT_NATIVE_TOKEN_DECIMALS,
-    nativeTokenSymbol: symbol ?? DEFAULT_NATIVE_TOKEN_SYMBOL,
-  };
 }
 
 export async function displayAccountInformation(

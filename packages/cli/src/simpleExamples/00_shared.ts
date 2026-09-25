@@ -4,12 +4,15 @@ import { bulletin, paseo } from "@polkadot-api/descriptors";
 import type { PolkadotSigner } from "polkadot-api";
 import { type Address } from "viem";
 
-import { ReviveClientWrapper, type PolkadotApiClient } from "../client/polkadotClient";
+import {
+  getChainTokenInfo,
+  ReviveClientWrapper,
+  type PolkadotApiClient,
+} from "../client/polkadotClient";
 import { DEFAULT_BULLETIN_RPC, DEFAULT_MNEMONIC, RPC_ENDPOINTS } from "../utils/constants";
 import { createAccountFromSource, createSubstrateSigner } from "../commands/auth";
 import { createDotnsContext, type DotnsContext } from "../core/context";
 import { createKeyringSigner } from "../core/keyring";
-import { getChainTokenInfo } from "../cli/context";
 
 export type ConnectedDotns = {
   client: PolkadotApiClient;

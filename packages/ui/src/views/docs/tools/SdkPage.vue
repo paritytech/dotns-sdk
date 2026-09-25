@@ -67,10 +67,14 @@ import DocCodeBlock from "@/components/docs/DocCodeBlock.vue";
 const setupCode = `import { createClient } from "polkadot-api";
 import { getWsProvider } from "polkadot-api/ws-provider/web";
 import { paseo } from "@polkadot-api/descriptors";
-import { createDotnsContext, ReviveClientWrapper } from "@parity/dotns-cli/core";
+import { createDotnsContext, getChainTokenInfo, ReviveClientWrapper } from "@parity/dotns-cli/core";
 
 const client = createClient(getWsProvider("wss://paseo-asset-hub-next-rpc.polkadot.io"));
-const clientWrapper = new ReviveClientWrapper(client.getTypedApi(paseo));
+// Token decimals and symbol come from the chain, so deposit caps and amounts match it.
+const clientWrapper = new ReviveClientWrapper(
+  client.getTypedApi(paseo),
+  await getChainTokenInfo(client),
+);
 
 const ctx = createDotnsContext({
   clientWrapper,

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import type { PolkadotClient } from "polkadot-api";
-import { getChainTokenInfo } from "../../../src/cli/context";
+import { getChainTokenInfo } from "../../../src/client/polkadotClient";
 import {
   DEFAULT_NATIVE_TOKEN_DECIMALS,
   DEFAULT_NATIVE_TOKEN_SYMBOL,
