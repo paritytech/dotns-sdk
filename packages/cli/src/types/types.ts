@@ -6,8 +6,8 @@ import type { Bulletin } from "@polkadot-api/descriptors";
 
 export enum ProofOfPersonhoodStatus {
   NoStatus = 0,
-  ProofOfPersonhoodLite = 1,
-  ProofOfPersonhoodFull = 2,
+  Devicehood = 1,
+  Personhood = 2,
   Reserved = 3,
 }
 
@@ -18,7 +18,7 @@ export type DomainRegistration = {
   owner: Address;
   /** 32-byte cryptographic secret for commitment scheme */
   secret: Hex;
-  /** Whether this registration includes reverse record setup */
+  /** Opts a direct register() into a default reverse record; registerReserved ignores it */
   reserved: boolean;
   /**
    * Slippage ceiling in wei: register() reverts with PriceExceedsMax when the
@@ -75,8 +75,6 @@ export type RegistrationCommandOptions = {
   name?: string;
   /** Parent domain label for subname registration (bare, without the TLD suffix). */
   parent?: string;
-  /** Proof of Personhood status requirement */
-  status: "none" | "lite" | "full";
   /** Enable reverse record registration */
   reverse: boolean;
   /** Use governance registration path */
@@ -117,7 +115,7 @@ export type DomainOwnership = {
 export type AuthType = "mnemonic" | "key-uri" | "unknown";
 
 export type AuthOptionValues = {
-  /** DotNS environment selector */
+  /** dotNS environment selector */
   env?: string;
   /** Alias for env */
   network?: string;
@@ -155,7 +153,7 @@ export type AccountKeystorePayload = {
 };
 
 export type CommandOptions = {
-  /** DotNS environment selector */
+  /** dotNS environment selector */
   env?: string;
   /** Alias for env */
   network?: string;
@@ -283,7 +281,7 @@ export type ChunkedStoreResult = {
 };
 
 export type AccountInfoOptions = {
-  /** DotNS environment selector */
+  /** dotNS environment selector */
   env?: string;
   /** Alias for env */
   network?: string;
@@ -469,7 +467,7 @@ export type StoreContentParameters = {
   nonce?: number;
   /** Callback for progress updates */
   onProgress?: (status: string) => void;
-  /** Optional shared client — caller owns lifecycle when provided */
+  /** Optional shared client; the caller owns its lifecycle when provided */
   client?: PolkadotClient;
   /** Optional timeout budget for a single store call */
   storeTimeoutMs?: number;
@@ -486,7 +484,7 @@ export type StoreSingleFileParameters = {
   contentBytes: Uint8Array;
   /** Callback for progress updates */
   onProgress?: (status: string) => void;
-  /** Optional shared client — caller owns lifecycle when provided */
+  /** Optional shared client; the caller owns its lifecycle when provided */
   client?: PolkadotClient;
   /** If false, resolve on best-block inclusion instead of finalization. Default: false */
   waitForFinalization?: boolean;
@@ -513,7 +511,7 @@ export type StoreChunkedFileParameters = {
   onSchedulerState?: (state: UploadSchedulerState) => void;
   /** Callback emitted after each upload wave */
   onWave?: (wave: UploadWaveSummary) => void;
-  /** Optional shared client — caller owns lifecycle when provided */
+  /** Optional shared client; the caller owns its lifecycle when provided */
   client?: PolkadotClient;
   /** Completed chunk metadata keyed by zero-based chunk index (resume support) */
   completedBlocks?: Map<number, UploadManifestCompletedBlock>;
@@ -536,7 +534,7 @@ export type StoreBlockParameters = {
   hashCodeValue: number;
   /** Optional nonce for transaction ordering */
   nonce?: number;
-  /** Optional shared client — caller owns lifecycle when provided */
+  /** Optional shared client; the caller owns its lifecycle when provided */
   client?: PolkadotClient;
   /** Optional timeout budget for a single store call */
   storeTimeoutMs?: number;
@@ -556,7 +554,7 @@ export type TransactionWatchFailureEvent = {
 };
 
 export type AuthSource = {
-  /** DotNS environment selector */
+  /** dotNS environment selector */
   env?: string;
   /** Alias for env */
   network?: string;
@@ -594,7 +592,7 @@ export type ReadOnlyContext = {
   account: ReadOnlyContextAccount;
   /** RPC endpoint used to connect to the chain */
   rpc: string;
-  /** DotNS environment selector */
+  /** dotNS environment selector */
   environment?: string;
   /** Native token decimals read from chain metadata */
   nativeTokenDecimals: number;
@@ -625,7 +623,7 @@ export type LoadedAccount = {
 };
 
 type BaseChainContext = {
-  /** DotNS environment selector */
+  /** dotNS environment selector */
   environment?: string;
   /** WebSocket RPC endpoint URL */
   rpc: string;
@@ -686,9 +684,9 @@ export type SubnodeRecord = {
 };
 
 export type BaseNameReservation = {
-  /** The label as written, or a lite name's stem (e.g. "joseph" from "joseph.42"). */
+  /** The label as written, or a device name's stem (e.g. "joseph" from "joseph.42"). */
   baseName: string;
-  /** Whether the base name is currently reserved via the PopRules oracle. */
+  /** Whether the base name is currently reserved in PopRules. */
   isReserved: boolean;
   /** EVM address of the reservation holder, or zero address if unreserved. */
   reservedBy: string;
@@ -701,7 +699,7 @@ export type DomainLookupResult = {
   domain: string;
   /** EIP-137 namehash of the fully qualified domain name. */
   node: string;
-  /** Whether a record exists in the DotNS registry for this node. */
+  /** Whether a record exists in the dotNS registry for this node. */
   exists: boolean;
   /** Registry owner of the domain, or zero address if unregistered. */
   owner: Address;
@@ -718,7 +716,7 @@ export type DomainLookupResult = {
     /** Human-readable free balance in native token units. */
     free: string;
   } | null;
-  /** PopRules reservation status for the base name, or null if the base is the whole label. */
+  /** PopRules reservation status of a device name's stem, or null for an ordinary label. */
   baseNameReservation: BaseNameReservation | null;
   /** The name's chat key from the PoP resolver (hex), or null if none is set. */
   chatKey: string | null;

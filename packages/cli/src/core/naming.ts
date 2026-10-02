@@ -2,9 +2,7 @@ import type { Abi, Address, Hex } from "viem";
 import type { ReviveClientWrapper } from "../client/polkadotClient";
 import { type DotnsContext, read } from "./context";
 import { COST_MODEL_REGISTRY_KEY, DOTNS_REGISTRAR_CONTROLLER_ABI } from "../utils/constants";
-import { deriveDomainNode, deriveLegacyLiteNode } from "../utils/contractInteractions";
-import { isLitePersonLabel } from "../utils/validation";
-import { DOTNS_REGISTRY_ABI } from "../utils/constants";
+import { deriveDomainNode } from "../utils/contractInteractions";
 import { normaliseLabel } from "../utils/validation";
 
 // Minimal view surface of DotnsProtocolRegistry. The full ABI is not synced into
@@ -101,8 +99,7 @@ async function fetchTldInfo(ctx: DotnsContext): Promise<TldInfo> {
   throw lastError;
 }
 
-// Resolves the active TLD from chain, deriving it from the deployment the context
-// points at rather than assuming `.dot`. Cached for the lifetime of the process.
+// Resolves the active TLD from chain, read from the deployment the context points at. Cached for the lifetime of the process.
 export function resolveTldInfo(ctx: DotnsContext): Promise<TldInfo> {
   let byController = tldInfoCache.get(ctx.clientWrapper);
   if (!byController) {
@@ -151,29 +148,11 @@ export async function readCurrentPricingVersion(ctx: DotnsContext): Promise<bigi
   return read<bigint>(ctx, costModel, COST_MODEL_REGISTRY_ABI, "currentVersion", []);
 }
 
-// The namehash of `label` under the active TLD (the on-chain `node`).
+// The namehash of `label` under the active TLD (the on-chain `node`). A device name
+// folds like any dotted path: `joseph.42` is `joseph` beneath its numeric container `42`.
 export async function domainNode(ctx: DotnsContext, label: string): Promise<Hex> {
   const { tldNode } = await resolveTldInfo(ctx);
-  if (!isLitePersonLabel(label)) return deriveDomainNode(tldNode, label);
-  return resolveLiteNode(ctx, tldNode, label);
-}
-
-// A lite name has two possible homes. Deployments on dotns v0.7.0 issue it as a
-// subname beneath its numeric container (the plain per-label fold); older
-// deployments — and names minted before an in-place upgrade — hold it as one
-// flat label under the TLD. The registry says which applies to this name: the
-// folded node wins when it has a record, otherwise the legacy node is used
-// (which also answers "unregistered" correctly on every deployment).
-async function resolveLiteNode(ctx: DotnsContext, tldNode: Hex, label: string): Promise<Hex> {
-  const folded = deriveDomainNode(tldNode, label);
-  const foldedExists = await read<boolean>(
-    ctx,
-    ctx.contracts.DOTNS_REGISTRY,
-    DOTNS_REGISTRY_ABI,
-    "recordExists",
-    [folded],
-  );
-  return foldedExists ? folded : deriveLegacyLiteNode(tldNode, label);
+  return deriveDomainNode(tldNode, label);
 }
 
 // The ERC721 tokenId of `label` under the active TLD.

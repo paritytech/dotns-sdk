@@ -68,7 +68,9 @@ function parsePositiveBigInt(value: string, label: string): bigint {
 export function attachEscrowCommands(root: Command) {
   const escrowCommand = root
     .command("escrow")
-    .description("Manage NoStatus deposits and the refund-on-leave ledger");
+    .description(
+      "Manage name deposits, the pull-payment balance, and the time-locked refund ledger",
+    );
   addAuthOptions(escrowCommand);
 
   // escrow status <name>
@@ -294,7 +296,9 @@ export function attachEscrowCommands(root: Command) {
   // escrow claim-withdrawal
   const claimWithdrawalCommand = escrowCommand
     .command("claim-withdrawal")
-    .description("Drain the pull-payment ledger (registration-overpayment fallback)")
+    .description(
+      "Drain the pull-payment balance (withdrawn deposits and the registration-overpayment fallback)",
+    )
     .option("--json", "Output result as JSON (suppresses all other output)", false);
   addAuthOptions(claimWithdrawalCommand).action(
     async (options: EscrowCommonOptions, command: Command) => {

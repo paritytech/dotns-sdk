@@ -2,7 +2,6 @@ import { zeroAddress, type Address, type Hex } from "viem";
 import { type DotnsContext, read } from "../core/context";
 import { DOTNS_NAME_ESCROW_ABI, DOTNS_REGISTRAR_ABI, DOTNS_REGISTRY_ABI } from "../utils/constants";
 import { domainNode, formatDomainName, normaliseName } from "../core/naming";
-import { EMPTY_DATA_REVERT_HINT } from "../utils/contractInteractions";
 
 /// The escrow's ReleasePosition struct as `getReleasePosition` returns it.
 export type ReleasePosition = {
@@ -29,10 +28,10 @@ export type NameInspection = {
   /// token exists.
   owner: Address | null;
   /// Whether the registrar minted a token for this node. Only second-level names have one;
-  /// subnames, including lite personhood names since dotns v0.7.0, are registry records only
+  /// subnames, including device names, are registry records only
   /// and so cannot be transferred, delegated or released.
   hasToken: boolean;
-  /// Gateway-minted personhood names are soulbound: the registrar reverts every custody move
+  /// Names minted through the gateway pallet are soulbound: the registrar reverts every custody move
   /// (transfer, release into escrow) while still accepting `approve`.
   soulbound: boolean;
   /// The escrow's release position, or null when the slot is empty. Only names registered
@@ -44,21 +43,11 @@ function isEmptyPosition(position: ReleasePosition): boolean {
   return position.recipient === zeroAddress && position.amount === 0n && !position.released;
 }
 
-/// Only an unknown selector (a registrar without `isSoulbound`) reads as false; any other
-/// failure aborts rather than risk a wrong "not soulbound" before release's approve.
+/// Any failure aborts, so a wrong "not soulbound" can never precede release's approve.
 async function readSoulbound(ctx: DotnsContext, tokenId: bigint): Promise<boolean> {
-  try {
-    return await read<boolean>(
-      ctx,
-      ctx.contracts.DOTNS_REGISTRAR,
-      DOTNS_REGISTRAR_ABI,
-      "isSoulbound",
-      [tokenId],
-    );
-  } catch (error) {
-    if (error instanceof Error && error.message.includes(EMPTY_DATA_REVERT_HINT)) return false;
-    throw error;
-  }
+  return read<boolean>(ctx, ctx.contracts.DOTNS_REGISTRAR, DOTNS_REGISTRAR_ABI, "isSoulbound", [
+    tokenId,
+  ]);
 }
 
 /// Reads the facts about `name` in one pass. `name` may be a bare label or fully qualified.

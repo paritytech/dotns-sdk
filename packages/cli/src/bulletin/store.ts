@@ -51,7 +51,7 @@ const FETCH_NONCE_TIMEOUT_MS = 15_000;
 // still acknowledging an in-flight extrinsic.
 const WS_HEARTBEAT_TIMEOUT_MS = 300_000;
 // polkadot-api ws-provider default is 3_500 ms; give the handshake more
-// headroom on slow links (CI runners → Scaleway can spike past that).
+// headroom on slow links (CI runners to Scaleway can spike past that).
 const WS_CONNECT_TIMEOUT_MS = 10_000;
 let rxUnhandledErrorGuardInstalled = false;
 

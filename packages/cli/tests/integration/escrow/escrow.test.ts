@@ -167,9 +167,8 @@ test(
     createPathsForTest("escrow_status_null_for_unregistered");
     const keystorePath = await ensureDefaultKeystore();
 
-    // A long label that almost certainly was never registered. Stem length and
-    // digit-count rules are enforced by the classifier; this shape is a clean
-    // NoStatus-tier label with no trailing digits.
+    // A long label that almost certainly was never registered. Its base length of 30
+    // places it in the NoStatus band.
     const ghostLabel = "ghostnamethatwasneverdeposited";
 
     const statusResult = await escrowCli(keystorePath, ["status", ghostLabel, "--json"]);

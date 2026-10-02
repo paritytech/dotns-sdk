@@ -67,7 +67,7 @@ export function attachDelegateCommands(root: Command) {
 
         // `approve` reverts on a node with no token, so refuse that up front. It succeeds on
         // a soulbound name even though the delegate can never transfer it; whether that
-        // approval is still worth granting is the user's call, so warn rather than refuse.
+        // approval is still worth granting is the user's call, so this only warns.
         const inspection = await maybeQuiet(jsonOutput, () => inspectName(ctx, name));
         assertRegistered(inspection, "delegate");
         assertIsToken(inspection, "delegate");
@@ -75,7 +75,7 @@ export function attachDelegateCommands(root: Command) {
         if (inspection.soulbound && !jsonOutput) {
           console.log(
             chalk.yellow(
-              "  warning:  soulbound personhood name; the delegate can never transfer or release it",
+              "  warning:  soulbound name issued through the gateway pallet; the delegate can never transfer or release it",
             ),
           );
         }

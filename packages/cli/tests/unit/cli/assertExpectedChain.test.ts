@@ -56,7 +56,7 @@ describe("assertExpectedChain", () => {
     await assertExpectedChain(clientReporting("0xdead"));
   });
 
-  test("a known chain is named in the error, not just hashed", async () => {
+  test("a known chain is named in the error alongside its hash", async () => {
     setActiveDotnsEnvironment("paseo-v2");
     const previewnet = DOTNS_ENVIRONMENTS.previewnet.genesisHash!;
     await expect(assertExpectedChain(clientReporting(previewnet))).rejects.toThrow(

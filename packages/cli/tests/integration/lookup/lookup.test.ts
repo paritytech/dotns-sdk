@@ -16,8 +16,8 @@ beforeAll(async () => {
 });
 
 const REGISTERED_DOMAIN = "dotnscli";
-const REGISTERED_DOMAIN_WITH_POP = "sphaman12";
-const REGISTERED_TLD = "dotns";
+const REGISTERED_SECOND_DOMAIN = "sphaman12";
+const REGISTERED_SHORT_DOMAIN = "dotns";
 const BOB_SS58 = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty";
 
 function expectSuccessfulLookup(result: CliRunResult, label: string) {
@@ -71,9 +71,9 @@ test(
 test(
   "lookup using --name flag without auth",
   async () => {
-    const lookupResult = await runDotnsCli(["lookup", "--name", REGISTERED_TLD]);
+    const lookupResult = await runDotnsCli(["lookup", "--name", REGISTERED_SHORT_DOMAIN]);
 
-    expectSuccessfulLookup(lookupResult, REGISTERED_TLD);
+    expectSuccessfulLookup(lookupResult, REGISTERED_SHORT_DOMAIN);
   },
   { timeout: TEST_TIMEOUT_MS },
 );
@@ -116,9 +116,9 @@ test(
 test(
   "lookup oo alias shows ownership information without auth",
   async () => {
-    const ooResult = await runDotnsCli(["lookup", "oo", REGISTERED_DOMAIN_WITH_POP]);
+    const ooResult = await runDotnsCli(["lookup", "oo", REGISTERED_SECOND_DOMAIN]);
 
-    expectSuccessfulOwnerLookup(ooResult, REGISTERED_DOMAIN_WITH_POP);
+    expectSuccessfulOwnerLookup(ooResult, REGISTERED_SECOND_DOMAIN);
   },
   { timeout: TEST_TIMEOUT_MS },
 );
@@ -160,11 +160,11 @@ test(
 );
 
 test(
-  "lookup reserved domain shows reserved status",
+  "lookup name succeeds for a second registered domain",
   async () => {
-    const lookupResult = await runDotnsCli(["lookup", "name", REGISTERED_DOMAIN]);
+    const lookupResult = await runDotnsCli(["lookup", "name", REGISTERED_SECOND_DOMAIN]);
 
-    expectSuccessfulLookup(lookupResult, REGISTERED_DOMAIN);
+    expectSuccessfulLookup(lookupResult, REGISTERED_SECOND_DOMAIN);
   },
   { timeout: TEST_TIMEOUT_MS },
 );

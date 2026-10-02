@@ -3,7 +3,7 @@ import { printHumanLine, printHumanSuccess } from "./reporter";
 import { version } from "../../package.json";
 import { getActiveDotnsEnvironment } from "../utils/constants";
 
-// One contextual line per command, replacing the old decorative banner: identity
+// One contextual line per command: identity
 // (version), the operation, an optional target, and the active network. Greppable
 // in CI logs and written to stderr via the reporter, so --json stdout stays clean.
 export function versionLabel(): string {

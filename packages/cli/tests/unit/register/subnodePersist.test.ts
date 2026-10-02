@@ -1,10 +1,8 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import * as realContext from "../../../src/core/context";
 
-// The v0.7.0 registry's SubnodeRecord carries a `persist` flag and the CLI
-// once omitted it, which only surfaced as a runtime encode error. These tests
-// pin the record the write actually receives, so ABI drift of this shape
-// fails here instead.
+// The registry's SubnodeRecord carries a `persist` flag. These tests pin the
+// record the write actually receives, so ABI drift of this shape fails here.
 
 const PASEO_NODE = "0x1111111111111111111111111111111111111111111111111111111111111111";
 
@@ -71,5 +69,13 @@ describe("registerSubnode encodes the persist flag", () => {
 
     const record = writes[0]!.args[0] as EncodedSubnodeRecord;
     expect(record.persist).toBe(false);
+  });
+});
+
+describe("registerSubnode bounds the parent path", () => {
+  test("rejects a parent path over the bound, before writing", async () => {
+    const parent = Array.from({ length: 5 }, () => "a".repeat(63)).join(".");
+    await expect(registerSubnode(ctx, "blog", parent, OWNER)).rejects.toThrow(/bytes long/);
+    expect(writes).toHaveLength(0);
   });
 });

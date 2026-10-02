@@ -22,12 +22,14 @@ type PopInfoResult = {
   pendingClaims: string[];
 };
 
-function formatPopStatus(status: ProofOfPersonhoodStatus): "none" | "lite" | "full" | "reserved" {
+function formatPopStatus(
+  status: ProofOfPersonhoodStatus,
+): "none" | "devicehood" | "personhood" | "reserved" {
   switch (status) {
-    case ProofOfPersonhoodStatus.ProofOfPersonhoodLite:
-      return "lite";
-    case ProofOfPersonhoodStatus.ProofOfPersonhoodFull:
-      return "full";
+    case ProofOfPersonhoodStatus.Devicehood:
+      return "devicehood";
+    case ProofOfPersonhoodStatus.Personhood:
+      return "personhood";
     case ProofOfPersonhoodStatus.Reserved:
       return "reserved";
     case ProofOfPersonhoodStatus.NoStatus:
@@ -89,7 +91,7 @@ export function attachPopCommands(root: Command): void {
               chalk.yellow(`${info.pendingClaims.join(", ")} (run "dotns store sync" to settle)`),
           );
         }
-        console.log(chalk.green("\n✓ PoP Status Retrieved\n"));
+        console.log(chalk.green("\n✓ Personhood Status Retrieved\n"));
       }
 
       process.exit(0);

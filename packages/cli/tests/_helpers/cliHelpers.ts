@@ -253,8 +253,8 @@ export async function readKeystoreDirectory(
       const encrypted = await readKeystoreFile(accountFilePath);
       const decrypted: any = decryptKeystorePayload(encrypted, password);
 
-      // Use the account name from the payload, not the filename
-      // The filename may have sanitized characters (e.g., @ -> _)
+      // Use the account name from the payload; the filename may have sanitised
+      // characters (e.g., @ becomes _)
       const accountName = decrypted.account || path.basename(accountFile.name, ".json");
       accounts[accountName] = decrypted.auth;
     } catch {
@@ -298,8 +298,8 @@ export async function expectJsonHelpOption(args: string[]): Promise<void> {
 }
 
 // The TLD of the deployment under test, read from chain once so integration
-// assertions build fully-qualified names against the right suffix rather than a
-// hardcoded ".dot". The target environment is chosen with DOTNS_ENV, so pointing
+// assertions build fully-qualified names against the deployment's suffix; a
+// hardcoded ".dot" would be wrong elsewhere. The target environment is chosen with DOTNS_ENV, so pointing
 // the suite at a different deployment keeps its expectations correct.
 let cachedExpectedTld: string | undefined;
 

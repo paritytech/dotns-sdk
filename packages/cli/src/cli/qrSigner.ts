@@ -170,8 +170,8 @@ async function acquireWalletSession(
   }
 }
 
-// The wallet drops signing requests until an allowance is granted, so claim it up front
-// rather than letting the first transaction hang. Re-requesting a cached allowance
+// The wallet drops signing requests until an allowance is granted, so claim it up front;
+// otherwise the first transaction hangs. Re-requesting a cached allowance
 // round-trips to a wallet with nothing to prompt and times out, so skip when already held.
 async function grantSigningAllowance(
   session: WalletSession,

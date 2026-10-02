@@ -334,8 +334,8 @@ test("auth set rejects weak password supplied by env for new keystore", async ()
 });
 
 test("resolveAuthSource default branch carries the dev credential for the retry cache", async () => {
-  // The fallback branch was the only one returning no credential, so `register`
-  // with the implicit shared dev account failed the retry-cache check.
+  // The default branch must carry a credential, so `register` with the implicit
+  // shared dev account passes the retry-cache check.
   // DOTNS_KEYSTORE_PATH points at a per-test directory that does not exist, so
   // resolution cannot pick up a real keystore on the machine running the tests
   // and deterministically falls through to the default branch.

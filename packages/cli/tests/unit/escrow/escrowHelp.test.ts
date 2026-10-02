@@ -11,7 +11,7 @@ test("escrow help shows the subcommand description and subcommands", async () =>
   const result = await runDotnsCli(["escrow", "--help"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 
-  expect(result.combinedOutput).toContain("Manage NoStatus deposits");
+  expect(result.combinedOutput).toContain("Manage name deposits");
   expect(result.combinedOutput).toContain("status");
   expect(result.combinedOutput).toContain("balance");
   expect(result.combinedOutput).toContain("positions");
@@ -66,7 +66,7 @@ test("escrow claim-withdrawal help describes the overpayment ledger", async () =
   const result = await runDotnsCli(["escrow", "claim-withdrawal", "--help"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 
-  expect(result.combinedOutput).toContain("Drain the pull-payment ledger");
+  expect(result.combinedOutput).toContain("Drain the pull-payment balance");
   expect(result.combinedOutput).toContain("overpayment");
 });
 

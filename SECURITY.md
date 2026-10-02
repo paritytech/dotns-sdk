@@ -2,9 +2,9 @@
 
 ## Security status
 
-This repository contains the DotNS client SDK and tooling: reference and proof-of-concept libraries,
-a command-line tool, and examples for interacting with the DotNS protocol. It is intended for
-reference and experimentation, not as a production-ready artefact.
+This repository contains the dotNS client SDK and tooling: reference and proof-of-concept libraries,
+a command-line tool, and examples for interacting with the dotNS protocol. It is intended for
+reference and experimentation only.
 
 Unless a specific release states otherwise, this repository has **not** received a full security
 audit. Use in production or production-like contexts should only follow an independent security
@@ -16,9 +16,9 @@ parties in live applications, or reused in future production contexts once publi
 ## Static analysis
 
 The codebase is checked on every pull request by automated tooling, currently linting and
-formatting (Biome), type-checking (TypeScript), and dependency and supply-chain scanning (Socket).
+formatting (ESLint and Prettier), type-checking (TypeScript), and dependency and supply-chain scanning (Socket).
 All findings raised by these tools have been reviewed and are deemed false positives or accepted
-non-issues for this codebase. They are retained for transparency rather than as a list of
+non-issues for this codebase. They are retained for transparency and do not list
 outstanding defects, so a tool reporting a finding is not in itself grounds for a vulnerability
 report. If you believe a specific finding has genuine, demonstrable impact, raise it through the
 disclosure process below with the evidence required under "What to report".

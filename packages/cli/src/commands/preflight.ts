@@ -14,16 +14,16 @@ export function assertRegistered(n: NameInspection, verb: NameAction): void {
 export function assertIsOwner(n: NameInspection, signer: Address, verb: NameAction): void {
   if (n.owner === null || !isSameEvmAddress(n.owner, signer)) {
     throw new Error(
-      `Cannot ${verb}: ${n.domain} is owned by ${n.owner ?? "nobody"}, not by the signing account ${signer}.`,
+      `Cannot ${verb}: ${n.domain} is owned by ${n.owner ?? "nobody"}; the signing account is ${signer}.`,
     );
   }
 }
 
-/// Subnames, including lite personhood names, are registry records with no registrar token.
+/// Subnames, including device names, are registry records with no registrar token.
 export function assertIsToken(n: NameInspection, verb: NameAction): void {
   if (!n.hasToken) {
     throw new Error(
-      `Cannot ${verb}: ${n.domain} is a subname, not a registrar token; lite personhood names and subnames have no token to ${verb}.`,
+      `Cannot ${verb}: ${n.domain} is a subname, a registry record with no token to ${verb}.`,
     );
   }
 }
@@ -53,7 +53,7 @@ export function assertReleasable(n: NameInspection, signer: Address): void {
   }
   if (!isSameEvmAddress(n.position.recipient, signer)) {
     throw new Error(
-      `Cannot release: ${n.domain} is held by ${n.position.recipient}, not by the signing account ${signer}.`,
+      `Cannot release: ${n.domain} is held by ${n.position.recipient}; the signing account is ${signer}.`,
     );
   }
 }

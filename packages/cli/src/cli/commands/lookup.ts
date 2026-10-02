@@ -48,7 +48,7 @@ function renderDomainLookup(
   result: DomainLookupResult,
   nativeTokenSymbol: string,
 ): void {
-  console.log("\n▶ DotNS Domain Lookup");
+  console.log("\n▶ dotNS Domain Lookup");
   console.log(chalk.gray("  domain: ") + chalk.cyan(result.domain));
   console.log(chalk.gray("  node:   ") + chalk.white(result.node));
   console.log();

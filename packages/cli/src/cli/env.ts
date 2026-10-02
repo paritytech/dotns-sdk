@@ -100,7 +100,7 @@ export type KeystoreAuthOption = keyof typeof KEYSTORE_AUTH_FLAGS;
 const KEYSTORE_AUTH_ENV = [ENV.MNEMONIC, ENV.KEY_URI, ENV.KEYSTORE_PASSWORD] as const;
 
 // The QR signer derives the account from the paired wallet, so any local-keystore input
-// (flag or env var) is contradictory; reject it rather than silently ignoring it.
+// (flag or env var) is contradictory, so reject it explicitly.
 export function assertSignerOptions(
   options: { signer?: string } & Partial<Record<KeystoreAuthOption, unknown>>,
 ): void {

@@ -19,9 +19,9 @@ export function generateRandomLabel(status: ProofOfPersonhoodStatus): string {
     return randomCharacters(alphanumeric, length - 1) + randomCharacters(alphabet, 1);
   };
 
-  // Since dotns v0.6.0 a lite name is only the dotted form the gateway issues, and its
-  // stem follows the person rule: lowercase letters, no digits or hyphens.
-  if (status === ProofOfPersonhoodStatus.ProofOfPersonhoodLite) {
+  // A device name is the dotted form the dotNS gateway pallet issues, and its stem
+  // follows the personhood-name rule: lowercase letters only.
+  if (status === ProofOfPersonhoodStatus.Devicehood) {
     return `${randomCharacters(alphabet, 6 + randomInteger(3))}.${twoDigits()}`;
   }
 
@@ -30,10 +30,9 @@ export function generateRandomLabel(status: ProofOfPersonhoodStatus): string {
     return baseEndingWithLetter(baseLength) + twoDigits();
   }
 
-  // A full-person name is letters only.
-  if (status === ProofOfPersonhoodStatus.ProofOfPersonhoodFull) {
-    const baseLength = randomInteger(2) === 0 ? 6 + randomInteger(3) : 9 + randomInteger(6);
-    return randomCharacters(alphabet, baseLength);
+  // The personhood band is a base length of six to eight; letters keep it a plain label.
+  if (status === ProofOfPersonhoodStatus.Personhood) {
+    return randomCharacters(alphabet, 6 + randomInteger(3));
   }
 
   throw new Error("Cannot auto-generate Reserved names");

@@ -26,7 +26,7 @@ Verify:
 dotns --version
 ```
 
-## Quick Start
+## Build from source
 
 ```bash
 bun install
@@ -93,7 +93,7 @@ dotns register domain --name coolname42 --signer qr
 The account is the paired wallet, so `--signer qr` cannot be combined with the local-keystore
 flags or their environment variables (`--account`, `--password`, `--keystore-path`,
 `--mnemonic`, `--key-uri`, `DOTNS_MNEMONIC`, `DOTNS_KEY_URI`, `DOTNS_KEYSTORE_PASSWORD`); doing
-so is rejected rather than silently ignored.
+so is rejected.
 
 The first pairing is cached under `~/.polkadot-apps/`, so later commands reuse it without
 re-scanning (the wallet's granted allowance also makes signing non-interactive). The pairing is
@@ -115,18 +115,23 @@ pairing handshake trace when diagnosing a stuck pairing.
 
 ## Environment Variables
 
-| Variable                  | Description                                        |
-| ------------------------- | -------------------------------------------------- |
-| `DOTNS_ENV`               | DotNS environment (`paseo-v2`; default `paseo-v2`) |
-| `DOTNS_KEYSTORE_PATH`     | Path to keystore directory                         |
-| `DOTNS_KEYSTORE_PASSWORD` | Keystore password                                  |
-| `DOTNS_RPC`               | Asset Hub RPC endpoint                             |
-| `DOTNS_MNEMONIC`          | BIP39 mnemonic phrase                              |
-| `DOTNS_KEY_URI`           | Substrate key URI                                  |
-| `DOTNS_SIGNER`            | Signer backend: `keystore` (default) or `qr`       |
-| `DOTNS_QR_APP_ID`         | Product id for QR pairing (default `dotns`)        |
-| `DOTNS_QR_PEOPLE_RPC`     | QR relay: `paseo`/`preview`/`stable` or wss URLs   |
-| `DOTNS_QR_DEBUG`          | Set to print the verbose QR pairing trace          |
+| Variable                    | Description                                                        |
+| --------------------------- | ------------------------------------------------------------------ |
+| `DOTNS_ENV`                 | dotNS environment: `paseo-v2` (default), `previewnet` or `devnet`  |
+| `DOTNS_KEYSTORE_PATH`       | Path to keystore directory                                         |
+| `DOTNS_KEYSTORE_PASSWORD`   | Keystore password                                                  |
+| `DOTNS_RPC`                 | Asset Hub RPC endpoint                                             |
+| `DOTNS_BULLETIN_RPC`        | Bulletin chain RPC endpoint                                        |
+| `DOTNS_SKIP_CHAIN_CHECK`    | Set to `1` to skip the genesis check after connecting              |
+| `DOTNS_COMMITMENT_BUFFER`   | Extra seconds to wait after the minimum commitment age (default 6) |
+| `DOTNS_REGISTRATION_DIR`    | Directory for saved registration commitments                       |
+| `DOTNS_UPLOAD_MANIFEST_DIR` | Directory for bulletin upload manifests                            |
+| `DOTNS_MNEMONIC`            | BIP39 mnemonic phrase                                              |
+| `DOTNS_KEY_URI`             | Substrate key URI                                                  |
+| `DOTNS_SIGNER`              | Signer backend: `keystore` (default) or `qr`                       |
+| `DOTNS_QR_APP_ID`           | Product id for QR pairing (default `dotns`)                        |
+| `DOTNS_QR_PEOPLE_RPC`       | QR relay: `paseo`/`preview`/`stable` or wss URLs                   |
+| `DOTNS_QR_DEBUG`            | Set to print the verbose QR pairing trace                          |
 
 Select an environment with either an environment variable or a per-command option:
 
@@ -142,7 +147,7 @@ dotns account is-mapped 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
 dotns --env paseo-v2 account grant somelabel 0x1234567890AbcdEF1234567890aBcdef12345678
 ```
 
-`--rpc` still overrides the endpoint URL, but it does not change the selected DotNS contract addresses. Use `--env`/`DOTNS_ENV` to select the DotNS deployment.
+`--network` is an alias of `--env`, and each environment also accepts aliases (for example `dev` for `devnet`). `--rpc` still overrides the endpoint URL, but it does not change the selected dotNS contract addresses. Use `--env`/`DOTNS_ENV` to select the dotNS deployment.
 
 ## Programmatic SDK
 
@@ -181,18 +186,22 @@ const ctx = createDotnsContext({
   environment: "paseo-v2",
 });
 
-await registerName(ctx, "alice"); // owner defaults to your mapped EVM address
-await registerSubnode(ctx, "alice", "bob", ownerAddress); // alice.bob.dot
-await setContentHash(ctx, "alice.dot", "bafy...cid");
-const { cid } = await getContentHash(ctx, "alice.dot");
-const recipient = await resolveTransferRecipient(ctx, "bob.dot"); // EVM, SS58, or .dot label
-await transferName(ctx, "alice", recipient);
+await registerName(ctx, "aliceweb3"); // owner defaults to your mapped EVM address
+await registerSubnode(ctx, "blog", "aliceweb3", ownerAddress); // blog.aliceweb3.dot
+await setContentHash(ctx, "aliceweb3.dot", "bafy...cid");
+const { cid } = await getContentHash(ctx, "aliceweb3.dot");
+const recipient = await resolveTransferRecipient(ctx, "bobweb3.dot"); // EVM, SS58, or .dot label
+await transferName(ctx, "aliceweb3", recipient);
 ```
+
+`paseo` comes from descriptors generated for the target chain; outside this repository, generate
+your own with `papi add`.
 
 `createDotnsContext` rejects an EVM (H160) origin, and a write without a signer throws
 `MissingSignerError`. The origin must be Revive address-mapped before `registerName`/`transferName`.
 To sign with a QR-paired mobile wallet programmatically, build the signer with
-`@parity/product-sdk-terminal` and pass it as `signer` (see `/docs/tools/sdk`).
+`@parity/product-sdk-terminal` and pass it as `signer` (see the
+[SDK docs page](https://dotns.paseo.li/#/docs/tools/sdk)).
 
 ## Commands
 
@@ -204,12 +213,13 @@ All registration commands require authentication.
 # Register a NoStatus name (base ≥ 9, open to all)
 dotns --password test-password register domain --account default --name coolwebsite
 
-# A PoP Lite name is `stem.NN`, issued by the gateway and not registrable here.
+# A device name is `stem.NN`, issued by the dotNS gateway pallet and not registrable here.
 
-# Register a name that requires PoP Full (base 6-8, letters only)
+# Register a name in the personhood band (base 6-8; needs personhood and the short-name switch on)
 dotns --password test-password register domain --account default --name premium
 
-# Governance registration (base ≤ 5, reserved names)
+# Reserved registration (base ≤ 5): needs a whitelist grant binding the name to the owner
+# (check it with `account grant`), or a Root origin
 dotns --password test-password register domain --account default --name short --governance
 
 # Register for another owner
@@ -218,7 +228,7 @@ dotns --password test-password register domain --account default --name coolwebs
 # Register and transfer
 dotns --password test-password register domain --account default --name coolwebsite --transfer --to 0x000000000000000000000000000000000000dEaD
 
-# With reverse record
+# With reverse record (set only when the account has no primary name yet; not combinable with --owner)
 dotns --password test-password register domain --account default --name coolwebsite --reverse
 
 # Auto-retry on failure, resuming from the cached commitment (here, up to 3 times)
@@ -230,7 +240,7 @@ dotns --password test-password register domain --account default --name coolwebs
 Registration is a two-step commit-reveal: the commit lands on-chain, then after the
 minimum commitment age the reveal completes the mint. If the reveal is interrupted
 (crash, network drop, closed terminal), the commitment is cached locally so it can be
-resumed rather than restarted. The reveal secret is encrypted at rest with your
+resumed. The reveal secret is encrypted at rest with your
 credential (keystore password, CLI/env mnemonic, or CLI/env key URI); the rest of the record is
 plaintext so it can be listed and cleared without unlocking.
 
@@ -277,6 +287,9 @@ dotns --password test-password register subname --name blog --parent coolname42 
 
 # Register subname for a different owner
 dotns --password test-password register subname --name blog --parent coolname42 --owner 0x000000000000000000000000000000000000dEaD --account default
+
+# Skip indexing the subname into the owner's Label Store
+dotns --password test-password register subname --name blog --parent coolname42 --no-persist --account default
 ```
 
 ### Lookup (no auth required)
@@ -318,6 +331,10 @@ dotns lookup transfer coolname42 --destination alice
 dotns lookup transfer coolname42 --destination alice --json
 ```
 
+A transfer charges the name's own price when the recipient does not meet the name's required
+tier or holds a lower personhood status than the sender; otherwise it is free. Names issued
+through the gateway pallet are soulbound and cannot be transferred.
+
 ### Content Hash
 
 View does not require authentication:
@@ -351,23 +368,21 @@ dotns --password test-password text set alice email "alice@example.com" --accoun
 echo "https://alice.dev" | dotns --password test-password text set alice url --account default
 ```
 
-### Proof of Personhood
+### Personhood status
 
-The CLI reads PoP status directly from the personhood precompile at
+The CLI reads the personhood status directly from the personhood precompile at
 `0x000000000000000000000000000000000a010000` using the `bytes32("dotns")`
-context. Returned tiers are `none`, `lite`, `full`, or `reserved`; DotNS does
-not set this status. `pop info` also reports any names pending settlement into
-the Label Store (run `store sync` to settle them). Governance-reserved
-registration is gated on a per-name grant; check it with `account grant`.
+context. Status values are `none`, `devicehood`, `personhood`, or `reserved`;
+dotNS does not set this status. `pop info` also reports any names pending settlement into
+the Label Store (run `store sync` to settle them). Reserved registration is gated on a
+per-name grant or a Root origin; check a grant with `account grant`.
 
 ```bash
-# Check PoP status from the personhood precompile
+# Status and pending names (`pop status` is an alias of `pop info`)
 dotns pop --password test-password --account default status
 dotns pop status --password test-password --account default
 dotns pop --mnemonic "bottom drive obey lake curtain smoke basket hold race lonely fit walk" status
 dotns pop --key-uri //Alice status
-
-# Full info: status and pending names
 dotns pop --password test-password --account default info
 dotns pop --mnemonic "bottom drive obey lake curtain smoke basket hold race lonely fit walk" info
 dotns pop --key-uri //Alice info
@@ -384,7 +399,7 @@ dotns --password test-password bulletin upload ./image.png --account default
 # Upload directory
 dotns --password test-password bulletin upload ./dist --account default
 
-# Upload directory with concurrency control (max: 4)
+# Upload directory with concurrency control (default 16, max 64)
 dotns --password test-password bulletin upload ./dist --concurrency 4 --account default
 
 # Force chunked upload for large files (streams from disk, low memory)
@@ -413,7 +428,7 @@ dotns --password test-password bulletin upload ./image.png --bulletin-rpc wss://
 dotns --password test-password bulletin upload ./image.png --no-history --account default
 ```
 
-`bulletin upload --cache` writes the uploaded CID to your on-chain Store on the selected DotNS
+`bulletin upload --cache` writes the uploaded CID to your on-chain Store on the selected dotNS
 Asset Hub environment. When overriding Bulletin with `--bulletin-rpc` or `DOTNS_BULLETIN_RPC`,
 also pass the matching `--env` or `DOTNS_ENV`, and, when needed, `--rpc` for the Asset Hub Store
 write. In this custom-Bulletin mode, `--env` / `DOTNS_ENV` uses that environment's configured
@@ -455,6 +470,24 @@ dotns --key-uri //Alice bulletin authorize 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC9
 # Custom RPC
 dotns --key-uri //Alice bulletin authorize 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty --bulletin-rpc wss://paseo-bulletin-next-rpc.polkadot.io
 ```
+
+### Bulletin Refresh
+
+Extend the expiration of an existing Bulletin authorisation.
+
+```bash
+dotns --key-uri //Alice bulletin refresh 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty
+```
+
+### Bulletin Verify
+
+Check that a CID is resolvable through the IPFS gateways.
+
+```bash
+dotns bulletin verify bafy...cid
+```
+
+Bulletin commands accept `--reporter auto|interactive|stream|quiet` to choose how progress is shown.
 
 ### Bulletin Status
 
@@ -577,9 +610,10 @@ dotns delegate records-status alice
 
 ### Set Primary Name
 
-Set the primary (reverse) name resolvers return for your account. You can only
-set a name you own; there is no on-chain "clear" beyond pointing it at a
-different name or transferring the current one away.
+Set the primary (reverse) name resolvers return for your account. It must be a
+second-level name or a device name you currently own; an ordinary subname cannot be
+primary. There is no on-chain "clear" beyond pointing it at a different name or
+transferring the current one away.
 
 ```bash
 # Set one of your names as the primary
@@ -592,15 +626,22 @@ dotns primary status 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
 
 ### Escrow
 
-Names registered without PoP verification (NoStatus) hold a refundable deposit
-in escrow. Release a name to start its cooldown, withdraw the deposit onto the
-pull-payment ledger, then claim your balance.
+A name you register on the public path under your own key holds a refundable deposit
+in escrow, whatever its band. A name someone else paid for holds a zero-amount position,
+and names from a whitelist grant or the gateway path hold none. Release a name to start
+its cooldown, withdraw the deposit onto the pull-payment ledger, then claim your balance.
+
+A released name stays yours to redeem until its redeem window closes (one day at launch).
+Withdrawing the deposit gives up that right, and once the window closes anyone may
+register the name again.
 
 `release`, `transfer` and `delegate` read the name's on-chain facts before
 submitting and refuse with the reason when the contracts would reject the call:
-a name granted from the whitelist has no escrow position to release, a
-gateway-minted personhood name is soulbound and cannot move, and a subname
-(including a lite personhood name) has no registrar token at all.
+a name granted from the whitelist has no escrow position to release, `release`
+and `transfer` refuse a soulbound name (one issued through the gateway pallet),
+and all three refuse a subname (including a device name), which has no registrar
+token. `delegate` only warns on a soulbound name, since the registrar still
+accepts the approval.
 
 ```bash
 # Show the escrow position for a name (no auth)
@@ -618,7 +659,7 @@ dotns --password test-password escrow release coolwebsite --account default
 # After cooldown, move the released deposit onto the pull-payment ledger
 dotns --password test-password escrow withdraw coolwebsite --account default
 
-# Drain the pull-payment ledger
+# Drain the pull-payment balance
 dotns --password test-password escrow claim-withdrawal --account default
 
 # List entries in the time-locked refund ledger
@@ -631,26 +672,30 @@ dotns --password test-password escrow refunds claim-batch <id1> <id2> --account 
 
 ## Domain Classification
 
-A name's tier is decided by its **base length**. Since dotns v0.6.0 that is the
-label as written, so digits carry no special meaning and no digit count is
-privileged or rejected: `web3` measures 4 and `alice123` measures 8. The one
-exception is a lite personhood name, which the gateway stores with its separator
-(`joseph.42`); the separator and the two digits it allocated are not part of the
-name the person chose, so they come off first and `joseph.42` measures 6.
+A name's tier is decided by its **base length**: the label as written, so digits carry
+no special meaning and no digit count is privileged or rejected. `web3` measures 4 and
+`alice123` measures 8. The one exception is a device name, which the dotNS gateway
+pallet issues as `joseph.42` and the contracts register as `joseph` beneath `42`; the
+separator and the two digits it allocated are not part of the name the person chose, so
+they come off first and `joseph.42` measures 6.
 
-Only the gateway issues a lite name, and only a letters-only stem can carry one,
-so `web3.42` is not a lite name and no ordinary label reaches this tier.
+Only the gateway pallet issues a device name, and only a letters-only stem can
+carry one, so `web3.42` is not a device name and no ordinary label reaches the
+devicehood tier. A device name whose stem has nine letters or more classifies as
+NoStatus, and one with five or fewer is Reserved and is not issued. On the public path,
+the personhood band opens only while governance's short-name switch is on.
 
-| Type     | Base length | Shape                      | Requirement       |
-| -------- | ----------- | -------------------------- | ----------------- |
-| Reserved | ≤ 5         | any label                  | Governance only   |
-| PoP Full | 6–8         | letters only, no separator | Full verification |
-| PoP Lite | 6–8         | `stem.NN`, gateway-issued  | Lite verification |
-| NoStatus | ≥ 9         | any label                  | Open to all       |
+| Type       | Base length | Shape                               | Requirement             |
+| ---------- | ----------- | ----------------------------------- | ----------------------- |
+| Reserved   | ≤ 5         | any label                           | Whitelist grant or Root |
+| Personhood | 6–8         | any ordinary label                  | Personhood              |
+| Devicehood | 6–8         | `stem.NN`, issued by gateway pallet | Devicehood              |
+| NoStatus   | ≥ 9         | any label                           | Open to all             |
 
 ## Transfer Recipients
 
-The `--to` flag accepts:
+Recipient arguments (`--to`, `--destination`, `--owner`, and the delegate or operator of
+`delegate set` and `delegate records`) accept:
 
 - EVM address: `0x000000000000000000000000000000000000dEaD`
 - Substrate address: `5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY`
@@ -670,8 +715,8 @@ bun test
 
 ## Contributing
 
-See [CONTRIBUTING.md](.github/CONTRIBUTING.md) for guidelines.
+See [CONTRIBUTING.md](../../CONTRIBUTING.md) for guidelines.
 
 ## License
 
-Apache-2.0
+Licensed under the MIT License. See [LICENSE](./LICENSE) and [NOTICE](../../NOTICE).

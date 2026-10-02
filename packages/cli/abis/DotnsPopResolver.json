@@ -38,10 +38,10 @@
   },
   {
     "type": "function",
-    "name": "fullClaim",
+    "name": "deviceLabelhashOf",
     "inputs": [
       {
-        "name": "liteLabelhash",
+        "name": "personhoodNode",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -75,25 +75,6 @@
   },
   {
     "type": "function",
-    "name": "liteLink",
-    "inputs": [
-      {
-        "name": "fullNode",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "owner",
     "inputs": [],
     "outputs": [
@@ -101,6 +82,25 @@
         "name": "",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "personhoodNodeOf",
+    "inputs": [
+      {
+        "name": "deviceLabelhash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "stateMutability": "view"
@@ -158,15 +158,15 @@
   },
   {
     "type": "function",
-    "name": "setLiteLink",
+    "name": "setDeviceLink",
     "inputs": [
       {
-        "name": "fullNode",
+        "name": "personhoodNode",
         "type": "bytes32",
         "internalType": "bytes32"
       },
       {
-        "name": "liteLabelhash",
+        "name": "deviceLabelhash",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -258,6 +258,25 @@
   },
   {
     "type": "event",
+    "name": "DeviceLinkUpdated",
+    "inputs": [
+      {
+        "name": "personhoodNode",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "deviceLabelhash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "Initialized",
     "inputs": [
       {
@@ -265,25 +284,6 @@
         "type": "uint64",
         "indexed": false,
         "internalType": "uint64"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "LiteLinkUpdated",
-    "inputs": [
-      {
-        "name": "fullNode",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "liteLabelhash",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
       }
     ],
     "anonymous": false

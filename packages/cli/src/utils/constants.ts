@@ -18,8 +18,8 @@ const DEFAULT_DOTLI_GATEWAYS = ["dot.li", "paseo.li"] as const;
 
 // `label` is the bare second-level label, without any TLD. The dot.li gateways
 // already carry their own domain (for example `paseo.li`), so the view URL is
-// `${label}.${gateway}`. Callers must pass the resolved label, not a
-// fully-qualified name, otherwise the TLD would be duplicated.
+// `${label}.${gateway}`. Callers pass the resolved bare label; a fully-qualified
+// name would duplicate the TLD.
 export function dotliViewUrls(label: string): string[] {
   const gateways = getActiveDotnsEnvironment().dotliGateways ?? DEFAULT_DOTLI_GATEWAYS;
   return gateways.map((gateway) => `https://${label}.${gateway}`);
@@ -162,7 +162,7 @@ const DOTNS_ENVIRONMENT_IDS = ["paseo-v2", "previewnet", "devnet"] as const;
 export type DotnsEnvironmentId = (typeof DOTNS_ENVIRONMENT_IDS)[number];
 
 export type DotnsContractAddresses = {
-  /** DotNS domain registrar - handles ownership NFTs */
+  /** dotNS domain registrar - handles ownership NFTs */
   DOTNS_REGISTRAR: Address;
 
   /** Registration controller - manages commit-reveal registration */
@@ -177,7 +177,7 @@ export type DotnsContractAddresses = {
   /** Reverse resolution resolver - maps an address to its primary name */
   DOTNS_REVERSE_RESOLVER: Address;
 
-  /** PoP resolver - holds per-node chat keys set at PoP-Full registration */
+  /** PoP resolver - holds the chat keys and device-to-personhood name links the gateway pallet sets when it issues a name */
   DOTNS_POP_RESOLVER: Address;
 
   /** Content hash resolver - stores IPFS CIDs */
@@ -186,13 +186,13 @@ export type DotnsContractAddresses = {
   /** User store factory - deploys per-user storage contracts */
   STORE_FACTORY: Address;
 
-  /** Proof of Personhood RULES - verifies eligibility and pricing */
+  /** PopRules - classifies names into status tiers, prices them, and holds base-name reservations */
   DOTNS_RULES: Address;
 
-  /** Proof of Personhood controller - claims LabelStore and settles deferred labels */
+  /** PoP controller - issues device names and personhood names for the dotNS gateway pallet, and settles names deferred until their owner has a LabelStore */
   DOTNS_POP_CONTROLLER: Address;
 
-  /** Name escrow - holds NoStatus deposits and the refund-on-leave ledger */
+  /** Name escrow - holds refundable registration deposits and protocol fees, and runs the release and refund ledgers */
   DOTNS_NAME_ESCROW: Address;
 
   /** Multicall3 - batch read contract calls */
@@ -211,9 +211,9 @@ export type DotnsEnvironmentConfig = {
   rpc: string | null;
   blockExplorerUrl: string;
   /**
-   * Base URL of the dotns web app's CID preview route, e.g.
+   * Base URL of the dotNS web app's CID preview route, e.g.
    * `https://dotns.paseo.li/#/preview`. `null` for environments with no web app;
-   * preview-link helpers throw a clear error rather than emit a wrong-network link.
+   * preview-link helpers throw a clear error so no wrong-network link is emitted.
    */
   previewBaseUrl: string | null;
   /**
@@ -247,8 +247,8 @@ export type DotnsEnvironmentConfig = {
   bulletinRpc: string | null;
   /**
    * IPFS HTTP gateway base URL (with or without trailing `/ipfs`). `null` for
-   * environments where no gateway is operated; verification calls throw rather
-   * than silently swapping to the Paseo gateway.
+   * environments where no gateway is operated; verification calls throw and never
+   * fall back to the Paseo gateway.
    */
   ipfsGatewayUrl: string | null;
   /**
@@ -309,7 +309,7 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
     bulletinGenesisHash: "0xa081192b90c1f6a3f8e9ce7b2a8246f41af805c66456c84e05fd97c2b3502425",
     blockExplorerUrl: "https://blockscout-testnet.polkadot.io",
     previewBaseUrl: null,
-    // Served via its own substrate.dev gateway, not a dot.li host.
+    // Served through its own substrate.dev gateway.
     dotliGateways: [],
     contracts: PASEO_CREATE3_CONTRACTS,
     bulletinRpc: "wss://previewnet.substrate.dev/bulletin",
@@ -325,7 +325,7 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
     bulletinGenesisHash: "0xe101f0fa4627d29a257645e02be86d80378fea1a2bf8fa6a918d150ebc760a59",
     // No public block explorer wired for this deployment yet.
     blockExplorerUrl: "",
-    // No devnet-hosted dotns web app; preview-link helpers stay disabled.
+    // No devnet-hosted dotNS web app; preview-link helpers stay disabled.
     previewBaseUrl: null,
     dotliGateways: ["dev-dot.li"],
     contracts: {
@@ -369,7 +369,7 @@ export function resolveDotnsEnvironmentId(value?: string): DotnsEnvironmentId {
   }
 
   throw new Error(
-    `Unknown DotNS environment "${value}". Use one of: ${DOTNS_ENVIRONMENT_IDS.join(", ")}`,
+    `Unknown dotNS environment "${value}". Use one of: ${DOTNS_ENVIRONMENT_IDS.join(", ")}`,
   );
 }
 

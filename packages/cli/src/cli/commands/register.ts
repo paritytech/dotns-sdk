@@ -12,7 +12,6 @@ import {
   getPriceAndValidateEligibility,
   finalizeRegularRegistration,
   finalizeGovernanceRegistration,
-  quoteCrossPayerFriction,
   registerSubnode,
   verifyDomainOwnership,
   ensureLabelStoreReady,
@@ -35,7 +34,7 @@ import {
 import {
   isValidSubstrateAddress,
   validateCanonicalLabel,
-  isLitePersonLabel,
+  isDeviceLabel,
   validateDomainLabel,
   validateGovernanceLabel,
 } from "../../utils/validation";
@@ -80,7 +79,7 @@ type RegistrationSession = {
 
 function requireEnvironment(environment: string | undefined): string {
   if (!environment) {
-    throw new Error("Could not resolve the DotNS environment for this command.");
+    throw new Error("Could not resolve the dotNS environment for this command.");
   }
   return environment;
 }
@@ -107,12 +106,6 @@ function printRegistrationResult(result: RegistrationResult, nativeTokenSymbol: 
     chalk.gray("  cost:      ") +
       chalk.green(`${formatWeiAsEther(result.priceWei)} ${nativeTokenSymbol}`),
   );
-  if (result.frictionWei > 0n) {
-    console.log(
-      chalk.gray("  friction:  ") +
-        chalk.yellow(`${formatWeiAsEther(result.frictionWei)} ${nativeTokenSymbol}`),
-    );
-  }
   console.log(chalk.gray("  tx:        ") + chalk.blue(result.txHash));
   console.log(
     chalk.gray("  note:      ") +
@@ -157,9 +150,9 @@ export function isValidTransferDestination(destination: string): boolean {
   const kind = classifyTransferDestination(destination);
   if (kind === "evm" || kind === "substrate") return true;
 
-  // A lite name carries a separator and still names one owner, so it resolves the
+  // A device name carries a separator and still names one owner, so it resolves the
   // same way an ordinary label does.
-  if (isLitePersonLabel(destination)) return true;
+  if (isDeviceLabel(destination)) return true;
 
   const domainLabelPattern = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
   return (
@@ -292,7 +285,7 @@ export async function executeRegistration(
   if (crossPayer) {
     console.log(
       chalk.gray("  Note:      ") +
-        chalk.yellow("caller pays price + transferFloor friction; owner receives the name"),
+        chalk.yellow("caller pays the price into the protocol fee pot; owner receives the name"),
     );
   }
   console.log(
@@ -369,9 +362,10 @@ export async function executeSubnameRegistration(
   // name the same parent, and `formatDomainName` below appends the TLD itself.
   const parentLabel = await normaliseName(session.ctx, options.parent);
   // The new label must never carry a separator: that is what keeps the dotted space
-  // exclusive to the gateway. The parent may be a lite name, which legitimately has one.
+  // exclusive to the gateway pallet. The parent may be a device name, which legitimately
+  // has one.
   validateCanonicalLabel(sublabel, "subname");
-  if (!isLitePersonLabel(parentLabel)) {
+  if (!isDeviceLabel(parentLabel)) {
     validateCanonicalLabel(parentLabel, "parent label");
   }
   const ownerAddress = (options.owner as Address) ?? evmAddress;
@@ -489,10 +483,8 @@ async function replayTransfer(
     resolveTransferRecipient(session.ctx, destination),
   );
 
-  // syncLabel is a CLI-only migration helper; enable it here so freshly minted
-  // names stay registrar-synced, while host-injected signers never trigger it.
   const result = await step("Transferring domain", async () =>
-    transferName(session.ctx, label, recipient, { syncLabel: true }),
+    transferName(session.ctx, label, recipient),
   );
   console.log(chalk.gray("  tx:   ") + chalk.blue(result.txHash));
   console.log(chalk.gray("  from: ") + chalk.yellow(result.from));
@@ -509,7 +501,7 @@ async function replayTransfer(
   );
 }
 
-/** Price, quote cross-payer friction when needed, and submit the regular reveal. */
+/** Price the name and submit the regular reveal. */
 async function finalizeRegularReveal(
   session: RegistrationSession,
   ownerEvmAddress: Address,
@@ -523,14 +515,8 @@ async function finalizeRegularReveal(
   );
   printPricing(pricing, ownerEvmAddress, isCrossPayer, session.ctx.nativeTokenSymbol);
 
-  const frictionWei: bigint = isCrossPayer
-    ? await step("Quoting cross-payer friction", async () =>
-        quoteCrossPayerFriction(session.ctx, label, session.caller, ownerEvmAddress),
-      )
-    : 0n;
-
   const result = await step("Finalizing registration", async () =>
-    finalizeRegularRegistration(session.ctx, registration, pricing.priceWei, frictionWei),
+    finalizeRegularRegistration(session.ctx, registration, pricing.priceWei),
   );
   printRegistrationResult(result, session.ctx.nativeTokenSymbol);
 }
@@ -546,19 +532,20 @@ async function executeGovernanceRegistration(
 
   // This path submits through DotnsRegistrarController.registerReserved, which
   // never consults PopRules: its only on-chain label checks are isSingleLabel()
-  // (InvalidLabel) and length >= 3 (LabelTooShort). Hence validateGovernanceLabel
-  // rather than validateDomainLabel, which refuses a lite name outright because
-  // only the gateway issues one.
+  // (InvalidLabel) and length >= 3 (LabelTooShort). Hence validateGovernanceLabel.
+  // validateDomainLabel refuses a device name outright because only the gateway
+  // pallet issues one.
   //
   // The base <= 5 bound it does apply is not a registerReserved requirement; it
   // mirrors PopRules' `baseLength <= 5 -> Reserved` classification. Kept
-  // deliberately: it holds this command to the reserved class it is for, rather
-  // than silently widening what a grant holder can mint here.
+  // deliberately: it holds this command to the reserved class it is for and keeps
+  // what a grant holder can mint here unchanged.
   validateGovernanceLabel(label);
 
-  // registerReserved is gated on the name whitelist (or Root), not on the
-  // caller's PoP tier. Surfaced as information only: a Root-origin mint skips
-  // the grant check, so a `false` here is a warning rather than a hard stop.
+  // registerReserved is gated on the name whitelist, or on a Root origin; the
+  // caller's personhood status plays no part. Surfaced as information only: a
+  // Root-origin mint skips the grant check, so a `false` here is a warning and
+  // the command continues.
   const granted = await step("Checking name grant", async () =>
     isNameGrantedTo(session.ctx, label, session.caller).catch(() => null),
   );
@@ -572,8 +559,8 @@ async function executeGovernanceRegistration(
   }
 
   // A null classification means PopRules refuses to classify the label's *shape*
-  // (classifyName reverts). registerReserved does not consult PopRules, so that is
-  // not a blocker here — only a definite non-Reserved classification is. Anything
+  // (classifyName reverts). registerReserved does not consult PopRules, so the
+  // only blocker here is a definite non-Reserved classification. Anything
   // other than a revert propagates out of tryClassifyDomainName, so an unreachable
   // chain cannot masquerade as "unclassifiable" and unlock this path.
   let unclassifiableReason: string | undefined;

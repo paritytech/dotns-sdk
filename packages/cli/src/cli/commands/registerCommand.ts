@@ -48,7 +48,7 @@ export function attachRegisterCommand(root: Command) {
     .option("-g, --governance", "Use governance registration path", false)
     .option(
       "-o, --owner <address>",
-      "Register on behalf of another address (an EVM address, SS58 address, or domain name). Caller pays price + transferFloor friction; owner receives the NFT. Mutually exclusive with --transfer, --reverse, --governance.",
+      "Register on behalf of another address (an EVM address, SS58 address, or domain name). Caller pays the price into the protocol fee pot; owner receives the NFT with no refundable deposit. Mutually exclusive with --transfer, --reverse, --governance.",
     )
     .option("--transfer", "Transfer domain after registration", false)
     .option("--to <destination>", "Transfer destination (EVM address, SS58, or domain label)")

@@ -37,7 +37,12 @@ import {
   COMMITMENT_POLL_TIMEOUT_MS,
   COMMITMENT_POLL_INTERVAL_MS,
 } from "../utils/constants";
-import { validateDomainLabel, validateGovernanceLabel, baseLabelOf } from "../utils/validation";
+import {
+  validateDomainLabel,
+  validateGovernanceLabel,
+  validateParentPath,
+  baseLabelOf,
+} from "../utils/validation";
 import { ContractRevertError } from "../utils/contractInteractions";
 import {
   computeDomainTokenId,
@@ -49,15 +54,10 @@ import {
 import { inspectName } from "./inspectName";
 import { explainUnavailable } from "./preflight";
 import { convertWeiToNative } from "../utils/formatting";
-import { isSameEvmAddress } from "../utils/address";
 
-// msg.value carries 10% over the charged amount so a price movement between quote
-// and execution cannot revert; the controller refunds the unused part.
+// msg.value equals the charged amount (a 100% multiplier, so no buffer); the controller
+// refunds any overpayment.
 const PAYMENT_BUFFER_PERCENT = 100n;
-
-function chargedAmountWei(priceWei: bigint, frictionWei: bigint): bigint {
-  return priceWei > frictionWei ? priceWei : frictionWei;
-}
 
 function bufferedPaymentWei(chargedWei: bigint): bigint {
   return (chargedWei * PAYMENT_BUFFER_PERCENT) / 100n;
@@ -128,21 +128,21 @@ export async function classifyDomainName(
 
 /**
  * {@link classifyDomainName}, but returns `null` when PopRules *refuses to
- * classify* the label at all rather than throwing.
+ * classify* the label at all.
  *
  * `classifyName` is `pure`, yet it reverts with `PopError` for label shapes
  * PopRules rejects outright (a non-canonical label). For callers
- * that treat the classification as advisory — notably the governance path, which
- * submits through `registerReserved` and bypasses PopRules entirely — that revert
- * is an answer, not a failure.
+ * that treat the classification as advisory, notably the governance path (which
+ * submits through `registerReserved` and bypasses PopRules entirely), that revert
+ * is itself the answer.
  *
  * Only a revert is converted to `null`. An unreachable chain, an unmapped origin
  * or an ABI mismatch all propagate: reinterpreting those as "unclassifiable"
  * would let a transient RPC failure silently unlock the governance path, which is
  * precisely the wrong behaviour under uncertainty.
  *
- * The revert reason is handed to `onUnclassifiable` rather than printed, so the
- * reason is never lost while this layer stays free of presentation concerns.
+ * The revert reason goes to `onUnclassifiable`, so it is never lost while this layer
+ * stays free of presentation concerns.
  */
 export async function tryClassifyDomainName(
   ctx: DotnsContext,
@@ -361,7 +361,7 @@ export async function waitForMinimumCommitmentAge(
   ctx.onStatus("waiting");
   await sleep(waitSeconds * 1000, ctx.signal);
 
-  // Compare block-time to block-time, not wall-clock to block-time. The contract's
+  // Compare block time against block time. The contract's
   // CommitmentTooNew check is `block.timestamp - commitTimestamp >= minCommitmentAge`,
   // so block-time can lag wall-clock by several seconds on a parachain; polling the
   // chain's current block timestamp avoids revealing while still too new.
@@ -465,7 +465,7 @@ export async function getPriceAndValidateEligibility(
   );
 
   if (isReserved && checksumAddress(reservationOwner) !== checksumAddress(ownerAddress)) {
-    throw new Error("Base name reserved for original Lite registrant");
+    throw new Error("Reserved for a device-name holder's personhood claim");
   }
 
   const classificationResult = await readNamePricing(ctx, label, ownerAddress);
@@ -477,20 +477,15 @@ export async function getPriceAndValidateEligibility(
   if (requiredStatus === ProofOfPersonhoodStatus.Reserved) {
     throw new Error(message);
   }
-  if (requiredStatus === ProofOfPersonhoodStatus.ProofOfPersonhoodFull) {
-    if (userStatus !== ProofOfPersonhoodStatus.ProofOfPersonhoodFull) {
-      throw new Error("Requires Full Personhood verification");
-    }
-  } else if (requiredStatus === ProofOfPersonhoodStatus.ProofOfPersonhoodLite) {
-    if (
-      userStatus !== ProofOfPersonhoodStatus.ProofOfPersonhoodLite &&
-      userStatus !== ProofOfPersonhoodStatus.ProofOfPersonhoodFull
-    ) {
-      throw new Error("Requires Personhood Lite verification");
+  if (requiredStatus === ProofOfPersonhoodStatus.Personhood) {
+    if (userStatus !== ProofOfPersonhoodStatus.Personhood) {
+      throw new Error("Requires personhood");
     }
   }
-  // NoStatus-tier labels (stem of nine characters or more) are open to every tier,
-  // so no caller-side check fires here. Reservation collisions and any other
+  // PopRules classifies only a device name as devicehood, and validateDomainLabel above
+  // refuses every device name, so that band needs no check here. NoStatus-tier labels
+  // (base name of nine characters or more) are open to every tier, so no caller-side check
+  // fires for them either. Reservation collisions and any other
   // protocol-side guards are enforced by PopRules at submission time.
 
   const resolvedPriceWei = classificationResult.price;
@@ -505,9 +500,9 @@ export async function getPriceAndValidateEligibility(
   };
 }
 
-// Cross-payer friction charged when msg.sender != owner. register() requires
-// msg.value >= max(price, transferFloor(label, msg.sender, owner)); underpaying
-// reverts with InsufficientValue.
+// The transfer floor PopRules would charge to move `name` from `caller` to `owner`.
+// Registration does not charge it: register() takes only the name price, also when
+// someone else pays.
 export async function quoteCrossPayerFriction(
   ctx: DotnsContext,
   name: string,
@@ -526,8 +521,6 @@ export type RegistrationResult = {
   name: string;
   owner: Address;
   priceWei: bigint;
-  frictionWei: bigint;
-  chargedWei: bigint;
   bufferedWei: bigint;
   txHash: Hex;
 };
@@ -536,10 +529,8 @@ export async function finalizeRegularRegistration(
   ctx: DotnsContext,
   registration: DomainRegistration,
   priceWei: bigint,
-  frictionWei: bigint = 0n,
 ): Promise<RegistrationResult> {
-  const chargedWei = chargedAmountWei(priceWei, frictionWei);
-  const bufferedWei = bufferedPaymentWei(chargedWei);
+  const bufferedWei = bufferedPaymentWei(priceWei);
   const bufferedPaymentNative = convertWeiToNative(bufferedWei, ctx.nativeTokenDecimals);
 
   const txHash = await write(
@@ -556,8 +547,6 @@ export async function finalizeRegularRegistration(
     name: await formatDomainName(ctx, registration.label),
     owner: registration.owner,
     priceWei,
-    frictionWei,
-    chargedWei,
     bufferedWei,
     txHash,
   };
@@ -603,6 +592,7 @@ export async function registerSubnode(
 ): Promise<SubnameResult> {
   const subLabel = await normaliseName(ctx, sublabel);
   const parent = await normaliseName(ctx, parentLabel);
+  validateParentPath(parent);
   const subnodeRecord: SubnodeRecord = {
     parentNode: await domainNode(ctx, parent),
     subLabel,
@@ -661,7 +651,7 @@ async function readLabelStore(ctx: DotnsContext, ownerAddress: Address): Promise
 
 type PendingClaim = { label: string; mintedAt: bigint };
 
-// `pendingClaims(address,uint256,uint256)` pages since dotns v0.6.0.
+// `pendingClaims(address,uint256,uint256)` returns one page per call.
 const PENDING_CLAIM_PAGE_LIMIT = 16n;
 const PENDING_CLAIM_PAGE_MAX = 16n;
 
@@ -743,7 +733,6 @@ export async function ensureLabelStoreReady(
 
 export type RegisterNameOptions = GenerateCommitmentOptions & {
   commitmentBuffer?: number;
-  callerAddress?: Address;
 };
 
 // Thin happy-path wrapper over the commit-reveal sequence for regular names. Each
@@ -762,18 +751,8 @@ export async function registerName(
   await waitForMinimumCommitmentAge(ctx, commitment, { commitmentBuffer: opts.commitmentBuffer });
 
   const owner = registration.owner;
-  const caller = opts.callerAddress ?? owner;
   const pricing = await getPriceAndValidateEligibility(ctx, label, owner);
-  const frictionWei = isSameEvmAddress(caller, owner)
-    ? 0n
-    : await quoteCrossPayerFriction(ctx, label, caller, owner);
-
-  const result = await finalizeRegularRegistration(
-    ctx,
-    registration,
-    pricing.priceWei,
-    frictionWei,
-  );
+  const result = await finalizeRegularRegistration(ctx, registration, pricing.priceWei);
   await verifyDomainOwnership(ctx, label, owner);
   return result;
 }

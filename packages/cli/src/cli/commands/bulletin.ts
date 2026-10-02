@@ -127,7 +127,7 @@ export function resolveBulletinCacheAssetHubRpc(options: {
   if (bulletinOverridden && !hasExplicitAssetHubRpc && !hasExplicitEnvironment) {
     throw new Error(
       "bulletin upload --cache with a custom Bulletin RPC requires --env, DOTNS_ENV, or --rpc " +
-        "so the on-chain Store write targets the matching DotNS Asset Hub environment.",
+        "so the on-chain Store write targets the matching dotNS Asset Hub environment.",
     );
   }
 
@@ -289,7 +289,7 @@ function writeBulletinJsonError(error: unknown): never {
 /**
  * Warn when the dev-default authorizer signer is used against an environment
  * where the bulletin Authorizer is almost certainly *not* the default
- * (previewnet). Silent on `paseo-v2` (local dev) and on explicit overrides.
+ * (previewnet). Silent on every other environment (paseo-v2, devnet) and on explicit overrides.
  */
 export function warnIfDevKeyOnTestnet(signerKeyUri: string, environmentId: string): void {
   if (signerKeyUri !== DEFAULT_BULLETIN_AUTHORIZER_KEY_URI) return;
@@ -1068,10 +1068,11 @@ export function attachBulletinCommands(root: Command): void {
             if (/insufficient|balance/i.test(msg)) {
               const balance = assetHubTokenSymbol ? `${assetHubTokenSymbol} balance` : "balance";
               reason = `insufficient ${balance} on Asset Hub — fund the account and retry with --cache`;
-            } else if (/no store deployed|store not deployed/i.test(msg)) {
-              reason = "no Store deployed — register a domain first or deploy a Store manually";
+            } else if (/no user store claimed/i.test(msg)) {
+              reason = "no User Store claimed; run `dotns store claim` and retry with --cache";
             } else if (/not authorized|unauthorized/i.test(msg)) {
-              reason = "Store not authorised for writes — run dotns store ensure-auth";
+              reason =
+                "Store not authorised for writes; check that this account owns the User Store (`dotns store info`)";
             } else {
               reason = msg;
             }

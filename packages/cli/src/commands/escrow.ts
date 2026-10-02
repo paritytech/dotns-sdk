@@ -91,7 +91,8 @@ export async function listEscrowPositions(
 }
 
 /// A position is the user's escrow deposit only while it holds a refundable amount. Zero-amount
-/// entries are PopFull/PopLite lifecycle markers or already-withdrawn slots, not staked deposits.
+/// entries come from cross-paid registrations, names priced at zero, or already-withdrawn
+/// positions; they hold no refundable deposit.
 export function isRefundableDeposit(position: { amount: bigint }): boolean {
   return position.amount > 0n;
 }
@@ -193,8 +194,9 @@ export async function withdrawName(ctx: DotnsContext, label: string): Promise<st
   );
 }
 
-/// Drains the legacy pull-payment ledger that holds registration-overpayment fallbacks. The
-/// caller receives the amount accumulated against their address.
+/// Drains the caller's pull-payment balance: deposits settled by `withdraw` or `reclaim`, plus
+/// registration overpayments the controller could not refund directly. The caller receives
+/// the amount accumulated against their address.
 export async function claimWithdrawal(ctx: DotnsContext): Promise<string> {
   return write(
     ctx,

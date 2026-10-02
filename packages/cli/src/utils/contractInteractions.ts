@@ -15,7 +15,7 @@ import type { TransactionStatus } from "../types/types";
 import { withTimeout } from "./formatting";
 
 // An empty-data revert has two common, unrelated causes, so the hint names both
-// rather than asserting the origin is unmapped: a genuinely unmapped origin makes
+// causes: a genuinely unmapped origin makes
 // pallet-revive reject reads with empty data, but so does calling a selector the
 // deployed contract does not expose, which is exactly what a stale ABI produces.
 export const EMPTY_DATA_REVERT_HINT =
@@ -31,11 +31,11 @@ export function isRevertFlag(flags: bigint): boolean {
 
 /**
  * A revert carrying revert data: the contract ran and rejected the call, so the
- * failure is an answer rather than a failure to reach the chain.
+ * failure is an answer from the chain.
  *
  * Deliberately not raised for the empty-data revert, whose causes are an unmapped
- * origin or a stale-ABI selector mismatch ({@link EMPTY_DATA_REVERT_HINT}) — setup
- * problems with their own remedies — nor for RPC failures, ABI mismatches or decode
+ * origin or a stale-ABI selector mismatch ({@link EMPTY_DATA_REVERT_HINT}), setup
+ * problems with their own remedies, nor for RPC failures, ABI mismatches or decode
  * errors. Callers that treat a revert as information must not treat those the same
  * way.
  */
@@ -58,7 +58,7 @@ export function buildRevertError(data: Hex, abi: Abi): Error {
       ? `${decoded.errorName}(${decoded.args.map(String).join(", ")})`
       : decoded.errorName;
   } catch {
-    // Unknown error selector — fall back to raw hex
+    // Unknown error selector: fall back to raw hex
   }
   return new ContractRevertError(revertReason);
 }
@@ -187,20 +187,12 @@ function namehashUnder(parent: Hex, label: string): Hex {
 }
 
 // EIP-137 namehash of a bare name (TLD already stripped) under `tldNode`: labels
-// fold right to left, as in `DotnsRegistry._parentNamehash`. Since dotns v0.7.0
-// this also covers a lite personhood name: `joseph.42` is `joseph` beneath the
-// container `42` (`SubnodeUtils.liteSubnodeOf`), which is exactly this fold.
+// fold right to left, as in `DotnsRegistry._parentNamehash`. This also covers a
+// device name: `joseph.42` is `joseph` beneath the
+// container `42` (`SubnodeUtils.deviceSubnodeOf`), which is exactly this fold.
 // `tldNode` is read from the protocol registry; each deployment has its own TLD.
 export function deriveDomainNode(tldNode: Hex, name: string): Hex {
   return name.split(".").reduceRight<Hex>((parent, label) => namehashUnder(parent, label), tldNode);
-}
-
-// Pre-v0.7.0 deployments minted a lite name as ONE label — the whole dotted
-// string hashed flat under the TLD. Names minted before an in-place upgrade
-// keep living at this node, so readers fall back to it when the folded node
-// has no record (see `domainNode` in core/naming.ts).
-export function deriveLegacyLiteNode(tldNode: Hex, liteLabel: string): Hex {
-  return namehashUnder(tldNode, liteLabel);
 }
 
 // The minted ERC721 tokenId is `uint256(node)`; only second-level names are tokenised.

@@ -159,7 +159,7 @@
   },
   {
     "type": "function",
-    "name": "personhoodOf",
+    "name": "popStatusOf",
     "inputs": [
       {
         "name": "account",
@@ -433,7 +433,7 @@
     "name": "releaseBaseName",
     "inputs": [
       {
-        "name": "stem",
+        "name": "baseName",
         "type": "string",
         "internalType": "string"
       }
@@ -446,7 +446,7 @@
     "name": "releaseReservationForReclaim",
     "inputs": [
       {
-        "name": "stem",
+        "name": "baseName",
         "type": "string",
         "internalType": "string"
       },
@@ -500,7 +500,7 @@
     "name": "reserveBaseName",
     "inputs": [
       {
-        "name": "stem",
+        "name": "baseName",
         "type": "string",
         "internalType": "string"
       },
@@ -518,7 +518,7 @@
     "name": "reserveBaseNameForPop",
     "inputs": [
       {
-        "name": "stem",
+        "name": "baseName",
         "type": "string",
         "internalType": "string"
       },
@@ -569,7 +569,7 @@
     ],
     "outputs": [
       {
-        "name": "stem",
+        "name": "baseName",
         "type": "string",
         "internalType": "string"
       }

@@ -21,7 +21,7 @@ async function main() {
   validateGovernanceLabel(label);
 
   // null means PopRules refuses to classify this label shape at all. registerReserved
-  // bypasses PopRules, so that is not a blocker — only a definite non-Reserved is.
+  // bypasses PopRules, so the only blocker is a definite non-Reserved classification.
   const classification = await tryClassifyDomainName(ctx, label);
   if (classification && classification.requiredStatus !== ProofOfPersonhoodStatus.Reserved) {
     throw new Error(
@@ -32,7 +32,6 @@ async function main() {
   await ensureDomainNotRegistered(ctx, label);
 
   const { commitment, registration } = await generateCommitment(ctx, label, {
-    includeReverse: true,
     governance: true,
   });
 

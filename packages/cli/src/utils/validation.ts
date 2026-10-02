@@ -3,35 +3,36 @@ import { isHex } from "viem";
 
 // Longest label the contracts accept (StringUtils.MAX_DNS_LABEL_OCTETS).
 const MAX_DNS_LABEL_LEN = 63;
-// Digits the gateway allocates after a lite stem (StringUtils.LITE_SUFFIX_DIGITS).
-const LITE_SUFFIX_DIGITS = 2;
+// Digits the gateway pallet allocates after a device-name stem (StringUtils.DEVICE_SUFFIX_DIGITS).
+const DEVICE_SUFFIX_DIGITS = 2;
+// Longest dotted parent path a subname registration may carry (StringUtils.MAX_NAME_PATH_OCTETS).
+const MAX_NAME_PATH_OCTETS = 255;
 
-// A name a person chose, mirroring StringUtils.isPersonLabel: lowercase ASCII
+// A name a person chose, mirroring StringUtils.isPersonhoodLabel: lowercase ASCII
 // letters only. Stricter than an ordinary label, which also takes digits and
 // hyphens, because the gateway pallet's `BaseLabel::is_valid_person` admits
-// neither. No lower bound: how short a name may be is PopRules policy, not
-// format.
-export function isPersonLabel(value: string): boolean {
+// neither. No lower bound: how short a name may be is PopRules policy.
+export function isPersonhoodLabel(value: string): boolean {
   return value.length > 0 && value.length <= MAX_DNS_LABEL_LEN && /^[a-z]+$/.test(value);
 }
 
-// A lite personhood name, mirroring StringUtils.isLitePersonLabel: a
-// letters-only stem, one separator, then exactly LITE_SUFFIX_DIGITS digits
-// (`joseph.42`). The stem follows the person rule, so `web3.42` and
-// `andrew-x.42` are shapes the gateway cannot have issued.
-export function isLitePersonLabel(value: string): boolean {
-  const separator = value.length - LITE_SUFFIX_DIGITS - 1;
+// A device name, mirroring StringUtils.isDeviceLabel: a letters-only stem, one
+// separator, then exactly DEVICE_SUFFIX_DIGITS digits (`joseph.42`). The stem follows
+// the personhood rule, so `web3.42` and `andrew-x.42` are shapes the gateway pallet
+// cannot have issued.
+export function isDeviceLabel(value: string): boolean {
+  const separator = value.length - DEVICE_SUFFIX_DIGITS - 1;
   if (separator < 1 || value[separator] !== ".") return false;
-  return isPersonLabel(value.slice(0, separator)) && /^\d+$/.test(value.slice(separator + 1));
+  return isPersonhoodLabel(value.slice(0, separator)) && /^\d+$/.test(value.slice(separator + 1));
 }
 
-// The part of `label` its tier is measured on, mirroring PopRules since v0.6.0:
-// the label as written, except a lite label, whose separator and allocated
-// digits come off first. The gateway allocates those digits to tell apart people
+// The part of `label` its tier is measured on, mirroring PopRules:
+// the label as written, except a device label, whose separator and allocated
+// digits come off first. The gateway pallet allocates those digits to tell apart people
 // who chose the same stem; nothing allocates the digits in `web3`, so it
 // measures whole.
 export function baseLabelOf(label: string): string {
-  return isLitePersonLabel(label) ? label.slice(0, -(LITE_SUFFIX_DIGITS + 1)) : label;
+  return isDeviceLabel(label) ? label.slice(0, -(DEVICE_SUFFIX_DIGITS + 1)) : label;
 }
 
 // Normalise a name or `name.<tld>` to its bare lowercase label. The TLD is a
@@ -46,16 +47,16 @@ export function normaliseLabel(name: string, tld = "dot"): string {
 }
 
 // True for a single label under the active TLD ("alice", "alice.paseo"), false
-// for subdomains ("sub.alice"). A lite name keeps its separator on chain and is
-// hashed as one whole label, so it is a single name despite the dot.
+// for subdomains ("sub.alice"). A device name keeps its separator and names one owner,
+// so it is a single name despite the dot; `domainNode` resolves where it is stored.
 export function isSecondLevelDotName(name: string, tld = "dot"): boolean {
   const bare = normaliseLabel(name, tld);
-  if (isLitePersonLabel(bare)) return true;
+  if (isDeviceLabel(bare)) return true;
   return bare.split(".").filter(Boolean).length === 1;
 }
 
-// A single canonical DNS label, mirroring the contract's StringUtils._isDnsLabel
-// (PopRules._requireCanonicalLabel / registry subnode rules): lowercase ASCII
+// A single canonical DNS label, mirroring StringUtils.isSingleLabel (PopRules'
+// label checks and DotnsRegistry.setSubnodeOwner's subLabel check): lowercase ASCII
 // letters, digits and hyphen only, no leading or trailing hyphen, length 1-63, no
 // dots. Non-canonical labels revert on-chain, so reject them before submitting.
 const CANONICAL_LABEL_REGEX = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
@@ -73,11 +74,11 @@ export function validateCanonicalLabel(label: string, role = "label"): void {
 }
 
 export function validateDomainLabel(label: string): void {
-  // A lite name is a valid on-chain label, so the charset error below would misdescribe
-  // it. Only the gateway issues one, so say that instead.
-  if (isLitePersonLabel(label)) {
+  // A device name is a valid on-chain label, so the charset error below would misdescribe
+  // it. Only the gateway pallet issues one, so say that instead.
+  if (isDeviceLabel(label)) {
     throw new Error(
-      `Invalid domain label: "${label}" is a lite personhood name; the gateway issues these and they cannot be registered here`,
+      `Invalid domain label: "${label}" is a device name; the dotNS gateway pallet issues these and they cannot be registered here`,
     );
   }
 
@@ -91,26 +92,40 @@ export function validateDomainLabel(label: string): void {
     throw new Error("Invalid domain label: cannot start or end with hyphen");
   }
 
-  // Since dotns v0.6.0 an ordinary label is measured as written: digits carry no
+  // An ordinary label is measured as written: digits carry no
   // special meaning and no count is privileged or rejected ("web3", "blink182").
-  // A lite name is the dotted form issued by the gateway and never enters here.
+  // A device name is the dotted form issued by the gateway pallet and never enters here.
 }
 
-// A label for an operation on a name that already exists. Accepts a lite personhood
-// name alongside an ordinary label: since v0.6.0 the gateway stores `joseph.42` as one
-// whole label, and its holder can still delegate it or make it their primary name.
-// Registration paths keep {@link validateDomainLabel}, which refuses a lite name
-// because only the gateway can issue one.
+// A label for an operation on a name that already exists. Accepts a device name
+// alongside an ordinary label: the gateway pallet issues `joseph.42` to one holder, who
+// can still delegate it or make it their primary name.
+// Registration paths keep {@link validateDomainLabel}, which refuses a device name
+// because only the gateway pallet can issue one.
 export function validateExistingNameLabel(label: string): void {
-  if (isLitePersonLabel(label)) return;
+  if (isDeviceLabel(label)) return;
   validateDomainLabel(label);
+}
+
+// The parent path of a subname registration, bounded at StringUtils.MAX_NAME_PATH_OCTETS.
+// The bound is on the dotted parent string the caller passes, with no TLD. Applied on every
+// deployment: a registry without the bound stores the full name in a label-store row that
+// cannot be deleted, and one with it rejects the path with a generic ParentLabelMismatch.
+// Checked before any chain read.
+export function validateParentPath(path: string): void {
+  const octets = new TextEncoder().encode(path).length;
+  if (octets > MAX_NAME_PATH_OCTETS) {
+    throw new Error(
+      `Invalid parent name: ${octets} bytes long; dotNS limits a parent name to ${MAX_NAME_PATH_OCTETS} bytes`,
+    );
+  }
 }
 
 /**
  * Validates a label for the governance registration path.
  *
  * Intentionally does **not** delegate to {@link validateDomainLabel}: this path
- * does not go through PopRules, and a governance label is never a lite name.
+ * does not go through PopRules, and a governance label is never a device name.
  * Checks the canonical label shape, a minimum length of 3, and bounds the base to
  * the reserved class this path exists for.
  *

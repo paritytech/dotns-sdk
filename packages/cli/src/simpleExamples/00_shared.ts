@@ -25,7 +25,7 @@ export type ConnectedDotns = {
 
 // Builds the keyring-backed signer here only because this is a local dev example.
 // A real consumer (mobile, extension, hardware) constructs its own PolkadotSigner
-// and passes it straight to createDotnsContext — no keyring involved.
+// and passes it straight to createDotnsContext without a keyring.
 export async function connectDotns(): Promise<ConnectedDotns> {
   const rpc = process.env.DOTNS_RPC ?? RPC_ENDPOINTS[0];
 

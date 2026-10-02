@@ -8,7 +8,7 @@ this file is the contributor mechanics.
 
 1. Opening an issue
    - Check whether an issue already exists before creating a new one.
-   - If a related issue exists, add details there rather than duplicating.
+   - If a related issue exists, add details there; do not open a duplicate.
    - Use issues for bug reports, feature requests, and process suggestions.
 
 2. Resolving an issue
@@ -45,8 +45,8 @@ Before opening a pull request:
 - Install dependencies: `bun install`
 - Format: `bun run format`
 - Lint: `bun run lint`
-- Type-check: `bun run typecheck`
-- Run the tests: `bun test`
+- Type-check: `bun run --cwd packages/cli typecheck`
+- Run the tests: `bun run --cwd packages/cli test:unit`
 - Add or update tests for new behaviour, especially anything that changes how a name is interpreted
   or how a transaction is encoded.
 - Keep changes small enough to review, or explain the design trade-offs clearly.
@@ -54,7 +54,7 @@ Before opening a pull request:
 ## Standards
 
 1. Formatting and linting
-   - All code should pass Biome formatting and linting and `tsc` type-checking.
+   - All code should pass ESLint, Prettier and `tsc` type-checking.
 
 2. Public APIs
    - Keep exported functions and types documented and stable.
@@ -62,7 +62,7 @@ Before opening a pull request:
      document it, test it, and assume downstream consumers will break if it is ambiguous.
 
 3. Generated inputs
-   - ABIs are generated inputs synced from the DotNS contracts releases. Do not edit them by hand;
+   - ABIs are generated inputs synced from the dotNS contracts releases. Do not edit them by hand;
      update them through the sync script.
 
 ## Reporting security issues

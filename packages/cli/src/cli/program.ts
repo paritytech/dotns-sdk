@@ -16,10 +16,13 @@ import { ENV } from "./env";
 
 export function createProgram() {
   const program = new Command();
-  program.name("dotns").description("dotns developer CLI");
+  program.name("dotns").description("dotNS developer CLI");
   program.version(version, "-v, --version");
   program
-    .option("--env <environment>", `DotNS environment: paseo-v2 (env: ${ENV.DOTNS_ENV})`)
+    .option(
+      "--env <environment>",
+      `dotNS environment: paseo-v2, previewnet or devnet (env: ${ENV.DOTNS_ENV})`,
+    )
     .option("--network <environment>", "Alias for --env");
   attachPopCommands(program);
   attachAuthCommands(program);

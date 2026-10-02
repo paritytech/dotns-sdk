@@ -9,7 +9,7 @@
 
 ## Setup
 ```bash
-git clone https://github.com/parity/dotns-sdk.git
+git clone https://github.com/paritytech/dotns-sdk.git
 cd dotns-sdk
 bun install
 cd packages/cli && bun run build
@@ -30,9 +30,9 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 <type>(<scope>): <description>
 ```
 
-Types: feat, fix, docs, style, refactor, test, chore
+Types: feat, fix, bug, docs, style, refactor, test, chore, ci, perf, revert
 
-Scopes: cli, bulletin, auth, register, deps, ci
+Scopes: cli, ui, bulletin, auth, register, content, pop, lookup, deps, ci, release
 
 Examples:
 ```
@@ -46,7 +46,7 @@ chore(deps): bump polkadot-api
 
 1. Create branch from `main`
 2. Make changes
-3. Run `bun run typecheck && bun run lint`
+3. Run `bun run typecheck && bun run lint` in `packages/cli`
 4. Open PR with clear description
 
 ## Code Style

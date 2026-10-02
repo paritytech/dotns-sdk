@@ -2,10 +2,8 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { zeroAddress, type Address } from "viem";
 import * as realContext from "../../../src/core/context";
 
-// paritytech/dotns#252: release, transfer and register were offered on names the contracts
-// would reject, and the user found out from a decoded revert after signing (release even left
-// an approval behind). These tests pin the pre-checks: every refusal is inspectName reading the
-// same fact the contract's own `require` checks, before any write is submitted.
+// These tests pin the pre-checks: every refusal is inspectName reading the same fact the
+// contract's own `require` checks, before any write is submitted.
 
 const TLD_NODE = "0x1111111111111111111111111111111111111111111111111111111111111111";
 const HOLDER = "0x1111111111111111111111111111111111111111" as Address;
@@ -118,7 +116,7 @@ describe("releaseName refuses before the approve", () => {
     expect(writes).toEqual([]);
   });
 
-  test("a subname or lite name, which has no registrar token", async () => {
+  test("a subname or device name, which has no registrar token", async () => {
     hasToken = false;
     await expect(releaseName(ctx, "alice")).rejects.toThrow("no token to release");
     expect(writes).toEqual([]);
@@ -130,7 +128,7 @@ describe("releaseName refuses before the approve", () => {
     expect(writes).toEqual([]);
   });
 
-  test("a failed soulbound read, rather than treating it as not soulbound", async () => {
+  test("a failed soulbound read, which aborts the release", async () => {
     soulbound = new Error("RPC timeout");
     await expect(releaseName(ctx, "alice")).rejects.toThrow("RPC timeout");
     expect(writes).toEqual([]);
@@ -166,7 +164,7 @@ describe("releaseName refuses before the approve", () => {
 });
 
 describe("transferName refuses before the write", () => {
-  test("a subname or lite name, which has no registrar token", async () => {
+  test("a subname or device name, which has no registrar token", async () => {
     hasToken = false;
     await expect(transferName(ctx, "alice", STRANGER)).rejects.toThrow("no token to transfer");
     expect(writes).toEqual([]);

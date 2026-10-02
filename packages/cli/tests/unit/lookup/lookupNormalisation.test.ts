@@ -2,10 +2,8 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { concatHex, keccak256, toBytes, zeroAddress, type Hex } from "viem";
 import * as realContext from "../../../src/core/context";
 
-// paritytech/dotns#257: lookup hashed user input as-is, so a fully-qualified
-// name (`alice.paseo`) derived the wrong node and read as "not registered",
-// while register normalised the same input. These tests pin the fix: both
-// lookup entry points must resolve `alice` and `alice.<tld>` identically.
+// Both lookup entry points must resolve `alice` and `alice.<tld>` to the same node,
+// as register does.
 
 const PASEO_NODE = "0x1111111111111111111111111111111111111111111111111111111111111111";
 
@@ -20,8 +18,8 @@ const BLOG_ALICE_NODE = under(ALICE_NODE, "blog");
 
 // Arguments seen by each contract read, keyed by function.
 const seenArgs: Record<string, unknown[][]> = {};
-// Per-test switchboard for which lite node currently has a registry record.
-const liteNodes: { folded?: Hex; legacy?: Hex } = {};
+// Per-test switch for whether the device name's node currently has a registry record.
+let deviceNode: Hex | undefined;
 
 function fakeRead(
   _ctx: unknown,
@@ -35,10 +33,9 @@ function fakeRead(
   if (functionName === "tldNode") return PASEO_NODE;
   // The registry returns the suffix with its leading dot; resolveTldInfo strips it.
   if (functionName === "tld") return ".paseo";
-  // The subname `blog.alice` plus whatever lite nodes a test arms exist here.
+  // The subname `blog.alice` plus whatever device-name nodes a test arms exist here.
   const node = args[0];
-  const isKnown =
-    node === BLOG_ALICE_NODE || node === liteNodes.folded || node === liteNodes.legacy;
+  const isKnown = node === BLOG_ALICE_NODE || node === deviceNode;
   if (functionName === "recordExists") return isKnown;
   if (functionName === "owner") return isKnown ? SUBNAME_OWNER : zeroAddress;
   if (functionName === "resolver") return zeroAddress;
@@ -81,7 +78,6 @@ describe("lookup normalises fully-qualified names", () => {
 
     expect(qualified.node).toBe(bare.node);
     expect(bare.domain).toBe("alice.paseo");
-    // Previously rendered `alice.paseo.paseo`.
     expect(qualified.domain).toBe("alice.paseo");
   });
 
@@ -106,29 +102,20 @@ describe("lookup normalises fully-qualified names", () => {
   });
 });
 
-describe("lite names resolve on both node schemes", () => {
-  const FOLDED_LITE = under(under(PASEO_NODE, "42"), "joseph");
-  const LEGACY_LITE = under(PASEO_NODE, "maria.07");
+describe("device names resolve at their folded subnode", () => {
+  const JOSEPH_42 = under(under(PASEO_NODE, "42"), "joseph");
 
-  test("a v0.7.0 lite name resolves at its folded subnode", async () => {
-    liteNodes.folded = FOLDED_LITE;
+  test("a registered device name resolves as its stem beneath the numeric container", async () => {
+    deviceNode = JOSEPH_42;
     const result = await performDomainLookup(namingCtx, "joseph.42");
-    expect(result.node).toBe(FOLDED_LITE);
+    expect(result.node).toBe(JOSEPH_42);
     expect(result.exists).toBe(true);
-    liteNodes.folded = undefined;
+    deviceNode = undefined;
   });
 
-  test("a pre-v0.7.0 lite name falls back to its flat node", async () => {
-    liteNodes.legacy = LEGACY_LITE;
-    const result = await performDomainLookup(namingCtx, "maria.07");
-    expect(result.node).toBe(LEGACY_LITE);
-    expect(result.exists).toBe(true);
-    liteNodes.legacy = undefined;
-  });
-
-  test("an unregistered lite name reports the legacy node and no record", async () => {
+  test("an unregistered device name reports its folded node and no record", async () => {
     const result = await performDomainLookup(namingCtx, "nobody.99");
-    expect(result.node).toBe(under(PASEO_NODE, "nobody.99"));
+    expect(result.node).toBe(under(under(PASEO_NODE, "99"), "nobody"));
     expect(result.exists).toBe(false);
   });
 });

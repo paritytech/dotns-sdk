@@ -132,7 +132,7 @@ function describeKnownChain(genesisHash: string): string | undefined {
 
 // Fails when the connected chain is not the one the selected environment's
 // address book belongs to. `--rpc`/`DOTNS_RPC` override the endpoint without
-// touching the environment, and the three testnets even share contract
+// touching the environment, and paseo-v2 and previewnet even share contract
 // addresses, so without this check a mismatch answers (and signs) confidently
 // on the wrong chain. `DOTNS_SKIP_CHAIN_CHECK=1` bypasses it, for the window
 // right after an intentional chain relaunch.
@@ -154,7 +154,7 @@ export async function assertExpectedChain(
     : `the endpoint reports genesis ${actual}`;
   throw new Error(
     [
-      `WRONG CHAIN — refusing to continue.`,
+      `WRONG CHAIN: refusing to continue.`,
       `Selected environment: ${environment.id} (expects ${chainName} genesis ${expected})`,
       `Connected endpoint:   ${actualLine}`,
       chainKind === "bulletin"

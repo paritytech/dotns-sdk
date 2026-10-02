@@ -254,7 +254,7 @@ describe("TLD ingested from chain", () => {
   });
   afterEach(() => clearTldInfoCache());
 
-  test("resolveTldInfo reads the deployment TLD rather than assuming .dot", async () => {
+  test("resolveTldInfo reads the deployment TLD", async () => {
     expect(await resolveTldInfo(namingCtx)).toEqual({ tldNode: PASEO_NODE, tld: "paseo" });
     expect(reads).toEqual(["protocolRegistry", "tldNode", "tld"]);
   });

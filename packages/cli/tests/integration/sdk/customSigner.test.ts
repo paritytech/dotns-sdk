@@ -21,8 +21,8 @@ import {
 import { RPC_ENDPOINTS } from "../../../src/utils/constants";
 
 // Builds a PolkadotSigner with no dependency on @polkadot/keyring or the CLI auth
-// stack — the same shape a mobile wallet, browser extension, or hardware signer
-// would supply. This is the heart of issue #136: the consumer brings the signer.
+// stack: the same shape a mobile wallet, browser extension, or hardware signer
+// would supply. The consumer brings the signer.
 function createCustomSigner(): { signer: PolkadotSigner; origin: string } {
   const miniSecret = entropyToMiniSecret(mnemonicToEntropy(DEV_PHRASE));
   const keypair = sr25519CreateDerive(miniSecret)("//Alice");
@@ -32,7 +32,7 @@ function createCustomSigner(): { signer: PolkadotSigner; origin: string } {
   return { signer, origin: ss58Address(keypair.publicKey) };
 }
 
-describe("custom signer injection (#136)", () => {
+describe("custom signer injection", () => {
   test("createDotnsContext accepts a self-built signer and carries it unchanged", () => {
     const { signer, origin } = createCustomSigner();
     const ctx = createDotnsContext({

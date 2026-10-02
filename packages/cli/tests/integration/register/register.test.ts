@@ -146,7 +146,7 @@ test(
 );
 
 test(
-  "regression: register domain must not implicitly set PoP status",
+  "register domain does not set a personhood status",
   async () => {
     createPathsForTest("regression_register_domain_does_not_set_pop");
     const keystorePath = await ensureDefaultKeystore();

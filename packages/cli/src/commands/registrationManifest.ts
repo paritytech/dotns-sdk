@@ -25,7 +25,7 @@ import { formatErrorMessage } from "../utils/formatting";
  * cache can be listed and cleared without unlocking.
  */
 export type CommitmentRecord = {
-  /** DotNS environment id the commit was submitted on (e.g. "paseo-v2"). */
+  /** dotNS environment id the commit was submitted on (e.g. "paseo-v2"). */
   env: string;
   /** EVM address that submitted the commit (the cache owner). */
   caller: Address;
@@ -35,7 +35,7 @@ export type CommitmentRecord = {
   owner: Address;
   /** The commit-reveal `reserved` field (governance true, or regular --reverse). */
   reserved: boolean;
-  /** True when the reveal must use registerReserved (governance) rather than register. */
+  /** True when the reveal goes through registerReserved (governance); false means register. */
   governance: boolean;
   /**
    * Slippage ceiling (wei) sealed into the commitment, as a decimal string so the

@@ -61,7 +61,7 @@
     "name": "expireReservation",
     "inputs": [
       {
-        "name": "reservedBaseLabel",
+        "name": "label",
         "type": "string",
         "internalType": "string"
       }
@@ -116,7 +116,7 @@
     "name": "isReservedForClaim",
     "inputs": [
       {
-        "name": "reservedBaseLabel",
+        "name": "label",
         "type": "string",
         "internalType": "string"
       }
@@ -134,6 +134,125 @@
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "issueDeviceName",
+    "inputs": [
+      {
+        "name": "params",
+        "type": "tuple",
+        "internalType": "struct IDotnsPopController.DeviceNameIssuance",
+        "components": [
+          {
+            "name": "label",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "user",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "chatKey",
+            "type": "bytes",
+            "internalType": "bytes"
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "issueDeviceNameWithReservation",
+    "inputs": [
+      {
+        "name": "params",
+        "type": "tuple",
+        "internalType": "struct IDotnsPopController.DeviceNameIssuanceWithReservation",
+        "components": [
+          {
+            "name": "issuance",
+            "type": "tuple",
+            "internalType": "struct IDotnsPopController.DeviceNameIssuance",
+            "components": [
+              {
+                "name": "label",
+                "type": "string",
+                "internalType": "string"
+              },
+              {
+                "name": "user",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "chatKey",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ]
+          },
+          {
+            "name": "reservedLabel",
+            "type": "string",
+            "internalType": "string"
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "issuePersonhoodName",
+    "inputs": [
+      {
+        "name": "params",
+        "type": "tuple",
+        "internalType": "struct IDotnsPopController.PersonhoodNameIssuance",
+        "components": [
+          {
+            "name": "label",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "user",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "link",
+            "type": "tuple",
+            "internalType": "struct IDotnsPopController.Link",
+            "components": [
+              {
+                "name": "kind",
+                "type": "uint8",
+                "internalType": "enum IDotnsPopController.LinkKind"
+              },
+              {
+                "name": "deviceLabel",
+                "type": "string",
+                "internalType": "string"
+              },
+              {
+                "name": "chatKey",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -278,7 +397,7 @@
       {
         "name": "params",
         "type": "tuple",
-        "internalType": "struct IDotnsPopController.FullRegistration",
+        "internalType": "struct IDotnsPopController.PersonhoodNameIssuance",
         "components": [
           {
             "name": "label",
@@ -301,7 +420,7 @@
                 "internalType": "enum IDotnsPopController.LinkKind"
               },
               {
-                "name": "liteLabel",
+                "name": "deviceLabel",
                 "type": "string",
                 "internalType": "string"
               },
@@ -405,15 +524,15 @@
       {
         "name": "params",
         "type": "tuple",
-        "internalType": "struct IDotnsPopController.BaseReservation",
+        "internalType": "struct IDotnsPopController.DeviceNameIssuanceWithReservation",
         "components": [
           {
-            "name": "lite",
+            "name": "issuance",
             "type": "tuple",
-            "internalType": "struct IDotnsPopController.LiteRegistration",
+            "internalType": "struct IDotnsPopController.DeviceNameIssuance",
             "components": [
               {
-                "name": "liteLabel",
+                "name": "label",
                 "type": "string",
                 "internalType": "string"
               },
@@ -430,32 +549,7 @@
             ]
           },
           {
-            "name": "reservedBaseLabel",
-            "type": "string",
-            "internalType": "string"
-          }
-        ]
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "reserveBaseNameOnly",
-    "inputs": [
-      {
-        "name": "params",
-        "type": "tuple",
-        "internalType": "struct IDotnsPopController.BaseNameReservation",
-        "components": [
-          {
-            "name": "user",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "reservedBaseLabel",
+            "name": "reservedLabel",
             "type": "string",
             "internalType": "string"
           }
@@ -472,10 +566,10 @@
       {
         "name": "params",
         "type": "tuple",
-        "internalType": "struct IDotnsPopController.LiteRegistration",
+        "internalType": "struct IDotnsPopController.DeviceNameIssuance",
         "components": [
           {
-            "name": "liteLabel",
+            "name": "label",
             "type": "string",
             "internalType": "string"
           },
@@ -497,7 +591,32 @@
   },
   {
     "type": "function",
-    "name": "reservedBaseLabelOf",
+    "name": "reservePersonhoodName",
+    "inputs": [
+      {
+        "name": "params",
+        "type": "tuple",
+        "internalType": "struct IDotnsPopController.PersonhoodNameReservation",
+        "components": [
+          {
+            "name": "user",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "label",
+            "type": "string",
+            "internalType": "string"
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "reservedLabelOf",
     "inputs": [
       {
         "name": "labelhash",
@@ -507,7 +626,7 @@
     ],
     "outputs": [
       {
-        "name": "baseLabel",
+        "name": "label",
         "type": "string",
         "internalType": "string"
       }
@@ -652,7 +771,7 @@
   },
   {
     "type": "event",
-    "name": "BaseNameClaimed",
+    "name": "DeviceNameIssued",
     "inputs": [
       {
         "name": "labelhash",
@@ -671,6 +790,25 @@
         "type": "string",
         "indexed": false,
         "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "DeviceNameLinked",
+    "inputs": [
+      {
+        "name": "personhoodLabelhash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "deviceLabelhash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
       }
     ],
     "anonymous": false
@@ -684,50 +822,6 @@
         "type": "uint64",
         "indexed": false,
         "internalType": "uint64"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "LiteNameReserved",
-    "inputs": [
-      {
-        "name": "labelhash",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "user",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "label",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "LiteToFullLinked",
-    "inputs": [
-      {
-        "name": "fullLabelhash",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "liteLabelhash",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
       }
     ],
     "anonymous": false
@@ -840,6 +934,50 @@
   },
   {
     "type": "event",
+    "name": "PersonhoodNameIssued",
+    "inputs": [
+      {
+        "name": "labelhash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "label",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ReservationClaimed",
+    "inputs": [
+      {
+        "name": "reservedLabelhash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "ReservationDurationSet",
     "inputs": [
       {
@@ -847,6 +985,25 @@
         "type": "uint64",
         "indexed": false,
         "internalType": "uint64"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ReservationEvicted",
+    "inputs": [
+      {
+        "name": "reservedLabelhash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
       }
     ],
     "anonymous": false
@@ -935,31 +1092,6 @@
   },
   {
     "type": "event",
-    "name": "StandaloneNameRegistered",
-    "inputs": [
-      {
-        "name": "labelhash",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "user",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "label",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
     "name": "Upgraded",
     "inputs": [
       {
@@ -1000,8 +1132,24 @@
   },
   {
     "type": "error",
-    "name": "BaseNameAlreadyRegistered",
+    "name": "DeviceNameAlreadyIssued",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "DeviceNameNotOwned",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "deviceLabelhash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ]
   },
   {
     "type": "error",
@@ -1042,6 +1190,11 @@
   },
   {
     "type": "error",
+    "name": "InvalidDeviceLabel",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidInitialization",
     "inputs": []
   },
@@ -1052,23 +1205,7 @@
   },
   {
     "type": "error",
-    "name": "LiteLabelNotOwnedByUser",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "liteLabelhash",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "LiteNameAlreadyIssued",
+    "name": "InvalidPersonhoodLabel",
     "inputs": []
   },
   {
@@ -1134,6 +1271,11 @@
         "internalType": "address"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "PersonhoodNameUnavailable",
+    "inputs": []
   },
   {
     "type": "error",
