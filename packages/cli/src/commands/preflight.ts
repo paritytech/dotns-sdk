@@ -2,6 +2,7 @@ import type { Address } from "viem";
 import { isSameEvmAddress } from "../utils/address";
 import { formatUnixSeconds } from "../utils/formatting";
 import type { NameInspection } from "./inspectName";
+import { releasePhase } from "./escrowStatus";
 
 /// Rules a command checks against an inspection before submitting a write. Each mirrors the
 /// contract's own `require` so the user gets the reason instead of a decoded revert.
@@ -46,11 +47,14 @@ export function assertReleasable(n: NameInspection, signer: Address, nowSeconds:
   }
   if (n.position.released) {
     const until = formatUnixSeconds(n.position.redeemableUntil);
-    const phase =
-      nowSeconds < n.position.redeemableUntil
+    const phase = releasePhase(n.position, nowSeconds);
+    const detail =
+      phase === "redeemable"
         ? `redeemable by the previous holder until ${until}`
-        : `its redeem window closed at ${until}, so anyone may register it`;
-    throw new Error(`Cannot release: ${n.domain} is already released; ${phase}.`);
+        : phase === "awaiting"
+          ? `its deposit was withdrawn, so nobody can redeem it; anyone may register it from ${until}`
+          : `its redeem window closed at ${until}, so anyone may register it`;
+    throw new Error(`Cannot release: ${n.domain} is already released; ${detail}.`);
   }
   if (!isSameEvmAddress(n.position.recipient, signer)) {
     throw new Error(
@@ -83,10 +87,19 @@ export function assertRedeemable(n: NameInspection, signer: Address, nowSeconds:
   }
 }
 
-/// A released name stays reserved for its previous holder through the redeem window.
-export function explainUnavailable(n: NameInspection): string {
+/// A released name stays unavailable through the redeem window: reserved for its previous
+/// holder, or, once the deposit is withdrawn, simply waiting for the window to close.
+export function explainUnavailable(n: NameInspection, nowSeconds: bigint): string {
   if (n.position?.released) {
-    return `${n.domain} was released and is reserved for its previous holder until ${formatUnixSeconds(n.position.redeemableUntil)}; registration opens once that redeem window closes.`;
+    const until = formatUnixSeconds(n.position.redeemableUntil);
+    switch (releasePhase(n.position, nowSeconds)) {
+      case "redeemable":
+        return `${n.domain} was released and is reserved for its previous holder until ${until}; registration opens once that redeem window closes.`;
+      case "awaiting":
+        return `${n.domain} was released and its deposit withdrawn; registration opens at ${until}.`;
+      default:
+        break;
+    }
   }
   return `${n.domain} is already registered.`;
 }

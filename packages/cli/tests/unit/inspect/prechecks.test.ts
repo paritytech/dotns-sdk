@@ -149,6 +149,14 @@ describe("releaseName refuses before the approve", () => {
     expect(writes).toEqual([]);
   });
 
+  test("a released name whose deposit was withdrawn, saying nobody can redeem it", async () => {
+    position = heldPosition({ released: true, claimed: true, redeemableUntil: now() + 3_600n });
+    const refusal = releaseName(ctx, "alice");
+    await expect(refusal).rejects.toThrow("deposit was withdrawn, so nobody can redeem it");
+    await expect(refusal).rejects.not.toThrow("redeemable by the previous holder");
+    expect(writes).toEqual([]);
+  });
+
   test("a name owned by another account", async () => {
     owner = STRANGER;
     position = heldPosition({ recipient: STRANGER });
@@ -194,10 +202,18 @@ describe("transferName refuses before the write", () => {
 describe("ensureDomainNotRegistered", () => {
   test("explains a name inside its redeem window and when registration opens", async () => {
     available = false;
-    position = heldPosition({ released: true, redeemableUntil: 1_200n });
+    position = heldPosition({ released: true, redeemableUntil: now() + 3_600n });
     await expect(ensureDomainNotRegistered(ctx, "alice")).rejects.toThrow(
-      "reserved for its previous holder until 1970-01-01T00:20:00.000Z",
+      "reserved for its previous holder until",
     );
+  });
+
+  test("says only when registration opens once the deposit was withdrawn", async () => {
+    available = false;
+    position = heldPosition({ released: true, claimed: true, redeemableUntil: now() + 3_600n });
+    const refusal = ensureDomainNotRegistered(ctx, "alice");
+    await expect(refusal).rejects.toThrow("deposit withdrawn; registration opens at");
+    await expect(refusal).rejects.not.toThrow("reserved for its previous holder");
   });
 
   test("does not mention a redeem window for a held, unreleased name", async () => {

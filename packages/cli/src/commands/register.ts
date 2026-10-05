@@ -48,7 +48,7 @@ import {
 } from "../core/naming";
 import { inspectName } from "./inspectName";
 import { explainUnavailable } from "./preflight";
-import { convertWeiToNative } from "../utils/formatting";
+import { convertWeiToNative, nowSeconds } from "../utils/formatting";
 import { isSameEvmAddress } from "../utils/address";
 
 // msg.value carries 10% over the charged amount so a price movement between quote
@@ -176,7 +176,7 @@ export async function ensureDomainNotRegistered(ctx: DotnsContext, name: string)
 
   // The explanation is best effort: a failed read must not turn the refusal into an RPC error.
   const detail = await inspectName(ctx, label)
-    .then(explainUnavailable)
+    .then((inspection) => explainUnavailable(inspection, nowSeconds()))
     .catch(() => undefined);
   throw new DomainUnavailableError(await formatDomainName(ctx, label), detail);
 }
