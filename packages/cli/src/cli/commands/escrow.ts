@@ -6,11 +6,6 @@ import type { Address } from "viem";
 import {
   getEscrowPosition,
   listEscrowPositions,
-  totalEscrowAmount,
-  formatPositionStatus,
-  formatReleasePhase,
-  releasePhase,
-  cooldownRemainingSeconds,
   releaseName,
   redeemName,
   withdrawName,
@@ -20,6 +15,13 @@ import {
   claimRefund,
   claimRefundsBatch,
 } from "../../commands/escrow";
+import {
+  totalEscrowAmount,
+  formatPositionStatus,
+  formatReleasePhase,
+  releasePhase,
+  cooldownRemainingSeconds,
+} from "../../commands/escrowStatus";
 import { formatPositionsTable, formatRefundEntryLine } from "../views/escrow";
 import { listStoreNames } from "../../commands/storeManagement";
 import { resolveTransferRecipient } from "../transfer";

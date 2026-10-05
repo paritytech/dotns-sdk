@@ -57,26 +57,28 @@ export {
   listRefunds,
   releaseName,
   redeemName,
-  releasePhase,
-  formatReleasePhase,
   withdrawName,
   claimWithdrawal,
   claimRefund,
   claimRefundsBatch,
-  isRefundableDeposit,
-  totalEscrowAmount,
-  cooldownRemainingSeconds,
-  formatCooldown,
-  formatPositionStatus,
 } from "../commands/escrow";
 export type {
   EscrowPositionView,
   ReleaseResult,
   RedeemResult,
-  ReleasePhase,
   RefundEntryView,
   RefundsListResult,
 } from "../commands/escrow";
+export {
+  isRefundableDeposit,
+  totalEscrowAmount,
+  cooldownRemainingSeconds,
+  formatCooldown,
+  formatPositionStatus,
+  releasePhase,
+  formatReleasePhase,
+} from "../commands/escrowStatus";
+export type { ReleasePhase } from "../commands/escrowStatus";
 export { inspectName } from "../commands/inspectName";
 export { formatUnixSeconds, nowSeconds } from "../utils/formatting";
 export {

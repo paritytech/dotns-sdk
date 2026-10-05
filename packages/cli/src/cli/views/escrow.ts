@@ -1,10 +1,6 @@
 import chalk from "chalk";
-import {
-  type EscrowPositionView,
-  type RefundEntryView,
-  formatPositionStatus,
-  releasePhase,
-} from "../../commands/escrow";
+import type { EscrowPositionView, RefundEntryView } from "../../commands/escrow";
+import { formatPositionStatus, releasePhase } from "../../commands/escrowStatus";
 import { formatWeiAsEther } from "../../utils/formatting";
 
 function colorPositionStatus(status: string): string {

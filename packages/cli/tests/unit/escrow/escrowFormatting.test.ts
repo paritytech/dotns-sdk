@@ -8,7 +8,7 @@ import {
   formatPositionStatus,
   releasePhase,
   formatReleasePhase,
-} from "../../../src/commands/escrow";
+} from "../../../src/commands/escrowStatus";
 import { formatRefundEntryLine, formatPositionsTable } from "../../../src/cli/views/escrow";
 import { DOTNS_NAME_ESCROW_ABI } from "../../../src/utils/constants";
 
