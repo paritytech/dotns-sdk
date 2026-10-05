@@ -3,6 +3,7 @@ import {
   type EscrowPositionView,
   type RefundEntryView,
   formatPositionStatus,
+  releasePhase,
 } from "../../commands/escrow";
 import { formatWeiAsEther } from "../../utils/formatting";
 
@@ -13,8 +14,8 @@ function colorPositionStatus(status: string): string {
   return chalk.gray(status);
 }
 
-/// Renders positions as an aligned NAME / DEPOSIT / STATUS table. Empty input yields no
-/// lines so the caller can print its own "no positions" message.
+/// Renders positions as an aligned NAME / DEPOSIT / PHASE / STATUS table. Empty input yields
+/// no lines so the caller can print its own "no positions" message.
 export function formatPositionsTable(
   positions: readonly EscrowPositionView[],
   nowSeconds: bigint,
@@ -24,17 +25,19 @@ export function formatPositionsTable(
   const rows = positions.map((position) => ({
     name: position.domain,
     deposit: `${formatWeiAsEther(position.amount)} PAS`,
+    phase: releasePhase(position, nowSeconds),
     status: formatPositionStatus(position, nowSeconds),
   }));
   const nameWidth = Math.max("NAME".length, ...rows.map((row) => row.name.length));
   const depositWidth = Math.max("DEPOSIT".length, ...rows.map((row) => row.deposit.length));
+  const phaseWidth = Math.max("PHASE".length, ...rows.map((row) => row.phase.length));
 
-  const header = `${chalk.bold("NAME".padEnd(nameWidth))}  ${chalk.bold("DEPOSIT".padEnd(depositWidth))}  ${chalk.bold("STATUS")}`;
+  const header = `${chalk.bold("NAME".padEnd(nameWidth))}  ${chalk.bold("DEPOSIT".padEnd(depositWidth))}  ${chalk.bold("PHASE".padEnd(phaseWidth))}  ${chalk.bold("STATUS")}`;
   return [
     header,
     ...rows.map(
       (row) =>
-        `${chalk.cyan(row.name.padEnd(nameWidth))}  ${chalk.green(row.deposit.padEnd(depositWidth))}  ${colorPositionStatus(row.status)}`,
+        `${chalk.cyan(row.name.padEnd(nameWidth))}  ${chalk.green(row.deposit.padEnd(depositWidth))}  ${chalk.white(row.phase.padEnd(phaseWidth))}  ${colorPositionStatus(row.status)}`,
     ),
   ];
 }

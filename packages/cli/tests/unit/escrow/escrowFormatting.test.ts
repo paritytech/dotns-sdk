@@ -204,15 +204,24 @@ describe("formatPositionsTable", () => {
     expect(formatPositionsTable([], NOW)).toEqual([]);
   });
 
-  test("renders a header plus one aligned row per position with the cooldown", () => {
+  test("renders a header plus one aligned row per position with the phase and cooldown", () => {
     const lines = formatPositionsTable(
-      [makePosition({ released: true, withdrawAvailableAt: NOW + 60n, domain: "alice.paseo" })],
+      [
+        makePosition({
+          released: true,
+          withdrawAvailableAt: NOW + 60n,
+          redeemableUntil: NOW + 3_600n,
+          domain: "alice.paseo",
+        }),
+      ],
       NOW,
     ).map(stripAnsi);
     expect(lines[0]).toContain("NAME");
     expect(lines[0]).toContain("DEPOSIT");
+    expect(lines[0]).toContain("PHASE");
     expect(lines[0]).toContain("STATUS");
     expect(lines[1]).toContain("alice.paseo");
+    expect(lines[1]).toContain("redeemable");
     expect(lines[1]).toContain("cooldown 1m 0s");
   });
 });
