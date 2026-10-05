@@ -5,7 +5,6 @@ import type { TransactionStatus } from "../types/types";
 import {
   DOTNS_ENVIRONMENTS,
   resolveDotnsEnvironmentId,
-  DEFAULT_NATIVE_TOKEN_DECIMALS,
   OPERATION_TIMEOUT_MILLISECONDS,
   type DotnsContractAddresses,
 } from "../utils/constants";
@@ -23,6 +22,7 @@ export type DotnsContext = Readonly<{
   origin: string;
   signer?: PolkadotSigner;
   nativeTokenDecimals: number;
+  nativeTokenSymbol: string;
   readTimeoutMs: number;
   opTimeoutMs: number;
   signal?: AbortSignal;
@@ -34,7 +34,6 @@ export type CreateDotnsContextOptions = {
   origin: string;
   signer?: PolkadotSigner;
   environment?: string;
-  nativeTokenDecimals?: number;
   readTimeoutMs?: number;
   opTimeoutMs?: number;
   signal?: AbortSignal;
@@ -75,7 +74,8 @@ export function createDotnsContext(options: CreateDotnsContextOptions): DotnsCon
     contracts: Object.freeze({ ...environment.contracts }),
     origin: options.origin,
     signer: options.signer,
-    nativeTokenDecimals: options.nativeTokenDecimals ?? DEFAULT_NATIVE_TOKEN_DECIMALS,
+    nativeTokenDecimals: options.clientWrapper.nativeTokenDecimals,
+    nativeTokenSymbol: options.clientWrapper.nativeTokenSymbol,
     readTimeoutMs: options.readTimeoutMs ?? DEFAULT_READ_TIMEOUT_MS,
     opTimeoutMs: options.opTimeoutMs ?? OPERATION_TIMEOUT_MILLISECONDS,
     signal: options.signal,

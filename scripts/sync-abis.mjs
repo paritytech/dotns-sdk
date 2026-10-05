@@ -5,7 +5,7 @@
 //
 // - Downloads only the ABIs the SDK consumes (see ABI_NAMES below).
 // - Writes to packages/cli/abis/ (the UI consumes ABIs via cdm.json + the SDK).
-// - Skips Multicall3 and Store: not published in releases, kept as local files.
+// - Skips Multicall3: not published in releases, kept as a local file.
 // - Idempotent: caches the synced tag in .abis-version and skips if unchanged.
 // - Network and auth failures warn and exit 0 so `bun install` works offline.
 // - A release that cannot supply a complete ABI set fails the install instead,
@@ -35,8 +35,11 @@ const ABI_NAMES = [
 	"DotnsRegistry",
 	"DotnsResolver",
 	"DotnsReverseResolver",
+	"DotnsPopResolver",
+	"LabelStore",
 	"PopRules",
 	"StoreFactory",
+	"UserStore",
 ];
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

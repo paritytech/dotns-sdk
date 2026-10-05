@@ -303,9 +303,9 @@ export type NameClassification = {
 };
 
 export type PricingAndEligibility = {
-  /** Price in wei (PAS smallest unit) returned by PopRules.price */
+  /** Price in wei (18-decimal EVM unit of the native token) returned by PopRules.price */
   priceWei: bigint;
-  /** Price in wei (PAS smallest unit) returned by PopRules.price */
+  /** Price in wei (18-decimal EVM unit of the native token) returned by PopRules.price */
   price: bigint;
   /** Proof-of-personhood status required to register the label */
   requiredStatus: ProofOfPersonhoodStatus;

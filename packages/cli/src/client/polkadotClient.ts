@@ -1,11 +1,59 @@
 import type { Paseo } from "@polkadot-api/descriptors";
-import { Binary, type PolkadotSigner, type TypedApi } from "polkadot-api";
+import { Binary, type PolkadotClient, type PolkadotSigner, type TypedApi } from "polkadot-api";
 import { decodeAddress } from "@polkadot/util-crypto";
 import { isAddress, type Address, type Hash } from "viem";
 import type { ReviveCallResult, SubstrateWeight, TransactionStatus } from "../types/types";
 import { ensureError, formatDispatchError } from "../utils/formatting";
+import { DEFAULT_NATIVE_TOKEN_DECIMALS, DEFAULT_NATIVE_TOKEN_SYMBOL } from "../utils/constants";
 
 export type PolkadotApiClient = TypedApi<Paseo>;
+
+/** Native token decimals and symbol of a chain, as reported by its chain spec properties. */
+export type NativeTokenInfo = {
+  nativeTokenDecimals: number;
+  nativeTokenSymbol: string;
+};
+
+function firstPropertyValue(value: unknown): unknown {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function parseTokenDecimals(value: unknown): number | undefined {
+  if (typeof value === "number") return Number.isInteger(value) && value >= 0 ? value : undefined;
+  if (typeof value === "string" && /^\d+$/.test(value)) return Number(value);
+  return undefined;
+}
+
+function parseTokenSymbol(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+/**
+ * Reads the chain's native token decimals and symbol from its chain spec properties. A
+ * missing or unusable property falls back to the default with a warning, since the
+ * decimals set the storage deposit floor on every write.
+ */
+export async function getChainTokenInfo(rawClient: PolkadotClient): Promise<NativeTokenInfo> {
+  const properties = (await rawClient.getChainSpecData()).properties ?? {};
+  const decimals = parseTokenDecimals(firstPropertyValue(properties.tokenDecimals));
+  const symbol = parseTokenSymbol(firstPropertyValue(properties.tokenSymbol));
+
+  if (decimals === undefined) {
+    console.warn(
+      `Warning: chain reports no usable tokenDecimals, assuming ${DEFAULT_NATIVE_TOKEN_DECIMALS}.`,
+    );
+  }
+  if (symbol === undefined) {
+    console.warn(
+      `Warning: chain reports no usable tokenSymbol, assuming ${DEFAULT_NATIVE_TOKEN_SYMBOL}.`,
+    );
+  }
+
+  return {
+    nativeTokenDecimals: decimals ?? DEFAULT_NATIVE_TOKEN_DECIMALS,
+    nativeTokenSymbol: symbol ?? DEFAULT_NATIVE_TOKEN_SYMBOL,
+  };
+}
 
 function normalizeFlags(flags: any): bigint {
   return convertToBigInt(flags, 0n);
@@ -113,8 +161,23 @@ function isSameSubstrateAccount(a: string, b: string): boolean {
   }
 }
 
+const STORAGE_DEPOSIT_FLOOR_TOKENS = 2n;
+
+// The storage deposit limit caps what a write may charge: the dry-run estimate plus 20%,
+// floored at two whole native tokens of the connected chain.
+export function computeStorageDepositLimit(
+  estimatedStorageDeposit: bigint,
+  nativeTokenDecimals: number,
+): bigint {
+  const floor = STORAGE_DEPOSIT_FLOOR_TOKENS * 10n ** BigInt(nativeTokenDecimals);
+  const buffered = (estimatedStorageDeposit * 120n) / 100n;
+  return buffered > floor ? buffered : floor;
+}
+
 export class ReviveClientWrapper {
   public client: PolkadotApiClient;
+  public readonly nativeTokenDecimals: number;
+  public readonly nativeTokenSymbol: string;
   private mappedAccounts: Set<string> = new Set();
 
   private static readonly DRY_RUN_STORAGE_LIMIT: bigint = 18446744073709551615n;
@@ -124,8 +187,20 @@ export class ReviveClientWrapper {
     proof_size: 18446744073709551615n,
   };
 
-  constructor(client: PolkadotApiClient) {
+  constructor(client: PolkadotApiClient, tokenInfo: Partial<NativeTokenInfo> = {}) {
+    const {
+      nativeTokenDecimals = DEFAULT_NATIVE_TOKEN_DECIMALS,
+      nativeTokenSymbol = DEFAULT_NATIVE_TOKEN_SYMBOL,
+    } = tokenInfo;
+    if (!Number.isInteger(nativeTokenDecimals) || nativeTokenDecimals < 0) {
+      throw new Error(`Invalid native token decimals: ${nativeTokenDecimals}`);
+    }
+    if (nativeTokenSymbol.length === 0) {
+      throw new Error("Native token symbol must not be empty");
+    }
     this.client = client;
+    this.nativeTokenDecimals = nativeTokenDecimals;
+    this.nativeTokenSymbol = nativeTokenSymbol;
   }
 
   async getEvmAddress(substrateAddress: string): Promise<Address> {
@@ -414,16 +489,10 @@ export class ReviveClientWrapper {
       ref_time: gasEstimate.gasRequired.referenceTime,
     };
 
-    // Add 20% buffer to storage deposit, minimum 2 PAS
-    const minimumStorageDeposit = 2_000_000_000_000n;
-    let storageDepositLimit =
-      gasEstimate.storageDeposit === 0n
-        ? minimumStorageDeposit
-        : (gasEstimate.storageDeposit * 120n) / 100n;
-
-    if (storageDepositLimit < minimumStorageDeposit) {
-      storageDepositLimit = minimumStorageDeposit;
-    }
+    const storageDepositLimit = computeStorageDepositLimit(
+      gasEstimate.storageDeposit,
+      this.nativeTokenDecimals,
+    );
 
     const callExtrinsic = this.client.tx.Revive.call({
       dest: Binary.fromHex(contractAddress),

@@ -556,7 +556,7 @@
         "internalType": "string"
       }
     ],
-    "stateMutability": "pure"
+    "stateMutability": "view"
   },
   {
     "type": "event",
@@ -1011,5 +1011,16 @@
     "type": "error",
     "name": "UnexpectedValue",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "UnsolicitedEscrowDeposit",
+    "inputs": [
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
   }
 ]

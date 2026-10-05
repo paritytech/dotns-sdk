@@ -15,12 +15,13 @@ function colorPositionStatus(status: string): string {
 export function formatPositionsTable(
   positions: readonly EscrowPositionView[],
   nowSeconds: bigint,
+  nativeTokenSymbol: string,
 ): string[] {
   if (positions.length === 0) return [];
 
   const rows = positions.map((position) => ({
     name: position.domain,
-    deposit: `${formatWeiAsEther(position.amount)} PAS`,
+    deposit: `${formatWeiAsEther(position.amount)} ${nativeTokenSymbol}`,
     phase: releasePhase(position, nowSeconds),
     status: formatPositionStatus(position, nowSeconds),
   }));
@@ -39,7 +40,7 @@ export function formatPositionsTable(
 }
 
 /// Pretty-prints a refund entry for terminal output.
-export function formatRefundEntryLine(entry: RefundEntryView): string {
+export function formatRefundEntryLine(entry: RefundEntryView, nativeTokenSymbol: string): string {
   const claimableAt = new Date(Number(entry.availableAt) * 1000);
   const now = Date.now();
   const remainingSeconds = Math.max(0, Math.floor((claimableAt.getTime() - now) / 1000));
@@ -47,5 +48,5 @@ export function formatRefundEntryLine(entry: RefundEntryView): string {
     remainingSeconds === 0
       ? chalk.green("claimable")
       : chalk.yellow(`cooldown ${remainingSeconds}s`);
-  return `#${entry.entryId.toString()}  ${chalk.green(formatWeiAsEther(entry.amount))} PAS  ${status}  (token ${entry.tokenId.toString().slice(0, 12)}...)`;
+  return `#${entry.entryId.toString()}  ${chalk.green(formatWeiAsEther(entry.amount))} ${nativeTokenSymbol}  ${status}  (token ${entry.tokenId.toString().slice(0, 12)}...)`;
 }

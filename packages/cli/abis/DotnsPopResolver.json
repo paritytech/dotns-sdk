@@ -60,6 +60,11 @@
     "name": "initialize",
     "inputs": [
       {
+        "name": "initialOwner",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
         "name": "registry",
         "type": "address",
         "internalType": "contract IDotnsProtocolRegistry"
@@ -230,7 +235,7 @@
         "internalType": "string"
       }
     ],
-    "stateMutability": "pure"
+    "stateMutability": "view"
   },
   {
     "type": "event",
