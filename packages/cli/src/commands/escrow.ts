@@ -3,27 +3,20 @@ import { type DotnsContext, read, write, ownEvmAddress } from "../core/context";
 import { DOTNS_NAME_ESCROW_ABI, DOTNS_REGISTRAR_ABI } from "../utils/constants";
 import { computeDomainTokenId, normaliseName } from "../core/naming";
 import { isSameEvmAddress } from "../utils/address";
-import { inspectName } from "./inspectName";
+import { inspectName, type ReleasePosition } from "./inspectName";
+import { nowSeconds } from "../utils/formatting";
+import { isRefundableDeposit } from "./escrowStatus";
 import {
   assertIsOwner,
   assertIsToken,
   assertNotSoulbound,
+  assertRedeemable,
   assertRegistered,
   assertReleasable,
 } from "./preflight";
 
-/// On-chain release position for a token.
-export type EscrowPositionView = {
-  domain: string;
-  tokenId: bigint;
-  recipient: Address;
-  asset: Address;
-  amount: bigint;
-  withdrawAvailableAt: bigint;
-  redeemableUntil: bigint;
-  released: boolean;
-  claimed: boolean;
-};
+/// A release position with the name it belongs to.
+export type EscrowPositionView = ReleasePosition & { domain: string; tokenId: bigint };
 
 export type RefundEntryView = {
   entryId: bigint;
@@ -90,45 +83,6 @@ export async function listEscrowPositions(
   return positions;
 }
 
-/// A position is the user's escrow deposit only while it holds a refundable amount. Zero-amount
-/// entries come from cross-paid registrations, names priced at zero, or already-withdrawn
-/// positions; they hold no refundable deposit.
-export function isRefundableDeposit(position: { amount: bigint }): boolean {
-  return position.amount > 0n;
-}
-
-/// Total still locked across positions. Withdrawn positions carry amount 0 (the contract
-/// zeroes it on withdraw), so they fall out of the sum naturally.
-export function totalEscrowAmount(positions: readonly { amount: bigint }[]): bigint {
-  return positions.reduce((sum, position) => sum + position.amount, 0n);
-}
-
-/// Seconds left on a released position's cooldown before it becomes withdrawable.
-export function cooldownRemainingSeconds(
-  position: Pick<EscrowPositionView, "withdrawAvailableAt">,
-  nowSeconds: bigint,
-): bigint {
-  const remaining = position.withdrawAvailableAt - nowSeconds;
-  return remaining > 0n ? remaining : 0n;
-}
-
-export function formatCooldown(seconds: bigint): string {
-  if (seconds <= 0n) return "0s";
-  const total = Number(seconds);
-  const minutes = Math.floor(total / 60);
-  const rest = total % 60;
-  return minutes > 0 ? `${minutes}m ${rest}s` : `${rest}s`;
-}
-
-/// Plain status text for a position, embedding the live cooldown countdown while a
-/// released name waits out its cooldown.
-export function formatPositionStatus(position: EscrowPositionView, nowSeconds: bigint): string {
-  if (position.claimed) return "claimed";
-  if (!position.released) return "held";
-  const remaining = cooldownRemainingSeconds(position, nowSeconds);
-  return remaining > 0n ? `cooldown ${formatCooldown(remaining)}` : "claimable";
-}
-
 /// Reads the caller's pull-payment ledger balance (withdrawn deposits plus
 /// registration-overpayment refunds). This is what `claimWithdrawal` drains and is
 /// independent of any open release position.
@@ -153,7 +107,7 @@ export async function releaseName(ctx: DotnsContext, name: string): Promise<Rele
   assertNotSoulbound(inspection, "release");
   const signer = await ownEvmAddress(ctx);
   assertIsOwner(inspection, signer, "release");
-  assertReleasable(inspection, signer);
+  assertReleasable(inspection, signer, nowSeconds());
   const { tokenId } = inspection;
 
   const approveTxHash = await write(
@@ -177,6 +131,26 @@ export async function releaseName(ctx: DotnsContext, name: string): Promise<Rele
   );
 
   return { approveTxHash, releaseTxHash, tokenId };
+}
+
+export type RedeemResult = { domain: string; tokenId: bigint; txHash: string };
+
+/// Returns a released name to its previous holder while the redeem window is open.
+export async function redeemName(ctx: DotnsContext, name: string): Promise<RedeemResult> {
+  const inspection = await inspectName(ctx, name);
+  assertRedeemable(inspection, await ownEvmAddress(ctx), nowSeconds());
+  const { domain, tokenId } = inspection;
+
+  const txHash = await write(
+    ctx,
+    ctx.contracts.DOTNS_NAME_ESCROW,
+    0n,
+    DOTNS_NAME_ESCROW_ABI,
+    "redeem",
+    [tokenId],
+    "Redeem",
+  );
+  return { domain, tokenId, txHash };
 }
 
 /// Calls `withdraw` to credit the original depositor's pull-payment balance. Reverts before

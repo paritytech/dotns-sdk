@@ -56,29 +56,38 @@ export {
   getPendingWithdrawal,
   listRefunds,
   releaseName,
+  redeemName,
   withdrawName,
   claimWithdrawal,
   claimRefund,
   claimRefundsBatch,
+} from "../commands/escrow";
+export type {
+  EscrowPositionView,
+  ReleaseResult,
+  RedeemResult,
+  RefundEntryView,
+  RefundsListResult,
+} from "../commands/escrow";
+export {
   isRefundableDeposit,
   totalEscrowAmount,
   cooldownRemainingSeconds,
   formatCooldown,
   formatPositionStatus,
-} from "../commands/escrow";
-export type {
-  EscrowPositionView,
-  ReleaseResult,
-  RefundEntryView,
-  RefundsListResult,
-} from "../commands/escrow";
-export { inspectName, formatUnixSeconds } from "../commands/inspectName";
+  releasePhase,
+  formatReleasePhase,
+} from "../commands/escrowStatus";
+export type { ReleasePhase } from "../commands/escrowStatus";
+export { inspectName } from "../commands/inspectName";
+export { formatUnixSeconds, nowSeconds } from "../utils/formatting";
 export {
   assertRegistered,
   assertIsToken,
   assertNotSoulbound,
   assertIsOwner,
   assertReleasable,
+  assertRedeemable,
   explainUnavailable,
 } from "../commands/preflight";
 export type { NameAction } from "../commands/preflight";

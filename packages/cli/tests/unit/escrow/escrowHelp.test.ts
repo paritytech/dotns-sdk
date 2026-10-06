@@ -16,6 +16,7 @@ test("escrow help shows the subcommand description and subcommands", async () =>
   expect(result.combinedOutput).toContain("balance");
   expect(result.combinedOutput).toContain("positions");
   expect(result.combinedOutput).toContain("release");
+  expect(result.combinedOutput).toContain("redeem");
   expect(result.combinedOutput).toContain("withdraw");
   expect(result.combinedOutput).toContain("claim-withdrawal");
   expect(result.combinedOutput).toContain("refunds");
@@ -51,6 +52,15 @@ test("escrow release help describes the approve-and-release sequence", async () 
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 
   expect(result.combinedOutput).toContain("Approve the escrow");
+  expect(result.combinedOutput).toContain("--json");
+});
+
+test("escrow redeem help describes taking a released name back", async () => {
+  const result = await runDotnsCli(["escrow", "redeem", "--help"]);
+  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
+
+  expect(result.combinedOutput).toContain("released name back");
+  expect(result.combinedOutput).toContain("redeem window");
   expect(result.combinedOutput).toContain("--json");
 });
 

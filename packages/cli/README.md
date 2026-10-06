@@ -643,6 +643,11 @@ and all three refuse a subname (including a device name), which has no registrar
 token. `delegate` only warns on a soulbound name, since the registrar still
 accepts the approval.
 
+A released name passes through three phases, which `escrow status` reports along
+with the time the phase changes: **redeemable** by the previous holder until the
+redeem window closes; **awaiting** if that holder withdrew the deposit first,
+which forfeits redemption; then **reclaimable** by anyone through registration.
+
 ```bash
 # Show the escrow position for a name (no auth)
 dotns escrow status coolwebsite
@@ -653,8 +658,11 @@ dotns --password test-password escrow positions --account default
 # Show your claimable pull-payment balance
 dotns --password test-password escrow balance --account default
 
-# Release a name to start its refund cooldown
+# Release a name to start its refund cooldown and redeem window
 dotns --password test-password escrow release coolwebsite --account default
+
+# Take a released name back while its redeem window is open
+dotns --password test-password escrow redeem coolwebsite --account default
 
 # After cooldown, move the released deposit onto the pull-payment ledger
 dotns --password test-password escrow withdraw coolwebsite --account default

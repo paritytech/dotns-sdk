@@ -6,7 +6,9 @@ import {
   cooldownRemainingSeconds,
   formatCooldown,
   formatPositionStatus,
-} from "../../../src/commands/escrow";
+  releasePhase,
+  formatReleasePhase,
+} from "../../../src/commands/escrowStatus";
 import { formatRefundEntryLine, formatPositionsTable } from "../../../src/cli/views/escrow";
 import { DOTNS_NAME_ESCROW_ABI } from "../../../src/utils/constants";
 
@@ -73,6 +75,7 @@ type PositionOverrides = Partial<{
   released: boolean;
   claimed: boolean;
   withdrawAvailableAt: bigint;
+  redeemableUntil: bigint;
   domain: string;
 }>;
 
@@ -84,7 +87,7 @@ function makePosition(overrides: PositionOverrides = {}) {
     asset: "0x0000000000000000000000000000000000000000" as Address,
     amount: overrides.amount ?? 1n,
     withdrawAvailableAt: overrides.withdrawAvailableAt ?? 0n,
-    redeemableUntil: 0n,
+    redeemableUntil: overrides.redeemableUntil ?? 0n,
     released: overrides.released ?? false,
     claimed: overrides.claimed ?? false,
   };
@@ -154,22 +157,74 @@ describe("formatPositionStatus", () => {
   });
 });
 
+describe("releasePhase", () => {
+  test("held while the name is not released", () => {
+    expect(releasePhase(makePosition(), NOW)).toBe("held");
+  });
+
+  test("redeemable while released, unwithdrawn and inside the window", () => {
+    expect(releasePhase(makePosition({ released: true, redeemableUntil: NOW + 1n }), NOW)).toBe(
+      "redeemable",
+    );
+  });
+
+  test("awaiting when the deposit was withdrawn inside the window", () => {
+    expect(
+      releasePhase(makePosition({ released: true, claimed: true, redeemableUntil: NOW + 1n }), NOW),
+    ).toBe("awaiting");
+  });
+
+  test("reclaimable once the window elapses, matching the escrow's isReclaimable", () => {
+    expect(releasePhase(makePosition({ released: true, redeemableUntil: NOW }), NOW)).toBe(
+      "reclaimable",
+    );
+  });
+});
+
+describe("formatReleasePhase", () => {
+  // 1970-01-01T00:20:00.000Z is 1200 seconds after the epoch.
+  const UNTIL = 1_200n;
+
+  test("names the phase and the time it changes", () => {
+    const redeemable = formatReleasePhase(
+      makePosition({ released: true, redeemableUntil: UNTIL }),
+      NOW,
+    );
+    expect(redeemable).toContain("redeemable by the previous holder until 1970-01-01T00:20:00");
+
+    const reclaimable = formatReleasePhase(
+      makePosition({ released: true, redeemableUntil: UNTIL }),
+      UNTIL,
+    );
+    expect(reclaimable).toContain("closed at 1970-01-01T00:20:00");
+  });
+});
+
 describe("formatPositionsTable", () => {
   test("returns no lines for an empty set", () => {
     expect(formatPositionsTable([], NOW, "PAS")).toEqual([]);
   });
 
-  test("renders a header plus one aligned row per position with the cooldown", () => {
+  test("renders a header plus one aligned row per position with the phase and cooldown", () => {
     const lines = formatPositionsTable(
-      [makePosition({ released: true, withdrawAvailableAt: NOW + 60n, domain: "alice.paseo" })],
+      [
+        makePosition({
+          released: true,
+          withdrawAvailableAt: NOW + 60n,
+          redeemableUntil: NOW + 3_600n,
+          domain: "alice.paseo",
+        }),
+      ],
       NOW,
       "DOT",
     ).map(stripAnsi);
     expect(lines[0]).toContain("NAME");
     expect(lines[0]).toContain("DEPOSIT");
+    expect(lines[0]).toContain("PHASE");
     expect(lines[0]).toContain("STATUS");
     expect(lines[1]).toContain("alice.paseo");
     expect(lines[1]).toContain("DOT");
+    expect(lines[1]).toContain("redeemable");
     expect(lines[1]).toContain("cooldown 1m 0s");
   });
 });

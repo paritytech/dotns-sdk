@@ -53,7 +53,7 @@ import {
 } from "../core/naming";
 import { inspectName } from "./inspectName";
 import { explainUnavailable } from "./preflight";
-import { convertWeiToNative } from "../utils/formatting";
+import { convertWeiToNative, nowSeconds } from "../utils/formatting";
 
 // msg.value equals the charged amount (a 100% multiplier, so no buffer); the controller
 // refunds any overpayment.
@@ -176,7 +176,7 @@ export async function ensureDomainNotRegistered(ctx: DotnsContext, name: string)
 
   // The explanation is best effort: a failed read must not turn the refusal into an RPC error.
   const detail = await inspectName(ctx, label)
-    .then(explainUnavailable)
+    .then((inspection) => explainUnavailable(inspection, nowSeconds()))
     .catch(() => undefined);
   throw new DomainUnavailableError(await formatDomainName(ctx, label), detail);
 }

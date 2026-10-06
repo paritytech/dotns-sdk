@@ -113,3 +113,11 @@ export async function withTimeout<T>(
     }
   }
 }
+
+export function formatUnixSeconds(seconds: bigint): string {
+  return new Date(Number(seconds) * 1000).toISOString();
+}
+
+export function nowSeconds(): bigint {
+  return BigInt(Math.floor(Date.now() / 1000));
+}
