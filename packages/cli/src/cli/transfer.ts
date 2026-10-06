@@ -14,7 +14,7 @@ import {
   assertIsOwner,
   assertRegistered,
 } from "../commands/preflight";
-import { domainNode, formatDomainName, normaliseName } from "../core/naming";
+import { computeDomainTokenId, domainNode, formatDomainName, normaliseName } from "../core/naming";
 
 function isLabelLike(input: string): boolean {
   // A device name carries a separator and is still one label, so it is a valid
@@ -63,6 +63,32 @@ export async function resolveTransferRecipient(
   );
 }
 
+// The fee the registrar charges to transfer `tokenId` from its holder to `recipient`, which
+// is the amount transferFrom checks msg.value against: the name's own price when the
+// recipient does not meet the label's required tier or sits below the sender's tier, and
+// zero otherwise (also for self-transfers and escrow moves). Reverts for a soulbound name.
+async function readTransferFee(
+  ctx: DotnsContext,
+  tokenId: bigint,
+  recipient: Address,
+): Promise<bigint> {
+  return read<bigint>(ctx, ctx.contracts.DOTNS_REGISTRAR, DOTNS_REGISTRAR_ABI, "quoteTransferFee", [
+    tokenId,
+    recipient,
+  ]);
+}
+
+// The fee transferring `name` to `recipient` costs right now, in wei.
+export async function quoteTransferFee(
+  ctx: DotnsContext,
+  name: string,
+  recipient: Address,
+): Promise<bigint> {
+  const label = await normaliseName(ctx, name);
+  validateExistingNameLabel(label);
+  return readTransferFee(ctx, await computeDomainTokenId(ctx, label), checksumAddress(recipient));
+}
+
 export type TransferResult = {
   name: string;
   from: Address;
@@ -94,17 +120,8 @@ export async function transferName(
   assertIsOwner(inspection, fromC, "transfer");
   const { domain, tokenId } = inspection;
 
-  // Quote the transfer fee the registrar will charge: the name's own price when the
-  // recipient does not meet the label's required tier or sits below the sender's tier,
-  // and zero otherwise (also for self-transfers and escrow moves). Sending less than the
-  // quoted amount reverts with TransferFeeRequired.
-  const feeWei = await read<bigint>(
-    ctx,
-    ctx.contracts.DOTNS_REGISTRAR,
-    DOTNS_REGISTRAR_ABI,
-    "quoteTransferFee",
-    [tokenId, toC],
-  );
+  // Sending less than the quoted fee reverts with TransferFeeRequired.
+  const feeWei = await readTransferFee(ctx, tokenId, toC);
   const feeNative = convertWeiToNativeCeil(feeWei, ctx.nativeTokenDecimals);
 
   const txHash = await write(

@@ -500,23 +500,6 @@ export async function getPriceAndValidateEligibility(
   };
 }
 
-// The transfer floor PopRules would charge to move `name` from `caller` to `owner`.
-// Registration does not charge it: register() takes only the name price, also when
-// someone else pays.
-export async function quoteCrossPayerFriction(
-  ctx: DotnsContext,
-  name: string,
-  callerEvmAddress: Address,
-  ownerEvmAddress: Address,
-): Promise<bigint> {
-  const label = await normaliseName(ctx, name);
-  return read<bigint>(ctx, ctx.contracts.DOTNS_RULES, POP_RULES_ABI, "transferFloor", [
-    label,
-    callerEvmAddress,
-    ownerEvmAddress,
-  ]);
-}
-
 export type RegistrationResult = {
   name: string;
   owner: Address;

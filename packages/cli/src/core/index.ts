@@ -21,7 +21,6 @@ export {
   readCommitmentStatus,
   getUserProofOfPersonhoodStatus,
   getPriceAndValidateEligibility,
-  quoteCrossPayerFriction,
   finalizeRegularRegistration,
   finalizeGovernanceRegistration,
   registerSubnode,
@@ -47,7 +46,7 @@ export type {
   RegisterNameOptions,
 } from "../commands/register";
 
-export { resolveTransferRecipient, transferName } from "../cli/transfer";
+export { quoteTransferFee, resolveTransferRecipient, transferName } from "../cli/transfer";
 export type { TransferResult } from "../cli/transfer";
 
 export {
