@@ -22,7 +22,7 @@ async function compatibilitySection() {
   return [
     "### Compatibility",
     "",
-    `- **dotNS protocol releases**: ${versions.map((v) => `\`${v}\``).join(", ")}. The CLI refuses a network that declares a newer release.`,
+    `- **dotNS protocol releases**: ${versions.map((v) => `\`${v}\``).join(", ")}. The CLI refuses a network that does not declare one of them.`,
     `- **Networks**: ${environments.map((e) => `\`${e.id}\` (${e.label})`).join(", ")}. Select one with \`--env\`.`,
   ].join("\n");
 }

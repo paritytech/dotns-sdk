@@ -12,13 +12,11 @@ export type { DotnsContext, OperationStatus, CreateDotnsContextOptions } from ".
 
 export {
   SUPPORTED_PROTOCOL_VERSIONS,
-  newestSupportedProtocolVersion,
-  classifyProtocolVersion,
+  isSupportedProtocolVersion,
   readProtocolVersion,
   checkProtocolVersion,
   UnsupportedProtocolVersionError,
 } from "./protocolVersion";
-export type { ProtocolVersionVerdict } from "./protocolVersion";
 
 export {
   classifyDomainName,

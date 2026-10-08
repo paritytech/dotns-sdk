@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
-  classifyProtocolVersion,
-  newestSupportedProtocolVersion,
+  isSupportedProtocolVersion,
   SUPPORTED_PROTOCOL_VERSIONS,
   UnsupportedProtocolVersionError,
 } from "../../../src/core/protocolVersion";
@@ -9,65 +8,52 @@ import { enforceProtocolVersion } from "../../../src/cli/context";
 import { ENV } from "../../../src/cli/env";
 import type { ReviveClientWrapper } from "../../../src/client/polkadotClient";
 
-const NEWEST = newestSupportedProtocolVersion();
-
 afterEach(() => {
   delete process.env[ENV.SKIP_VERSION_CHECK];
 });
 
-describe("classifyProtocolVersion", () => {
+describe("isSupportedProtocolVersion", () => {
   test("every listed release is supported", () => {
     for (const version of SUPPORTED_PROTOCOL_VERSIONS) {
-      expect(classifyProtocolVersion(version)).toEqual({ kind: "supported", declared: version });
+      expect(isSupportedProtocolVersion(version)).toBe(true);
     }
   });
 
-  test("no declaration is undeclared, as on deployments before 0.8.0", () => {
-    expect(classifyProtocolVersion(null)).toEqual({ kind: "undeclared", declared: null });
-    expect(classifyProtocolVersion("")).toEqual({ kind: "undeclared", declared: null });
-    expect(classifyProtocolVersion("   ")).toEqual({ kind: "undeclared", declared: null });
+  test("a network that declares nothing is not supported", () => {
+    expect(isSupportedProtocolVersion(null)).toBe(false);
   });
 
-  test("surrounding whitespace does not change the verdict", () => {
-    expect(classifyProtocolVersion(` ${NEWEST} `)).toEqual({ kind: "supported", declared: NEWEST });
+  test("only an exact match is supported", () => {
+    for (const declared of ["1.0.1", "0.9.0", "1.1.0", "2.0.0", "2.0.0-rc.1", "1.0.0+build.7"]) {
+      expect(isSupportedProtocolVersion(declared)).toBe(false);
+    }
   });
 
-  test("a later patch of the newest release is unknown, not refused", () => {
-    expect(classifyProtocolVersion("1.0.7").kind).toBe("unknown");
-  });
-
-  test("an unlisted older release is unknown", () => {
-    expect(classifyProtocolVersion("0.7.0").kind).toBe("unknown");
-    expect(classifyProtocolVersion("0.9.1").kind).toBe("unknown");
-  });
-
-  test("a newer minor or major is refused", () => {
-    expect(classifyProtocolVersion("1.1.0")).toEqual({ kind: "newer", declared: "1.1.0" });
-    expect(classifyProtocolVersion("2.0.0")).toEqual({ kind: "newer", declared: "2.0.0" });
-  });
-
-  test("a prerelease or build of a newer release is refused too", () => {
-    expect(classifyProtocolVersion("2.0.0-rc.1").kind).toBe("newer");
-    expect(classifyProtocolVersion("1.1.0+build.7").kind).toBe("newer");
-  });
-
-  test("a prerelease of a supported major.minor is unknown", () => {
-    expect(classifyProtocolVersion("1.0.1-rc.1").kind).toBe("unknown");
-  });
-
-  test("a malformed declaration is unknown, so it never locks users out", () => {
-    expect(classifyProtocolVersion("one-point-oh").kind).toBe("unknown");
-    expect(classifyProtocolVersion("9.9").kind).toBe("unknown");
+  test("a malformed declaration is not supported", () => {
+    expect(isSupportedProtocolVersion("9.9")).toBe(false);
+    expect(isSupportedProtocolVersion("one-point-oh")).toBe(false);
   });
 });
 
 describe("UnsupportedProtocolVersionError", () => {
-  test("names the declared and the newest supported release", () => {
+  test("names the declared release and the supported ones", () => {
     const error = new UnsupportedProtocolVersionError("2.0.0");
     expect(error.declared).toBe("2.0.0");
-    expect(error.message).toContain("2.0.0");
-    expect(error.message).toContain(NEWEST);
-    expect(error.message).toContain("Upgrade the SDK");
+    expect(error.message).toContain("it runs dotNS protocol 2.0.0");
+    for (const version of SUPPORTED_PROTOCOL_VERSIONS) expect(error.message).toContain(version);
+  });
+
+  test("says when the network declares nothing", () => {
+    expect(new UnsupportedProtocolVersionError(null).message).toContain(
+      "it declares no dotNS protocol version",
+    );
+  });
+
+  test("says when the declaration could not be read, and keeps the cause", () => {
+    const cause = new Error("execution reverted");
+    const error = new UnsupportedProtocolVersionError(null, cause);
+    expect(error.message).toContain("could not be read");
+    expect(error.cause).toBe(cause);
   });
 });
 

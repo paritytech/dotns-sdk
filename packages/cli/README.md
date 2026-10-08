@@ -117,7 +117,7 @@ pairing handshake trace when diagnosing a stuck pairing.
 
 | Variable                    | Description                                                        |
 | --------------------------- | ------------------------------------------------------------------ |
-| `DOTNS_ENV`                 | dotNS environment: `paseo-v2` (default), `previewnet` or `devnet`  |
+| `DOTNS_ENV`                 | dotNS environment: `paseo-v2` (default) or `previewnet`            |
 | `DOTNS_KEYSTORE_PATH`       | Path to keystore directory                                         |
 | `DOTNS_KEYSTORE_PASSWORD`   | Keystore password                                                  |
 | `DOTNS_RPC`                 | Asset Hub RPC endpoint                                             |
@@ -148,7 +148,7 @@ dotns account is-mapped 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
 dotns --env paseo-v2 account grant somelabel 0x1234567890AbcdEF1234567890aBcdef12345678
 ```
 
-`--network` is an alias of `--env`, and each environment also accepts aliases (for example `dev` for `devnet`). `--rpc` still overrides the endpoint URL, but it does not change the selected dotNS contract addresses. Use `--env`/`DOTNS_ENV` to select the dotNS deployment.
+`--network` is an alias of `--env`, and each environment also accepts aliases (for example `preview` for `previewnet`). `--rpc` still overrides the endpoint URL, but it does not change the selected dotNS contract addresses. Use `--env`/`DOTNS_ENV` to select the dotNS deployment.
 
 ## Programmatic SDK
 

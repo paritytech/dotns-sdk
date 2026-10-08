@@ -10,11 +10,6 @@ test("paseo-v2 emits only its paseo.li gateway", () => {
   expect(dotliViewUrls("alice")).toEqual(["https://alice.paseo.li"]);
 });
 
-test("devnet emits only its dev-dot.li gateway", () => {
-  setActiveDotnsEnvironment("devnet");
-  expect(dotliViewUrls("alice")).toEqual(["https://alice.dev-dot.li"]);
-});
-
 test("previewnet emits no dot.li gateway", () => {
   setActiveDotnsEnvironment("previewnet");
   expect(dotliViewUrls("alice")).toEqual([]);

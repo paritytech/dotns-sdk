@@ -41,7 +41,7 @@ import {
   type DotnsEnvironmentConfig,
 } from "../utils/constants";
 import { createDotnsContext, type DotnsContext, type OperationStatus } from "../core/context";
-import { checkProtocolVersion, SUPPORTED_PROTOCOL_VERSIONS } from "../core/protocolVersion";
+import { checkProtocolVersion } from "../core/protocolVersion";
 
 type BuildContextOptions = {
   onStatus?: (status: OperationStatus) => void;
@@ -166,11 +166,10 @@ export async function assertExpectedChain(
   );
 }
 
-// Refuses a network that declares a dotNS protocol release newer than this CLI
-// supports, and warns on one it does not list. Runs before anything is signed, so
-// a refused network never receives a transaction, account mapping included.
-// `DOTNS_SKIP_VERSION_CHECK=1` bypasses it, for testing a CLI build against a
-// network that has moved ahead of it.
+// Refuses a network unless it declares one of the dotNS protocol releases this CLI
+// supports. Runs before anything is signed, so a refused network never receives a
+// transaction, account mapping included. `DOTNS_SKIP_VERSION_CHECK=1` bypasses it,
+// for a network the CLI cannot vouch for but the user chooses to use anyway.
 export async function enforceProtocolVersion(
   clientWrapper: ReviveClientWrapper,
   origin: string,
@@ -178,17 +177,7 @@ export async function enforceProtocolVersion(
 ): Promise<void> {
   if (process.env[ENV.SKIP_VERSION_CHECK] === "1") return;
   const ctx = createDotnsContext({ clientWrapper, origin, environment });
-  const verdict = await step("Checking dotNS protocol version", async () =>
-    checkProtocolVersion(ctx),
-  );
-  if (verdict.kind === "unknown") {
-    console.warn(
-      chalk.yellow(
-        `Warning: the network runs dotNS protocol ${verdict.declared}, which this CLI does not ` +
-          `list (supported: ${SUPPORTED_PROTOCOL_VERSIONS.join(", ")}). Continuing.`,
-      ),
-    );
-  }
+  await step("Checking dotNS protocol version", async () => checkProtocolVersion(ctx));
 }
 
 export async function displayAccountInformation(

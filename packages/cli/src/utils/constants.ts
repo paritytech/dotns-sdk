@@ -28,13 +28,6 @@ export const PASEO_ASSET_HUB_URL = "wss://paseo-asset-hub-next-rpc.polkadot.io";
 export const PREVIEWNET_ASSET_HUB_URL = "wss://previewnet.substrate.dev/asset-hub";
 const PASEO_IPFS_GATEWAY_URL = "https://paseo-bulletin-next-ipfs.polkadot.io/ipfs";
 
-// Public Products Devnet, Paseo Asset Hub (para 1000, chain 420420417). These
-// endpoints wire a named preset to it. The bundled `paseo` descriptor is built
-// from the paseo-v2 chain, not this one; the interfaces the CLI uses (ReviveApi,
-// Revive.call, System.Account) are identical across both runtimes.
-export const DEVNET_ASSET_HUB_URL = "wss://asset-hub-paseo-rpc.n.dwellir.com";
-export const DEVNET_BULLETIN_RPC = "wss://bulletin-paseo.tservices.es:8443";
-export const DEVNET_IPFS_GATEWAY_URL = "https://devnet-ipfs.api.polkadotcommunity.foundation/ipfs";
 export const PERSONHOOD_PRECOMPILE_ADDRESS =
   "0x000000000000000000000000000000000a010000" as Address;
 export const PERSONHOOD_CONTEXT =
@@ -158,7 +151,7 @@ export const PASEO_BULLETIN_PEERS: readonly string[] = [
   "/dns4/paseo-bulletin-next-rpc-node-1.polkadot.io/tcp/443/wss/p2p/12D3KooWKMc4jJsU7fdEsis4AsM8Assk5jFqhEUEa2ZSiWJGKpfv",
 ];
 
-const DOTNS_ENVIRONMENT_IDS = ["paseo-v2", "previewnet", "devnet"] as const;
+const DOTNS_ENVIRONMENT_IDS = ["paseo-v2", "previewnet"] as const;
 export type DotnsEnvironmentId = (typeof DOTNS_ENVIRONMENT_IDS)[number];
 
 export type DotnsContractAddresses = {
@@ -218,7 +211,7 @@ export type DotnsEnvironmentConfig = {
   previewBaseUrl: string | null;
   /**
    * dot.li-style web gateway domain(s) serving this environment's names, e.g.
-   * `["dev-dot.li"]` on devnet. Falls back to the default pair when `undefined`;
+   * `["paseo.li"]` on paseo-v2. Falls back to the default pair when `undefined`;
    * an empty list means no dot.li viewing URL is emitted.
    */
   dotliGateways?: readonly string[];
@@ -264,10 +257,9 @@ export type DotnsEnvironmentConfig = {
 // the shared CREATE3 factory with a chain-independent salt, so these addresses
 // are identical on every chain that reuses that factory. paseo-v2 and previewnet
 // are distinct chains with distinct genesis hashes, but both host the factory at
-// 0x8533c79E058c5a6489CAFeCA86dc600E029D75f5, so they share this book. devnet is a
-// separate deployment with its own address set. Note the chain id is 420420417 on
-// all three, so it does not distinguish them and must not be used to decide which
-// book applies.
+// 0x8533c79E058c5a6489CAFeCA86dc600E029D75f5, so they share this book. Note the
+// chain id is 420420417 on both, so it does not distinguish them and must not be
+// used to decide which book applies.
 const PASEO_CREATE3_CONTRACTS: DotnsContractAddresses = {
   DOTNS_REGISTRAR: "0x4f06E818Ba3d987704fd91cf3d868E4b019106Ab" as Address,
   DOTNS_REGISTRAR_CONTROLLER: "0xBdaA01bD1bA67d709F2b1fF286Da0d854977EA30" as Address,
@@ -316,41 +308,11 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
     ipfsGatewayUrl: "https://previewnet.substrate.dev/ipfs",
     bulletinP2pPeers: [],
   },
-  devnet: {
-    id: "devnet",
-    label: "Products Devnet (Paseo Asset Hub)",
-    aliases: ["devnet", "dev", "products-devnet"],
-    rpc: DEVNET_ASSET_HUB_URL,
-    genesisHash: "0xd6eec26135305a8ad257a20d003357284c8aa03d0bdb2b357ab0a22371e11ef2",
-    bulletinGenesisHash: "0xe101f0fa4627d29a257645e02be86d80378fea1a2bf8fa6a918d150ebc760a59",
-    // No public block explorer wired for this deployment yet.
-    blockExplorerUrl: "",
-    // No devnet-hosted dotNS web app; preview-link helpers stay disabled.
-    previewBaseUrl: null,
-    dotliGateways: ["dev-dot.li"],
-    contracts: {
-      DOTNS_REGISTRAR: "0x7f0dF075cc8B7FE7218E90fFC5a553450dB120F3" as Address,
-      DOTNS_REGISTRAR_CONTROLLER: "0x45fDEa4Ad7b8607Fc22DBC3DBE3cD8b350F8bede" as Address,
-      DOTNS_REGISTRY: "0x527b08a640b527a3dae0C4BE04D7344E430B6E50" as Address,
-      DOTNS_RESOLVER: "0xC28796526Bf3E9295f09655a1001F30f77AfCF0D" as Address,
-      DOTNS_REVERSE_RESOLVER: "0xfd2594FcF920B38A970011C486e1E3041563147F" as Address,
-      DOTNS_POP_RESOLVER: "0x92Fd4195Be40A266d2914FB64C63cC50715dB1D8" as Address,
-      DOTNS_CONTENT_RESOLVER: "0x326bdE29315199c814B1c58b431D84D16EA5cE41" as Address,
-      STORE_FACTORY: "0xD81DC23FAa69B311C1FC553Ea63798772e7D253D" as Address,
-      DOTNS_RULES: "0x2181a14081fF2D4477BAA8FB1aEB4C9c44F5F2b0" as Address,
-      DOTNS_POP_CONTROLLER: "0x1884819F6747576883805Cb2b7BB68d29484d1b0" as Address,
-      DOTNS_NAME_ESCROW: "0xfEdBe7a7F32017F6bCAA3109bE2EaC7D59E319E5" as Address,
-      MULTICALL3: "0x929EdB8d61461c29d07deC834ef747EbFDcf0B74" as Address,
-    },
-    bulletinRpc: DEVNET_BULLETIN_RPC,
-    ipfsGatewayUrl: DEVNET_IPFS_GATEWAY_URL,
-    bulletinP2pPeers: [],
-  },
 };
 
 // The dotNS protocol releases this SDK is built against, oldest first. A network
 // declares the release it runs through `DotnsProtocolRegistry.protocolVersion()`,
-// and the CLI checks it on connect. The release notes read the compatibility line
+// and the CLI refuses a network that does not declare one of these. The release notes read the compatibility line
 // from here, so the list and the notes cannot disagree.
 export const SUPPORTED_PROTOCOL_VERSIONS = ["0.8.0", "1.0.0"] as const;
 
