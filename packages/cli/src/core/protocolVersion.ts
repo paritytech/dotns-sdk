@@ -44,14 +44,23 @@ export async function readProtocolVersion(ctx: DotnsContext): Promise<string | n
   return trimmed === "" ? null : trimmed;
 }
 
+// The first line of a cause's message, for a one-line error.
+function describeCause(cause: unknown): string {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  return message.split("\n")[0]?.trim() || "unknown error";
+}
+
 export class UnsupportedProtocolVersionError extends Error {
   readonly declared: string | null;
 
   constructor(declared: string | null, cause?: unknown) {
     const supported = SUPPORTED_PROTOCOL_VERSIONS.join(", ");
+    // A failed read carries its reason in the message too: CLI output prints the
+    // message only, and a revert, a timeout, and a registry without
+    // `protocolVersion()` call for different fixes.
     const found =
       cause !== undefined
-        ? "its dotNS protocol version could not be read"
+        ? `its dotNS protocol version could not be read (${describeCause(cause)})`
         : declared === null
           ? "it declares no dotNS protocol version"
           : `it runs dotNS protocol ${declared}`;

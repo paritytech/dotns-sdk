@@ -49,11 +49,16 @@ describe("UnsupportedProtocolVersionError", () => {
     );
   });
 
-  test("says when the declaration could not be read, and keeps the cause", () => {
-    const cause = new Error("execution reverted");
+  test("says when the declaration could not be read, and why", () => {
+    const cause = new Error("execution reverted\n  at a stack frame");
     const error = new UnsupportedProtocolVersionError(null, cause);
-    expect(error.message).toContain("could not be read");
+    expect(error.message).toContain("could not be read (execution reverted)");
+    expect(error.message).not.toContain("stack frame");
     expect(error.cause).toBe(cause);
+  });
+
+  test("names a non-Error cause", () => {
+    expect(new UnsupportedProtocolVersionError(null, "timeout").message).toContain("(timeout)");
   });
 });
 
