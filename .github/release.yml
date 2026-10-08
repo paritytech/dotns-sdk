@@ -1,0 +1,6 @@
+# The pull requests GitHub lists under a release. Releases publish the CLI only, so
+# pull requests that change only the UI are left out.
+changelog:
+  exclude:
+    labels:
+      - "pkg: ui"

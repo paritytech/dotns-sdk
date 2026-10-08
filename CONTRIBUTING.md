@@ -65,6 +65,16 @@ Before opening a pull request:
    - ABIs are generated inputs synced from the dotNS contracts releases. Do not edit them by hand;
      update them through the sync script.
 
+## Releasing
+
+Releases publish the CLI (`@parity/dotns-cli`) from `v*` tags. The web UI in `packages/ui` is not released.
+
+1. A pull request that changes the CLI bumps `packages/cli/package.json` past the latest `v*` tag; the release guard fails it otherwise.
+2. To release, tag a commit on `main` with `v<version>` and push the tag. A tag on any other commit is refused.
+3. The release workflow builds and packs the CLI, then waits for a reviewer to approve the `releases` environment. On approval it creates the GitHub release and starts the npm publish.
+
+The release notes are generated: the supported dotNS protocol releases and networks, read from `SUPPORTED_PROTOCOL_VERSIONS` and the environment list in `packages/cli/src/utils/constants.ts`, then the merged pull requests. Breaking changes, when a release has any, are added to the published release by hand. When the CLI starts supporting a new dotNS protocol release, add it to `SUPPORTED_PROTOCOL_VERSIONS`: the CLI refuses a network that does not declare one of the listed releases.
+
 ## Reporting security issues
 
 Do not open public issues for security vulnerabilities. Follow the disclosure process in

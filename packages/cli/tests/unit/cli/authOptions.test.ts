@@ -25,9 +25,9 @@ test("getAuthOptions resolves a global --env given before a two-level-nested com
     resolved = getAuthOptions(cmd).env;
   });
 
-  program.parse(["node", "dotns", "--env", "devnet", "lookup", "name", "foo"]);
+  program.parse(["node", "dotns", "--env", "previewnet", "lookup", "name", "foo"]);
 
-  expect(resolved).toBe("devnet");
+  expect(resolved).toBe("previewnet");
 });
 
 test("getAuthOptions lets a command-level --env override the global one", () => {
@@ -41,15 +41,15 @@ test("getAuthOptions lets a command-level --env override the global one", () => 
     "node",
     "dotns",
     "--env",
-    "devnet",
+    "previewnet",
     "lookup",
     "name",
     "foo",
     "--env",
-    "previewnet",
+    "paseo-v2",
   ]);
 
-  expect(resolved).toBe("previewnet");
+  expect(resolved).toBe("paseo-v2");
 });
 
 test("getAuthOptions resolves the --network alias from the program root", () => {
@@ -59,7 +59,7 @@ test("getAuthOptions resolves the --network alias from the program root", () => 
     resolved = getAuthOptions(cmd).network;
   });
 
-  program.parse(["node", "dotns", "--network", "devnet", "lookup", "name", "foo"]);
+  program.parse(["node", "dotns", "--network", "previewnet", "lookup", "name", "foo"]);
 
-  expect(resolved).toBe("devnet");
+  expect(resolved).toBe("previewnet");
 });

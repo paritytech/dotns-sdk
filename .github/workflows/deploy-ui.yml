@@ -23,6 +23,49 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Runs on release tags only, read-only and with no environment: a tag that does not
+  # point at a commit on main stops here, before a reviewer is asked to approve. main
+  # only takes reviewed pull requests, so this keeps every release on reviewed code.
+  guard:
+    name: Guard
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      stable: ${{ steps.version.outputs.stable }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require the tagged commit on main
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Peeled, so an annotated tag is checked by the commit it points at.
+          commit=$(git rev-parse "${GITHUB_SHA}^{commit}")
+          if ! git merge-base --is-ancestor "${commit}" origin/main; then
+            echo "::error::Tag ${GITHUB_REF_NAME} points at ${commit}, which is not on main. Tag a commit on main."
+            exit 1
+          fi
+          echo "Tag ${GITHUB_REF_NAME} points at ${commit}, which is on main."
+
+      # Every UI tag carries a hyphen in its `ui-v` prefix, so a prerelease is read
+      # from the version after it: ui-v1.2.3 is stable, ui-v1.2.3-rc.1 is not.
+      - name: Classify the version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#ui-v}"
+          if [[ "${version}" == *-* ]]; then
+            echo "stable=false" >> "${GITHUB_OUTPUT}"
+          else
+            echo "stable=true" >> "${GITHUB_OUTPUT}"
+          fi
+
   build:
     name: Build UI
     runs-on: ubuntu-latest
@@ -124,10 +167,21 @@ jobs:
       dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
       bulletin-mnemonic: ${{ secrets.DOTNS_MNEMONIC_DEPLOY_UI }}
 
+  # deploy.yml is a reusable workflow, so the calling job cannot name an environment.
+  # This job carries the `releases` approval the production deploy waits for.
+  approve-production:
+    name: Approve Production Deploy
+    if: github.event_name == 'push' && needs.guard.outputs.stable == 'true'
+    needs: [guard, build]
+    runs-on: ubuntu-latest
+    environment: releases
+    steps:
+      - run: echo "Production deploy of ${GITHUB_REF_NAME} approved."
+
   deploy-production:
     name: Deploy Production
-    if: github.event_name == 'push' && !contains(github.ref_name, '-')
-    needs: [build]
+    if: github.event_name == 'push' && needs.guard.outputs.stable == 'true'
+    needs: [guard, build, approve-production]
     uses: ./.github/workflows/deploy.yml
     with:
       basename: dotns

@@ -41,6 +41,7 @@ import {
   type DotnsEnvironmentConfig,
 } from "../utils/constants";
 import { createDotnsContext, type DotnsContext, type OperationStatus } from "../core/context";
+import { checkProtocolVersion } from "../core/protocolVersion";
 
 type BuildContextOptions = {
   onStatus?: (status: OperationStatus) => void;
@@ -163,6 +164,20 @@ export async function assertExpectedChain(
       `set DOTNS_SKIP_CHAIN_CHECK=1 and update the environment's genesis hash.`,
     ].join("\n  "),
   );
+}
+
+// Refuses a network unless it declares one of the dotNS protocol releases this CLI
+// supports. Runs before anything is signed, so a refused network never receives a
+// transaction, account mapping included. `DOTNS_SKIP_VERSION_CHECK=1` bypasses it,
+// for a network the CLI cannot vouch for but the user chooses to use anyway.
+export async function enforceProtocolVersion(
+  clientWrapper: ReviveClientWrapper,
+  origin: string,
+  environment: string,
+): Promise<void> {
+  if (process.env[ENV.SKIP_VERSION_CHECK] === "1") return;
+  const ctx = createDotnsContext({ clientWrapper, origin, environment });
+  await step("Checking dotNS protocol version", async () => checkProtocolVersion(ctx));
 }
 
 export async function displayAccountInformation(
@@ -321,6 +336,8 @@ export async function prepareAssetHubContext(options: any): Promise<AssetHubCont
   const evmAddress = await step("Resolving EVM address", async () =>
     clientWrapper.getEvmAddress(substrateAddress),
   );
+
+  await enforceProtocolVersion(clientWrapper, substrateAddress, environment.id);
 
   // Idempotent: submits map_account only when unmapped, so a mapped account incurs no signature.
   await step("Ensuring account mapped", async () =>

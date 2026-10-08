@@ -9,6 +9,7 @@ export const ENV = {
   BULLETIN_RPC: "DOTNS_BULLETIN_RPC",
   MNEMONIC: "DOTNS_MNEMONIC",
   SKIP_CHAIN_CHECK: "DOTNS_SKIP_CHAIN_CHECK",
+  SKIP_VERSION_CHECK: "DOTNS_SKIP_VERSION_CHECK",
   KEY_URI: "DOTNS_KEY_URI",
   // Keystore directory (per-account files live here)
   // Example: ~/.dotns/keystore/

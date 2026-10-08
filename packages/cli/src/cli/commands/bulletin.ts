@@ -289,7 +289,7 @@ function writeBulletinJsonError(error: unknown): never {
 /**
  * Warn when the dev-default authorizer signer is used against an environment
  * where the bulletin Authorizer is almost certainly *not* the default
- * (previewnet). Silent on every other environment (paseo-v2, devnet) and on explicit overrides.
+ * (previewnet). Silent on every other environment (paseo-v2) and on explicit overrides.
  */
 export function warnIfDevKeyOnTestnet(signerKeyUri: string, environmentId: string): void {
   if (signerKeyUri !== DEFAULT_BULLETIN_AUTHORIZER_KEY_URI) return;

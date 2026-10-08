@@ -21,7 +21,7 @@ export function createProgram() {
   program
     .option(
       "--env <environment>",
-      `dotNS environment: paseo-v2, previewnet or devnet (env: ${ENV.DOTNS_ENV})`,
+      `dotNS environment: paseo-v2 or previewnet (env: ${ENV.DOTNS_ENV})`,
     )
     .option("--network <environment>", "Alias for --env");
   attachPopCommands(program);
