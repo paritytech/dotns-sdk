@@ -27,6 +27,7 @@ import {
   buildDotnsContext,
   buildReadOnlyDotnsContext,
   assertExpectedChain,
+  enforceProtocolVersion,
 } from "../context";
 import { makeOnStatus } from "../txStatus";
 import { resolveTransferRecipient, transferName } from "../transfer";
@@ -192,6 +193,8 @@ export async function prepareReadOnlyContext(
   const keypair = await step("Loading keypair", async () =>
     createAccountFromSource(auth.source, auth.isKeyUri),
   );
+
+  await enforceProtocolVersion(clientWrapper, keypair.address, environment.id);
 
   await ensureAccountMappedWhenAuthenticated(clientWrapper, keypair, auth.resolvedFrom);
 

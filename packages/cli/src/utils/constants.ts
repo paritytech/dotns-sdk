@@ -348,6 +348,12 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
   },
 };
 
+// The dotNS protocol releases this SDK is built against, oldest first. A network
+// declares the release it runs through `DotnsProtocolRegistry.protocolVersion()`,
+// and the CLI checks it on connect. The release notes read the compatibility line
+// from here, so the list and the notes cannot disagree.
+export const SUPPORTED_PROTOCOL_VERSIONS = ["0.8.0", "1.0.0"] as const;
+
 const DEFAULT_DOTNS_ENVIRONMENT: DotnsEnvironmentId = "paseo-v2";
 
 let activeDotnsEnvironment: DotnsEnvironmentId = DEFAULT_DOTNS_ENVIRONMENT;

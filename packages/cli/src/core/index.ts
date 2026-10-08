@@ -11,6 +11,16 @@ export {
 export type { DotnsContext, OperationStatus, CreateDotnsContextOptions } from "./context";
 
 export {
+  SUPPORTED_PROTOCOL_VERSIONS,
+  newestSupportedProtocolVersion,
+  classifyProtocolVersion,
+  readProtocolVersion,
+  checkProtocolVersion,
+  UnsupportedProtocolVersionError,
+} from "./protocolVersion";
+export type { ProtocolVersionVerdict } from "./protocolVersion";
+
+export {
   classifyDomainName,
   tryClassifyDomainName,
   ensureDomainNotRegistered,

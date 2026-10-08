@@ -8,10 +8,35 @@ on:
         required: true
         type: string
 
+# Read-only: the publish itself runs in npm_publish_automation with its own token.
+permissions:
+  contents: read
+
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
+      # npm receives only what the release workflow published. Its `releases`-gated
+      # job is the only one that creates releases, as github-actions[bot], so a
+      # manual dispatch cannot publish a release made by hand, a draft, or a
+      # prerelease.
+      - name: Require a published, non-prerelease release from the release workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          for i in 1 2 3 4 5; do
+            state=$(gh release view "$TAG" --repo "${{ github.repository }}" \
+              --json isDraft,isPrerelease,author --jq '"\(.isDraft) \(.isPrerelease) \(.author.login)"') && break
+            echo "Release $TAG not visible yet (attempt $i), retrying in 15s..."
+            sleep 15
+          done
+          if [ "${state:-}" != "false false github-actions[bot]" ]; then
+            echo "::error::$TAG has no published, non-prerelease release created by the release workflow (draft, prerelease, author: ${state:-missing})."
+            exit 1
+          fi
+
       # When dispatched automatically from release.yml, the release assets
       # may not be available yet (GitHub processes uploads asynchronously).
       # Retry up to 5 times with 15s delay to handle this race condition.

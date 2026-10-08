@@ -41,6 +41,7 @@ import {
   type DotnsEnvironmentConfig,
 } from "../utils/constants";
 import { createDotnsContext, type DotnsContext, type OperationStatus } from "../core/context";
+import { checkProtocolVersion, SUPPORTED_PROTOCOL_VERSIONS } from "../core/protocolVersion";
 
 type BuildContextOptions = {
   onStatus?: (status: OperationStatus) => void;
@@ -163,6 +164,31 @@ export async function assertExpectedChain(
       `set DOTNS_SKIP_CHAIN_CHECK=1 and update the environment's genesis hash.`,
     ].join("\n  "),
   );
+}
+
+// Refuses a network that declares a dotNS protocol release newer than this CLI
+// supports, and warns on one it does not list. Runs before anything is signed, so
+// a refused network never receives a transaction, account mapping included.
+// `DOTNS_SKIP_VERSION_CHECK=1` bypasses it, for testing a CLI build against a
+// network that has moved ahead of it.
+export async function enforceProtocolVersion(
+  clientWrapper: ReviveClientWrapper,
+  origin: string,
+  environment: string,
+): Promise<void> {
+  if (process.env[ENV.SKIP_VERSION_CHECK] === "1") return;
+  const ctx = createDotnsContext({ clientWrapper, origin, environment });
+  const verdict = await step("Checking dotNS protocol version", async () =>
+    checkProtocolVersion(ctx),
+  );
+  if (verdict.kind === "unknown") {
+    console.warn(
+      chalk.yellow(
+        `Warning: the network runs dotNS protocol ${verdict.declared}, which this CLI does not ` +
+          `list (supported: ${SUPPORTED_PROTOCOL_VERSIONS.join(", ")}). Continuing.`,
+      ),
+    );
+  }
 }
 
 export async function displayAccountInformation(
@@ -321,6 +347,8 @@ export async function prepareAssetHubContext(options: any): Promise<AssetHubCont
   const evmAddress = await step("Resolving EVM address", async () =>
     clientWrapper.getEvmAddress(substrateAddress),
   );
+
+  await enforceProtocolVersion(clientWrapper, substrateAddress, environment.id);
 
   // Idempotent: submits map_account only when unmapped, so a mapped account incurs no signature.
   await step("Ensuring account mapped", async () =>

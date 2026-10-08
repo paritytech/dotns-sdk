@@ -50,6 +50,8 @@ Non-goals:
 ## Repository structure
 
 - `packages/*`: TypeScript packages (Bun workspace)
+  - `packages/cli`: the `@parity/dotns-cli` command-line tool and its programmatic SDK (`@parity/dotns-cli/core`). This is what releases publish.
+  - `packages/ui`: a web app. It is not maintained at present, does not work against current deployments, and is neither released nor deployed by CLI releases.
 - `crates/*`: Rust crates (Cargo workspace, optional; not present yet)
 - `shared/*`: cross-language artefacts (ABIs, deployments, schemas; not present yet)
 - `scripts/*`: repo-level scripts (fetch / generate / check)

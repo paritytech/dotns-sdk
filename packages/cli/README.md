@@ -123,6 +123,7 @@ pairing handshake trace when diagnosing a stuck pairing.
 | `DOTNS_RPC`                 | Asset Hub RPC endpoint                                             |
 | `DOTNS_BULLETIN_RPC`        | Bulletin chain RPC endpoint                                        |
 | `DOTNS_SKIP_CHAIN_CHECK`    | Set to `1` to skip the genesis check after connecting              |
+| `DOTNS_SKIP_VERSION_CHECK`  | Set to `1` to skip the dotNS protocol version check                |
 | `DOTNS_COMMITMENT_BUFFER`   | Extra seconds to wait after the minimum commitment age (default 6) |
 | `DOTNS_REGISTRATION_DIR`    | Directory for saved registration commitments                       |
 | `DOTNS_UPLOAD_MANIFEST_DIR` | Directory for bulletin upload manifests                            |
