@@ -19,6 +19,7 @@ export const ENV = {
   QR_APP_ID: "DOTNS_QR_APP_ID",
   QR_PEOPLE_RPC: "DOTNS_QR_PEOPLE_RPC",
   QR_DEBUG: "DOTNS_QR_DEBUG",
+  ALLOW_DEV_ACCOUNT: "DOTNS_ALLOW_DEV_ACCOUNT",
 } as const;
 
 export type SignerKind = "keystore" | "qr";
