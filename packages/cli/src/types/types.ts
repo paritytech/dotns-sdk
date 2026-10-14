@@ -135,7 +135,7 @@ export type AuthOptionValues = {
   signer?: "keystore" | "qr";
   /** App id used when pairing a QR mobile wallet */
   qrAppId?: string;
-  /** QR pairing relay: a stage name (paseo|preview|stable) or wss URLs */
+  /** QR pairing relay: a stage name (polkadot|paseo|preview|stable) or wss URLs */
   qrPeopleRpc?: string;
   /** Force a fresh QR pairing instead of reusing the cached session */
   qrFresh?: boolean;
@@ -1007,6 +1007,8 @@ export type WaveBlock = {
 
 export type CacheCidToStoreOptions = {
   cid: string;
+  // The environment the command selected, whose address book the Store write uses.
+  environment: string;
   clientWrapper: ReviveClientWrapper;
   signer: PolkadotSigner;
   substrateAddress: string;

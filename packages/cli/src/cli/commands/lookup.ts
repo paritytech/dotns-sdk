@@ -223,8 +223,13 @@ export async function prepareReadOnlyContext(
 
   await ensureAccountMappedWhenAuthenticated(clientWrapper, keypair, auth.resolvedFrom);
 
+  // Only a read that reports on the caller needs the caller's mapping: the other
+  // reads take the name or address passed in, and the dev account they fall back
+  // to is unmapped on some chains.
   const evmAddress = await step("Resolving EVM address", async () =>
-    clientWrapper.resolveOwnEvmAddress(keypair.address),
+    reportsOnCaller
+      ? clientWrapper.resolveOwnEvmAddress(keypair.address)
+      : clientWrapper.getEvmAddress(keypair.address),
   );
 
   console.log(chalk.gray("\n  RPC:     ") + chalk.white(rpc));

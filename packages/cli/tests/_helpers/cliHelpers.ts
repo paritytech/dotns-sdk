@@ -28,6 +28,9 @@ import { resolveTldInfo } from "../../src/core/naming";
 import { ENV } from "../../src/cli/env";
 import { resolveRpc } from "../../src/cli/env";
 
+// The suite signs with dev keys, so it targets a testnet unless DOTNS_ENV picks one.
+process.env[ENV.DOTNS_ENV] ??= "paseo-v2";
+
 export const HARNESS_SUCCESS_EXIT_CODE = 1;
 export const HARNESS_HELP_SUCCESS_EXIT_CODE = 0;
 export const TEST_PASSWORD = "test-password";

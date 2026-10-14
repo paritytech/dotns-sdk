@@ -214,6 +214,7 @@ export async function cacheCidToStore(options: CacheCidToStoreOptions): Promise<
     clientWrapper: options.clientWrapper,
     origin: options.substrateAddress,
     signer: options.signer,
+    environment: options.environment,
   });
   await setStoreValue(ctx, options.evmAddress, `dotns.bulletin.${options.cid}`, options.cid);
 }

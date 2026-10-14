@@ -15,6 +15,11 @@ test("previewnet emits no dot.li gateway", () => {
   expect(dotliViewUrls("alice")).toEqual([]);
 });
 
+test("polkadot emits only its dot.li gateway", () => {
+  setActiveDotnsEnvironment("polkadot");
+  expect(dotliViewUrls("alice")).toEqual(["https://alice.dot.li"]);
+});
+
 test("passes the label through unchanged, so the TLD is never duplicated", () => {
   setActiveDotnsEnvironment("paseo-v2");
   expect(dotliViewUrls("blog.alice")).toEqual(["https://blog.alice.paseo.li"]);

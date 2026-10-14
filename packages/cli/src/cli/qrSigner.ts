@@ -109,7 +109,7 @@ async function authenticatePairing(
         new Error(
           `QR pairing timed out after ${Math.round(pairTimeoutMs / 1000)}s with no wallet ` +
             `response on ${relay}. The wallet must be on this same People chain; select a ` +
-            `matching relay with --qr-people-rpc (paseo|preview|stable or wss URLs).`,
+            `matching relay with --qr-people-rpc (polkadot|paseo|preview|stable or wss URLs).`,
         ),
       );
     }, pairTimeoutMs);

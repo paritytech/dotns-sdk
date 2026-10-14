@@ -33,6 +33,13 @@ describe("assertExpectedChain", () => {
     await expect(assertExpectedChain(clientReporting(previewnet))).rejects.toThrow(pattern);
   });
 
+  test("polkadot refuses a Paseo endpoint", async () => {
+    setActiveDotnsEnvironment("polkadot");
+    await expect(assertExpectedChain(clientReporting(PASEO_GENESIS))).rejects.toThrow(
+      /WRONG CHAIN.*polkadot.*paseo-v2's Asset Hub/s,
+    );
+  });
+
   test("hash comparison is case-insensitive", async () => {
     setActiveDotnsEnvironment("paseo-v2");
     await assertExpectedChain(clientReporting(PASEO_GENESIS.toUpperCase().replace("0X", "0x")));

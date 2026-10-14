@@ -6,7 +6,7 @@ export function addAuthOptions(cmd: Command): Command {
   return cmd
     .option(
       "--env <environment>",
-      `dotNS environment: paseo-v2 or previewnet (env: ${ENV.DOTNS_ENV})`,
+      `dotNS environment: polkadot (default), paseo-v2 or previewnet (env: ${ENV.DOTNS_ENV})`,
     )
     .option("--network <environment>", "Alias for --env")
     .option("--rpc <wsUrl>", `WebSocket RPC endpoint (env: ${ENV.RPC})`)
@@ -23,7 +23,7 @@ export function addAuthOptions(cmd: Command): Command {
     .option("--qr-app-id <id>", `App id for QR pairing (env: ${ENV.QR_APP_ID})`)
     .option(
       "--qr-people-rpc <stageOrUrls>",
-      `QR pairing relay: paseo|preview|stable or wss URLs (env: ${ENV.QR_PEOPLE_RPC})`,
+      `QR pairing relay: polkadot|paseo|preview|stable or wss URLs (env: ${ENV.QR_PEOPLE_RPC})`,
     )
     .option("--qr-fresh", "Force a fresh QR pairing, ignoring any cached session")
     .option(

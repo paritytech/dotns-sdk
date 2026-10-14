@@ -29,6 +29,11 @@ function requireActiveGateway(): string {
   return environment.ipfsGatewayUrl;
 }
 
+function activeGateways(): string[] {
+  const { ipfsGatewayUrl } = getActiveDotnsEnvironment();
+  return ipfsGatewayUrl ? [ipfsGatewayUrl] : [];
+}
+
 function createIpfsGatewayUrl(gatewayBaseUrl: string, cid: string): string {
   const gateway = gatewayBaseUrl.replace(/\/+$/, "");
   return gateway.endsWith("/ipfs") ? `${gateway}/${cid}` : `${gateway}/ipfs/${cid}`;
@@ -64,9 +69,14 @@ export async function verifyCidResolution(
   }
 }
 
+// Public gateways back up the environment's own gateway; on their own, an answer
+// from them says nothing about the content being on the Bulletin chain. Without an
+// environment gateway the list is empty and nothing is probed.
 export async function verifyCidWithMultipleGateways(
   contentCid: string,
-  gatewayUrls: string[] = [requireActiveGateway(), ...PUBLIC_FALLBACK_GATEWAYS],
+  gatewayUrls: string[] = activeGateways().length
+    ? [...activeGateways(), ...PUBLIC_FALLBACK_GATEWAYS]
+    : [],
 ): Promise<Map<string, VerificationResult>> {
   const verificationResults = new Map<string, VerificationResult>();
 
@@ -98,12 +108,14 @@ export async function verifyCidViaP2P(cidString: string): Promise<VerificationRe
   }
 }
 
+// Without a gateway for the active environment, an unresolved P2P check is the
+// result: the content is stored either way, and verification only reports on it.
 export async function verifySingleFileCid(
   contentCid: string,
-  gatewayBaseUrl: string = requireActiveGateway(),
+  gatewayBaseUrl: string | undefined = activeGateways()[0],
 ): Promise<VerificationResult> {
   const p2pResult = await verifyCidViaP2P(contentCid);
-  if (p2pResult.resolvable) {
+  if (p2pResult.resolvable || !gatewayBaseUrl) {
     return p2pResult;
   }
 

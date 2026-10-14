@@ -41,6 +41,12 @@ describe("warnIfDevKeyOnTestnet", () => {
     expect(warnings[0]).toContain(DEFAULT_BULLETIN_AUTHORIZER_KEY_URI);
   });
 
+  test("warns when the default authorizer is used against polkadot", () => {
+    captureWarnings();
+    warnIfDevKeyOnTestnet(DEFAULT_BULLETIN_AUTHORIZER_KEY_URI, "polkadot");
+    expect(warnings.length).toBe(1);
+  });
+
   test("stays silent on paseo-v2 even with the default authorizer", () => {
     captureWarnings();
     warnIfDevKeyOnTestnet(DEFAULT_BULLETIN_AUTHORIZER_KEY_URI, "paseo-v2");

@@ -92,7 +92,7 @@ existing keystores.
 
 > **Experimental:** the QR mobile-wallet signer is still in development and the CLI prints a warning
 > when it is used. The wallet must be on the same People-chain network as the pairing relay (see
-> `--qr-people-rpc`); a production App Store wallet cannot pair with this testnet flow.
+> `--qr-people-rpc`), which defaults to the relay of the selected environment.
 
 Instead of a local key, pair a Polkadot mobile wallet over a QR code with `--signer qr` (or
 `DOTNS_SIGNER=qr`). The CLI prints a QR code, you scan it with the app, and every transaction is
@@ -120,16 +120,18 @@ registering or transferring. The wallet pairs under a single product id (default
 also seeds the signing account; override it with `--qr-app-id` / `DOTNS_QR_APP_ID`.
 
 Pairing rendezvous happens on a People-chain relay, and the CLI and the wallet must be on the same
-one or the wallet's response never arrives and pairing hangs. Select the relay to match the
-wallet's network with `--qr-people-rpc` / `DOTNS_QR_PEOPLE_RPC`: `paseo` (default), `preview`,
-`stable`, or a comma-separated list of `wss` URLs. Set `DOTNS_QR_DEBUG=1` to print the verbose
+one or the wallet's response never arrives and pairing hangs. By default the CLI uses the relay of
+the selected environment: `polkadot` on `polkadot`, `paseo` on `paseo-v2`, `preview` on
+`previewnet`. Select another to match the wallet's network with `--qr-people-rpc` /
+`DOTNS_QR_PEOPLE_RPC`: `polkadot`, `paseo`, `preview`, `stable`, or a comma-separated list of `wss`
+URLs. Set `DOTNS_QR_DEBUG=1` to print the verbose
 pairing handshake trace when diagnosing a stuck pairing.
 
 ## Environment Variables
 
 | Variable                    | Description                                                        |
 | --------------------------- | ------------------------------------------------------------------ |
-| `DOTNS_ENV`                 | dotNS environment: `paseo-v2` (default) or `previewnet`            |
+| `DOTNS_ENV`                 | dotNS environment: `polkadot` (default), `paseo-v2`, `previewnet`  |
 | `DOTNS_KEYSTORE_PATH`       | Path to keystore directory                                         |
 | `DOTNS_KEYSTORE_PASSWORD`   | Keystore password                                                  |
 | `DOTNS_RPC`                 | Asset Hub RPC endpoint                                             |
@@ -143,16 +145,16 @@ pairing handshake trace when diagnosing a stuck pairing.
 | `DOTNS_KEY_URI`             | Substrate key URI                                                  |
 | `DOTNS_SIGNER`              | Signer backend: `keystore` (default) or `qr`                       |
 | `DOTNS_QR_APP_ID`           | Product id for QR pairing (default `dotns`)                        |
-| `DOTNS_QR_PEOPLE_RPC`       | QR relay: `paseo`/`preview`/`stable` or wss URLs                   |
+| `DOTNS_QR_PEOPLE_RPC`       | QR relay: `polkadot`/`paseo`/`preview`/`stable` or wss URLs        |
 | `DOTNS_QR_DEBUG`            | Set to print the verbose QR pairing trace                          |
 
 Select an environment with either an environment variable or a per-command option:
 
 ```bash
-# Default: Paseo V2
-dotns account is-mapped 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
+# Default: Polkadot
+dotns lookup name alice
 
-# Explicitly use Paseo V2 for this shell
+# Use Paseo V2 for this shell
 export DOTNS_ENV=paseo-v2
 dotns account is-mapped 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
 
@@ -160,7 +162,7 @@ dotns account is-mapped 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
 dotns --env paseo-v2 account grant somelabel 0x1234567890AbcdEF1234567890aBcdef12345678
 ```
 
-`--network` is an alias of `--env`, and each environment also accepts aliases (for example `preview` for `previewnet`). `--rpc` still overrides the endpoint URL, but it does not change the selected dotNS contract addresses. Use `--env`/`DOTNS_ENV` to select the dotNS deployment.
+`--network` is an alias of `--env`, and each environment also accepts aliases (for example `preview` for `previewnet`, `mainnet` for `polkadot`). `--rpc` still overrides the endpoint URL, but it does not change the selected dotNS contract addresses. Use `--env`/`DOTNS_ENV` to select the dotNS deployment.
 
 ## Programmatic SDK
 

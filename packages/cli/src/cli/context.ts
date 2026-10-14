@@ -379,7 +379,7 @@ export async function prepareAssetHubContext(options: any): Promise<AssetHubCont
   logConfiguration({
     environmentLabel: environment.label,
     rpc,
-    chainLabel: "Polkadot Hub TestNet",
+    chainLabel: environment.id === "polkadot" ? "Polkadot Hub" : "Polkadot Hub TestNet",
     tokenInfo,
     substrateAddress,
     evmAddress,

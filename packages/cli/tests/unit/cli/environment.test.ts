@@ -20,18 +20,27 @@ afterEach(() => {
   setActiveDotnsEnvironment("paseo-v2");
 });
 
-test("defaults to paseo-v2", () => {
+test("defaults to polkadot", () => {
   delete process.env[ENV.DOTNS_ENV];
   delete process.env[ENV.RPC];
 
-  expect(resolveRpc()).toBe("wss://paseo-asset-hub-next-rpc.polkadot.io");
-  expect(getActiveDotnsEnvironment().id).toBe("paseo-v2");
+  expect(resolveRpc()).toBe("wss://polkadot-asset-hub-rpc.polkadot.io");
+  expect(getActiveDotnsEnvironment().id).toBe("polkadot");
 });
 
 test("accepts friendly paseo-v2 aliases", () => {
   expect(resolveDotnsEnvironmentId("Paseo V2")).toBe("paseo-v2");
   expect(resolveDotnsEnvironmentId("v2")).toBe("paseo-v2");
   expect(resolveDotnsEnvironmentId("next")).toBe("paseo-v2");
+});
+
+test("accepts polkadot aliases and selects its Asset Hub", () => {
+  delete process.env[ENV.RPC];
+  expect(resolveDotnsEnvironmentId("mainnet")).toBe("polkadot");
+  expect(resolveDotnsEnvironmentId(undefined)).toBe("polkadot");
+  expect(resolveDotnsEnvironmentId("Polkadot")).toBe("polkadot");
+  expect(resolveRpc(undefined, "polkadot")).toBe("wss://polkadot-asset-hub-rpc.polkadot.io");
+  expect(getActiveDotnsEnvironment().id).toBe("polkadot");
 });
 
 test("DOTNS_ENV selects rpc and contract set", () => {

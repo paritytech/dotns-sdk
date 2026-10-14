@@ -9,7 +9,13 @@ import {
   ReviveClientWrapper,
   type PolkadotApiClient,
 } from "../client/polkadotClient";
-import { DEFAULT_BULLETIN_RPC, DEFAULT_MNEMONIC, RPC_ENDPOINTS } from "../utils/constants";
+import {
+  DEFAULT_MNEMONIC,
+  DOTNS_ENVIRONMENTS,
+  resolveDotnsEnvironmentId,
+  type DotnsEnvironmentConfig,
+} from "../utils/constants";
+import { assertExpectedChain } from "../cli/context";
 import { createAccountFromSource, createSubstrateSigner } from "../commands/auth";
 import { createDotnsContext, type DotnsContext } from "../core/context";
 import { createKeyringSigner } from "../core/keyring";
@@ -23,16 +29,26 @@ export type ConnectedDotns = {
   signer: PolkadotSigner;
 };
 
+// These examples sign with the shared dev account, so they default to a testnet.
+// The RPCs come from the selected environment, so its address book always meets
+// the chain it was recorded for.
+function exampleEnvironment(): DotnsEnvironmentConfig {
+  return DOTNS_ENVIRONMENTS[resolveDotnsEnvironmentId(process.env.DOTNS_ENV ?? "paseo-v2")];
+}
+
 // Builds the keyring-backed signer here only because this is a local dev example.
 // A real consumer (mobile, extension, hardware) constructs its own PolkadotSigner
 // and passes it straight to createDotnsContext without a keyring.
 export async function connectDotns(): Promise<ConnectedDotns> {
-  const rpc = process.env.DOTNS_RPC ?? RPC_ENDPOINTS[0];
+  const environment = exampleEnvironment();
+  const rpc = process.env.DOTNS_RPC ?? environment.rpc;
+  if (!rpc) throw new Error(`Environment '${environment.id}' has no Asset Hub RPC.`);
 
   const source = process.env.DOTNS_KEY_URI ?? process.env.DOTNS_MNEMONIC ?? DEFAULT_MNEMONIC;
   const isKeyUri = Boolean(process.env.DOTNS_KEY_URI);
 
   const rawClient = createClient(getWsProvider(rpc));
+  await assertExpectedChain(rawClient, "asset-hub", environment);
   const client = rawClient.getTypedApi(paseo) as PolkadotApiClient;
   const clientWrapper = new ReviveClientWrapper(client, await getChainTokenInfo(rawClient));
 
@@ -42,7 +58,7 @@ export async function connectDotns(): Promise<ConnectedDotns> {
     clientWrapper,
     origin,
     signer,
-    environment: process.env.DOTNS_ENV,
+    environment: environment.id,
     onStatus: (status) => console.log(`  · ${status}`),
   });
 
@@ -50,7 +66,9 @@ export async function connectDotns(): Promise<ConnectedDotns> {
 }
 
 export async function connectBulletin() {
-  const rpc = process.env.BULLETIN_RPC ?? DEFAULT_BULLETIN_RPC;
+  const environment = exampleEnvironment();
+  const rpc = process.env.BULLETIN_RPC ?? environment.bulletinRpc;
+  if (!rpc) throw new Error(`Environment '${environment.id}' has no bulletin RPC.`);
   const mnemonic = process.env.DOTNS_MNEMONIC;
   const keyUri = process.env.DOTNS_KEY_URI ?? "//Alice";
 
@@ -60,6 +78,7 @@ export async function connectBulletin() {
   const signer = createSubstrateSigner(account);
 
   const rawClient = createClient(getWsProvider(rpc));
+  await assertExpectedChain(rawClient, "bulletin", environment);
   const client = rawClient.getTypedApi(bulletin);
 
   return {

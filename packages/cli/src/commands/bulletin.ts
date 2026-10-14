@@ -47,10 +47,10 @@ import type {
 import {
   DEFAULT_AUTHORIZATION_TRANSACTIONS,
   DEFAULT_AUTHORIZATION_BYTES,
-  DEFAULT_VERIFICATION_GATEWAY,
   BULLETIN_BLOCK_TIME_MS,
   DEFAULT_UPLOAD_MAX_RETRIES,
   MAX_SINGLE_UPLOAD_SIZE_BYTES,
+  getActiveDotnsEnvironment,
 } from "../utils/constants";
 import { formatErrorMessage, formatBytes, formatDuration } from "../utils/formatting";
 
@@ -935,7 +935,7 @@ export async function storeDirectory(
     accountAddress,
     onPhase,
     onRetry,
-    verificationGateway = DEFAULT_VERIFICATION_GATEWAY,
+    verificationGateway = getActiveDotnsEnvironment().ipfsGatewayUrl ?? undefined,
     maxRetries = DEFAULT_UPLOAD_MAX_RETRIES,
     waitForFinalization = false,
   } = options;
@@ -1001,9 +1001,13 @@ export async function storeDirectory(
 
           console.log(chalk.gray("  root cid: ") + chalk.cyan(rootCid.toString()));
 
-          emitPhase(onPhase, "verify", "start", "Verifying content resolution");
           const rootCidString = rootCid.toString();
+          if (!verificationGateway) {
+            emitPhase(onPhase, "verify", "warning", "No IPFS gateway for this environment");
+            return { cid: rootCidString };
+          }
 
+          emitPhase(onPhase, "verify", "start", "Verifying content resolution");
           const rootVerification = await verifyCidResolution(rootCidString, verificationGateway);
 
           if (rootVerification.resolvable) {

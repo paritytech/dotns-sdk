@@ -50,14 +50,14 @@ import {
   loadManifestForResume,
 } from "../../bulletin/uploadManifest";
 import { verifyCidWithMultipleGateways, verifyCidViaP2P } from "../../bulletin/ipfs";
-function cleanupHeliaAndExit(code: number): never {
-  import("../../bulletin/heliaClient")
+// Awaited by the caller: the CLI exits 0 as soon as the action resolves, so an
+// exit scheduled after it would lose the code.
+async function cleanupHeliaAndExit(code: number): Promise<never> {
+  const cleanup = import("../../bulletin/heliaClient")
     .then(({ destroySharedHeliaClient }) => destroySharedHeliaClient())
-    .catch(() => {})
-    .finally(() => process.exit(code));
-
-  setTimeout(() => process.exit(code), 500);
-  return undefined as never;
+    .catch(() => {});
+  await Promise.race([cleanup, new Promise((resolve) => setTimeout(resolve, 500))]);
+  process.exit(code);
 }
 import { normalizeUploadMaxRetries } from "../../bulletin/uploadRetry";
 import { addAuthOptions } from "./authOptions";
@@ -69,6 +69,7 @@ import {
   DEFAULT_BULLETIN_AUTHORIZER_KEY_URI,
   DEFAULT_AUTHORIZATION_TRANSACTIONS,
   DEFAULT_AUTHORIZATION_BYTES,
+  getActiveDotnsEnvironment,
 } from "../../utils/constants";
 import { getJsonFlag, getMergedOptions, withCapturedConsole } from "./jsonHelpers";
 import { clampChunkSizeBytes } from "../../bulletin/store";
@@ -289,11 +290,11 @@ function writeBulletinJsonError(error: unknown): never {
 /**
  * Warn when the dev-default authorizer signer is used against an environment
  * where the bulletin Authorizer is almost certainly *not* the default
- * (previewnet). Silent on every other environment (paseo-v2) and on explicit overrides.
+ * (previewnet, polkadot). Silent on paseo-v2 and on explicit overrides.
  */
 export function warnIfDevKeyOnTestnet(signerKeyUri: string, environmentId: string): void {
   if (signerKeyUri !== DEFAULT_BULLETIN_AUTHORIZER_KEY_URI) return;
-  if (environmentId !== "previewnet") return;
+  if (environmentId === "paseo-v2") return;
   console.warn(
     chalk.yellow(
       `\n⚠ Using default signer ${DEFAULT_BULLETIN_AUTHORIZER_KEY_URI} against ${environmentId}.\n` +
@@ -945,7 +946,13 @@ export function attachBulletinCommands(root: Command): void {
           // P2P verification failed; gateway fallback runs below.
         }
 
-        if (!verified) {
+        if (!verified && !getActiveDotnsEnvironment().ipfsGatewayUrl) {
+          onPhase({
+            phase: "verify",
+            state: "warning",
+            message: "P2P unavailable and no IPFS gateway for this environment; not verified",
+          });
+        } else if (!verified) {
           onPhase({
             phase: "verify",
             state: "update",
@@ -1060,6 +1067,7 @@ export function attachBulletinCommands(root: Command): void {
               signer: context.signer,
               substrateAddress: context.substrateAddress,
               evmAddress,
+              environment: getActiveDotnsEnvironment().id,
             });
             onPhase({ phase: "cache", state: "success", message: "CID cached to Store" });
           } catch (cacheError) {
@@ -1336,7 +1344,22 @@ export function attachBulletinCommands(root: Command): void {
           console.log();
         }
 
-        cleanupHeliaAndExit(0);
+        return await cleanupHeliaAndExit(0);
+      }
+
+      if (!getActiveDotnsEnvironment().ipfsGatewayUrl) {
+        p2pTask.fail("P2P verification failed, and this environment has no IPFS gateway");
+        if (jsonOutput) {
+          writeBulletinJson({
+            cid,
+            resolvable: false,
+            method: "none",
+            gateways: [
+              { gateway: "p2p/bitswap", resolvable: false, errorMessage: p2pResult.errorMessage },
+            ],
+          });
+        }
+        return await cleanupHeliaAndExit(1);
       }
 
       p2pTask.warn("P2P verification failed, falling back to gateways");
@@ -1367,7 +1390,7 @@ export function attachBulletinCommands(root: Command): void {
           method: resolvableGateways.length > 0 ? "gateway" : "none",
           gateways: entries,
         });
-        cleanupHeliaAndExit(resolvableGateways.length > 0 ? 0 : 1);
+        return await cleanupHeliaAndExit(resolvableGateways.length > 0 ? 0 : 1);
       }
 
       if (resolvableGateways.length > 0) {
@@ -1386,7 +1409,7 @@ export function attachBulletinCommands(root: Command): void {
       }
 
       console.log();
-      cleanupHeliaAndExit(resolvableGateways.length > 0 ? 0 : 1);
+      await cleanupHeliaAndExit(resolvableGateways.length > 0 ? 0 : 1);
     } catch (error) {
       p2pTask.fail("Verification failed");
       const errorMessage = formatErrorMessage(error);
@@ -1394,7 +1417,7 @@ export function attachBulletinCommands(root: Command): void {
         writeBulletinJsonError(errorMessage);
       } else {
         console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
-        cleanupHeliaAndExit(1);
+        await cleanupHeliaAndExit(1);
       }
     }
   });
