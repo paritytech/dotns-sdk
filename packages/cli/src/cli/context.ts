@@ -185,14 +185,25 @@ export async function assertExpectedChain(
 // supports. Runs before anything is signed, so a refused network never receives a
 // transaction, account mapping included. `DOTNS_SKIP_VERSION_CHECK=1` bypasses it,
 // for a network the CLI cannot vouch for but the user chooses to use anyway.
+// The check without progress output, for callers that report their own phases.
+export async function assertSupportedProtocolVersion(
+  clientWrapper: ReviveClientWrapper,
+  origin: string,
+  environment: string,
+): Promise<void> {
+  if (process.env[ENV.SKIP_VERSION_CHECK] === "1") return;
+  await checkProtocolVersion(createDotnsContext({ clientWrapper, origin, environment }));
+}
+
 export async function enforceProtocolVersion(
   clientWrapper: ReviveClientWrapper,
   origin: string,
   environment: string,
 ): Promise<void> {
   if (process.env[ENV.SKIP_VERSION_CHECK] === "1") return;
-  const ctx = createDotnsContext({ clientWrapper, origin, environment });
-  await step("Checking dotNS protocol version", async () => checkProtocolVersion(ctx));
+  await step("Checking dotNS protocol version", async () =>
+    assertSupportedProtocolVersion(clientWrapper, origin, environment),
+  );
 }
 
 export async function displayAccountInformation(
@@ -357,7 +368,16 @@ function logConfiguration(params: {
   console.log(chalk.gray("  Account:   ") + chalk.white(params.authAccount));
 }
 
-export async function prepareAssetHubContext(options: any): Promise<AssetHubContext> {
+export type AssetHubContextOptions = {
+  // False for commands that only report on the account: they read its mapping
+  // and never submit map_account.
+  mapAccount?: boolean;
+};
+
+export async function prepareAssetHubContext(
+  options: any,
+  { mapAccount = true }: AssetHubContextOptions = {},
+): Promise<AssetHubContext> {
   const environment = resolveDotnsEnvironment(resolveRpcEnvironment(options));
   const rpc = resolveRpc(options.rpc, environment.id);
   const { keystorePath, rawClient, tokenInfo, auth, account, substrateAddress, signer } =
@@ -372,9 +392,11 @@ export async function prepareAssetHubContext(options: any): Promise<AssetHubCont
   await enforceProtocolVersion(clientWrapper, substrateAddress, environment.id);
 
   // Idempotent: submits map_account only when unmapped, so a mapped account incurs no signature.
-  await step("Ensuring account mapped", async () =>
-    clientWrapper.ensureAccountMapped(substrateAddress, signer),
-  );
+  const accountAlreadyMapped = mapAccount
+    ? (await step("Ensuring account mapped", async () =>
+        clientWrapper.ensureAccountMapped(substrateAddress, signer),
+      )) === true
+    : await clientWrapper.checkIfAccountMapped(substrateAddress);
 
   logConfiguration({
     environmentLabel: environment.label,
@@ -403,6 +425,7 @@ export async function prepareAssetHubContext(options: any): Promise<AssetHubCont
     substrateAddress,
     signer,
     evmAddress,
+    accountAlreadyMapped,
     nativeTokenDecimals: tokenInfo.nativeTokenDecimals,
     nativeTokenSymbol: tokenInfo.nativeTokenSymbol,
     client: client as PolkadotApiClient,

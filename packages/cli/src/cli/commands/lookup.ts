@@ -1,7 +1,6 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
-import type { KeyringPair } from "@polkadot/keyring/types";
 import { createClient } from "polkadot-api";
 import { getWsProvider } from "polkadot-api/ws-provider/node";
 import { paseo } from "@polkadot-api/descriptors";
@@ -18,7 +17,6 @@ import {
   resolveAuthSourceReadOnly,
   resolveAuthSource,
   createAccountFromSource,
-  createSubstrateSigner,
 } from "../../commands/auth";
 import { addAuthOptions, getAuthOptions } from "./authOptions";
 import { step, printCommandHeader } from "../ui";
@@ -221,8 +219,6 @@ export async function prepareReadOnlyContext(
 
   await enforceProtocolVersion(clientWrapper, keypair.address, environment.id);
 
-  await ensureAccountMappedWhenAuthenticated(clientWrapper, keypair, auth.resolvedFrom);
-
   // Only a read that reports on the caller needs the caller's mapping: the other
   // reads take the name or address passed in, and the dev account they fall back
   // to is unmapped on some chains.
@@ -249,26 +245,6 @@ export async function prepareReadOnlyContext(
     nativeTokenSymbol,
     evmAddress,
   };
-}
-
-async function ensureAccountMappedWhenAuthenticated(
-  clientWrapper: ReviveClientWrapper,
-  keypair: KeyringPair,
-  resolvedFrom: ResolvedReadOnlyAuth["resolvedFrom"],
-): Promise<void> {
-  if (resolvedFrom === "default") return;
-  const signer = createSubstrateSigner(keypair);
-  try {
-    await step("Ensuring account mapped", async () =>
-      clientWrapper.ensureAccountMapped(keypair.address, signer),
-    );
-  } catch (mapError) {
-    console.log(
-      chalk.yellow(
-        `  ⚠ Account mapping skipped: ${mapError instanceof Error ? mapError.message : String(mapError)}`,
-      ),
-    );
-  }
 }
 
 export function attachLookupCommands(root: Command): void {

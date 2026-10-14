@@ -18,7 +18,6 @@ export function addAuthOptions(cmd: Command): Command {
     .option(
       "--signer <kind>",
       `Signer: keystore (default) or qr [experimental] (env: ${ENV.SIGNER})`,
-      "keystore",
     )
     .option("--qr-app-id <id>", `App id for QR pairing (env: ${ENV.QR_APP_ID})`)
     .option(

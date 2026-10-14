@@ -654,6 +654,8 @@ export type AssetHubContext = BaseChainContext & {
   clientWrapper: ReviveClientWrapper;
   /** EVM address (H160) mapped from Substrate address */
   evmAddress: Address;
+  /** Whether the account was already mapped before the context mapped it */
+  accountAlreadyMapped: boolean;
 };
 
 export type BulletinContext = BaseChainContext & {

@@ -1,15 +1,16 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
-import { createClient } from "polkadot-api";
-import { getWsProvider } from "polkadot-api/ws-provider/node";
-import { paseo } from "@polkadot-api/descriptors";
-import { ReviveClientWrapper, type PolkadotApiClient } from "../../client/polkadotClient";
-import type { AccountInfoOptions, CommandOptions } from "../../types/types";
-import { displayAccountInformation, prepareContext, buildReadOnlyDotnsContext } from "../context";
+import type { AccountInfoOptions, AssetHubContext, CommandOptions } from "../../types/types";
+import {
+  displayAccountInformation,
+  prepareAssetHubContext,
+  prepareContext,
+  buildReadOnlyDotnsContext,
+} from "../context";
 import { makeOnStatus } from "../txStatus";
 import { addAuthOptions } from "./authOptions";
-import { resolveRpc, resolveKeystorePath } from "../env";
+import { resolveKeystorePath } from "../env";
 import { formatErrorMessage } from "../../utils/formatting";
 import { resolveAuthSource, createAccountFromSource } from "../../commands/auth";
 import { step } from "../ui";
@@ -64,38 +65,21 @@ export function attachAccountCommands(root: Command) {
     try {
       const mergedOptions = getMergedOptions(command, options);
 
-      const environment = mergedOptions.env ?? mergedOptions.network;
-      const rpc = resolveRpc(mergedOptions.rpc, environment);
-      const keystorePath = resolveKeystorePath(mergedOptions.keystorePath);
+      // A report on the account: it reads the mapping and never signs map_account.
+      const context = await prepareAssetHubContext(mergedOptions, { mapAccount: false });
 
-      const client = await step(`Connecting RPC ${rpc}`, async () =>
-        createClient(getWsProvider(rpc)).getTypedApi(paseo),
+      console.log(chalk.gray("\n  Auth:      ") + chalk.white(context.auth.resolvedFrom));
+      console.log(chalk.gray("  Account:   ") + chalk.white(context.auth.account));
+      console.log(
+        chalk.gray("  Mapped:    ") +
+          (context.accountAlreadyMapped
+            ? chalk.white("yes")
+            : chalk.yellow("no (run `dotns account map` before writing)")),
       );
-
-      const clientWrapper = new ReviveClientWrapper(client as PolkadotApiClient);
-
-      const auth = await step("Resolving account", async () =>
-        resolveAuthSource({
-          mnemonic: mergedOptions.mnemonic,
-          keyUri: mergedOptions.keyUri,
-          keystorePath,
-          account: mergedOptions.account,
-          password: mergedOptions.password,
-        }),
-      );
-
-      const context = await prepareContext(mergedOptions);
-
-      const evmAddress = await step("Resolving EVM address", async () =>
-        clientWrapper.resolveOwnEvmAddress(context.substrateAddress),
-      );
-
-      console.log(chalk.gray("\n  Auth:      ") + chalk.white(auth.resolvedFrom));
-      console.log(chalk.gray("  Account:   ") + chalk.white(auth.account));
 
       await displayAccountInformation(
-        client as PolkadotApiClient,
-        evmAddress,
+        context.client,
+        context.evmAddress,
         context.substrateAddress,
         context.nativeTokenDecimals,
         context.nativeTokenSymbol,
@@ -117,31 +101,19 @@ export function attachAccountCommands(root: Command) {
     try {
       const mergedOptions = getMergedOptions(command, options);
 
-      const environment = mergedOptions.env ?? mergedOptions.network;
-      const rpc = resolveRpc(mergedOptions.rpc, environment);
-
-      const client = await step(`Connecting RPC ${rpc}`, async () =>
-        createClient(getWsProvider(rpc)).getTypedApi(paseo),
-      );
-
-      const clientWrapper = new ReviveClientWrapper(client as PolkadotApiClient);
-
-      const context = await prepareContext(mergedOptions);
+      // Preparing the context maps the account when it is not mapped yet.
+      const context = (await prepareContext(mergedOptions)) as AssetHubContext;
 
       console.log(chalk.blue("\n▶ Account Mapping"));
       console.log(chalk.gray("  Substrate: ") + chalk.white(context.substrateAddress));
 
-      const isMapped = await step("Mapping account", async () =>
-        clientWrapper.ensureAccountMapped(context.substrateAddress, context.signer),
-      );
-
       const evmAddress = await step("Resolving EVM address", async () =>
-        clientWrapper.resolveOwnEvmAddress(context.substrateAddress),
+        context.clientWrapper.resolveOwnEvmAddress(context.substrateAddress),
       );
 
       console.log(chalk.gray("\n  EVM:       ") + chalk.cyan(evmAddress));
 
-      if (isMapped) {
+      if (context.accountAlreadyMapped) {
         console.log(chalk.yellow("\n⚠ Account already mapped\n"));
       } else {
         console.log(chalk.green("\n✓ Account Mapped\n"));
