@@ -73,7 +73,7 @@ Write commands refuse to start when nothing but that default resolves. To sign w
 on purpose (local chains, throwaway testnet runs) opt in explicitly:
 
 ```bash
-dotns --allow-dev-account <command>
+dotns <command> --allow-dev-account
 export DOTNS_ALLOW_DEV_ACCOUNT=1
 ```
 
