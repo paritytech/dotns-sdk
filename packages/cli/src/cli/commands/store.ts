@@ -78,7 +78,9 @@ export function attachStoreCommands(root: Command): void {
     const jsonOutput = getJsonFlag(command);
     try {
       const mergedOptions = getMergedOptions(command, options);
-      const context = await maybeQuiet(jsonOutput, () => prepareReadOnlyContext(mergedOptions));
+      const context = await maybeQuiet(jsonOutput, () =>
+        prepareReadOnlyContext(mergedOptions, { reportsOnCaller: true }),
+      );
 
       if (!jsonOutput) printCommandHeader("Store info");
       const spinner = ora();
@@ -110,7 +112,9 @@ export function attachStoreCommands(root: Command): void {
     const jsonOutput = getJsonFlag(command);
     try {
       const mergedOptions = getMergedOptions(command, options);
-      const context = await maybeQuiet(jsonOutput, () => prepareReadOnlyContext(mergedOptions));
+      const context = await maybeQuiet(jsonOutput, () =>
+        prepareReadOnlyContext(mergedOptions, { reportsOnCaller: true }),
+      );
 
       if (!jsonOutput) printCommandHeader("Store values");
       const spinner = ora();
@@ -150,7 +154,9 @@ export function attachStoreCommands(root: Command): void {
       const jsonOutput = getJsonFlag(command);
       try {
         const mergedOptions = getMergedOptions(command, options);
-        const context = await maybeQuiet(jsonOutput, () => prepareReadOnlyContext(mergedOptions));
+        const context = await maybeQuiet(jsonOutput, () =>
+          prepareReadOnlyContext(mergedOptions, { reportsOnCaller: true }),
+        );
 
         if (!jsonOutput) printCommandHeader("Store names");
         const spinner = ora();
@@ -191,7 +197,9 @@ export function attachStoreCommands(root: Command): void {
     const jsonOutput = getJsonFlag(command);
     try {
       const mergedOptions = getMergedOptions(command, options);
-      const context = await maybeQuiet(jsonOutput, () => prepareReadOnlyContext(mergedOptions));
+      const context = await maybeQuiet(jsonOutput, () =>
+        prepareReadOnlyContext(mergedOptions, { reportsOnCaller: true }),
+      );
 
       if (!jsonOutput) printCommandHeader("Store CIDs");
       const spinner = ora();
@@ -228,7 +236,9 @@ export function attachStoreCommands(root: Command): void {
       const jsonOutput = getJsonFlag(command);
       try {
         const mergedOptions = getMergedOptions(command, options);
-        const context = await maybeQuiet(jsonOutput, () => prepareReadOnlyContext(mergedOptions));
+        const context = await maybeQuiet(jsonOutput, () =>
+          prepareReadOnlyContext(mergedOptions, { reportsOnCaller: true }),
+        );
 
         if (!jsonOutput) printCommandHeader("Store value");
         const spinner = ora();

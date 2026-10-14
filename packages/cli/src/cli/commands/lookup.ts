@@ -12,7 +12,7 @@ import {
 } from "../../client/polkadotClient";
 import { performDomainLookup, performOwnerOfLookup } from "../../commands/lookup";
 import { verifyDomainOwnership } from "../../commands/register";
-import { resolveDotnsEnvironment, resolveRpc } from "../env";
+import { ENV, resolveDotnsEnvironment, resolveRpc } from "../env";
 import { formatErrorMessage } from "../../utils/formatting";
 import {
   resolveAuthSourceReadOnly,
@@ -158,16 +158,31 @@ function withReadOnlyPasswordFallback<T extends AuthSource>(opts: T): T {
   return opts;
 }
 
+export type ReadOnlyContextOptions = {
+  // The command reports on the calling account itself, for example its store or its
+  // personhood status, so a dev-account fallback changes the subject of the result.
+  reportsOnCaller?: boolean;
+};
+
 // Reads never sign, so the dev-account fallback stays a warning rather than the
-// refusal the signing path raises: every address this context reports is the
-// dev account's, not the caller's.
-function warnReadOnlyDefaultAccount(resolvedFrom: ResolvedReadOnlyAuth["resolvedFrom"]): void {
-  if (resolvedFrom !== "default") return;
-  writeSecurityWarning("⚠  No account configured — reporting on the shared public dev account.");
+// refusal the signing path raises. It matters only where the caller is the subject:
+// elsewhere the dev account is just the origin of the read calls. Without an auth flag,
+// reads take the account from the environment and never open the default keystore, so
+// an account set with `dotns auth set` does not apply here.
+function warnReadOnlyDefaultAccount(
+  resolvedFrom: ResolvedReadOnlyAuth["resolvedFrom"],
+  reportsOnCaller: boolean,
+): void {
+  if (resolvedFrom !== "default" || !reportsOnCaller) return;
+  writeSecurityWarning(
+    `⚠  Reporting on the shared public dev account. Reads use ${ENV.MNEMONIC}, ${ENV.KEY_URI} ` +
+      "or an auth flag such as --account, and do not open the default keystore.",
+  );
 }
 
 export async function prepareReadOnlyContext(
   options: AuthSource & { rpc?: string },
+  { reportsOnCaller = false }: ReadOnlyContextOptions = {},
 ): Promise<ReadOnlyContext> {
   const environment = resolveDotnsEnvironment(options.env ?? options.network);
   const rpc = resolveRpc(options.rpc, environment.id);
@@ -197,7 +212,7 @@ export async function prepareReadOnlyContext(
     } as ResolvedReadOnlyAuth;
   });
 
-  warnReadOnlyDefaultAccount(auth.resolvedFrom);
+  warnReadOnlyDefaultAccount(auth.resolvedFrom, reportsOnCaller);
 
   const keypair = await step("Loading keypair", async () =>
     createAccountFromSource(auth.source, auth.isKeyUri),

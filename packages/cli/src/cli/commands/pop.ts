@@ -39,7 +39,7 @@ function formatPopStatus(
 }
 
 async function readPopInfo(options: CommandOptions): Promise<PopInfoResult> {
-  const context = await prepareReadOnlyContext(options as any);
+  const context = await prepareReadOnlyContext(options as any, { reportsOnCaller: true });
   const ctx = buildReadOnlyDotnsContext(context);
   const evm = context.evmAddress as Address;
   const [status, pendingClaims] = await Promise.all([

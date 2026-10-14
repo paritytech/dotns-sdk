@@ -1,8 +1,9 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { assertSigningAccountConfigured } from "../../../src/cli/context";
+import { assertSigningAccountConfigured, resolveSigningAuth } from "../../../src/cli/context";
+import { ENV, resolveKeystorePath } from "../../../src/cli/env";
 
 describe("assertSigningAccountConfigured", () => {
   test("accepts every source other than the built-in default", () => {
@@ -54,5 +55,44 @@ describe("security warnings survive the --json capture", () => {
     } finally {
       await fs.rm(scriptPath, { force: true });
     }
+  });
+});
+
+describe("resolveSigningAuth", () => {
+  const AUTH_ENV = [ENV.MNEMONIC, ENV.KEY_URI, ENV.ALLOW_DEV_ACCOUNT, ENV.KEYSTORE_PATH] as const;
+  const saved = new Map<string, string | undefined>();
+  const missingKeystore = path.join(os.tmpdir(), `dotns-no-keystore-${process.pid}`);
+
+  beforeEach(() => {
+    for (const name of AUTH_ENV) {
+      saved.set(name, process.env[name]);
+      delete process.env[name];
+    }
+    // The default keystore location, empty, as for a user who never ran `dotns auth set`.
+    process.env[ENV.KEYSTORE_PATH] = missingKeystore;
+  });
+
+  afterEach(() => {
+    for (const [name, value] of saved) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  });
+
+  test("refuses when nothing but the default resolves", async () => {
+    await expect(resolveSigningAuth({}, resolveKeystorePath())).rejects.toThrow(
+      /refusing to sign with the shared public dev account/,
+    );
+  });
+
+  test("reads the --allow-dev-account option", async () => {
+    const auth = await resolveSigningAuth({ allowDevAccount: true }, resolveKeystorePath());
+    expect(auth.resolvedFrom).toBe("default");
+  });
+
+  test(`reads ${ENV.ALLOW_DEV_ACCOUNT}=1`, async () => {
+    process.env[ENV.ALLOW_DEV_ACCOUNT] = "1";
+    const auth = await resolveSigningAuth({}, resolveKeystorePath());
+    expect(auth.resolvedFrom).toBe("default");
   });
 });

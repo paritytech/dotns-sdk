@@ -1022,7 +1022,7 @@ export type ListSummary = {
 export async function executeList(
   options: Partial<RegisterActionOptions> & { json?: boolean } = {},
 ): Promise<ListSummary> {
-  const context = await prepareReadOnlyContext(options);
+  const context = await prepareReadOnlyContext(options, { reportsOnCaller: true });
   const caller = context.evmAddress as Address;
   const env = requireEnvironment(context.environment);
   const ctx = buildDotnsContext(

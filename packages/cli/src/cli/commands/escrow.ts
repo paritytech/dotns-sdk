@@ -148,7 +148,9 @@ export function attachEscrowCommands(root: Command) {
     try {
       const mergedOptions = getMergedOptions(command, options);
       const context = await maybeQuiet(jsonOutput, () =>
-        prepareReadOnlyContext(mergedOptions as any),
+        prepareReadOnlyContext(mergedOptions as any, {
+          reportsOnCaller: options.recipient === undefined,
+        }),
       );
 
       const recipient = await resolveRecipientOption(jsonOutput, context, options.recipient);
@@ -186,7 +188,9 @@ export function attachEscrowCommands(root: Command) {
     try {
       const mergedOptions = getMergedOptions(command, options);
       const context = await maybeQuiet(jsonOutput, () =>
-        prepareReadOnlyContext(mergedOptions as any),
+        prepareReadOnlyContext(mergedOptions as any, {
+          reportsOnCaller: options.recipient === undefined,
+        }),
       );
 
       const recipient = await resolveRecipientOption(jsonOutput, context, options.recipient);
@@ -411,7 +415,9 @@ export function attachEscrowCommands(root: Command) {
       try {
         const mergedOptions = getMergedOptions(command, options);
         const context = await maybeQuiet(jsonOutput, () =>
-          prepareReadOnlyContext(mergedOptions as any),
+          prepareReadOnlyContext(mergedOptions as any, {
+            reportsOnCaller: options.recipient === undefined,
+          }),
         );
 
         const offset = Number(options.offset ?? "0");

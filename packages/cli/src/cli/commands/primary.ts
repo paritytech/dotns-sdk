@@ -72,7 +72,9 @@ export function attachPrimaryCommands(root: Command) {
       try {
         const mergedOptions = getMergedOptions(command, options);
         const context = await maybeQuiet(jsonOutput, () =>
-          prepareReadOnlyContext(mergedOptions as never),
+          prepareReadOnlyContext(mergedOptions as never, {
+            reportsOnCaller: address === undefined,
+          }),
         );
 
         if (!jsonOutput) printCommandHeader("Primary name");

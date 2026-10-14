@@ -225,7 +225,30 @@ type ConnectionAndAuth = {
   signer: ReturnType<typeof createSubstrateSigner>;
 };
 
-// Connect to `rpc`, read token metadata, resolve the account and build its signer:
+// Resolves the signing account and applies the dev-account refusal. It needs no chain,
+// so a missing account fails before any network work.
+export async function resolveSigningAuth(
+  options: any,
+  keystorePath: string,
+): Promise<ConnectionAndAuth["auth"]> {
+  const auth = await step("Resolving account", async () =>
+    resolveAuthSource({
+      mnemonic: options.mnemonic,
+      keyUri: options.keyUri,
+      keystorePath,
+      account: options.account,
+      password: options.password,
+    }),
+  );
+
+  assertSigningAccountConfigured(
+    auth.resolvedFrom,
+    options.allowDevAccount === true || process.env[ENV.ALLOW_DEV_ACCOUNT] === "1",
+  );
+  return auth;
+}
+
+// Resolve the account, connect to `rpc`, read token metadata and build the signer:
 // the work shared by every chain context regardless of descriptor.
 async function connectAndAuthenticate(
   options: any,
@@ -234,6 +257,11 @@ async function connectAndAuthenticate(
 ): Promise<ConnectionAndAuth> {
   assertSignerOptions(options);
   const keystorePath = resolveKeystorePath(options.keystorePath);
+  // A paired wallet resolves no local account, so only the keystore signer is checked here.
+  const auth =
+    resolveSignerKind(options.signer) === "qr"
+      ? null
+      : await resolveSigningAuth(options, keystorePath);
 
   const rawClient = await step(`Connecting RPC ${rpc}`, async () =>
     createClient(getWsProvider(rpc)),
@@ -243,7 +271,7 @@ async function connectAndAuthenticate(
     getChainTokenInfo(rawClient),
   );
 
-  if (resolveSignerKind(options.signer) === "qr") {
+  if (auth === null) {
     const { origin, signer } = await step("Pairing mobile wallet", async () =>
       createQrSigner({
         appId: resolveQrAppId(options.qrAppId),
@@ -270,20 +298,6 @@ async function connectAndAuthenticate(
     };
   }
 
-  const auth = await step("Resolving account", async () =>
-    resolveAuthSource({
-      mnemonic: options.mnemonic,
-      keyUri: options.keyUri,
-      keystorePath,
-      account: options.account,
-      password: options.password,
-    }),
-  );
-
-  assertSigningAccountConfigured(
-    auth.resolvedFrom,
-    options.allowDevAccount === true || process.env[ENV.ALLOW_DEV_ACCOUNT] === "1",
-  );
   const account = await step("Loading keypair", async () =>
     createAccountFromSource(auth.source, auth.isKeyUri),
   );

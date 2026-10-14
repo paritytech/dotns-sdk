@@ -65,9 +65,11 @@ dotns pop status --account karim
 ```
 
 Read-only commands can run without configured credentials. In that case the CLI uses a shared dev
-account only as the origin for read calls, and says so on stderr — including under `--json`, where
-stdout stays clean machine-readable output. Every address and status such a run reports belongs to
-the dev account, not to you.
+account as the origin for read calls. Without an auth flag, reads take the account from
+`DOTNS_MNEMONIC` or `DOTNS_KEY_URI` and do not open the default keystore. Commands that report on
+the calling account itself, such as `pop status`, `store info` or `register list`, then report on
+the dev account, and say so on stderr, including under `--json`, where stdout stays clean
+machine-readable output.
 
 Write commands refuse to start when nothing but that default resolves. To sign with the dev account
 on purpose (local chains, throwaway testnet runs) opt in explicitly:

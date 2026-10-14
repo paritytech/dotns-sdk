@@ -14,7 +14,7 @@ import { formatErrorMessage } from "../../utils/formatting";
 import { resolveAuthSource, createAccountFromSource } from "../../commands/auth";
 import { step } from "../ui";
 import { prepareReadOnlyContext } from "./lookup";
-import { getJsonFlag, getMergedOptions, maybeQuiet } from "./jsonHelpers";
+import { getJsonFlag, getMergedOptions, maybeQuiet, writeSecurityWarning } from "./jsonHelpers";
 import { checkAccountMapped, getNameGrant, isNameGrantedTo } from "../../commands/accountChecks";
 
 export function attachAccountCommands(root: Command) {
@@ -38,6 +38,14 @@ export function attachAccountCommands(root: Command) {
         account: mergedOptions.account,
         password: mergedOptions.password,
       });
+
+      // This path also opens the default keystore, so a default here means nothing is
+      // configured at all and the printed address is the shared dev account's.
+      if (auth.resolvedFrom === "default") {
+        writeSecurityWarning(
+          "⚠  No account configured: this is the address of the shared public dev account.",
+        );
+      }
 
       const account = await createAccountFromSource(auth.source, auth.isKeyUri);
       console.log(account.address);
