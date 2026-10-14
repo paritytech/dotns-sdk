@@ -63,13 +63,8 @@ runs:
 
         ADDRESS=$(dotns account address)
         RESULT_FILE=$(mktemp)
-        # SURI like //Alice goes via --key-uri; everything else is a BIP39 mnemonic.
-        if [[ "$AUTHORIZER_MNEMONIC" == //* ]]; then
-          AUTH_ARGS=(--key-uri "$AUTHORIZER_MNEMONIC")
-        else
-          AUTH_ARGS=(-m "$AUTHORIZER_MNEMONIC")
-        fi
-        ARGS=(bulletin authorize "$ADDRESS" "${AUTH_ARGS[@]}" --json --reporter stream)
+        # --key-uri selects the Authorizer signer and takes a SURI or a BIP39 mnemonic.
+        ARGS=(bulletin authorize "$ADDRESS" --key-uri "$AUTHORIZER_MNEMONIC" --json --reporter stream)
         [[ -n "$BULLETIN_RPC" ]] && ARGS+=(--bulletin-rpc "$BULLETIN_RPC")
 
         if run_dotns_with_retry \
