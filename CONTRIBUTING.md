@@ -67,7 +67,7 @@ Before opening a pull request:
 
 ## Releasing
 
-Releases publish the CLI (`@parity/dotns-cli`) from `v*` tags. The web UI in `packages/ui` is not released.
+Releases publish the CLI (`@parity/dotns-cli`) from `v*` tags. The web UI in `packages/ui` is not released with the CLI; `ui-v*` tags deploy it separately through `deploy-ui.yml`.
 
 1. A pull request that changes the CLI bumps `packages/cli/package.json` past the latest `v*` tag; the release guard fails it otherwise.
 2. To release, tag a commit on `main` with `v<version>` and push the tag. A tag on any other commit is refused.

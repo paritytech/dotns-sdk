@@ -212,6 +212,10 @@ await transferName(ctx, "aliceweb3", recipient);
 `paseo` comes from descriptors generated for the target chain; outside this repository, generate
 your own with `papi add`.
 
+The SDK does not check the network's dotNS protocol version on its own: call
+`checkProtocolVersion(ctx)` once after creating the context. It returns the declared release, or
+throws `UnsupportedProtocolVersionError` when the network declares one this SDK does not support.
+
 `createDotnsContext` rejects an EVM (H160) origin, and a write without a signer throws
 `MissingSignerError`. The origin must be Revive address-mapped before `registerName`/`transferName`.
 To sign with a QR-paired mobile wallet programmatically, build the signer with

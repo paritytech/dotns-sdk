@@ -1,10 +1,13 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, mock, test } from "bun:test";
 import {
+  checkProtocolVersion,
   isSupportedProtocolVersion,
+  readProtocolVersion,
   SUPPORTED_PROTOCOL_VERSIONS,
   UnsupportedProtocolVersionError,
 } from "../../../src/core/protocolVersion";
-import { enforceProtocolVersion } from "../../../src/cli/context";
+import * as realContext from "../../../src/core/context";
+import { assertSupportedProtocolVersion, enforceProtocolVersion } from "../../../src/cli/context";
 import { ENV } from "../../../src/cli/env";
 import type { ReviveClientWrapper } from "../../../src/client/polkadotClient";
 
@@ -75,5 +78,85 @@ describe("enforceProtocolVersion", () => {
       },
     ) as ReviveClientWrapper;
     await enforceProtocolVersion(untouchable, "unused", "paseo-v2");
+  });
+});
+
+const ORIGIN = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
+
+// Another suite replaces `read` process-wide, so these tests install their own: while
+// a test sets `declared`, it answers the two version reads (the controller's
+// protocolRegistry(), then the registry's protocolVersion()); every other read, and
+// every read outside these tests, goes to the real implementation.
+let declared: string | Error | undefined;
+const realRead = realContext.read;
+
+function versionRead(...args: Parameters<typeof realContext.read>): Promise<unknown> {
+  const functionName = args[3];
+  if (declared !== undefined && functionName === "protocolRegistry") {
+    return Promise.resolve("0x00000000000000000000000000000000000000aa");
+  }
+  if (declared !== undefined && functionName === "protocolVersion") {
+    return declared instanceof Error ? Promise.reject(declared) : Promise.resolve(declared);
+  }
+  return realRead(...args);
+}
+
+mock.module("../../../src/core/context", () => ({ ...realContext, read: versionRead }));
+
+afterEach(() => {
+  declared = undefined;
+});
+
+const wrapper = {} as ReviveClientWrapper;
+
+function contextDeclaring(value: string | Error) {
+  declared = value;
+  return realContext.createDotnsContext({
+    clientWrapper: wrapper,
+    origin: ORIGIN,
+    environment: "paseo-v2",
+  });
+}
+
+describe("readProtocolVersion", () => {
+  test("an empty or blank declaration reads as none", async () => {
+    expect(await readProtocolVersion(contextDeclaring(""))).toBeNull();
+    expect(await readProtocolVersion(contextDeclaring("   "))).toBeNull();
+  });
+
+  test("a padded declaration is trimmed", async () => {
+    expect(await readProtocolVersion(contextDeclaring(" 1.0.0 "))).toBe("1.0.0");
+  });
+});
+
+describe("checkProtocolVersion", () => {
+  test("returns a supported declaration", async () => {
+    expect(await checkProtocolVersion(contextDeclaring("1.0.0"))).toBe("1.0.0");
+  });
+
+  test("refuses a release outside the list, patch releases included", async () => {
+    await expect(checkProtocolVersion(contextDeclaring("1.0.1"))).rejects.toBeInstanceOf(
+      UnsupportedProtocolVersionError,
+    );
+  });
+
+  test("a failed read is refused with its cause", async () => {
+    const failure = new Error("connection reset");
+    const error = await checkProtocolVersion(contextDeclaring(failure)).catch((e) => e);
+    expect(error).toBeInstanceOf(UnsupportedProtocolVersionError);
+    expect(error.cause).toBe(failure);
+    expect(error.message).toContain("(connection reset)");
+  });
+});
+
+describe("assertSupportedProtocolVersion", () => {
+  test("names the CLI escape hatch, which core leaves out", async () => {
+    declared = "0.7.0";
+    const error = await assertSupportedProtocolVersion(wrapper, ORIGIN, "paseo-v2").catch((e) => e);
+    expect(error).toBeInstanceOf(UnsupportedProtocolVersionError);
+    expect(error.message).toContain(`Set ${ENV.SKIP_VERSION_CHECK}=1`);
+    expect(new UnsupportedProtocolVersionError("0.7.0").message).not.toContain(
+      ENV.SKIP_VERSION_CHECK,
+    );
   });
 });

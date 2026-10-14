@@ -42,7 +42,7 @@ import {
   type DotnsEnvironmentConfig,
 } from "../utils/constants";
 import { createDotnsContext, type DotnsContext, type OperationStatus } from "../core/context";
-import { checkProtocolVersion } from "../core/protocolVersion";
+import { checkProtocolVersion, UnsupportedProtocolVersionError } from "../core/protocolVersion";
 
 type BuildContextOptions = {
   onStatus?: (status: OperationStatus) => void;
@@ -192,7 +192,15 @@ export async function assertSupportedProtocolVersion(
   environment: string,
 ): Promise<void> {
   if (process.env[ENV.SKIP_VERSION_CHECK] === "1") return;
-  await checkProtocolVersion(createDotnsContext({ clientWrapper, origin, environment }));
+  try {
+    await checkProtocolVersion(createDotnsContext({ clientWrapper, origin, environment }));
+  } catch (error) {
+    // The escape hatch is a CLI setting, so the CLI names it.
+    if (error instanceof UnsupportedProtocolVersionError) {
+      error.message += ` Set ${ENV.SKIP_VERSION_CHECK}=1 to use it anyway.`;
+    }
+    throw error;
+  }
 }
 
 export async function enforceProtocolVersion(
