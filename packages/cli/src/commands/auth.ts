@@ -9,6 +9,7 @@ import fs from "node:fs/promises";
 
 import { DEFAULT_MNEMONIC } from "../utils/constants";
 import { ENV, resolveKeystorePath } from "../cli/env";
+import { writeSecurityWarning } from "../cli/commands/jsonHelpers";
 import { getPasswordForDecrypt } from "../cli/io";
 import { pathExists, readKeystoreFile } from "../cli/keystore/file";
 import { decryptKeystorePayload } from "../cli/keystore/crypto";
@@ -159,7 +160,7 @@ function warnArgvSecret(flag: string): void {
       `and shell history. Prefer DOTNS_MNEMONIC / DOTNS_KEY_URI or an encrypted keystore ` +
       `(dotns auth set).`,
   );
-  console.warn(`\n${heading}\n${detail}\n`);
+  writeSecurityWarning(`\n${heading}\n${detail}`);
 }
 
 export async function resolveAuthSource(opts: AuthSource): Promise<ResolvedAuthSource> {
