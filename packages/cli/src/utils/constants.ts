@@ -151,6 +151,13 @@ export const PASEO_BULLETIN_PEERS: readonly string[] = [
   "/dns4/paseo-bulletin-next-rpc-node-1.polkadot.io/tcp/443/wss/p2p/12D3KooWKMc4jJsU7fdEsis4AsM8Assk5jFqhEUEa2ZSiWJGKpfv",
 ];
 
+// Boot nodes from the Polkadot Bulletin chain spec (paritytech/polkadot-bulletin-chain,
+// chainspecs/polkadot-chainspec.json), over wss. Both serve Bitswap.
+const POLKADOT_BULLETIN_PEERS: readonly string[] = [
+  "/dns/bulletin.dpstk.de/tcp/30335/wss/p2p/12D3KooWHPmACsPbXDo9n4qjBZqGEqJ7JLG2fvaCWNCMWyysg6vQ",
+  "/dns/bulletin.amperfix.de/tcp/30335/wss/p2p/12D3KooWMc7ZJ6JGiehG1H45JL69QTPivEBnzm8LihkEEFjYMRnr",
+];
+
 const DOTNS_ENVIRONMENT_IDS = ["paseo-v2", "previewnet", "polkadot"] as const;
 export type DotnsEnvironmentId = (typeof DOTNS_ENVIRONMENT_IDS)[number];
 
@@ -339,7 +346,7 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
     contracts: POLKADOT_CONTRACTS,
     bulletinRpc: "wss://bulletin-rpc.polkadot.io",
     ipfsGatewayUrl: null,
-    bulletinP2pPeers: [],
+    bulletinP2pPeers: POLKADOT_BULLETIN_PEERS,
   },
 };
 
