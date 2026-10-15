@@ -2,6 +2,11 @@
 
 A command-line tool for registering and managing `.dot` domains on Polkadot.
 
+> **Network:** commands target Polkadot MainNet (`--env polkadot`) unless you select another
+> environment, so registrations, transfers and Bulletin uploads spend real DOT. Pass
+> `--env paseo-v2` or set `DOTNS_ENV=paseo-v2` to work on the Paseo TestNet; see
+> [Environment Variables](#environment-variables).
+
 ## Installation
 
 ```bash

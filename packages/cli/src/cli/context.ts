@@ -182,10 +182,11 @@ export async function assertExpectedChain(
 }
 
 // Refuses a network unless it declares one of the dotNS protocol releases this CLI
-// supports. Runs before anything is signed, so a refused network never receives a
-// transaction, account mapping included. `DOTNS_SKIP_VERSION_CHECK=1` bypasses it,
-// for a network the CLI cannot vouch for but the user chooses to use anyway.
-// The check without progress output, for callers that report their own phases.
+// supports. Runs before every read and before anything is signed, so a refused
+// network never receives a transaction, account mapping included.
+// `DOTNS_SKIP_VERSION_CHECK=1` bypasses it, for a network the CLI cannot vouch for
+// but the user chooses to use anyway. Prints nothing, for callers that report their
+// own phases.
 export async function assertSupportedProtocolVersion(
   clientWrapper: ReviveClientWrapper,
   origin: string,
@@ -203,6 +204,7 @@ export async function assertSupportedProtocolVersion(
   }
 }
 
+// assertSupportedProtocolVersion behind a progress step.
 export async function enforceProtocolVersion(
   clientWrapper: ReviveClientWrapper,
   origin: string,
