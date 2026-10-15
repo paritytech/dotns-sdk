@@ -317,10 +317,7 @@ const authMethods = [
 ];
 
 const envVars = [
-  {
-    name: "DOTNS_ENV",
-    description: "dotNS environment: polkadot (default), paseo-v2 or previewnet",
-  },
+  { name: "DOTNS_ENV", description: "DotNS environment (default: paseo-v2)" },
   { name: "DOTNS_RPC", description: "WebSocket RPC endpoint for the Asset Hub chain" },
   { name: "DOTNS_BULLETIN_RPC", description: "WebSocket RPC endpoint for the Bulletin chain" },
   { name: "DOTNS_MNEMONIC", description: "BIP-39 mnemonic phrase" },
@@ -341,10 +338,7 @@ const envVars = [
 ];
 
 const sharedOptions = [
-  {
-    flag: "--env <environment>",
-    description: "dotNS environment: polkadot (default), paseo-v2 or previewnet (env: DOTNS_ENV)",
-  },
+  { flag: "--env <environment>", description: "DotNS environment: paseo-v2 (env: DOTNS_ENV)" },
   { flag: "--network <environment>", description: "Alias for --env" },
   { flag: "--rpc <wsUrl>", description: "WebSocket RPC endpoint (env: DOTNS_RPC)" },
   {
