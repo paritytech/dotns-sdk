@@ -122,6 +122,19 @@ export function validateParentPath(path: string): void {
 }
 
 /**
+ * Validates a label a whitelist grant can name: the canonical label shape and the
+ * minimum length of 3 that `registerReserved` enforces. The grant itself decides
+ * which names reach that path, so no base-length bound applies.
+ */
+export function validateGrantedLabel(label: string): void {
+  validateCanonicalLabel(label, "governance label");
+
+  if (label.length < 3) {
+    throw new Error("Invalid governance label: minimum length of 3 characters");
+  }
+}
+
+/**
  * Validates a label for the governance registration path.
  *
  * Intentionally does **not** delegate to {@link validateDomainLabel}: this path
@@ -132,11 +145,7 @@ export function validateParentPath(path: string): void {
  * `executeGovernanceRegistration` documents why each bound is or is not applied.
  */
 export function validateGovernanceLabel(label: string): void {
-  validateCanonicalLabel(label, "governance label");
-
-  if (label.length < 3) {
-    throw new Error("Invalid governance label: minimum length of 3 characters");
-  }
+  validateGrantedLabel(label);
 
   const baseName = baseLabelOf(label);
   if (baseName.length > 5) {
