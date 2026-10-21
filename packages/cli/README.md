@@ -242,8 +242,9 @@ dotns --password test-password register domain --account default --name coolwebs
 # Register a name in the personhood band (base 6-8; needs personhood and the short-name switch on)
 dotns --password test-password register domain --account default --name premium
 
-# Reserved registration (base ≤ 5): needs a whitelist grant binding the name to the owner
-# (check it with `account grant`), or a Root origin
+# Reserved registration: needs a whitelist grant binding the name to the owner (check it
+# with `account grant`), or a Root origin. Without a grant only a base ≤ 5 is accepted; a
+# grant covers any name it names. `governance propose` asks OpenGov for one.
 dotns --password test-password register domain --account default --name short --governance
 
 # Register for another owner
@@ -257,6 +258,40 @@ dotns --password test-password register domain --account default --name coolwebs
 
 # Auto-retry on failure, resuming from the cached commitment (here, up to 3 times)
 dotns --password test-password register domain --account default --name coolwebsite --retry 3
+```
+
+### Governance grants
+
+A name under nine characters can't be bought while short names are closed, and one of five
+characters or fewer never can. Either way the route is a whitelist grant, which only a Root
+origin can make, so on Polkadot it takes an OpenGov referendum. `governance propose` checks the
+name can be granted, dry-runs the grant as Root, shows every deposit and fee, checks the balance,
+and asks twice before placing a decision deposit. It refuses to sign without an interactive
+terminal.
+
+```bash
+# Propose a grant of web3 to the signer and follow it
+dotns governance propose web3 --reason "Web3 Foundation"
+dotns governance status web3
+dotns governance status 1234
+
+# Propose for another account, which is the one that registers the name afterwards
+dotns governance propose web3 --for 0x000000000000000000000000000000000000dEaD
+
+# Also place the decision deposit (100,000 DOT on Root, 10,000 DOT on Whitelisted Caller)
+dotns governance propose web3 --decision-deposit
+
+# Whitelisted Caller track: needs the Technical Fellowship to whitelist the call first
+dotns governance propose web3 --track whitelisted-caller
+
+# Print the call, preimage and costs without signing, for a multisig or proxy
+dotns governance propose web3 --dry-run --json
+
+# Once the grant enacts, the beneficiary registers the name
+dotns register domain --name web3 --governance
+
+# While the request window is open, request a name for governance to accept
+dotns whitelist request web3 --reason "Web3 Foundation"
 ```
 
 ### Resume and manage commitments
