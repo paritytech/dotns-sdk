@@ -1,4 +1,4 @@
-import type { Paseo } from "@polkadot-api/descriptors";
+import { paseo, polkadotAssetHub, type Paseo } from "@polkadot-api/descriptors";
 import { Binary, type PolkadotClient, type PolkadotSigner, type TypedApi } from "polkadot-api";
 import { decodeAddress } from "@polkadot/util-crypto";
 import { isAddress, type Address, type Hash } from "viem";
@@ -7,6 +7,21 @@ import { ensureError, formatDispatchError } from "../utils/formatting";
 import { DEFAULT_NATIVE_TOKEN_DECIMALS, DEFAULT_NATIVE_TOKEN_SYMBOL } from "../utils/constants";
 
 export type PolkadotApiClient = TypedApi<Paseo>;
+
+/**
+ * The typed Asset Hub API for an environment, built from that network's own metadata, so
+ * PAPI checks every call against the runtime it is sent to. Polkadot's calls share
+ * Paseo's shapes for everything the SDK uses, so one compile-time type serves both.
+ */
+export function getAssetHubTypedApi(
+  rawClient: PolkadotClient,
+  environmentId: string,
+): PolkadotApiClient {
+  if (environmentId === "polkadot") {
+    return rawClient.getTypedApi(polkadotAssetHub) as unknown as PolkadotApiClient;
+  }
+  return rawClient.getTypedApi(paseo);
+}
 
 /** A finalized extrinsic: its hash and the events it emitted. */
 export type FinalizedExtrinsic = {
@@ -193,14 +208,7 @@ export class ReviveClientWrapper {
     proof_size: 18446744073709551615n,
   };
 
-  private readonly rawClient?: PolkadotClient;
-
-  constructor(
-    client: PolkadotApiClient,
-    tokenInfo: Partial<NativeTokenInfo> = {},
-    rawClient?: PolkadotClient,
-  ) {
-    this.rawClient = rawClient;
+  constructor(client: PolkadotApiClient, tokenInfo: Partial<NativeTokenInfo> = {}) {
     const {
       nativeTokenDecimals = DEFAULT_NATIVE_TOKEN_DECIMALS,
       nativeTokenSymbol = DEFAULT_NATIVE_TOKEN_SYMBOL,
@@ -214,18 +222,6 @@ export class ReviveClientWrapper {
     this.client = client;
     this.nativeTokenDecimals = nativeTokenDecimals;
     this.nativeTokenSymbol = nativeTokenSymbol;
-  }
-
-  /**
-   * Untyped API for the connected runtime. The typed client is generated from Paseo's
-   * metadata, so calls whose types differ between networks, such as a `RuntimeCall`
-   * handed to the dry-run API, go through this instead.
-   */
-  unsafeApi(): any {
-    if (!this.rawClient) {
-      throw new Error("This client was created without its raw connection, which this call needs.");
-    }
-    return this.rawClient.getUnsafeApi();
   }
 
   async getEvmAddress(substrateAddress: string): Promise<Address> {

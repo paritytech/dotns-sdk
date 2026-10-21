@@ -1,4 +1,4 @@
-import { Binary, Enum } from "polkadot-api";
+import { Binary, Enum, type TxCallData } from "polkadot-api";
 import { blake2AsHex } from "@polkadot/util-crypto";
 import { decodeFunctionData, encodeFunctionData, getAddress, type Address, type Hex } from "viem";
 import { type DotnsContext, read, requireSigner, write } from "../core/context";
@@ -7,6 +7,7 @@ import {
   computeStorageDepositLimit,
   convertToHexString,
   isSameSubstrateAccount,
+  type PolkadotApiClient,
 } from "../client/polkadotClient";
 import {
   DOTNS_NAME_WHITELIST_ABI,
@@ -65,6 +66,21 @@ export type GovernanceClock = {
 
 type ClaimRecord = { status: number };
 
+type ReferendumInfo = NonNullable<
+  Awaited<ReturnType<PolkadotApiClient["query"]["Referenda"]["ReferendumInfoFor"]["getValue"]>>
+>;
+type OngoingReferendum = Extract<ReferendumInfo, { type: "Ongoing" }>["value"];
+
+type DryRunParams = Parameters<PolkadotApiClient["apis"]["DryRunApi"]["dry_run_call"]>;
+type OriginCaller = DryRunParams[0];
+type RuntimeCall = DryRunParams[1];
+
+/** Either the grant itself or its Whitelisted Caller wrapper. */
+export type ProposalCall = {
+  decodedCall: RuntimeCall;
+  getEncodedData: () => Promise<Binary>;
+};
+
 type ModuleError = { type?: string; value?: { type?: string; value?: { type?: string } } };
 
 export const CLAIM_STATUS = ["None", "Requested", "Rejected"] as const;
@@ -91,7 +107,7 @@ export type GrantProposal = {
   label: string;
   beneficiary: Address;
   calldata: Hex;
-  proposal: any;
+  proposal: ProposalCall;
   proposalBytes: Uint8Array;
   preimageHash: Hex;
   preimageLength: number;
@@ -167,15 +183,15 @@ export type ReferendumSummary = {
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
-function api(ctx: DotnsContext): any {
-  return ctx.clientWrapper.unsafeApi();
+function api(ctx: DotnsContext): PolkadotApiClient {
+  return ctx.clientWrapper.client;
 }
 
-function rootOrigin() {
+function rootOrigin(): OriginCaller {
   return Enum("system", Enum("Root"));
 }
 
-function proposalOrigin(track: GovernanceTrack) {
+function proposalOrigin(track: GovernanceTrack): OriginCaller {
   return track === "root" ? rootOrigin() : Enum("Origins", Enum("WhitelistedCaller"));
 }
 
@@ -199,7 +215,7 @@ export async function readTrack(ctx: DotnsContext, track: GovernanceTrack): Prom
 }
 
 async function readTracks(ctx: DotnsContext): Promise<TrackInfo[]> {
-  const raw: [number, any][] = await api(ctx).constants.Referenda.Tracks();
+  const raw = await api(ctx).constants.Referenda.Tracks();
   const result: TrackInfo[] = [];
   for (const [id, info] of raw) {
     const runtimeName = trackRuntimeName(info.name);
@@ -219,7 +235,7 @@ async function readTracks(ctx: DotnsContext): Promise<TrackInfo[]> {
 }
 
 async function readDecisionPeriods(ctx: DotnsContext): Promise<Map<number, number>> {
-  const raw: [number, any][] = await api(ctx).constants.Referenda.Tracks();
+  const raw = await api(ctx).constants.Referenda.Tracks();
   return new Map(raw.map(([id, info]) => [Number(id), Number(info.decision_period)]));
 }
 
@@ -276,7 +292,11 @@ export function unwrapReviveCall(
   return { dest: convertToHexString(dest), data: convertToHexString(data), viaWhitelist };
 }
 
-async function dryRun(ctx: DotnsContext, origin: unknown, call: unknown): Promise<DryRunOutcome> {
+async function dryRun(
+  ctx: DotnsContext,
+  origin: OriginCaller,
+  call: RuntimeCall,
+): Promise<DryRunOutcome> {
   const result = await api(ctx).apis.DryRunApi.dry_run_call(origin, call, DRY_RUN_XCM_VERSION);
   if (!result.success) {
     return { ok: false, error: `dry run failed: ${formatDispatchError(result.value)}` };
@@ -346,7 +366,7 @@ export async function buildGrantProposal(
     throw new Error(`The ${params.action} call would fail at enactment: ${confirmed.error}`);
   }
 
-  let proposal = grantCall;
+  let proposal: ProposalCall = grantCall;
   let whitelistCallHash: Hex | undefined;
   let whitelisted: boolean | undefined;
   if (params.track === "whitelisted-caller") {
@@ -409,16 +429,18 @@ export function buildSubmission(
     }),
     enactment_moment: Enum("After", proposal.track.minEnactmentPeriod),
   });
-  const calls: any[] = [];
+  const calls: TxCallData[] = [];
   if (opts.notePreimage) {
-    calls.push(tx.Preimage.note_preimage({ bytes: Binary.fromBytes(proposal.proposalBytes) }));
+    calls.push(
+      tx.Preimage.note_preimage({ bytes: Binary.fromBytes(proposal.proposalBytes) }).decodedCall,
+    );
   }
   if (opts.reason) {
-    calls.push(tx.System.remark({ remark: Binary.fromText(opts.reason) }));
+    calls.push(tx.System.remark({ remark: Binary.fromText(opts.reason) }).decodedCall);
   }
   if (calls.length === 0) return submit;
-  calls.push(submit);
-  return tx.Utility.batch_all({ calls: calls.map((call) => call.decodedCall) });
+  calls.push(submit.decodedCall);
+  return tx.Utility.batch_all({ calls });
 }
 
 function sumHeldForPreimage(events: any[], who: string): bigint {
@@ -652,7 +674,7 @@ export function assessGrant(
   return { action, warnings };
 }
 
-function summariseOngoing(index: number, info: any): ReferendumSummary {
+function summariseOngoing(index: number, info: OngoingReferendum): ReferendumSummary {
   const deciding = info.deciding ?? undefined;
   const confirming = deciding?.confirming ?? undefined;
   let status: ReferendumStatus = "Preparing";
@@ -670,9 +692,12 @@ function summariseOngoing(index: number, info: any): ReferendumSummary {
   };
 }
 
-async function decodeProposal(ctx: DotnsContext, proposal: any): Promise<any | null> {
+async function decodeProposal(
+  ctx: DotnsContext,
+  proposal: OngoingReferendum["proposal"],
+): Promise<TxCallData | null> {
   const chain = api(ctx);
-  let bytes: any;
+  let bytes: Binary | undefined;
   if (proposal?.type === "Inline") {
     bytes = proposal.value;
   } else if (proposal?.type === "Lookup") {
@@ -691,7 +716,7 @@ async function decodeProposal(ctx: DotnsContext, proposal: any): Promise<any | n
 
 async function grantOf(
   ctx: DotnsContext,
-  proposal: any,
+  proposal: OngoingReferendum["proposal"],
   whitelist: Address,
 ): Promise<ReferendumSummary["grant"]> {
   const decoded = await decodeProposal(ctx, proposal);
@@ -730,8 +755,7 @@ export async function findGrantReferenda(
   label: string,
 ): Promise<ReferendumSummary[]> {
   const whitelist = await resolveNameWhitelist(ctx);
-  const entries: { keyArgs: [number]; value: any }[] =
-    await api(ctx).query.Referenda.ReferendumInfoFor.getEntries();
+  const entries = await api(ctx).query.Referenda.ReferendumInfoFor.getEntries();
   const matches: ReferendumSummary[] = [];
   for (const entry of entries) {
     if (entry.value?.type !== "Ongoing") continue;

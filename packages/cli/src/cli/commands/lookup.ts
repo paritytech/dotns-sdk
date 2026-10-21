@@ -3,11 +3,10 @@ import chalk from "chalk";
 import ora from "ora";
 import { createClient } from "polkadot-api";
 import { getWsProvider } from "polkadot-api/ws-provider/node";
-import { paseo } from "@polkadot-api/descriptors";
 import {
+  getAssetHubTypedApi,
   getChainTokenInfo,
   ReviveClientWrapper,
-  type PolkadotApiClient,
 } from "../../client/polkadotClient";
 import { performDomainLookup, performOwnerOfLookup } from "../../commands/lookup";
 import { verifyDomainOwnership } from "../../commands/register";
@@ -124,13 +123,13 @@ function renderBaseNameReservation(
   console.log();
 }
 
-async function createReadOnlyChainContext(rpc: string) {
+async function createReadOnlyChainContext(rpc: string, environmentId: string) {
   const rawClient = createClient(getWsProvider(rpc));
   await assertExpectedChain(rawClient);
-  const client = rawClient.getTypedApi(paseo);
+  const client = getAssetHubTypedApi(rawClient, environmentId);
   const tokenInfo = await getChainTokenInfo(rawClient);
   return {
-    clientWrapper: new ReviveClientWrapper(client as PolkadotApiClient, tokenInfo, rawClient),
+    clientWrapper: new ReviveClientWrapper(client, tokenInfo),
     ...tokenInfo,
   };
 }
@@ -187,7 +186,7 @@ export async function prepareReadOnlyContext(
   const rpc = resolveRpc(options.rpc, environment.id);
 
   const readOnlyContext = await step(`Connecting RPC ${rpc}`, async () =>
-    createReadOnlyChainContext(rpc),
+    createReadOnlyChainContext(rpc, environment.id),
   );
   const { clientWrapper, nativeTokenDecimals, nativeTokenSymbol } = readOnlyContext;
 

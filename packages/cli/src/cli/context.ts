@@ -1,9 +1,10 @@
 import chalk from "chalk";
 import { createClient, type PolkadotClient } from "polkadot-api";
 import { getWsProvider } from "polkadot-api/ws-provider/node";
-import { bulletin, paseo } from "@polkadot-api/descriptors";
+import { bulletin } from "@polkadot-api/descriptors";
 import { type Address } from "viem";
 import {
+  getAssetHubTypedApi,
   getChainTokenInfo,
   ReviveClientWrapper,
   type PolkadotApiClient,
@@ -393,8 +394,8 @@ export async function prepareAssetHubContext(
   const { keystorePath, rawClient, tokenInfo, auth, account, substrateAddress, signer } =
     await connectAndAuthenticate(options, rpc);
 
-  const client = rawClient.getTypedApi(paseo);
-  const clientWrapper = new ReviveClientWrapper(client as PolkadotApiClient, tokenInfo, rawClient);
+  const client = getAssetHubTypedApi(rawClient, environment.id);
+  const clientWrapper = new ReviveClientWrapper(client, tokenInfo);
   const evmAddress = await step("Resolving EVM address", async () =>
     clientWrapper.getEvmAddress(substrateAddress),
   );
