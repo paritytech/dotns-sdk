@@ -8,6 +8,12 @@ import { DEFAULT_NATIVE_TOKEN_DECIMALS, DEFAULT_NATIVE_TOKEN_SYMBOL } from "../u
 
 export type PolkadotApiClient = TypedApi<Paseo>;
 
+/** A finalized extrinsic: its hash and the events it emitted. */
+export type FinalizedExtrinsic = {
+  txHash: Hash;
+  events: { type: string; value: { type: string; value: any } }[];
+};
+
 /** Native token decimals and symbol of a chain, as reported by its chain spec properties. */
 export type NativeTokenInfo = {
   nativeTokenDecimals: number;
@@ -151,7 +157,7 @@ function unwrapExecutionResult(rawResult: any): {
 
 // Compares two SS58 addresses by their decoded public key, so a differing network
 // prefix does not register as a different account.
-function isSameSubstrateAccount(a: string, b: string): boolean {
+export function isSameSubstrateAccount(a: string, b: string): boolean {
   try {
     const decodedA = decodeAddress(a);
     const decodedB = decodeAddress(b);
@@ -187,7 +193,14 @@ export class ReviveClientWrapper {
     proof_size: 18446744073709551615n,
   };
 
-  constructor(client: PolkadotApiClient, tokenInfo: Partial<NativeTokenInfo> = {}) {
+  private readonly rawClient?: PolkadotClient;
+
+  constructor(
+    client: PolkadotApiClient,
+    tokenInfo: Partial<NativeTokenInfo> = {},
+    rawClient?: PolkadotClient,
+  ) {
+    this.rawClient = rawClient;
     const {
       nativeTokenDecimals = DEFAULT_NATIVE_TOKEN_DECIMALS,
       nativeTokenSymbol = DEFAULT_NATIVE_TOKEN_SYMBOL,
@@ -201,6 +214,18 @@ export class ReviveClientWrapper {
     this.client = client;
     this.nativeTokenDecimals = nativeTokenDecimals;
     this.nativeTokenSymbol = nativeTokenSymbol;
+  }
+
+  /**
+   * Untyped API for the connected runtime. The typed client is generated from Paseo's
+   * metadata, so calls whose types differ between networks, such as a `RuntimeCall`
+   * handed to the dry-run API, go through this instead.
+   */
+  unsafeApi(): any {
+    if (!this.rawClient) {
+      throw new Error("This client was created without its raw connection, which this call needs.");
+    }
+    return this.rawClient.getUnsafeApi();
   }
 
   async getEvmAddress(substrateAddress: string): Promise<Address> {
@@ -386,9 +411,30 @@ export class ReviveClientWrapper {
     signerSubstrateAddress: string,
     signal?: AbortSignal,
   ): Promise<Hash> {
+    const finalized = await this.submitExtrinsic(
+      extrinsic,
+      signer,
+      statusCallback,
+      signerSubstrateAddress,
+      signal,
+    );
+    return finalized.txHash;
+  }
+
+  /**
+   * Signs and submits any extrinsic, resolving once it is finalized without a dispatch
+   * error. The events let a caller read what the extrinsic produced, such as an index.
+   */
+  async submitExtrinsic(
+    extrinsic: any,
+    signer: PolkadotSigner,
+    statusCallback: (status: TransactionStatus) => void,
+    signerSubstrateAddress: string,
+    signal?: AbortSignal,
+  ): Promise<FinalizedExtrinsic> {
     const nonce = await this.fetchNextNonce(signerSubstrateAddress);
 
-    return new Promise<Hash>((resolve, reject) => {
+    return new Promise<FinalizedExtrinsic>((resolve, reject) => {
       let subscription: { unsubscribe: () => void } | undefined;
       let settled = false;
 
@@ -437,7 +483,9 @@ export class ReviveClientWrapper {
                   return;
                 }
                 statusCallback("finalized");
-                settle(() => resolve(transactionHash as Hash));
+                settle(() =>
+                  resolve({ txHash: transactionHash as Hash, events: event.events ?? [] }),
+                );
                 return;
               case "invalid":
               case "dropped":

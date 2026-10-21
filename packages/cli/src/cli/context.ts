@@ -394,7 +394,7 @@ export async function prepareAssetHubContext(
     await connectAndAuthenticate(options, rpc);
 
   const client = rawClient.getTypedApi(paseo);
-  const clientWrapper = new ReviveClientWrapper(client as PolkadotApiClient, tokenInfo);
+  const clientWrapper = new ReviveClientWrapper(client as PolkadotApiClient, tokenInfo, rawClient);
   const evmAddress = await step("Resolving EVM address", async () =>
     clientWrapper.getEvmAddress(substrateAddress),
   );
