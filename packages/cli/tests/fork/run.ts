@@ -11,9 +11,10 @@ const fork = Bun.spawn(["npx", "-y", CHOPSTICKS, "--config", CONFIG], {
   stderr: "pipe",
 });
 
+const decoder = new TextDecoder();
+let log = "";
+
 async function waitForEndpoint(): Promise<string> {
-  const decoder = new TextDecoder();
-  let log = "";
   const deadline = Date.now() + READY_TIMEOUT_MS;
   for (const stream of [fork.stdout, fork.stderr]) {
     void (async () => {
@@ -21,7 +22,8 @@ async function waitForEndpoint(): Promise<string> {
     })();
   }
   while (Date.now() < deadline) {
-    const match = log.match(/listening on .* and (ws:\/\/\S+)/);
+    // CI forces colour output, so the address can carry ANSI escapes.
+    const match = log.replace(/\x1b\[[0-9;]*m/g, "").match(/listening on .* and (ws:\/\/\S+)/);
     if (match) return match[1]!.replace("[::]", "localhost");
     if (fork.exitCode !== null) throw new Error(`Chopsticks exited early:\n${log}`);
     await Bun.sleep(500);
@@ -34,7 +36,7 @@ try {
   const endpoint = await waitForEndpoint();
   console.log(`Fork ready at ${endpoint}`);
   const tests = Bun.spawn(
-    ["bun", "test", "tests/fork", "--timeout", "900000", ...process.argv.slice(2)],
+    [process.execPath, "test", "tests/fork", "--timeout", "900000", ...process.argv.slice(2)],
     {
       cwd: path.join(import.meta.dir, "../.."),
       env: { ...process.env, DOTNS_FORK_RPC: endpoint },
@@ -43,6 +45,7 @@ try {
     },
   );
   exitCode = await tests.exited;
+  if (exitCode !== 0) console.error(`Chopsticks log tail:\n${log.slice(-4_000)}`);
 } finally {
   fork.kill();
 }

@@ -100,7 +100,7 @@ async function registerWithCli(label: string): Promise<CliRun> {
   try {
     const child = Bun.spawn(
       [
-        "bun",
+        process.execPath,
         "run",
         CLI_ENTRY,
         "register",
