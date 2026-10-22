@@ -2,6 +2,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:te
 import path from "node:path";
 import { Binary, createClient, type PolkadotClient } from "polkadot-api";
 import { getWsProvider } from "polkadot-api/ws-provider/node";
+import { blake2AsHex } from "@polkadot/util-crypto";
 import { encodeFunctionData, getAddress, type Address, type Hex } from "viem";
 import {
   getAssetHubTypedApi,
@@ -126,7 +127,17 @@ async function asRoot(functionName: string, args: unknown[]): Promise<void> {
       encodeFunctionData({ abi: DOTNS_NAME_WHITELIST_ABI, functionName, args }) as Hex,
     ),
   });
-  await dispatchOk(schedule({ Inline: (await call.getEncodedData()).asHex() }, { system: "Root" }));
+  // The scheduler takes inline calls of up to 128 bytes, so the call goes in as a preimage.
+  const bytes = (await call.getEncodedData()).asBytes();
+  await ctx.clientWrapper.submitExtrinsic(
+    ctx.clientWrapper.client.tx.Preimage.note_preimage({ bytes: Binary.fromBytes(bytes) }),
+    createSubstrateSigner(await createAccountFromSource(ALICE_KEY_URI, true)),
+    () => {},
+    alice,
+  );
+  await dispatchOk(
+    schedule({ Lookup: { hash: blake2AsHex(bytes, 256), len: bytes.length } }, { system: "Root" }),
+  );
 }
 
 async function whitelistState(label: string): Promise<WhitelistState> {
