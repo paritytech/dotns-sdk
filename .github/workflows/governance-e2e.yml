@@ -1,4 +1,4 @@
-name: Fork Test
+name: Governance E2E
 
 on:
   schedule:
@@ -14,19 +14,19 @@ on:
       - "packages/cli/src/commands/register.ts"
       - "packages/cli/src/client/polkadotClient.ts"
       - "packages/cli/.papi/**"
-      - "packages/cli/tests/fork/**"
-      - ".github/workflows/fork-test.yml"
+      - "packages/cli/tests/e2e/**"
+      - ".github/workflows/governance-e2e.yml"
 
 concurrency:
-  group: fork-test-${{ github.ref }}
+  group: governance-e2e-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  fork-test:
-    name: Fork Test
+  governance-e2e:
+    name: Governance E2E
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -57,6 +57,6 @@ jobs:
             done
           done
 
-      - name: Run governance grants on a Polkadot Asset Hub fork
+      - name: Run governance grants end to end
         working-directory: packages/cli
-        run: bun run test:fork
+        run: bun run test:e2e

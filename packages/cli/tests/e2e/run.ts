@@ -1,7 +1,6 @@
 import path from "node:path";
 
-// Starts a fresh Chopsticks fork of Polkadot Asset Hub, runs the fork tests against it
-// and stops it. A fresh fork per run matters: the tests grant and register real names.
+// A fresh fork per run: the tests grant and register real names on it.
 const CHOPSTICKS = "@acala-network/chopsticks@1.5.2";
 const CONFIG = path.join(import.meta.dir, "polkadot-asset-hub.yml");
 const READY_TIMEOUT_MS = 300_000;
@@ -36,7 +35,7 @@ try {
   const endpoint = await waitForEndpoint();
   console.log(`Fork ready at ${endpoint}`);
   const tests = Bun.spawn(
-    [process.execPath, "test", "tests/fork", "--timeout", "900000", ...process.argv.slice(2)],
+    [process.execPath, "test", "tests/e2e", "--timeout", "900000", ...process.argv.slice(2)],
     {
       cwd: path.join(import.meta.dir, "../.."),
       env: { ...process.env, DOTNS_FORK_RPC: endpoint },
