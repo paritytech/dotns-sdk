@@ -539,10 +539,8 @@ async function executeGovernanceRegistration(
     isNameGrantedTo(session.ctx, label, session.caller).catch(() => null),
   );
 
-  // registerReserved never consults PopRules: its only on-chain label checks are
-  // isSingleLabel() (InvalidLabel) and length >= 3 (LabelTooShort), and the grant
-  // decides which names reach it. Without a grant, the base <= 5 bound mirrors
-  // PopRules' Reserved class, which is the only class this path exists for.
+  // registerReserved never consults PopRules, so a held grant decides which names reach
+  // it. Without one, the base <= 5 bound mirrors PopRules' Reserved class.
   if (granted === true) {
     validateGrantedLabel(label);
   } else {
@@ -562,8 +560,7 @@ async function executeGovernanceRegistration(
   // (classifyName reverts). registerReserved does not consult PopRules, so the
   // only blocker here is a definite non-Reserved classification. Anything
   // other than a revert propagates out of tryClassifyDomainName, so an unreachable
-  // chain cannot masquerade as "unclassifiable" and unlock this path. A held grant
-  // already names this label, so the classification only gates ungranted calls.
+  // chain cannot masquerade as "unclassifiable" and unlock this path.
   if (granted !== true) {
     let unclassifiableReason: string | undefined;
     const classification = await step("Classifying name", async () =>

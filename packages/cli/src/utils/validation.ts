@@ -121,11 +121,7 @@ export function validateParentPath(path: string): void {
   }
 }
 
-/**
- * Validates a label a whitelist grant can name: the canonical label shape and the
- * minimum length of 3 that `registerReserved` enforces. The grant itself decides
- * which names reach that path, so no base-length bound applies.
- */
+/** The rules `registerReserved` enforces; a held grant decides which names reach it. */
 export function validateGrantedLabel(label: string): void {
   validateCanonicalLabel(label, "governance label");
 

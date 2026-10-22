@@ -34,8 +34,6 @@ const DRY_RUN_XCM_VERSION = 5;
 // Enough for any whitelist write; the real limit is derived from the Root dry run.
 const PROBE_WEIGHT_LIMIT = { ref_time: 50_000_000_000n, proof_size: 1_048_576n };
 
-// The minimum base length PopRules opens to every caller; shorter names need a grant
-// today unless the short-name band is open to personhood holders.
 const OPEN_BASE_LENGTH = 9;
 const PERSONHOOD_MIN_BASE_LENGTH = 6;
 
@@ -75,7 +73,6 @@ type DryRunParams = Parameters<PolkadotApiClient["apis"]["DryRunApi"]["dry_run_c
 type OriginCaller = DryRunParams[0];
 type RuntimeCall = DryRunParams[1];
 
-/** Either the grant itself or its Whitelisted Caller wrapper. */
 export type ProposalCall = {
   decodedCall: RuntimeCall;
   getEncodedData: () => Promise<Binary>;
@@ -111,15 +108,13 @@ export type GrantProposal = {
   proposalBytes: Uint8Array;
   preimageHash: Hex;
   preimageLength: number;
-  /** Hash of the Root call the Fellowship has to whitelist; set on the Whitelisted Caller track. */
   whitelistCallHash?: Hex;
-  /** Whether the Fellowship has whitelisted the call; set on the Whitelisted Caller track. */
   whitelisted?: boolean;
 };
 
 export type ProposalCosts = {
   submissionDeposit: bigint;
-  /** Null when the deposit couldn't be priced, which happens when the signer can't pay it. */
+  /** Null when the signer can't afford it, since it is priced by a dry run from their account. */
   preimageDeposit: bigint | null;
   preimageNoted: boolean;
   decisionDeposit: bigint;
@@ -128,7 +123,6 @@ export type ProposalCosts = {
   existentialDeposit: bigint;
   freeBalance: bigint;
   undecidingTimeout: number;
-  /** Why the signed dry run of the submission failed, when it did. */
   submissionError?: string;
 };
 
@@ -176,7 +170,6 @@ export type ReferendumSummary = {
   confirmingUntil?: number;
   ayes?: bigint;
   nays?: bigint;
-  /** Block the referendum concluded at, for one that has finished. */
   concludedAt?: number;
   grant?: GrantCallMatch & { viaWhitelist: boolean };
 };
@@ -247,7 +240,6 @@ export function encodeGrantCalldata(action: GrantAction, label: string, benefici
   });
 }
 
-/** The whitelist grant a contract call makes, or null when the call is not one. */
 export function decodeWhitelistGrantCall(data: Hex): GrantCallMatch | null {
   try {
     const decoded = decodeFunctionData({ abi: DOTNS_NAME_WHITELIST_ABI, data });
@@ -274,7 +266,6 @@ export function decodeWhitelistGrantCall(data: Hex): GrantCallMatch | null {
   }
 }
 
-/** The contract call inside a referendum proposal, looking through a Whitelisted Caller wrapper. */
 export function unwrapReviveCall(
   decodedCall: any,
 ): { dest: Hex; data: Hex; viaWhitelist: boolean } | null {
@@ -332,11 +323,7 @@ function isNotWhitelistedError(rawError: unknown): boolean {
   );
 }
 
-/**
- * Builds the referendum proposal for a whitelist grant and proves it would succeed at
- * enactment. The call is dry-run with a Root origin, because that is how enactment
- * dispatches it, and its weight limit is taken from that run.
- */
+// Dry-run with a Root origin, as enactment dispatches it; the weight limit comes from that run.
 export async function buildGrantProposal(
   ctx: DotnsContext,
   params: GrantProposalParams,
@@ -410,11 +397,7 @@ async function isPreimageNoted(ctx: DotnsContext, proposal: GrantProposal): Prom
   return stored != null;
 }
 
-/**
- * The extrinsic that puts the proposal up for a vote: notes the preimage unless it is
- * already on chain, records the reason as a remark when one is given, and submits the
- * referendum, all in one batch so it lands or fails together.
- */
+// One batch, so noting the preimage and submitting the referendum land or fail together.
 export function buildSubmission(
   ctx: DotnsContext,
   proposal: GrantProposal,
@@ -454,10 +437,6 @@ function sumHeldForPreimage(events: any[], who: string): bigint {
   return total;
 }
 
-/**
- * What proposing costs the signer, read from the chain. The submission is dry-run from
- * the signer's account, so the preimage deposit is the amount the runtime actually holds.
- */
 export async function estimateProposalCosts(
   ctx: DotnsContext,
   proposal: GrantProposal,
@@ -509,7 +488,6 @@ export async function estimateProposalCosts(
   };
 }
 
-/** What the signer needs free, keeping the existential deposit, for the chosen deposits. */
 export function requiredBalance(costs: ProposalCosts, placeDecisionDeposit: boolean): bigint {
   let total = costs.submissionDeposit + (costs.preimageDeposit ?? 0n) + costs.fees;
   if (placeDecisionDeposit) total += costs.decisionDeposit + costs.decisionDepositFee;
@@ -520,7 +498,6 @@ function findEvent(events: any[], pallet: string, name: string): any | undefined
   return events.find((event) => event?.type === pallet && event.value?.type === name)?.value?.value;
 }
 
-/** Submits the referendum and returns its index. */
 export async function submitGrantReferendum(
   ctx: DotnsContext,
   proposal: GrantProposal,
@@ -560,7 +537,6 @@ export async function placeDecisionDeposit(
   return { txHash: finalized.txHash };
 }
 
-/** Normalises and validates a label the way a whitelist grant and registerReserved accept it. */
 export async function normaliseGrantLabel(ctx: DotnsContext, name: string): Promise<string> {
   const label = await normaliseName(ctx, name);
   validateGrantedLabel(label);
@@ -610,10 +586,6 @@ export async function readGrantEligibility(
   };
 }
 
-/**
- * Decides whether a grant referendum makes sense for this name and beneficiary, which
- * whitelist call it should make, and what the proposer should know before paying for it.
- */
 export function assessGrant(
   eligibility: GrantEligibility,
   beneficiary: Address,
@@ -746,10 +718,7 @@ export async function getReferendum(
   };
 }
 
-/**
- * Ongoing referenda whose proposal grants `label` on the whitelist. Finished referenda
- * keep no proposal on chain, so the whitelist's own state answers for those.
- */
+// Finished referenda keep no proposal on chain, so only ongoing ones can be matched.
 export async function findGrantReferenda(
   ctx: DotnsContext,
   label: string,
@@ -786,7 +755,6 @@ export function formatBlockDuration(blocks: number): string {
   return `${minutes} minute${minutes === 1 ? "" : "s"}`;
 }
 
-/** One line on where a referendum stands, such as `Deciding · 18 days left · Aye 62%`. */
 export function describeReferendum(summary: ReferendumSummary, clock: GovernanceClock): string {
   const parts: string[] = [summary.status];
   switch (summary.status) {
@@ -821,11 +789,6 @@ export function describeReferendum(summary: ReferendumSummary, clock: Governance
   return parts.join(" · ");
 }
 
-/**
- * Files a request for `label` on the whitelist for `user`, which governance can then
- * accept. Checks the request window and the name's state first, so a request the
- * contract would refuse is never signed.
- */
 export async function requestNameGrant(
   ctx: DotnsContext,
   label: string,

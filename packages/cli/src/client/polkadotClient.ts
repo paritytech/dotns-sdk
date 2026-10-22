@@ -8,11 +8,8 @@ import { DEFAULT_NATIVE_TOKEN_DECIMALS, DEFAULT_NATIVE_TOKEN_SYMBOL } from "../u
 
 export type PolkadotApiClient = TypedApi<Paseo>;
 
-/**
- * The typed Asset Hub API for an environment, built from that network's own metadata, so
- * PAPI checks every call against the runtime it is sent to. Polkadot's calls share
- * Paseo's shapes for everything the SDK uses, so one compile-time type serves both.
- */
+// Each network's own metadata backs PAPI's runtime checks; Polkadot shares Paseo's call
+// shapes for everything the SDK uses, so one compile-time type serves both.
 export function getAssetHubTypedApi(
   rawClient: PolkadotClient,
   environmentId: string,
@@ -23,7 +20,6 @@ export function getAssetHubTypedApi(
   return rawClient.getTypedApi(paseo);
 }
 
-/** A finalized extrinsic: its hash and the events it emitted. */
 export type FinalizedExtrinsic = {
   txHash: Hash;
   events: { type: string; value: { type: string; value: any } }[];
@@ -417,10 +413,6 @@ export class ReviveClientWrapper {
     return finalized.txHash;
   }
 
-  /**
-   * Signs and submits any extrinsic, resolving once it is finalized without a dispatch
-   * error. The events let a caller read what the extrinsic produced, such as an index.
-   */
   async submitExtrinsic(
     extrinsic: any,
     signer: PolkadotSigner,
