@@ -39,7 +39,7 @@ import {
 } from "../utils/constants";
 import {
   validateDomainLabel,
-  validateGovernanceLabel,
+  validateGrantedLabel,
   validateParentPath,
   baseLabelOf,
 } from "../utils/validation";
@@ -187,8 +187,9 @@ export type GenerateCommitmentOptions = {
   includeReverse?: boolean;
   /**
    * Set for commitments that will be revealed through registerReserved. That path
-   * bypasses PopRules, so the label is validated against the controller's own rules
-   * (validateGovernanceLabel) instead of the PopRules-derived validateDomainLabel.
+   * bypasses PopRules and the grant decides which names reach it, so the label is
+   * validated against the controller's own rules (validateGrantedLabel) instead of
+   * the PopRules-derived validateDomainLabel.
    */
   governance?: boolean;
 };
@@ -258,7 +259,7 @@ export async function generateCommitment(
 ): Promise<GeneratedCommitment> {
   const label = await normaliseName(ctx, name);
   if (opts.governance) {
-    validateGovernanceLabel(label);
+    validateGrantedLabel(label);
   } else {
     validateDomainLabel(label);
   }
