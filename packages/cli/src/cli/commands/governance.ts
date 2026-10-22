@@ -71,15 +71,12 @@ function parseTrack(value: string | undefined): GovernanceTrack {
   return track;
 }
 
-// Whole tokens with thousands separators and at most four decimals, so 100000 DOT
-// reads as `100,000 DOT` and a preimage deposit as `0.4023 DOT`.
 export function formatTokenAmount(value: bigint, decimals: number, symbol: string): string {
   const [whole, fraction = ""] = formatNativeBalance(value, decimals).split(".");
   const shown = fraction.slice(0, 4).replace(/0+$/, "");
   return `${BigInt(whole!).toLocaleString("en-US")}${shown ? `.${shown}` : ""} ${symbol}`;
 }
 
-// The amount a user types to confirm a deposit: the exact value, no separators.
 export function typedAmount(value: bigint, decimals: number): string {
   const [whole, fraction = ""] = formatNativeBalance(value, decimals).split(".");
   const trimmed = fraction.replace(/0+$/, "");
@@ -383,26 +380,52 @@ function referendumLine(summary: ReferendumSummary, clock: GovernanceClock): str
   return `  Referendum #${summary.index} · ${describeReferendum(summary, clock)}${grant}`;
 }
 
-async function runStatus(target: string, options: object, command: Command): Promise<void> {
+interface StatusOptions {
+  referendum?: string;
+}
+
+export type StatusTarget = { name: string } | { referendum: number };
+
+// Names may be all digits, so a referendum is only ever named by its own option.
+export function parseStatusTarget(name: string | undefined, referendum?: string): StatusTarget {
+  if (name !== undefined && referendum !== undefined) {
+    throw new Error("Give either a name or --referendum, not both.");
+  }
+  if (referendum !== undefined) {
+    if (!/^\d+$/.test(referendum)) throw new Error(`Invalid referendum index "${referendum}".`);
+    return { referendum: Number(referendum) };
+  }
+  if (name === undefined) throw new Error("Give a name, or --referendum <index>.");
+  return { name };
+}
+
+async function runStatus(
+  name: string | undefined,
+  options: StatusOptions,
+  command: Command,
+): Promise<void> {
   const jsonOutput = getJsonFlag(command);
   try {
+    const target = parseStatusTarget(name, options.referendum);
     const mergedOptions = getMergedOptions(command, options);
     const context = await maybeQuiet(jsonOutput, () => prepareReadOnlyContext(mergedOptions));
     const ctx = buildReadOnlyDotnsContext(context);
     const clock = await readGovernanceClock(ctx);
 
-    if (/^\d+$/.test(target)) {
-      const summary = await getReferendum(ctx, Number(target));
-      if (!summary) throw new Error(`Referendum #${target} does not exist on this network.`);
+    if ("referendum" in target) {
+      const summary = await getReferendum(ctx, target.referendum);
+      if (!summary) {
+        throw new Error(`Referendum #${target.referendum} does not exist on this network.`);
+      }
       if (!emitJsonResult(jsonOutput, summary)) {
         console.log(referendumLine(summary, clock));
         if (summary.grant) {
           console.log(chalk.gray("  Names:    ") + summary.grant.labels.join(", "));
         }
-        if (summary.status === "Approved") {
+        if (summary.concludedAt !== undefined) {
           console.log(
             chalk.gray(
-              "  An approved grant takes effect after the enactment period. Check the name with dotns governance status <name>.",
+              "  A finished referendum keeps no proposal on chain. If it granted a name, check it with dotns governance status <name>.",
             ),
           );
         }
@@ -410,7 +433,7 @@ async function runStatus(target: string, options: object, command: Command): Pro
       process.exit(0);
     }
 
-    const label = await normaliseGrantLabel(ctx, target);
+    const label = await normaliseGrantLabel(ctx, target.name);
     const domain = await formatDomainName(ctx, label);
     const [eligibility, referenda] = await Promise.all([
       readGrantEligibility(ctx, label, zeroAddress),
@@ -501,8 +524,9 @@ export function attachGovernanceCommands(root: Command) {
   addAuthOptions(proposeCommand).action(runPropose);
 
   const statusCommand = governanceCommand
-    .command("status <nameOrIndex>")
-    .description("Show the referenda for a name, or one referendum by its index")
+    .command("status [name]")
+    .description("Show where a name's grant stands, or one referendum")
+    .option("--referendum <index>", "Show one referendum by its index instead of a name")
     .option("--json", "Output result as JSON (suppresses all other output)", false);
   addAuthOptions(statusCommand).action(runStatus);
 }

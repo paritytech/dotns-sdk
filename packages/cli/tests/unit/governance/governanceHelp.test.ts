@@ -27,11 +27,12 @@ test("governance propose --help shows every option", async () => {
   }
 });
 
-test("governance status --help takes a name or an index", async () => {
+test("governance status --help takes a name or --referendum", async () => {
   const result = await runDotnsCli(["governance", "status", "--help"]);
 
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
-  expect(result.combinedOutput).toContain("<nameOrIndex>");
+  expect(result.combinedOutput).toContain("[name]");
+  expect(result.combinedOutput).toContain("--referendum");
 });
 
 test("whitelist request --help requires a reason", async () => {

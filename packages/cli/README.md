@@ -273,7 +273,7 @@ terminal.
 # Propose a grant of web3 to the signer and follow it
 dotns governance propose web3 --reason "Web3 Foundation"
 dotns governance status web3
-dotns governance status 1234
+dotns governance status --referendum 1234
 
 # Propose for another account, which is the one that registers the name afterwards
 dotns governance propose web3 --for 0x000000000000000000000000000000000000dEaD

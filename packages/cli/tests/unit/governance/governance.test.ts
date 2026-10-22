@@ -17,6 +17,7 @@ import {
 import {
   formatTokenAmount,
   matchesTypedAmount,
+  parseStatusTarget,
   typedAmount,
 } from "../../../src/cli/commands/governance";
 import { DOTNS_NAME_WHITELIST_ABI } from "../../../src/utils/constants";
@@ -295,4 +296,20 @@ describe("amounts", () => {
 test("track names lose the runtime's padding", () => {
   expect(trackRuntimeName("root\u0000\u0000\u0000")).toBe("root");
   expect(trackRuntimeName(Binary.fromText("whitelisted_caller\u0000"))).toBe("whitelisted_caller");
+});
+
+describe("parseStatusTarget", () => {
+  test("reads an all-digit argument as a name", () => {
+    expect(parseStatusTarget("12345")).toEqual({ name: "12345" });
+  });
+
+  test("reads --referendum as an index", () => {
+    expect(parseStatusTarget(undefined, "1956")).toEqual({ referendum: 1956 });
+  });
+
+  test("refuses both, neither, or an index that isn't a number", () => {
+    expect(() => parseStatusTarget("web3", "1")).toThrow("not both");
+    expect(() => parseStatusTarget(undefined)).toThrow("--referendum");
+    expect(() => parseStatusTarget(undefined, "#12")).toThrow("Invalid referendum index");
+  });
 });
