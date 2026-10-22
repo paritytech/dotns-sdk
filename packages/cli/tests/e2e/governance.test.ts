@@ -216,7 +216,12 @@ async function cli(args: string[], opts: CliOptions = {}): Promise<CliRun> {
   } catch {
     json = undefined;
   }
-  if (exitCode !== 0) console.error(output);
+  if (exitCode !== 0) {
+    const account = await (raw.getUnsafeApi() as any).query.System.Account.getValue(alice, {
+      at: "best",
+    });
+    console.error(output, "\nAlice at best block:", account.data);
+  }
   return { exitCode, output, json };
 }
 
