@@ -338,12 +338,26 @@ export class ReviveClientWrapper {
 
   async checkIfAccountMapped(address: string): Promise<boolean> {
     try {
-      const evmAddress = isAddress(address) ? address : await this.getEvmAddress(address);
-      const key = Binary.fromHex(evmAddress);
-      const mappedAccount = await this.client.query.Revive.OriginalAccount.getValue(key);
-      return mappedAccount !== null && mappedAccount !== undefined;
+      return await this.readAccountMapping(address);
     } catch {
       return false;
+    }
+  }
+
+  // A failed read is not an answer: treating it as "unmapped" would sign a map_account
+  // the chain then rejects. Retried once, since a slow node can drop a single read.
+  async readAccountMapping(address: string): Promise<boolean> {
+    const read = async () => {
+      const evmAddress = isAddress(address) ? address : await this.getEvmAddress(address);
+      const mapped = await this.client.query.Revive.OriginalAccount.getValue(
+        Binary.fromHex(evmAddress),
+      );
+      return mapped !== null && mapped !== undefined;
+    };
+    try {
+      return await read();
+    } catch {
+      return await read();
     }
   }
 
@@ -358,7 +372,7 @@ export class ReviveClientWrapper {
 
     if (this.mappedAccounts.has(substrateAddress)) return true;
 
-    const isMapped = await this.checkIfAccountMapped(substrateAddress);
+    const isMapped = await this.readAccountMapping(substrateAddress);
     if (isMapped) {
       this.mappedAccounts.add(substrateAddress);
       return isMapped;
@@ -383,7 +397,7 @@ export class ReviveClientWrapper {
       }
       // A rejected submission (e.g. a stale nonce from a racing map) may still have left
       // the account mapped, so confirm against chain before surfacing the error.
-      if (await this.checkIfAccountMapped(substrateAddress)) {
+      if (await this.readAccountMapping(substrateAddress)) {
         this.mappedAccounts.add(substrateAddress);
         return true;
       }
