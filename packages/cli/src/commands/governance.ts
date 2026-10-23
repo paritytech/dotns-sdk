@@ -134,7 +134,8 @@ export type GrantEligibility = {
   shortNamesEnabled: boolean;
   whitelistStatus: string;
   grantee: Address;
-  beneficiaryClaim: ClaimStatus;
+  /** Null when no beneficiary was given. */
+  beneficiaryClaim: ClaimStatus | null;
   claimantCount: number;
   popReservation: { owner: Address; expiresAt: bigint } | null;
 };
@@ -530,7 +531,7 @@ export async function normaliseGrantLabel(ctx: DotnsContext, name: string): Prom
 export async function readGrantEligibility(
   ctx: DotnsContext,
   label: string,
-  beneficiary: Address,
+  beneficiary?: Address,
 ): Promise<GrantEligibility> {
   const whitelist = await resolveNameWhitelist(ctx);
   const base = baseLabelOf(label);
@@ -546,7 +547,12 @@ export async function readGrantEligibility(
       read<boolean>(ctx, ctx.contracts.DOTNS_RULES, POP_RULES_ABI, "shortNamesEnabled", []),
       read<number>(ctx, whitelist, DOTNS_NAME_WHITELIST_ABI, "statusOf", [label]),
       read<Address>(ctx, whitelist, DOTNS_NAME_WHITELIST_ABI, "granteeOf", [label]),
-      read<ClaimRecord>(ctx, whitelist, DOTNS_NAME_WHITELIST_ABI, "claimOf", [label, beneficiary]),
+      beneficiary
+        ? read<ClaimRecord>(ctx, whitelist, DOTNS_NAME_WHITELIST_ABI, "claimOf", [
+            label,
+            beneficiary,
+          ])
+        : null,
       read<bigint>(ctx, whitelist, DOTNS_NAME_WHITELIST_ABI, "claimantCount", [label]),
       read<readonly [boolean, Address, bigint]>(
         ctx,

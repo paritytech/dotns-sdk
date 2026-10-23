@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
-import { getAddress, zeroAddress, type Address } from "viem";
+import { getAddress, type Address } from "viem";
 import { printCommandHeader, step } from "../ui";
 import { addAuthOptions } from "./authOptions";
 import { prepareAssetHubContext, buildDotnsContext, buildReadOnlyDotnsContext } from "../context";
@@ -437,7 +437,7 @@ async function runStatus(
     const label = await normaliseGrantLabel(ctx, target.name);
     const domain = await formatDomainName(ctx, label);
     const [eligibility, referenda] = await Promise.all([
-      readGrantEligibility(ctx, label, zeroAddress),
+      readGrantEligibility(ctx, label),
       findGrantReferenda(ctx, label),
     ]);
     const granted = eligibility.whitelistStatus === "Claimed";
@@ -449,6 +449,7 @@ async function runStatus(
         registered: !eligibility.available,
         whitelistStatus: eligibility.whitelistStatus,
         grantee: granted ? eligibility.grantee : null,
+        requests: eligibility.claimantCount,
         popReservation: eligibility.popReservation,
         referenda,
       })
@@ -459,6 +460,9 @@ async function runStatus(
           (granted ? `granted to ${eligibility.grantee}` : eligibility.whitelistStatus),
       );
       console.log(chalk.gray("  Registered: ") + (eligibility.available ? "no" : "yes"));
+      if (eligibility.claimantCount > 0) {
+        console.log(chalk.gray("  Requests:   ") + `${eligibility.claimantCount} pending`);
+      }
       if (eligibility.popReservation) {
         console.log(
           chalk.yellow(
