@@ -464,6 +464,8 @@ export async function getPriceAndValidateEligibility(
     [baseName],
   );
 
+  // The reservation's own owner is left to PopRules' quote below: up to protocol 1.0.0 they may
+  // register the name, and from 1.1.0 a live reservation blocks every account.
   if (isReserved && checksumAddress(reservationOwner) !== checksumAddress(ownerAddress)) {
     throw new Error("Reserved for a device-name holder's personhood claim");
   }
