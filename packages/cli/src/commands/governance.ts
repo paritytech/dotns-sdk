@@ -562,12 +562,21 @@ export async function readGrantEligibility(
     baseLength: base.length,
     available,
     shortNamesEnabled,
-    whitelistStatus: NAME_GRANT_STATUS[Number(statusIndex)] ?? `unknown(${statusIndex})`,
+    whitelistStatus: knownStatus(NAME_GRANT_STATUS, statusIndex, "name status"),
     grantee: getAddress(grantee),
-    beneficiaryClaim: CLAIM_STATUS[Number(claim.status)] ?? "None",
+    beneficiaryClaim: claim ? knownStatus(CLAIM_STATUS, claim.status, "claim status") : null,
     claimantCount: Number(claimantCount),
     popReservation: reserved ? { owner: getAddress(reservationOwner), expiresAt } : null,
   };
+}
+
+// An index outside the enum means the deployed whitelist doesn't match this CLI.
+function knownStatus<T extends string>(names: readonly T[], index: number, what: string): T {
+  const name = names[Number(index)];
+  if (name === undefined) {
+    throw new Error(`The whitelist returned an unknown ${what} (${index}); update the CLI.`);
+  }
+  return name;
 }
 
 export function claimableInApp(eligibility: GrantEligibility): boolean {
