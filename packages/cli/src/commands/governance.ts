@@ -31,8 +31,9 @@ export const RELAY_BLOCK_SECONDS = 6;
 
 const DRY_RUN_XCM_VERSION = 5;
 
-// Enough for any whitelist write; the real limit is derived from the Root dry run.
-const PROBE_WEIGHT_LIMIT = { ref_time: 50_000_000_000n, proof_size: 1_048_576n };
+// Fixed rather than measured, so the call still fits if its proof grows before enactment.
+// A grant uses about 2e9 ref_time and 230 KB of proof; this stays well within a block.
+const GRANT_WEIGHT_LIMIT = { ref_time: 50_000_000_000n, proof_size: 1_048_576n };
 
 const OPEN_BASE_LENGTH = 9;
 const PERSONHOOD_MIN_BASE_LENGTH = 6;
@@ -94,7 +95,7 @@ export type TrackInfo = {
 };
 
 export type DryRunOutcome =
-  | { ok: true; weight?: Weight; events: any[] }
+  | { ok: true; events: any[] }
   | { ok: false; error: string; rawError?: unknown };
 
 export type GrantProposal = {
@@ -297,11 +298,7 @@ async function dryRun(
     const rawError = execution.value?.error ?? execution.value;
     return { ok: false, error: formatDispatchError(rawError), rawError };
   }
-  return {
-    ok: true,
-    weight: execution.value?.actual_weight ?? undefined,
-    events: result.value.emitted_events ?? [],
-  };
+  return { ok: true, events: result.value.emitted_events ?? [] };
 }
 
 function reviveCall(ctx: DotnsContext, whitelist: Address, calldata: Hex, weightLimit: Weight) {
@@ -334,23 +331,10 @@ export async function buildGrantProposal(
   ]);
   const calldata = encodeGrantCalldata(params.action, params.label, params.beneficiary);
 
-  const probe = await dryRun(
-    ctx,
-    rootOrigin(),
-    reviveCall(ctx, whitelist, calldata, PROBE_WEIGHT_LIMIT).decodedCall,
-  );
-  if (!probe.ok) {
-    throw new Error(`The ${params.action} call would fail at enactment: ${probe.error}`);
-  }
-  const used = probe.weight ?? PROBE_WEIGHT_LIMIT;
-  const weightLimit = {
-    ref_time: BigInt(used.ref_time) * 2n,
-    proof_size: BigInt(used.proof_size) * 2n,
-  };
-  const grantCall = reviveCall(ctx, whitelist, calldata, weightLimit);
-  const confirmed = await dryRun(ctx, rootOrigin(), grantCall.decodedCall);
-  if (!confirmed.ok) {
-    throw new Error(`The ${params.action} call would fail at enactment: ${confirmed.error}`);
+  const grantCall = reviveCall(ctx, whitelist, calldata, GRANT_WEIGHT_LIMIT);
+  const dryRunResult = await dryRun(ctx, rootOrigin(), grantCall.decodedCall);
+  if (!dryRunResult.ok) {
+    throw new Error(`The ${params.action} call would fail at enactment: ${dryRunResult.error}`);
   }
 
   let proposal: ProposalCall = grantCall;
