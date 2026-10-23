@@ -132,6 +132,32 @@ describe("assessGrant", () => {
     expect(text).toContain(`${OTHER} holds a reservation`);
   });
 
+  test("says nothing about the App for a name a person can't choose", () => {
+    for (const label of ["web3x1", "my-app"]) {
+      const result = assessGrant(
+        eligibility({ label, baseLength: 6, shortNamesEnabled: true }),
+        ME,
+        `${label}.dot`,
+      );
+      const text = result.warnings.join(" ");
+      expect(text).not.toContain("Polkadot App");
+      expect(text).toContain("bought on the paid path");
+    }
+  });
+
+  test("doesn't warn the beneficiary about their own reservation", () => {
+    const result = assessGrant(
+      eligibility({
+        label: "parity",
+        baseLength: 6,
+        popReservation: { owner: ME, expiresAt: 0n },
+      }),
+      ME,
+      "parity.dot",
+    );
+    expect(result.warnings.join(" ")).not.toContain("holds a reservation");
+  });
+
   test("says nothing about the App for a name of five characters or fewer", () => {
     const result = assessGrant(eligibility({ popReservation: null }), ME, "web3.dot");
     expect(result.warnings.join(" ")).not.toContain("Polkadot App");

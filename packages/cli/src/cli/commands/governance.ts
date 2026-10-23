@@ -23,6 +23,7 @@ import { getActiveDotnsEnvironment } from "../../utils/constants";
 import {
   GOVERNANCE_TRACKS,
   assessGrant,
+  claimableInApp,
   buildGrantProposal,
   buildSubmission,
   describeReferendum,
@@ -473,7 +474,7 @@ async function runStatus(
         console.log(
           `\n  ${eligibility.grantee} registers it with: dotns register domain --name ${label} --governance`,
         );
-        if (eligibility.baseLength >= 6) {
+        if (claimableInApp(eligibility)) {
           console.log(
             chalk.yellow(
               "  Do it soon: a person can still claim this name in the Polkadot App until it is registered.",

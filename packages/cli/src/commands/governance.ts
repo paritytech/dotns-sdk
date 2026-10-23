@@ -15,7 +15,7 @@ import {
   POP_RULES_ABI,
 } from "../utils/constants";
 import { formatDispatchError } from "../utils/formatting";
-import { baseLabelOf, validateGrantedLabel } from "../utils/validation";
+import { baseLabelOf, isPersonhoodLabel, validateGrantedLabel } from "../utils/validation";
 import { NAME_GRANT_STATUS, resolveNameWhitelist } from "./accountChecks";
 
 export const GOVERNANCE_TRACKS = ["root", "whitelisted-caller"] as const;
@@ -586,6 +586,12 @@ export async function readGrantEligibility(
   };
 }
 
+export function claimableInApp(eligibility: GrantEligibility): boolean {
+  return (
+    eligibility.baseLength >= PERSONHOOD_MIN_BASE_LENGTH && isPersonhoodLabel(eligibility.label)
+  );
+}
+
 export function assessGrant(
   eligibility: GrantEligibility,
   beneficiary: Address,
@@ -628,20 +634,21 @@ export function assessGrant(
       `${otherRequests} other account${otherRequests === 1 ? " has" : "s have"} requested ${domain}. Only the first grant to enact succeeds.`,
     );
   }
-  if (eligibility.baseLength >= PERSONHOOD_MIN_BASE_LENGTH) {
+  if (claimableInApp(eligibility)) {
     warnings.push(
       `A person can still claim ${domain} as their personhood name in the Polkadot App while the vote runs. If that happens the grant enacts but the name cannot be registered.`,
     );
-    if (eligibility.shortNamesEnabled) {
+    const reservation = eligibility.popReservation;
+    if (reservation && !sameAccount(reservation.owner, beneficiary)) {
       warnings.push(
-        `Short names are open to personhood holders, so ${domain} can also be bought on the paid path before the vote ends.`,
+        `${reservation.owner} holds a reservation on ${eligibility.label} from a device name and is first in line to claim it.`,
       );
     }
-    if (eligibility.popReservation) {
-      warnings.push(
-        `${eligibility.popReservation.owner} holds a reservation on ${eligibility.label} from a device name and is first in line to claim it.`,
-      );
-    }
+  }
+  if (eligibility.baseLength >= PERSONHOOD_MIN_BASE_LENGTH && eligibility.shortNamesEnabled) {
+    warnings.push(
+      `Short names are open to personhood holders, so ${domain} can also be bought on the paid path before the vote ends.`,
+    );
   }
   return { action, warnings };
 }
