@@ -318,7 +318,7 @@ async function readCommitmentTimestamp(ctx: DotnsContext, commitment: Hex): Prom
   );
 }
 
-async function readChainNowSeconds(ctx: DotnsContext): Promise<number> {
+export async function readChainNowSeconds(ctx: DotnsContext): Promise<number> {
   // Prefer chain block.timestamp via Timestamp::Now (milliseconds); fall back to
   // wall-clock only if the pallet storage isn't available on this runtime.
   const timestampQuery = (ctx.clientWrapper.client as any).query?.Timestamp?.Now;
@@ -464,6 +464,8 @@ export async function getPriceAndValidateEligibility(
     [baseName],
   );
 
+  // The reservation's own owner is left to PopRules' quote below: up to protocol 1.0.0 they may
+  // register the name, and from 1.1.0 a live reservation blocks every account.
   if (isReserved && checksumAddress(reservationOwner) !== checksumAddress(ownerAddress)) {
     throw new Error("Reserved for a device-name holder's personhood claim");
   }

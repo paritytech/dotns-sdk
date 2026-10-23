@@ -430,6 +430,24 @@
   },
   {
     "type": "function",
+    "name": "reassignBaseNameForPop",
+    "inputs": [
+      {
+        "name": "baseName",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "userAddress",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "releaseBaseName",
     "inputs": [
       {

@@ -27,7 +27,7 @@ describe("isSupportedProtocolVersion", () => {
   });
 
   test("only an exact match is supported", () => {
-    for (const declared of ["1.0.1", "0.9.0", "1.1.0", "2.0.0", "2.0.0-rc.1", "1.0.0+build.7"]) {
+    for (const declared of ["1.0.1", "0.9.0", "1.1.1", "2.0.0", "2.0.0-rc.1", "1.1.0+build.7"]) {
       expect(isSupportedProtocolVersion(declared)).toBe(false);
     }
   });

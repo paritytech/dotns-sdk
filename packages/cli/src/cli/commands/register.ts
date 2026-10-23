@@ -21,6 +21,11 @@ import {
 } from "../../commands/register";
 import { isNameGrantedTo } from "../../commands/accountChecks";
 import {
+  explainReservedRefusal,
+  getReservationQueue,
+  RESERVED_FOR_CLAIM,
+} from "../../commands/reservationQueue";
+import {
   saveCommitmentRecord,
   loadCommitmentRecords,
   findCommitmentRecord,
@@ -501,6 +506,24 @@ async function replayTransfer(
   );
 }
 
+// PopRules refuses a name while its queue holds it, including one whose reservations have
+// all expired or been left until a call clears them. Adds what the queue says about it.
+async function withQueueHint<T>(
+  ctx: DotnsContext,
+  label: string,
+  run: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.startsWith(RESERVED_FOR_CLAIM)) throw error;
+    const queue = await getReservationQueue(ctx, label).catch(() => null);
+    const hint = queue === null ? null : explainReservedRefusal(queue);
+    if (hint === null) throw error;
+    throw new Error(`${error.message}. ${hint}`, { cause: error });
+  }
+}
+
 /** Price the name and submit the regular reveal. */
 async function finalizeRegularReveal(
   session: RegistrationSession,
@@ -511,7 +534,9 @@ async function finalizeRegularReveal(
   const isCrossPayer = checksumAddress(ownerEvmAddress) !== checksumAddress(session.caller);
 
   const pricing = await step("Pricing and eligibility", async () =>
-    getPriceAndValidateEligibility(session.ctx, label, ownerEvmAddress),
+    withQueueHint(session.ctx, label, () =>
+      getPriceAndValidateEligibility(session.ctx, label, ownerEvmAddress),
+    ),
   );
   printPricing(pricing, ownerEvmAddress, isCrossPayer, session.ctx.nativeTokenSymbol);
 

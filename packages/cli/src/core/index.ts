@@ -54,6 +54,9 @@ export type {
   RegisterNameOptions,
 } from "../commands/register";
 
+export { getReservationQueue, expireReservation } from "../commands/reservationQueue";
+export type { ReservationQueueState, ExpireReservationResult } from "../commands/reservationQueue";
+
 export { quoteTransferFee, resolveTransferRecipient, transferName } from "../cli/transfer";
 export type { TransferResult } from "../cli/transfer";
 

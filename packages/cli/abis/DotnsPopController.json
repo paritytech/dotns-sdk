@@ -6,6 +6,32 @@
   },
   {
     "type": "function",
+    "name": "MAX_QUEUE_STEPS_PER_CALL",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_RESERVATION_DURATION",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MAX_RESERVATION_QUEUE",
     "inputs": [],
     "outputs": [
@@ -363,6 +389,19 @@
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "prepareDeviceContainer",
+    "inputs": [
+      {
+        "name": "suffix",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -991,25 +1030,6 @@
   },
   {
     "type": "event",
-    "name": "ReservationEvicted",
-    "inputs": [
-      {
-        "name": "reservedLabelhash",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "user",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
     "name": "ReservationExpired",
     "inputs": [
       {
@@ -1285,6 +1305,17 @@
         "name": "labelhash",
         "type": "bytes32",
         "internalType": "bytes32"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ReservationDurationTooHigh",
+    "inputs": [
+      {
+        "name": "duration",
+        "type": "uint64",
+        "internalType": "uint64"
       }
     ]
   },
