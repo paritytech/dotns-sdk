@@ -1,0 +1,3 @@
+endpoint: wss://polkadot-asset-hub-rpc.polkadot.io
+port: 8000
+build-block-mode: Instant

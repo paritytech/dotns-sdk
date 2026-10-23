@@ -1,0 +1,62 @@
+name: Governance E2E
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - "packages/cli/src/commands/governance.ts"
+      - "packages/cli/src/cli/commands/governance.ts"
+      - "packages/cli/src/cli/commands/whitelist.ts"
+      - "packages/cli/src/cli/commands/register.ts"
+      - "packages/cli/src/commands/register.ts"
+      - "packages/cli/src/client/polkadotClient.ts"
+      - "packages/cli/.papi/**"
+      - "packages/cli/tests/e2e/**"
+      - ".github/workflows/governance-e2e.yml"
+
+concurrency:
+  group: governance-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  governance-e2e:
+    name: Governance E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.19"
+          no-cache: true
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun install --frozen-lockfile
+          for pkg in packages/*; do
+            [ -f "$pkg/package.json" ] || continue
+            grep -q '"file:' "$pkg/package.json" || continue
+            grep -oP '"[^"]+": "file:\K[^"]+' "$pkg/package.json" | while read -r dep; do
+              name=$(jq -r .name "$pkg/$dep/package.json")
+              scope_dir="$pkg/node_modules/$(dirname "$name")"
+              mkdir -p "$scope_dir"
+              ln -sfn "$(cd "$pkg/$dep" && pwd)" "$pkg/node_modules/$name"
+            done
+          done
+
+      - name: Run governance grants end to end
+        working-directory: packages/cli
+        run: bun run test:e2e

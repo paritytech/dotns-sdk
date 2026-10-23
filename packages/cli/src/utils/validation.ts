@@ -121,6 +121,15 @@ export function validateParentPath(path: string): void {
   }
 }
 
+/** The rules `registerReserved` enforces; a held grant decides which names reach it. */
+export function validateGrantedLabel(label: string): void {
+  validateCanonicalLabel(label, "governance label");
+
+  if (label.length < 3) {
+    throw new Error("Invalid governance label: minimum length of 3 characters");
+  }
+}
+
 /**
  * Validates a label for the governance registration path.
  *
@@ -132,11 +141,7 @@ export function validateParentPath(path: string): void {
  * `executeGovernanceRegistration` documents why each bound is or is not applied.
  */
 export function validateGovernanceLabel(label: string): void {
-  validateCanonicalLabel(label, "governance label");
-
-  if (label.length < 3) {
-    throw new Error("Invalid governance label: minimum length of 3 characters");
-  }
+  validateGrantedLabel(label);
 
   const baseName = baseLabelOf(label);
   if (baseName.length > 5) {
