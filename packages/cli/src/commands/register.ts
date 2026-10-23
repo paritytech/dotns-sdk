@@ -318,7 +318,7 @@ async function readCommitmentTimestamp(ctx: DotnsContext, commitment: Hex): Prom
   );
 }
 
-async function readChainNowSeconds(ctx: DotnsContext): Promise<number> {
+export async function readChainNowSeconds(ctx: DotnsContext): Promise<number> {
   // Prefer chain block.timestamp via Timestamp::Now (milliseconds); fall back to
   // wall-clock only if the pallet storage isn't available on this runtime.
   const timestampQuery = (ctx.clientWrapper.client as any).query?.Timestamp?.Now;

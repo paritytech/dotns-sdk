@@ -11,8 +11,12 @@ test("pop help shows commands and description", async () => {
   const result = await runDotnsCli(["pop", "--help"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
 
-  expect(result.combinedOutput).toContain("ProofOfPersonhood status lookup");
+  expect(result.combinedOutput).toContain(
+    "ProofOfPersonhood status and personhood-name reservation queues",
+  );
   expect(result.combinedOutput).toContain("info|status [options]");
+  expect(result.combinedOutput).toContain("queue [options] <name>");
+  expect(result.combinedOutput).toContain("expire [options] <name>");
   expect(result.combinedOutput).toContain("personhood");
   expect(result.combinedOutput).toContain("precompile");
 });
@@ -86,7 +90,9 @@ test("pop info parses auth options at info level", async () => {
 test("pop help command shows pop help", async () => {
   const result = await runDotnsCli(["pop", "help"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
-  expect(result.combinedOutput).toContain("ProofOfPersonhood status lookup");
+  expect(result.combinedOutput).toContain(
+    "ProofOfPersonhood status and personhood-name reservation queues",
+  );
 });
 
 test("pop help status shows info help", async () => {
@@ -99,4 +105,21 @@ test("pop help info shows info help", async () => {
   const result = await runDotnsCli(["pop", "help", "info"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
   expect(result.combinedOutput).toContain("Usage: dotns pop info");
+});
+
+test("pop queue help shows the name argument", async () => {
+  const result = await runDotnsCli(["pop", "queue", "--help"]);
+  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
+  expect(result.combinedOutput).toContain("Usage: dotns pop queue");
+  expect(result.combinedOutput).toContain("<name>");
+  expect(result.combinedOutput).toContain("reservation queue of a personhood name");
+});
+
+test("pop expire help shows the name argument and auth options", async () => {
+  const result = await runDotnsCli(["pop", "expire", "--help"]);
+  expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
+  expect(result.combinedOutput).toContain("Usage: dotns pop expire");
+  expect(result.combinedOutput).toContain("<name>");
+  expect(result.combinedOutput).toContain("Clear expired and emptied reservations");
+  expect(result.combinedOutput).toContain("--mnemonic <phrase>");
 });
