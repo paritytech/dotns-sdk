@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   validateDomainLabel,
   validateGovernanceLabel,
+  validateGrantedLabel,
   validateCanonicalLabel,
   isCanonicalLabel,
   isSecondLevelDotName,
@@ -115,6 +116,20 @@ describe("validateDomainLabel trailing digits", () => {
   test("rejects labels with leading or trailing hyphen", () => {
     expect(() => validateDomainLabel("-andrew")).toThrow();
     expect(() => validateDomainLabel("andrew-")).toThrow();
+  });
+});
+
+describe("validateGrantedLabel", () => {
+  test("accepts a granted name of any length from three characters", () => {
+    expect(() => validateGrantedLabel("web")).not.toThrow();
+    expect(() => validateGrantedLabel("parity")).not.toThrow();
+    expect(() => validateGrantedLabel("paritytech")).not.toThrow();
+  });
+
+  test("still rejects names shorter than three characters and non-canonical labels", () => {
+    expect(() => validateGrantedLabel("ab")).toThrow(/minimum length of 3/);
+    expect(() => validateGrantedLabel("Parity")).toThrow();
+    expect(() => validateGrantedLabel("joseph.42")).toThrow();
   });
 });
 

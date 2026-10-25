@@ -12,6 +12,8 @@ import { attachStoreCommands } from "./commands/store";
 import { attachEscrowCommands } from "./commands/escrow";
 import { attachDelegateCommands } from "./commands/delegate";
 import { attachPrimaryCommands } from "./commands/primary";
+import { attachGovernanceCommands } from "./commands/governance";
+import { attachWhitelistCommands } from "./commands/whitelist";
 import { ENV } from "./env";
 
 export function createProgram() {
@@ -36,6 +38,8 @@ export function createProgram() {
   attachEscrowCommands(program);
   attachDelegateCommands(program);
   attachPrimaryCommands(program);
+  attachGovernanceCommands(program);
+  attachWhitelistCommands(program);
 
   return program;
 }

@@ -17,6 +17,8 @@ import { attachAccountCommands } from "../../src/cli/commands/info";
 import { attachEscrowCommands } from "../../src/cli/commands/escrow";
 import { attachDelegateCommands } from "../../src/cli/commands/delegate";
 import { attachPrimaryCommands } from "../../src/cli/commands/primary";
+import { attachGovernanceCommands } from "../../src/cli/commands/governance";
+import { attachWhitelistCommands } from "../../src/cli/commands/whitelist";
 import { generateRandomLabel } from "../../src/cli/labels";
 import { ProofOfPersonhoodStatus } from "../../src/types/types";
 import { createClient } from "polkadot-api";
@@ -84,6 +86,8 @@ export function createDotnsTestProgram(): Command {
   attachEscrowCommands(rootCommand);
   attachDelegateCommands(rootCommand);
   attachPrimaryCommands(rootCommand);
+  attachGovernanceCommands(rootCommand);
+  attachWhitelistCommands(rootCommand);
   return rootCommand;
 }
 

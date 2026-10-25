@@ -13,6 +13,12 @@
       "metadata": ".papi/metadata/bulletin.scale",
       "genesis": "0x8cfe6717dc4becfda2e13c488a1e2061ff2dfee96e7d031157f72d36716c0a22",
       "codeHash": "0xa1952b30524974f5bfb72a7737dd935edd240410df54db89c64800ac4eb1a9ca"
+    },
+    "polkadotAssetHub": {
+      "wsUrl": "wss://polkadot-asset-hub-rpc.polkadot.io",
+      "metadata": ".papi/metadata/polkadotAssetHub.scale",
+      "genesis": "0x68d56f15f85d3136970ec16946040bc1752654e906147f7e43e9d539d7c3de2f",
+      "codeHash": "0x0650668230cfa2959b745688f178cd9c85926f16477e8620e2b621ec286644f3"
     }
   }
 }

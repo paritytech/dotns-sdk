@@ -19,6 +19,7 @@
     "test": "bun test tests/",
     "test:unit": "bun test tests/unit/",
     "test:integration": "bun test tests/integration/",
+    "test:e2e": "bun tests/e2e/run.ts",
     "benchmark": "bun benchmarks/benchmark.ts",
     "benchmark:dashboard": "bun benchmarks/generate-dashboard.ts",
     "build": "rm -rf dist && bun run build:cli && bun run build:lib",

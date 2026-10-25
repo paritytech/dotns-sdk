@@ -366,7 +366,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.2.6"
+          bun-version: "1.2.19"
           no-cache: true
 
       - name: Setup CLI
