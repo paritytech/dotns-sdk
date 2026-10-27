@@ -447,6 +447,30 @@ dotns pop --mnemonic "bottom drive obey lake curtain smoke basket hold race lone
 dotns pop --key-uri //Alice info
 ```
 
+### Personhood-name reservation queues
+
+Users reserve a personhood name through the gateway pallet, joining the name's reservation
+queue; only the user at its front can claim the name. A reservation that expires, or that its
+user leaves, stays in the queue until a call clears it from the front. Clearing stops at the
+first active reservation and PopRules then reserves the name for that user, so a clear opens
+the name to public registration only when it empties the queue. The name also opens when
+PopRules' reservation lapses on its own, even with expired entries still in the queue; clearing
+such a queue ahead of an active user closes the name again.
+
+`pop queue` shows a name's queue: its front, the next user with an active reservation, and
+what clearing would do. `pop expire` clears every expired or emptied reservation from the
+front, up to the first active one. Anyone can clear a queue; when its front is active or the
+queue is empty, `pop expire` sends no transaction. A device name's queue is its stem's, so
+`alice.42` reads the queue of `alice`.
+
+```bash
+# Show a name's reservation queue
+dotns pop queue alice
+
+# Clear expired reservations from the front of its queue
+dotns pop expire alice --password test-password --account default
+```
+
 ### Bulletin Storage
 
 All bulletin commands require authentication.

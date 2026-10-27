@@ -354,7 +354,7 @@ export const DOTNS_ENVIRONMENTS: Record<DotnsEnvironmentId, DotnsEnvironmentConf
 // declares the release it runs through `DotnsProtocolRegistry.protocolVersion()`,
 // and the CLI refuses a network that does not declare one of these. The release notes read the compatibility line
 // from here, so the list and the notes cannot disagree.
-export const SUPPORTED_PROTOCOL_VERSIONS = ["0.8.0", "1.0.0"] as const;
+export const SUPPORTED_PROTOCOL_VERSIONS = ["0.8.0", "1.0.0", "1.1.0"] as const;
 
 const DEFAULT_DOTNS_ENVIRONMENT: DotnsEnvironmentId = "polkadot";
 

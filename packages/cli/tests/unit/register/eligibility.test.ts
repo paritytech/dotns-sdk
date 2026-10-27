@@ -12,6 +12,7 @@ const OTHER = "0x00000000000000000000000000000000000000dd" as `0x${string}`;
 let requiredStatus = ProofOfPersonhoodStatus.NoStatus;
 let userStatus = ProofOfPersonhoodStatus.NoStatus;
 let reservedBy: `0x${string}` | null = null;
+let quoteMessage = "";
 
 function fakeRead(_ctx: unknown, _address: string, _abi: unknown, functionName: string): unknown {
   if (functionName === "protocolRegistry") return "0x00000000000000000000000000000000000000ff";
@@ -21,7 +22,7 @@ function fakeRead(_ctx: unknown, _address: string, _abi: unknown, functionName: 
     return [reservedBy !== null, reservedBy ?? OWNER, 0n] as const;
   }
   if (functionName === "priceWithoutCheck") {
-    return { price: 10n, status: requiredStatus, userStatus, message: "" };
+    return { price: 10n, status: requiredStatus, userStatus, message: quoteMessage };
   }
   if (functionName === "personhoodStatus") return { status: userStatus, contextAlias: "0x" };
   throw new Error(`unexpected read: ${functionName}`);
@@ -44,6 +45,7 @@ beforeEach(() => {
   requiredStatus = ProofOfPersonhoodStatus.NoStatus;
   userStatus = ProofOfPersonhoodStatus.NoStatus;
   reservedBy = null;
+  quoteMessage = "";
   clearTldInfoCache();
 });
 
@@ -71,6 +73,21 @@ describe("getPriceAndValidateEligibility", () => {
 
   test("a base name reserved for another account names the device-name claim", async () => {
     reservedBy = OTHER;
+    await expect(getPriceAndValidateEligibility(ctx, "andrewsays", OWNER)).rejects.toThrow(
+      "Reserved for a device-name holder's personhood claim",
+    );
+  });
+
+  test("the reservation's owner passes when PopRules quotes the name as open", async () => {
+    reservedBy = OWNER;
+    const pricing = await getPriceAndValidateEligibility(ctx, "andrewsays", OWNER);
+    expect(pricing.priceWei).toBe(10n);
+  });
+
+  test("the reservation's owner is refused when PopRules quotes the name as reserved", async () => {
+    reservedBy = OWNER;
+    requiredStatus = ProofOfPersonhoodStatus.Reserved;
+    quoteMessage = "Reserved for a device-name holder's personhood claim";
     await expect(getPriceAndValidateEligibility(ctx, "andrewsays", OWNER)).rejects.toThrow(
       "Reserved for a device-name holder's personhood claim",
     );
