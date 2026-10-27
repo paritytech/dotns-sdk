@@ -17,6 +17,8 @@ let head = 0n;
 let queue: Entry[] = [];
 let blocked = false;
 let clearedTo = 0n;
+// Up to v1.0.0, emptying a queue deletes its meta, so head and tail both read 0 afterwards.
+let metaDeletedOnClear = false;
 let writes: unknown[][] = [];
 let entryReads: unknown[][] = [];
 
@@ -30,7 +32,11 @@ function fakeRead(
   if (functionName === "protocolRegistry") return "0x00000000000000000000000000000000000000ff";
   if (functionName === "tldNode") return PASEO_NODE;
   if (functionName === "tld") return ".paseo";
-  if (functionName === "reservationMeta") return [head, BigInt(queue.length)] as const;
+  if (functionName === "reservationMeta") {
+    return metaDeletedOnClear && writes.length > 0
+      ? ([0n, 0n] as const)
+      : ([head, BigInt(queue.length)] as const);
+  }
   if (functionName === "reservationDuration") return DURATION;
   if (functionName === "reservationEntry") {
     entryReads.push(args);
@@ -77,6 +83,7 @@ beforeEach(() => {
   queue = [];
   blocked = false;
   clearedTo = 0n;
+  metaDeletedOnClear = false;
   writes = [];
   entryReads = [];
   clearTldInfoCache();
@@ -203,6 +210,33 @@ describe("expireReservation", () => {
     expect(result.cleared).toBe(1n);
     expect(result.queue.frontActive).toBe(true);
     expect(result.queue.nextHolder).toBe(BOB);
+  });
+
+  test("counts a clear that empties the queue, when the meta is kept (v1.1.0)", async () => {
+    head = 1n;
+    queue = [
+      [ALICE, EXPIRED],
+      [ALICE, EXPIRED],
+      [BOB, EXPIRED],
+    ];
+    clearedTo = 3n;
+    const result = await expireReservation(ctx, "andrewsays");
+    expect(result.cleared).toBe(2n);
+    expect(result.queue.entries).toBe(0n);
+  });
+
+  test("counts a clear that empties the queue, when the meta is deleted (v1.0.0 and v0.8.0)", async () => {
+    head = 1n;
+    queue = [
+      [ALICE, EXPIRED],
+      [ALICE, EXPIRED],
+      [BOB, EXPIRED],
+    ];
+    metaDeletedOnClear = true;
+    const result = await expireReservation(ctx, "andrewsays");
+    expect(result.cleared).toBe(2n);
+    expect(result.queue.head).toBe(0n);
+    expect(result.queue.entries).toBe(0n);
   });
 
   test("sends nothing when the front is active", async () => {

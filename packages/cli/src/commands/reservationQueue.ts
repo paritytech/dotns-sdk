@@ -144,7 +144,9 @@ export async function expireReservation(
     "Clearing expired reservations on",
   );
   const queue = await readQueue(ctx, label);
-  return { label, cleared: queue.head - before.head, txHash, queue };
+  // Counted from entries, since the tail never moves in a clear. Up to v1.0.0 the controller
+  // deletes the queue's meta once it empties, so the head reads 0 again afterwards.
+  return { label, cleared: before.entries - queue.entries, txHash, queue };
 }
 
 // What clearing the queue would do, in a sentence, or null when there is nothing to clear.
