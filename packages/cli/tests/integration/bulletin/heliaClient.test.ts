@@ -30,9 +30,8 @@ test(
       await testClient.initialize();
     }
 
-    const result = await testClient.fetchBlock(KNOWN_RESOLVABLE_CID);
-    expect(result.data).toBeInstanceOf(Uint8Array);
-    expect(result.size).toBeGreaterThan(0);
+    const block = await testClient.fetchBlock(KNOWN_RESOLVABLE_CID);
+    expect(block.length).toBeGreaterThan(0);
   },
   { timeout: 60_000 },
 );

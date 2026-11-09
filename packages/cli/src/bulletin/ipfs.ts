@@ -1,3 +1,4 @@
+import type { BulletinHeliaClient } from "./heliaClient";
 import type { VerificationResult } from "../types/types";
 import { getActiveDotnsEnvironment } from "../utils/constants";
 import { formatErrorMessage } from "../utils/formatting";
@@ -36,7 +37,7 @@ function activeGateways(): string[] {
 
 // Public gateways back up the environment's own gateway; on their own, an answer
 // from them says nothing about the content being on the Bulletin chain. Without an
-// environment gateway the list is empty and nothing is probed.
+// environment gateway the list is empty and only P2P runs.
 export function verificationGateways(): string[] {
   const gateways = activeGateways();
   return gateways.length ? [...gateways, ...PUBLIC_FALLBACK_GATEWAYS] : [];
@@ -83,28 +84,20 @@ export async function verifyCidResolution(
   }
 }
 
-export async function verifyCidViaP2P(
+async function verifyCidViaP2P(
   cidString: string,
-  signal?: AbortSignal,
+  client: Promise<BulletinHeliaClient>,
+  signal: AbortSignal,
 ): Promise<VerificationResult> {
   try {
-    const { getSharedHeliaClient } = await import("./heliaClient");
-    const fetchResult = await getSharedHeliaClient().fetchBlock(
-      cidString,
-      createVerificationSignal(signal),
-    );
-    return {
-      cid: cidString,
-      resolvable: fetchResult.size > 0,
-      gateway: P2P_VERIFICATION_SOURCE,
-    };
+    await (await client).fetchBlock(cidString, createVerificationSignal(signal));
+    return { cid: cidString, resolvable: true, gateway: P2P_VERIFICATION_SOURCE };
   } catch (error) {
-    const errorMessage = formatErrorMessage(error);
     return {
       cid: cidString,
       resolvable: false,
       gateway: P2P_VERIFICATION_SOURCE,
-      errorMessage,
+      errorMessage: formatErrorMessage(error),
     };
   }
 }
@@ -113,14 +106,20 @@ export async function verifyCidViaP2P(
  * Checks the CID over Bulletin P2P and every gateway in `gatewayUrls` at once.
  * Resolves with the first check that resolves the CID, aborting the others, or
  * with every check's failure, P2P first, once all have failed. Never rejects.
+ * The P2P node stops after this returns, once its peer dials finish; a failure
+ * to stop it is logged as a warning.
  */
 export async function verifyCid(
   contentCid: string,
   gatewayUrls: readonly string[],
 ): Promise<CidVerification> {
   const abort = new AbortController();
+  // Loaded on first use, so commands that never verify don't load the libp2p stack.
+  const p2pClient = import("./heliaClient").then(
+    ({ BulletinHeliaClient }) => new BulletinHeliaClient(),
+  );
   const checks = [
-    verifyCidViaP2P(contentCid, abort.signal),
+    verifyCidViaP2P(contentCid, p2pClient, abort.signal),
     ...gatewayUrls.map((gatewayUrl) => verifyCidResolution(contentCid, gatewayUrl, abort.signal)),
   ];
 
@@ -135,6 +134,14 @@ export async function verifyCid(
     return { failures: (error as AggregateError).errors as VerificationResult[] };
   } finally {
     abort.abort();
+    void p2pClient
+      .then(
+        (client) => client.destroy(),
+        () => undefined,
+      )
+      .catch((error) =>
+        console.warn(`Failed to stop the P2P verification node: ${formatErrorMessage(error)}`),
+      );
   }
 }
 
@@ -144,24 +151,10 @@ export function describeVerificationFailures(failures: readonly VerificationResu
     .join("; ");
 }
 
-// Without a gateway for the active environment, an unresolved P2P check is the
-// result: the content is stored either way, and verification only reports on it.
-// Returns with the Helia node stopped, so a library caller's process can exit.
-export async function verifySingleFileCid(
+// Checks P2P and `gatewayBaseUrl`, which defaults to the active environment's gateway.
+export function verifySingleFileCid(
   contentCid: string,
   gatewayBaseUrl: string | undefined = activeGateways()[0],
-): Promise<VerificationResult> {
-  try {
-    const verification = await verifyCid(contentCid, gatewayBaseUrl ? [gatewayBaseUrl] : []);
-    if ("success" in verification) return verification.success;
-    return {
-      cid: contentCid,
-      resolvable: false,
-      gateway: verification.failures.map((failure) => failure.gateway).join(", "),
-      errorMessage: describeVerificationFailures(verification.failures),
-    };
-  } finally {
-    const { destroySharedHeliaClient } = await import("./heliaClient");
-    await destroySharedHeliaClient();
-  }
+): Promise<CidVerification> {
+  return verifyCid(contentCid, gatewayBaseUrl ? [gatewayBaseUrl] : []);
 }

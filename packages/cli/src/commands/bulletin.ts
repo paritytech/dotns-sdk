@@ -9,7 +9,7 @@ import { bulletin } from "@polkadot-api/descriptors";
 import { importer } from "ipfs-unixfs-importer";
 import type { CID } from "multiformats/cid";
 import { encodeIpfsContenthash } from "../bulletin/cid";
-import { verifySingleFileCid } from "../bulletin/ipfs";
+import { describeVerificationFailures, verifySingleFileCid } from "../bulletin/ipfs";
 import { completedBlocksFromManifest, loadManifestForResume } from "../bulletin/uploadManifest";
 import {
   isRetryableUploadError,
@@ -780,20 +780,20 @@ export async function uploadSingleBlock(
           emitPhase(onPhase, "upload", "success", "Stored");
 
           emitPhase(onPhase, "verify", "start", "Verifying on Bulletin P2P and IPFS gateway");
-          const verificationResult = await verifySingleFileCid(storeResult.cid);
-          if (verificationResult.resolvable) {
+          const verification = await verifySingleFileCid(storeResult.cid);
+          if ("success" in verification) {
             emitPhase(
               onPhase,
               "verify",
               "success",
-              `CID verified via ${verificationResult.gateway}`,
+              `CID verified via ${verification.success.gateway}`,
             );
           } else {
             emitPhase(
               onPhase,
               "verify",
               "warning",
-              `Could not verify CID: ${verificationResult.errorMessage}`,
+              `Could not verify CID: ${describeVerificationFailures(verification.failures)}`,
             );
           }
 
@@ -1010,19 +1010,19 @@ export async function storeDirectory(
           emitPhase(onPhase, "verify", "start", "Verifying content resolution");
           const rootVerification = await verifySingleFileCid(rootCidString, verificationGateway);
 
-          if (rootVerification.resolvable) {
+          if ("success" in rootVerification) {
             emitPhase(
               onPhase,
               "verify",
               "success",
-              `Root CID verified via ${rootVerification.gateway}`,
+              `Root CID verified via ${rootVerification.success.gateway}`,
             );
           } else {
             emitPhase(
               onPhase,
               "verify",
               "warning",
-              `Root CID not yet resolvable: ${rootVerification.errorMessage}`,
+              `Root CID not yet resolvable: ${describeVerificationFailures(rootVerification.failures)}`,
             );
             console.log(chalk.yellow("  Content may take time to propagate through the network"));
           }

@@ -55,15 +55,6 @@ import {
   verificationGateways,
   verifyCid,
 } from "../../bulletin/ipfs";
-// Awaited by the caller: the CLI exits 0 as soon as the action resolves, so an
-// exit scheduled after it would lose the code.
-async function cleanupHeliaAndExit(code: number): Promise<never> {
-  const cleanup = import("../../bulletin/heliaClient")
-    .then(({ destroySharedHeliaClient }) => destroySharedHeliaClient())
-    .catch(() => {});
-  await Promise.race([cleanup, new Promise((resolve) => setTimeout(resolve, 500))]);
-  process.exit(code);
-}
 import { normalizeUploadMaxRetries } from "../../bulletin/uploadRetry";
 import { addAuthOptions } from "./authOptions";
 import { assertExpectedChain, assertSupportedProtocolVersion, prepareContext } from "../context";
@@ -933,24 +924,27 @@ export function attachBulletinCommands(root: Command): void {
           profileReportPath = finalizedProfile.outputPath;
         }
 
-        onPhase({
-          phase: "verify",
-          state: "start",
-          message: "Verifying content on Bulletin P2P and IPFS gateways...",
-        });
-        const verification = await verifyCid(cid, verificationGateways());
-        if ("success" in verification) {
+        // Single-block and directory uploads verify the CID themselves.
+        if (shouldUseChunkedUpload && !isDirectory) {
           onPhase({
             phase: "verify",
-            state: "success",
-            message: `Content verified via ${verification.success.gateway}`,
+            state: "start",
+            message: "Verifying content on Bulletin P2P and IPFS gateways...",
           });
-        } else {
-          onPhase({
-            phase: "verify",
-            state: "warning",
-            message: `Content not yet resolvable: ${describeVerificationFailures(verification.failures)}`,
-          });
+          const verification = await verifyCid(cid, verificationGateways());
+          if ("success" in verification) {
+            onPhase({
+              phase: "verify",
+              state: "success",
+              message: `Content verified via ${verification.success.gateway}`,
+            });
+          } else {
+            onPhase({
+              phase: "verify",
+              state: "warning",
+              message: `Content not yet resolvable: ${describeVerificationFailures(verification.failures)}`,
+            });
+          }
         }
 
         const contenthash = generateContenthash(cid);
@@ -1292,7 +1286,9 @@ export function attachBulletinCommands(root: Command): void {
   addReporterOption(
     bulletinCommand
       .command("verify <cid>")
-      .description("Verify a CID is resolvable via IPFS gateways")
+      .description(
+        "Verify a CID over Bulletin P2P and the IPFS gateways together, reporting the first that resolves it",
+      )
       .option("--json", "Write machine-readable JSON to stdout", false),
   ).action(async (cid: string, options: any, command: any) => {
     const mergedOptions = getMergedOptions(command, options);
@@ -1345,7 +1341,7 @@ export function attachBulletinCommands(root: Command): void {
         console.log();
       }
 
-      return await cleanupHeliaAndExit(success ? 0 : 1);
+      process.exit(success ? 0 : 1);
     } catch (error) {
       verifyTask.fail("Verification failed");
       const errorMessage = formatErrorMessage(error);
@@ -1353,7 +1349,7 @@ export function attachBulletinCommands(root: Command): void {
         writeBulletinJsonError(errorMessage);
       } else {
         console.error(chalk.red(`\n✗ Error: ${errorMessage}\n`));
-        await cleanupHeliaAndExit(1);
+        process.exit(1);
       }
     }
   });
