@@ -25,6 +25,7 @@ import {
   uploadChunkedBlocks,
   storeDirectory,
   generateContenthash,
+  verifyUploadedCid,
   ensureAccountAuthorized,
   authorizeAccount,
   refreshAccountAuthorization,
@@ -922,6 +923,12 @@ export function attachBulletinCommands(root: Command): void {
           const finalizedProfile = await profiler.finalize(cid, profileOutputOverride);
           profileReport = finalizedProfile.report;
           profileReportPath = finalizedProfile.outputPath;
+        }
+
+        // storeDirectory verifies directories; chunked uploads verify here, after the upload
+        // timing above, so the timing and profile cover the upload alone.
+        if (!isDirectory) {
+          await verifyUploadedCid(onPhase, "CID", cid, verificationGateways());
         }
 
         const contenthash = generateContenthash(cid);

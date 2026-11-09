@@ -25,18 +25,19 @@ const keccak256Hasher = hasherFrom({
 const FETCH_TIMEOUT_MS = 30_000;
 
 // A Helia node that fetches blocks over Bitswap. It has no routers or peer
-// discovery, so it dials only the peer addresses it is given.
+// discovery, so it dials only the peer addresses passed to the constructor.
 // One node per client: after `destroy` the client is unusable.
 export class BulletinHeliaClient {
   private readonly peerAddresses: readonly string[];
   private helia: Helia<Libp2p> | null = null;
   private connection: Promise<Helia<Libp2p>> | null = null;
+  private dialResults: Promise<unknown> | null = null;
 
   constructor(peerAddresses: readonly string[] = getActiveDotnsEnvironment().bulletinP2pPeers) {
     this.peerAddresses = peerAddresses;
   }
 
-  // Resolves once at least one peer is connected; rejects with every dial error otherwise.
+  // Resolves once the first peer connects; rejects with every dial error when none does.
   private async connect(): Promise<Helia<Libp2p>> {
     if (this.peerAddresses.length === 0) {
       throw new Error("no Bulletin P2P peers are configured for this environment");
@@ -59,27 +60,28 @@ export class BulletinHeliaClient {
     this.helia = helia;
     await helia.start();
 
-    const dials = await Promise.allSettled(
-      this.peerAddresses.map((address) => helia.libp2p.dial(multiaddr(address))),
-    );
-    const dialErrors = dials.flatMap((dial, index) =>
-      dial.status === "rejected"
-        ? [`${this.peerAddresses[index]}: ${formatErrorMessage(dial.reason)}`]
-        : [],
-    );
-    if (dialErrors.length === dials.length) {
+    const dials = this.peerAddresses.map((address) => helia.libp2p.dial(multiaddr(address)));
+    this.dialResults = Promise.allSettled(dials);
+    try {
+      await Promise.any(dials);
+    } catch (error) {
+      const dialErrors = (error as AggregateError).errors.map(
+        (reason, index) => `${this.peerAddresses[index]}: ${formatErrorMessage(reason)}`,
+      );
       throw new Error(`could not connect to any Bulletin peer: ${dialErrors.join("; ")}`);
     }
     return helia;
   }
 
-  // Rejects once `signal` aborts (by default after FETCH_TIMEOUT_MS); an abort during the
-  // peer dials takes effect when they finish.
+  // Rejects once `signal` aborts (by default after FETCH_TIMEOUT_MS). An already aborted
+  // signal starts no node; an abort during the peer dials takes effect once the first peer
+  // connects or every dial fails.
   async fetchBlock(
     cidString: string,
     signal: AbortSignal = AbortSignal.timeout(FETCH_TIMEOUT_MS),
   ): Promise<Uint8Array> {
     const cid = CID.parse(cidString);
+    signal.throwIfAborted();
     this.connection ??= this.connect();
     const helia = await this.connection;
     signal.throwIfAborted();
@@ -100,11 +102,13 @@ export class BulletinHeliaClient {
     }
   }
 
-  // Stops the node once its peer dials finish. Stopping or aborting a dial midway leaves
+  // Stops the node once every peer dial finishes. Stopping or aborting a dial midway leaves
   // its WebSocket open, since neither @libp2p/websockets nor the libp2p upgrader closes
-  // the connection of a dial that fails partway, and that socket keeps the process alive.
+  // the connection of a dial that fails partway, and an open socket prevents the process
+  // from exiting.
   async destroy(): Promise<void> {
     await this.connection?.catch(() => null);
+    await this.dialResults;
     await this.helia?.stop();
   }
 }

@@ -70,19 +70,22 @@ test("P2P resolving first wins, aborts every gateway check and stops the node", 
 });
 
 test("a gateway resolving first wins and aborts the P2P fetch", async () => {
-  let p2pSignal: AbortSignal | undefined;
+  const p2pFetchStart = Promise.withResolvers<AbortSignal>();
   helia.fetchBlock = (_cid, signal) => {
-    p2pSignal = signal;
+    p2pFetchStart.resolve(signal);
     return waitForAbort(signal);
   };
-  gatewayFetch = async () => new Response(null, { status: 200 });
+  gatewayFetch = async () => {
+    await p2pFetchStart.promise;
+    return new Response(null, { status: 200 });
+  };
 
   const verification = await verifyCid(CID, [GATEWAY]);
 
   expect(verification).toEqual({
     success: { cid: CID, resolvable: true, gateway: GATEWAY, statusCode: 200 },
   });
-  expect(p2pSignal?.aborted).toBe(true);
+  expect((await p2pFetchStart.promise).aborted).toBe(true);
   await waitForNextMacrotask();
   expect(nodeStopCount).toBe(1);
 });
@@ -148,10 +151,10 @@ test("a fast gateway failure leaves P2P to resolve later", async () => {
 });
 
 // Verification runs after the content is stored, so a cleanup error must not
-// replace its result or reach the upload's retry loop.
+// replace its result or propagate into the upload's retry loop.
 test("a failure to stop the node is reported and the result kept", async () => {
-  const warned = Promise.withResolvers<unknown>();
-  const warn = spyOn(console, "warn").mockImplementation((message) => warned.resolve(message));
+  const warning = Promise.withResolvers<unknown>();
+  const warn = spyOn(console, "warn").mockImplementation((message) => warning.resolve(message));
   helia.fetchBlock = async () => BLOCK;
   helia.destroy = async () => {
     throw new Error("libp2p stop failed");
@@ -160,12 +163,12 @@ test("a failure to stop the node is reported and the result kept", async () => {
   const verification = await verifyCid(CID, []);
 
   expect("success" in verification).toBe(true);
-  expect(await warned.promise).toBe("Failed to stop the P2P verification node: libp2p stop failed");
+  expect(await warning.promise).toBe(
+    "Failed to stop the P2P verification node: libp2p stop failed",
+  );
   warn.mockRestore();
 });
 
-// Public gateways only back up the environment's own gateway; without one, they
-// are not probed.
 test("verification gateways put the environment gateway before the public ones", () => {
   setActiveDotnsEnvironment("paseo-v2");
   expect(verificationGateways()).toEqual([

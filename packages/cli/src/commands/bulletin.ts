@@ -112,7 +112,7 @@ function emitPhase(
 
 // Reports through `onPhase` whether Bulletin P2P or one of `gateways` resolves `cid`.
 // Never throws: the content is already stored, so a failed check must not retry the upload.
-async function verifyUploadedCid(
+export async function verifyUploadedCid(
   onPhase: BulletinPhaseHandler | undefined,
   label: string,
   cid: string,
@@ -914,7 +914,6 @@ export async function uploadChunkedBlocks(
             "success",
             `Uploaded ${totalChunks} chunks (${formatBytes(fileSize)}) in ${formatDuration(elapsed)} at ${formatBytes(throughput)}/s`,
           );
-          await verifyUploadedCid(onPhase, "CID", storeResult.rootCid, verificationGateways());
           return storeResult.rootCid;
         } catch (error) {
           if (attempt < maxRetries) {

@@ -38,7 +38,7 @@ const p2p = JSON.parse(stdout).gateways?.[0];
 const actual = `${p2p?.gateway}: ${p2p?.errorMessage}`;
 
 if (actual !== expected) {
-  console.error("dist/cli.js: the P2P check did not reach CID parsing.");
+  console.error("dist/cli.js: the P2P check failed before CID parsing.");
   console.error(`  expected: ${expected}`);
   console.error(`  actual:   ${actual}`);
   process.exit(1);
