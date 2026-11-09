@@ -24,6 +24,14 @@ const keccak256Hasher = hasherFrom({
 
 const FETCH_TIMEOUT_MS = 30_000;
 
+// Returns a readable reason for a failed peer dial. A failed WebSocket dial rejects with
+// the socket's error event instead of an Error, and under Node its message is empty.
+export function describeDialError(reason: unknown): string {
+  if (!(reason instanceof Event)) return formatErrorMessage(reason);
+  const event = reason as Event & { message?: string; error?: { message?: string } };
+  return event.message || event.error?.message || `WebSocket ${event.type}`;
+}
+
 // A Helia node that fetches blocks over Bitswap. It has no routers or peer
 // discovery, so it dials only the peer addresses passed to the constructor.
 // One node per client: after `destroy` the client is unusable.
@@ -66,7 +74,7 @@ export class BulletinHeliaClient {
       await Promise.any(dials);
     } catch (error) {
       const dialErrors = (error as AggregateError).errors.map(
-        (reason, index) => `${this.peerAddresses[index]}: ${formatErrorMessage(reason)}`,
+        (reason, index) => `${this.peerAddresses[index]}: ${describeDialError(reason)}`,
       );
       throw new Error(`could not connect to any Bulletin peer: ${dialErrors.join("; ")}`);
     }

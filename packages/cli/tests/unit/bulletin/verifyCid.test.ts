@@ -4,6 +4,7 @@ import {
   waitForAbort,
   type MockHeliaClientBehaviour,
 } from "../../_helpers/heliaClientMock";
+import type { BulletinProgressEvent } from "../../../src/types/types";
 import { DOTNS_ENVIRONMENTS, setActiveDotnsEnvironment } from "../../../src/utils/constants";
 
 const CID = "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy";
@@ -22,6 +23,7 @@ mockHeliaClient(helia);
 
 const { describeVerificationFailures, verificationGateways, verifyCid } =
   await import("../../../src/bulletin/ipfs");
+const { verifyUploadedCid } = await import("../../../src/commands/bulletin");
 
 // A macrotask starts only after every queued promise callback has run, so the
 // other side's failure is fully recorded before this side resolves.
@@ -180,4 +182,38 @@ test("verification gateways put the environment gateway before the public ones",
 
   setActiveDotnsEnvironment("polkadot");
   expect(verificationGateways()).toEqual([]);
+});
+
+async function collectUploadPhases(gateways: readonly string[]): Promise<BulletinProgressEvent[]> {
+  const phases: BulletinProgressEvent[] = [];
+  await verifyUploadedCid((phase) => phases.push(phase), "CID", CID, gateways);
+  return phases;
+}
+
+test("upload verification reports the source that resolved the CID", async () => {
+  helia.fetchBlock = (_cid, signal) => waitForAbort(signal);
+  gatewayFetch = async () => new Response(null, { status: 200 });
+
+  expect(await collectUploadPhases([GATEWAY])).toEqual([
+    { phase: "verify", state: "start", message: "Verifying CID on Bulletin P2P and IPFS gateways" },
+    { phase: "verify", state: "success", message: `CID verified via ${GATEWAY}` },
+  ]);
+});
+
+// The upload has already stored the content, so a failed check is a warning and
+// must not reject into the upload's retry loop.
+test("upload verification warns with every failure and does not reject", async () => {
+  helia.fetchBlock = async () => {
+    throw new Error("no Bulletin peer has the block");
+  };
+  gatewayFetch = async () => new Response(null, { status: 404 });
+
+  expect(await collectUploadPhases([GATEWAY, SECOND_GATEWAY])).toEqual([
+    { phase: "verify", state: "start", message: "Verifying CID on Bulletin P2P and IPFS gateways" },
+    {
+      phase: "verify",
+      state: "warning",
+      message: `CID not yet resolvable: p2p/bitswap: no Bulletin peer has the block; ${GATEWAY}: HTTP 404; ${SECOND_GATEWAY}: HTTP 404`,
+    },
+  ]);
 });

@@ -4,7 +4,7 @@ import { once } from "node:events";
 import net from "node:net";
 import path from "node:path";
 import readline from "node:readline";
-import { BulletinHeliaClient } from "../../../src/bulletin/heliaClient";
+import { BulletinHeliaClient, describeDialError } from "../../../src/bulletin/heliaClient";
 import { verificationGateways, verifyCid } from "../../../src/bulletin/ipfs";
 import { DOTNS_ENVIRONMENTS, setActiveDotnsEnvironment } from "../../../src/utils/constants";
 
@@ -63,12 +63,26 @@ test("a fetch fails at once with the dial errors when no peer connects", async (
   const client = new BulletinHeliaClient([address]);
 
   try {
-    await expect(client.fetchBlock(CID)).rejects.toThrow(
-      `could not connect to any Bulletin peer: ${address}:`,
+    const error = await client.fetchBlock(CID).catch((reason: Error) => reason);
+    // bun reports "WebSocket connection to … failed"; Node's empty event reads "WebSocket error".
+    expect((error as Error).message).toStartWith(
+      `could not connect to any Bulletin peer: ${address}: WebSocket `,
     );
   } finally {
     await client.destroy();
   }
+});
+
+// Under Node a failed WebSocket dial rejects with an error event whose message and
+// inner error message are both empty.
+test("a dial error event without a message reads as a WebSocket error", () => {
+  expect(describeDialError(new ErrorEvent("error", { error: new TypeError("") }))).toBe(
+    "WebSocket error",
+  );
+  expect(describeDialError(new ErrorEvent("error", { message: "connection refused" }))).toBe(
+    "connection refused",
+  );
+  expect(describeDialError(new Error("dial timed out"))).toBe("dial timed out");
 });
 
 // A gateway can answer before the P2P check loads; the node it would start then serves no one.
