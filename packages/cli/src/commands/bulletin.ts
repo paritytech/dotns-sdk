@@ -779,7 +779,7 @@ export async function uploadSingleBlock(
 
           emitPhase(onPhase, "upload", "success", "Stored");
 
-          emitPhase(onPhase, "verify", "start", "Connecting to Bulletin P2P");
+          emitPhase(onPhase, "verify", "start", "Verifying on Bulletin P2P and IPFS gateway");
           const verificationResult = await verifySingleFileCid(storeResult.cid);
           if (verificationResult.resolvable) {
             emitPhase(
@@ -789,7 +789,12 @@ export async function uploadSingleBlock(
               `CID verified via ${verificationResult.gateway}`,
             );
           } else {
-            emitPhase(onPhase, "verify", "warning", "Could not verify CID");
+            emitPhase(
+              onPhase,
+              "verify",
+              "warning",
+              `Could not verify CID: ${verificationResult.errorMessage}`,
+            );
           }
 
           return storeResult.cid;
@@ -1013,8 +1018,12 @@ export async function storeDirectory(
               `Root CID verified via ${rootVerification.gateway}`,
             );
           } else {
-            emitPhase(onPhase, "verify", "warning", "Root CID not yet resolvable");
-            console.log(chalk.gray("  checked:  ") + chalk.white(rootVerification.gateway));
+            emitPhase(
+              onPhase,
+              "verify",
+              "warning",
+              `Root CID not yet resolvable: ${rootVerification.errorMessage}`,
+            );
             console.log(chalk.yellow("  Content may take time to propagate through the network"));
           }
 

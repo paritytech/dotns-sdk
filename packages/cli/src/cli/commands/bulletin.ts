@@ -49,7 +49,12 @@ import {
   deleteManifest,
   loadManifestForResume,
 } from "../../bulletin/uploadManifest";
-import { verifyCidWithMultipleGateways, verifyCidViaP2P } from "../../bulletin/ipfs";
+import {
+  describeVerificationFailures,
+  P2P_VERIFICATION_SOURCE,
+  verificationGateways,
+  verifyCid,
+} from "../../bulletin/ipfs";
 // Awaited by the caller: the CLI exits 0 as soon as the action resolves, so an
 // exit scheduled after it would lose the code.
 async function cleanupHeliaAndExit(code: number): Promise<never> {
@@ -931,54 +936,21 @@ export function attachBulletinCommands(root: Command): void {
         onPhase({
           phase: "verify",
           state: "start",
-          message: "Verifying content on Bulletin P2P...",
+          message: "Verifying content on Bulletin P2P and IPFS gateways...",
         });
-        let verified = false;
-        try {
-          const p2pResult = await verifyCidViaP2P(cid);
-          if (p2pResult.resolvable) {
-            onPhase({ phase: "verify", state: "success", message: "Content verified via P2P" });
-            verified = true;
-          }
-        } catch {
-          // P2P verification failed; gateway fallback runs below.
-        }
-
-        if (!verified && !getActiveDotnsEnvironment().ipfsGatewayUrl) {
+        const verification = await verifyCid(cid, verificationGateways());
+        if ("success" in verification) {
+          onPhase({
+            phase: "verify",
+            state: "success",
+            message: `Content verified via ${verification.success.gateway}`,
+          });
+        } else {
           onPhase({
             phase: "verify",
             state: "warning",
-            message: "P2P unavailable and no IPFS gateway for this environment; not verified",
+            message: `Content not yet resolvable: ${describeVerificationFailures(verification.failures)}`,
           });
-        } else if (!verified) {
-          onPhase({
-            phase: "verify",
-            state: "update",
-            message: "P2P unavailable, checking IPFS gateways...",
-          });
-          try {
-            const gatewayResults = await verifyCidWithMultipleGateways(cid);
-            const resolvable = Array.from(gatewayResults.values()).some((r) => r.resolvable);
-            if (resolvable) {
-              onPhase({
-                phase: "verify",
-                state: "success",
-                message: "Content verified via IPFS gateway",
-              });
-            } else {
-              onPhase({
-                phase: "verify",
-                state: "warning",
-                message: "Content not yet resolvable — it may still be propagating",
-              });
-            }
-          } catch (gatewayError) {
-            onPhase({
-              phase: "verify",
-              state: "warning",
-              message: `Gateway verification skipped: ${formatErrorMessage(gatewayError)}`,
-            });
-          }
         }
 
         const contenthash = generateContenthash(cid);
@@ -1326,7 +1298,7 @@ export function attachBulletinCommands(root: Command): void {
     const mergedOptions = getMergedOptions(command, options);
     const jsonOutput = getJsonFlag(command) || Boolean(options.json);
     const reporter = createCliReporter(mergedOptions.reporter as BulletinReporterMode);
-    const p2pTask = reporter.task("Connecting to Bulletin P2P");
+    const verifyTask = reporter.task("Verifying via Bulletin P2P and IPFS gateways");
 
     try {
       // P2P peers and the IPFS gateway come from the selected environment.
@@ -1336,91 +1308,46 @@ export function attachBulletinCommands(root: Command): void {
         console.log(chalk.gray("  cid: ") + chalk.cyan(cid));
       }
 
-      const p2pResult = await verifyCidViaP2P(cid);
+      const verification = await verifyCid(cid, verificationGateways());
+      const success = "success" in verification ? verification.success : null;
+      const results = "success" in verification ? [verification.success] : verification.failures;
 
-      if (p2pResult.resolvable) {
-        p2pTask.succeed("CID verified via P2P (bitswap)");
-
-        if (jsonOutput) {
-          writeBulletinJson({
-            cid,
-            resolvable: true,
-            method: "p2p",
-            gateways: [{ gateway: "p2p/bitswap", resolvable: true }],
-          });
-        } else {
-          console.log(chalk.gray("  ✓ ") + chalk.white("p2p/bitswap"));
-          console.log();
-        }
-
-        return await cleanupHeliaAndExit(0);
-      }
-
-      if (!getActiveDotnsEnvironment().ipfsGatewayUrl) {
-        p2pTask.fail("P2P verification failed, and this environment has no IPFS gateway");
-        if (jsonOutput) {
-          writeBulletinJson({
-            cid,
-            resolvable: false,
-            method: "none",
-            gateways: [
-              { gateway: "p2p/bitswap", resolvable: false, errorMessage: p2pResult.errorMessage },
-            ],
-          });
-        }
-        return await cleanupHeliaAndExit(1);
-      }
-
-      p2pTask.warn("P2P verification failed, falling back to gateways");
-
-      const gatewayTask = reporter.task("Checking IPFS gateways");
-      const results = await verifyCidWithMultipleGateways(cid);
-      const resolvableGateways: string[] = [];
-      const failedGateways: string[] = [];
-
-      for (const [gateway, result] of results) {
-        if (result.resolvable) {
-          resolvableGateways.push(gateway);
-        } else {
-          failedGateways.push(gateway);
-        }
+      if (success) {
+        verifyTask.succeed(`CID verified via ${success.gateway}`);
+      } else {
+        verifyTask.fail("CID not resolvable via P2P or any gateway");
       }
 
       if (jsonOutput) {
-        const entries = Array.from(results.entries()).map(([gateway, result]) => ({
-          gateway,
-          resolvable: result.resolvable,
-          statusCode: result.statusCode,
-          errorMessage: result.errorMessage,
-        }));
         writeBulletinJson({
           cid,
-          resolvable: resolvableGateways.length > 0,
-          method: resolvableGateways.length > 0 ? "gateway" : "none",
-          gateways: entries,
+          resolvable: Boolean(success),
+          method: !success
+            ? "none"
+            : success.gateway === P2P_VERIFICATION_SOURCE
+              ? "p2p"
+              : "gateway",
+          gateways: results.map(({ gateway, resolvable, statusCode, errorMessage }) => ({
+            gateway,
+            resolvable,
+            statusCode,
+            errorMessage,
+          })),
         });
-        return await cleanupHeliaAndExit(resolvableGateways.length > 0 ? 0 : 1);
-      }
-
-      if (resolvableGateways.length > 0) {
-        gatewayTask.succeed(`CID resolvable on ${resolvableGateways.length} gateway(s)`);
-        for (const gw of resolvableGateways) {
-          console.log(chalk.gray("  ✓ ") + chalk.white(gw));
-        }
       } else {
-        gatewayTask.fail("CID not resolvable on any gateway");
-      }
-
-      if (failedGateways.length > 0 && resolvableGateways.length > 0) {
-        for (const gw of failedGateways) {
-          console.log(chalk.gray("  ✗ ") + chalk.dim(gw));
+        for (const result of results) {
+          console.log(
+            result.resolvable
+              ? chalk.gray("  ✓ ") + chalk.white(result.gateway)
+              : chalk.gray("  ✗ ") + chalk.dim(describeVerificationFailures([result])),
+          );
         }
+        console.log();
       }
 
-      console.log();
-      await cleanupHeliaAndExit(resolvableGateways.length > 0 ? 0 : 1);
+      return await cleanupHeliaAndExit(success ? 0 : 1);
     } catch (error) {
-      p2pTask.fail("Verification failed");
+      verifyTask.fail("Verification failed");
       const errorMessage = formatErrorMessage(error);
       if (jsonOutput) {
         writeBulletinJsonError(errorMessage);

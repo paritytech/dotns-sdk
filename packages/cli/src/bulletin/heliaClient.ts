@@ -1,4 +1,4 @@
-import { createHelia, type Helia } from "helia";
+import type { Helia } from "helia";
 import { CID } from "multiformats/cid";
 import { multiaddr } from "@multiformats/multiaddr";
 import { blake2b256 } from "@multiformats/blake2/blake2b";
@@ -23,9 +23,7 @@ export interface HeliaFetchResult {
 function resolveDefaultPeers(): readonly string[] {
   const environment = getActiveDotnsEnvironment();
   if (environment.bulletinP2pPeers.length === 0) {
-    throw new Error(
-      `P2P verification has no peers configured for environment '${environment.id}'; falling back to gateway or skip with --no-verify.`,
-    );
+    throw new Error(`P2P verification has no peers configured for environment '${environment.id}'`);
   }
   return environment.bulletinP2pPeers;
 }
@@ -41,63 +39,36 @@ function extractAllowedPeerIds(peerAddresses: string[]): Set<string> {
   return peerIds;
 }
 
-async function collectAsyncBytes(
-  source: AsyncIterable<Uint8Array>,
-  timeoutMs: number,
-): Promise<Uint8Array> {
-  const chunks: Uint8Array[] = [];
-  const timeout = new Promise<never>((_, reject) => {
-    setTimeout(
-      () => reject(new Error(`P2P fetch timed out after ${timeoutMs / 1000}s`)),
-      timeoutMs,
-    );
-  });
-
-  const iterator = (source as AsyncIterable<Uint8Array>)[Symbol.asyncIterator]();
-  let done = false;
-
-  while (!done) {
-    const result = await Promise.race([iterator.next(), timeout]);
-    if (result.done) {
-      done = true;
-    } else {
-      chunks.push(result.value);
-    }
-  }
-
-  if (chunks.length === 0) {
-    throw new Error("No data received from Bulletin peers");
-  }
-
-  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-  const merged = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const chunk of chunks) {
-    merged.set(chunk, offset);
-    offset += chunk.length;
-  }
-  return merged;
-}
-
 let sharedInstance: BulletinHeliaClient | null = null;
 
 export class BulletinHeliaClient {
-  private helia: Helia | null = null;
+  private node: Promise<Helia> | null = null;
   private peerAddresses: string[];
 
   constructor(peerAddresses?: readonly string[]) {
     this.peerAddresses = peerAddresses ? [...peerAddresses] : [...resolveDefaultPeers()];
   }
 
-  async initialize(): Promise<void> {
-    if (this.helia) return;
+  private startNode(): Promise<Helia> {
+    this.node ??= this.createNode();
+    return this.node;
+  }
 
+  private async createNode(): Promise<Helia> {
     const allowedPeerIds = extractAllowedPeerIds(this.peerAddresses);
 
-    this.helia = await createHelia({
+    // The build leaves helia out of the bundle, since its transports load files that
+    // sit beside their own modules; importing it here spares every other command the load.
+    const { createHelia, libp2pDefaults } = await import("helia");
+    const helia = await createHelia({
       hashers: [blake2b256, sha256, keccak256Hasher],
       routers: [],
       libp2p: {
+        // Dialing known peers needs identify alone. Helia's default listeners, peer
+        // discovery and services open sockets that delay process exit by seconds.
+        addresses: { listen: [] },
+        peerDiscovery: [],
+        services: { identify: libp2pDefaults().services.identify },
         connectionGater: {
           denyDialMultiaddr: async (maAddr) => {
             const address = maAddr.toString();
@@ -111,30 +82,38 @@ export class BulletinHeliaClient {
       },
     });
 
-    for (const address of this.peerAddresses) {
-      try {
-        await this.helia.libp2p.dial(multiaddr(address));
-      } catch {
-        continue;
-      }
-    }
+    await Promise.allSettled(
+      this.peerAddresses.map((address) => helia.libp2p.dial(multiaddr(address))),
+    );
+    return helia;
   }
 
-  async fetchBlock(cidString: string): Promise<HeliaFetchResult> {
-    await this.initialize();
+  async initialize(): Promise<void> {
+    await this.startNode();
+  }
 
-    const cid = CID.parse(cidString);
-    const blockData = await this.helia!.blockstore.get(cid);
+  // Rejects when `signal` aborts first; by default that is after FETCH_TIMEOUT_MS.
+  async fetchBlock(
+    cidString: string,
+    signal: AbortSignal = AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  ): Promise<HeliaFetchResult> {
+    const helia = await this.startNode();
+    signal.throwIfAborted();
 
-    let data: Uint8Array;
-    if (blockData instanceof Uint8Array && blockData.length > 0) {
-      data = blockData;
-    } else if (typeof blockData === "object" && Symbol.asyncIterator in Object(blockData)) {
-      data = await collectAsyncBytes(blockData as AsyncIterable<Uint8Array>, FETCH_TIMEOUT_MS);
-    } else {
-      throw new Error("Unexpected response type from Bulletin peer");
+    const chunks: Uint8Array[] = [];
+    for await (const chunk of helia.blockstore.get(CID.parse(cidString), { signal })) {
+      chunks.push(chunk);
+    }
+    if (chunks.length === 0) {
+      throw new Error("No data received from Bulletin peers");
     }
 
+    const data = new Uint8Array(chunks.reduce((sum, chunk) => sum + chunk.length, 0));
+    let offset = 0;
+    for (const chunk of chunks) {
+      data.set(chunk, offset);
+      offset += chunk.length;
+    }
     return { data, size: data.length };
   }
 
@@ -147,11 +126,12 @@ export class BulletinHeliaClient {
     }
   }
 
+  // Also stops a node that is still starting, after its peer dials finish.
   async destroy(): Promise<void> {
-    if (this.helia) {
-      await this.helia.stop();
-      this.helia = null;
-    }
+    const node = this.node;
+    this.node = null;
+    const helia = await node?.catch(() => null);
+    await helia?.stop();
   }
 }
 
