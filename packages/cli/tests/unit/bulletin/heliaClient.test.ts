@@ -1,7 +1,7 @@
 import { afterEach, expect, spyOn, test } from "bun:test";
 import net from "node:net";
 import { BulletinHeliaClient } from "../../../src/bulletin/heliaClient";
-import { verifyCid, verifySingleFileCid } from "../../../src/bulletin/ipfs";
+import { verificationGateways, verifyCid } from "../../../src/bulletin/ipfs";
 import { DOTNS_ENVIRONMENTS, setActiveDotnsEnvironment } from "../../../src/utils/constants";
 
 const CID = "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy";
@@ -33,7 +33,7 @@ test("an environment without peers or a gateway fails P2P without probing anythi
   setActiveDotnsEnvironment("polkadot");
   polkadot.bulletinP2pPeers = [];
 
-  const verification = await verifySingleFileCid(CID);
+  const verification = await verifyCid(CID, verificationGateways());
 
   expect(verification).toEqual({
     failures: [

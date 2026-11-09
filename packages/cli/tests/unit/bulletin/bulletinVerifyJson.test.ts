@@ -1,28 +1,23 @@
 import { afterEach, beforeEach, expect, mock, spyOn, test } from "bun:test";
+import {
+  mockHeliaClient,
+  waitForAbort,
+  type MockHeliaClientBehaviour,
+} from "../../_helpers/heliaClientMock";
 import { DOTNS_ENVIRONMENTS } from "../../../src/utils/constants";
 
 const CID = "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy";
 const PASEO_GATEWAY = DOTNS_ENVIRONMENTS["paseo-v2"].ipfsGatewayUrl!;
 
-let fetchBlock: (cid: string, signal: AbortSignal) => Promise<Uint8Array>;
+const helia: MockHeliaClientBehaviour = {
+  fetchBlock: async () => new Uint8Array([1]),
+  destroy: async () => {},
+};
 let gatewayFetch: (url: string, init: RequestInit) => Promise<Response>;
 
-mock.module("../../../src/bulletin/heliaClient", () => ({
-  BulletinHeliaClient: class {
-    fetchBlock(cid: string, signal: AbortSignal) {
-      return fetchBlock(cid, signal);
-    }
-    async destroy() {}
-  },
-}));
+mockHeliaClient(helia);
 
 const { runDotnsCli } = await import("../../_helpers/cliHelpers");
-
-function waitForAbort(signal: AbortSignal): Promise<never> {
-  const { promise, reject } = Promise.withResolvers<never>();
-  signal.addEventListener("abort", () => reject(signal.reason), { once: true });
-  return promise;
-}
 
 async function runVerifyJson(): Promise<unknown> {
   const result = await runDotnsCli(["bulletin", "verify", CID, "--env", "paseo-v2", "--json"]);
@@ -39,7 +34,7 @@ afterEach(() => {
 });
 
 test("--json reports method p2p with only the P2P entry when P2P resolves first", async () => {
-  fetchBlock = async () => new Uint8Array([1]);
+  helia.fetchBlock = async () => new Uint8Array([1]);
   gatewayFetch = (_url, init) => waitForAbort(init.signal!);
 
   expect(await runVerifyJson()).toEqual({
@@ -51,7 +46,7 @@ test("--json reports method p2p with only the P2P entry when P2P resolves first"
 });
 
 test("--json reports method gateway with only that gateway when it resolves first", async () => {
-  fetchBlock = (_cid, signal) => waitForAbort(signal);
+  helia.fetchBlock = (_cid, signal) => waitForAbort(signal);
   gatewayFetch = (url, init) =>
     url.startsWith(PASEO_GATEWAY)
       ? Promise.resolve(new Response(null, { status: 200 }))
@@ -66,7 +61,7 @@ test("--json reports method gateway with only that gateway when it resolves firs
 });
 
 test("--json reports method none with every failure, P2P first", async () => {
-  fetchBlock = async () => {
+  helia.fetchBlock = async () => {
     throw new Error("no Bulletin peer has the block");
   };
   gatewayFetch = async () => new Response(null, { status: 404 });

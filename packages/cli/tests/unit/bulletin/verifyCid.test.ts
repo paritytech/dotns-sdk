@@ -1,4 +1,9 @@
 import { afterEach, beforeEach, expect, mock, spyOn, test } from "bun:test";
+import {
+  mockHeliaClient,
+  waitForAbort,
+  type MockHeliaClientBehaviour,
+} from "../../_helpers/heliaClientMock";
 import { DOTNS_ENVIRONMENTS, setActiveDotnsEnvironment } from "../../../src/utils/constants";
 
 const CID = "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy";
@@ -6,31 +11,17 @@ const GATEWAY = "https://gateway-one.test";
 const SECOND_GATEWAY = "https://gateway-two.test";
 const BLOCK = new Uint8Array([1]);
 
-let fetchBlock: (cid: string, signal: AbortSignal) => Promise<Uint8Array>;
-let destroyNode: () => Promise<void>;
+const helia: MockHeliaClientBehaviour = {
+  fetchBlock: async () => BLOCK,
+  destroy: async () => {},
+};
 let nodeStopCount: number;
 let gatewayFetch: (url: string, init: RequestInit) => Promise<Response>;
 
-mock.module("../../../src/bulletin/heliaClient", () => ({
-  BulletinHeliaClient: class {
-    fetchBlock(cid: string, signal: AbortSignal) {
-      return fetchBlock(cid, signal);
-    }
-    destroy() {
-      nodeStopCount += 1;
-      return destroyNode();
-    }
-  },
-}));
+mockHeliaClient(helia);
 
-const { describeVerificationFailures, verificationGateways, verifyCid, verifySingleFileCid } =
+const { describeVerificationFailures, verificationGateways, verifyCid } =
   await import("../../../src/bulletin/ipfs");
-
-function waitForAbort(signal: AbortSignal): Promise<never> {
-  const { promise, reject } = Promise.withResolvers<never>();
-  signal.addEventListener("abort", () => reject(signal.reason), { once: true });
-  return promise;
-}
 
 // A macrotask starts only after every queued promise callback has run, so the
 // other side's failure is fully recorded before this side resolves.
@@ -42,8 +33,10 @@ function waitForNextMacrotask(): Promise<void> {
 
 beforeEach(() => {
   nodeStopCount = 0;
-  destroyNode = async () => {};
-  fetchBlock = async () => {
+  helia.destroy = async () => {
+    nodeStopCount += 1;
+  };
+  helia.fetchBlock = async () => {
     throw new Error("unexpected P2P fetch");
   };
   gatewayFetch = async () => {
@@ -60,7 +53,7 @@ afterEach(() => {
 
 test("P2P resolving first wins, aborts every gateway check and stops the node", async () => {
   const gatewaySignals: AbortSignal[] = [];
-  fetchBlock = async () => BLOCK;
+  helia.fetchBlock = async () => BLOCK;
   gatewayFetch = (_url, init) => {
     gatewaySignals.push(init.signal!);
     return waitForAbort(init.signal!);
@@ -78,13 +71,13 @@ test("P2P resolving first wins, aborts every gateway check and stops the node", 
 
 test("a gateway resolving first wins and aborts the P2P fetch", async () => {
   let p2pSignal: AbortSignal | undefined;
-  fetchBlock = (_cid, signal) => {
+  helia.fetchBlock = (_cid, signal) => {
     p2pSignal = signal;
     return waitForAbort(signal);
   };
   gatewayFetch = async () => new Response(null, { status: 200 });
 
-  const verification = await verifySingleFileCid(CID, GATEWAY);
+  const verification = await verifyCid(CID, [GATEWAY]);
 
   expect(verification).toEqual({
     success: { cid: CID, resolvable: true, gateway: GATEWAY, statusCode: 200 },
@@ -95,7 +88,7 @@ test("a gateway resolving first wins and aborts the P2P fetch", async () => {
 });
 
 test("fails only when every check fails, listing P2P first and gateways in order", async () => {
-  fetchBlock = async () => {
+  helia.fetchBlock = async () => {
     throw new Error("no Bulletin peer has the block");
   };
   gatewayFetch = async (url) =>
@@ -122,7 +115,7 @@ test("fails only when every check fails, listing P2P first and gateways in order
 
 test("a fast P2P failure leaves the gateway to resolve later", async () => {
   const p2pFailure = Promise.withResolvers<void>();
-  fetchBlock = async () => {
+  helia.fetchBlock = async () => {
     p2pFailure.resolve();
     throw new Error("dial failed");
   };
@@ -132,14 +125,14 @@ test("a fast P2P failure leaves the gateway to resolve later", async () => {
     return new Response(null, { status: 200 });
   };
 
-  const verification = await verifySingleFileCid(CID, GATEWAY);
+  const verification = await verifyCid(CID, [GATEWAY]);
 
   expect("success" in verification && verification.success.gateway).toBe(GATEWAY);
 });
 
 test("a fast gateway failure leaves P2P to resolve later", async () => {
   const gatewayFailure = Promise.withResolvers<void>();
-  fetchBlock = async () => {
+  helia.fetchBlock = async () => {
     await gatewayFailure.promise;
     await waitForNextMacrotask();
     return BLOCK;
@@ -149,7 +142,7 @@ test("a fast gateway failure leaves P2P to resolve later", async () => {
     throw new TypeError("fetch failed");
   };
 
-  const verification = await verifySingleFileCid(CID, GATEWAY);
+  const verification = await verifyCid(CID, [GATEWAY]);
 
   expect("success" in verification && verification.success.gateway).toBe("p2p/bitswap");
 });
@@ -159,8 +152,8 @@ test("a fast gateway failure leaves P2P to resolve later", async () => {
 test("a failure to stop the node is reported and the result kept", async () => {
   const warned = Promise.withResolvers<unknown>();
   const warn = spyOn(console, "warn").mockImplementation((message) => warned.resolve(message));
-  fetchBlock = async () => BLOCK;
-  destroyNode = async () => {
+  helia.fetchBlock = async () => BLOCK;
+  helia.destroy = async () => {
     throw new Error("libp2p stop failed");
   };
 
@@ -169,21 +162,6 @@ test("a failure to stop the node is reported and the result kept", async () => {
   expect("success" in verification).toBe(true);
   expect(await warned.promise).toBe("Failed to stop the P2P verification node: libp2p stop failed");
   warn.mockRestore();
-});
-
-test("an environment without a gateway reports the P2P failure alone", async () => {
-  setActiveDotnsEnvironment("polkadot");
-  fetchBlock = async () => {
-    throw new Error("dial failed");
-  };
-
-  const verification = await verifySingleFileCid(CID);
-
-  expect(verification).toEqual({
-    failures: [
-      { cid: CID, resolvable: false, gateway: "p2p/bitswap", errorMessage: "dial failed" },
-    ],
-  });
 });
 
 // Public gateways only back up the environment's own gateway; without one, they

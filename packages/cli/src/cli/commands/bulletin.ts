@@ -924,29 +924,6 @@ export function attachBulletinCommands(root: Command): void {
           profileReportPath = finalizedProfile.outputPath;
         }
 
-        // Single-block and directory uploads verify the CID themselves.
-        if (shouldUseChunkedUpload && !isDirectory) {
-          onPhase({
-            phase: "verify",
-            state: "start",
-            message: "Verifying content on Bulletin P2P and IPFS gateways...",
-          });
-          const verification = await verifyCid(cid, verificationGateways());
-          if ("success" in verification) {
-            onPhase({
-              phase: "verify",
-              state: "success",
-              message: `Content verified via ${verification.success.gateway}`,
-            });
-          } else {
-            onPhase({
-              phase: "verify",
-              state: "warning",
-              message: `Content not yet resolvable: ${describeVerificationFailures(verification.failures)}`,
-            });
-          }
-        }
-
         const contenthash = generateContenthash(cid);
 
         const previewUrl = getPreviewUrl({
@@ -1314,15 +1291,14 @@ export function attachBulletinCommands(root: Command): void {
         verifyTask.fail("CID not resolvable via P2P or any gateway");
       }
 
+      let method = "none";
+      if (success) method = success.gateway === P2P_VERIFICATION_SOURCE ? "p2p" : "gateway";
+
       if (jsonOutput) {
         writeBulletinJson({
           cid,
           resolvable: Boolean(success),
-          method: !success
-            ? "none"
-            : success.gateway === P2P_VERIFICATION_SOURCE
-              ? "p2p"
-              : "gateway",
+          method,
           gateways: results.map(({ gateway, resolvable, statusCode, errorMessage }) => ({
             gateway,
             resolvable,

@@ -15,32 +15,12 @@ const PUBLIC_FALLBACK_GATEWAYS = [
 
 export type CidVerification = { success: VerificationResult } | { failures: VerificationResult[] };
 
-/**
- * Resolve the IPFS HTTP gateway base URL for the active environment. Throws
- * with a clear message when the active environment does not operate a gateway.
- * Callers can catch and either pass `--gateway` or skip the verification step.
- */
-function requireActiveGateway(): string {
-  const environment = getActiveDotnsEnvironment();
-  if (!environment.ipfsGatewayUrl) {
-    throw new Error(
-      `IPFS gateway not configured for environment '${environment.id}'; verification skipped, pass --gateway to override.`,
-    );
-  }
-  return environment.ipfsGatewayUrl;
-}
-
-function activeGateways(): string[] {
-  const { ipfsGatewayUrl } = getActiveDotnsEnvironment();
-  return ipfsGatewayUrl ? [ipfsGatewayUrl] : [];
-}
-
 // Public gateways back up the environment's own gateway; on their own, an answer
 // from them says nothing about the content being on the Bulletin chain. Without an
 // environment gateway the list is empty and only P2P runs.
 export function verificationGateways(): string[] {
-  const gateways = activeGateways();
-  return gateways.length ? [...gateways, ...PUBLIC_FALLBACK_GATEWAYS] : [];
+  const { ipfsGatewayUrl } = getActiveDotnsEnvironment();
+  return ipfsGatewayUrl ? [ipfsGatewayUrl, ...PUBLIC_FALLBACK_GATEWAYS] : [];
 }
 
 function createIpfsGatewayUrl(gatewayBaseUrl: string, cid: string): string {
@@ -48,24 +28,16 @@ function createIpfsGatewayUrl(gatewayBaseUrl: string, cid: string): string {
   return gateway.endsWith("/ipfs") ? `${gateway}/${cid}` : `${gateway}/ipfs/${cid}`;
 }
 
-function createVerificationSignal(signal?: AbortSignal): AbortSignal {
-  const timeout = AbortSignal.timeout(VERIFICATION_TIMEOUT_MILLISECONDS);
-  return signal ? AbortSignal.any([signal, timeout]) : timeout;
-}
-
-export async function verifyCidResolution(
+async function verifyCidResolution(
   contentCid: string,
-  gatewayBaseUrl: string = requireActiveGateway(),
-  signal?: AbortSignal,
+  gatewayBaseUrl: string,
+  signal: AbortSignal,
 ): Promise<VerificationResult> {
-  const verificationUrl = createIpfsGatewayUrl(gatewayBaseUrl, contentCid);
-
   try {
-    const response = await fetch(verificationUrl, {
+    const response = await fetch(createIpfsGatewayUrl(gatewayBaseUrl, contentCid), {
       method: "HEAD",
-      signal: createVerificationSignal(signal),
+      signal,
     });
-
     return {
       cid: contentCid,
       resolvable: response.ok,
@@ -73,13 +45,11 @@ export async function verifyCidResolution(
       statusCode: response.status,
     };
   } catch (error) {
-    const errorMessage = formatErrorMessage(error);
-
     return {
       cid: contentCid,
       resolvable: false,
       gateway: gatewayBaseUrl,
-      errorMessage,
+      errorMessage: formatErrorMessage(error),
     };
   }
 }
@@ -90,7 +60,7 @@ async function verifyCidViaP2P(
   signal: AbortSignal,
 ): Promise<VerificationResult> {
   try {
-    await (await client).fetchBlock(cidString, createVerificationSignal(signal));
+    await (await client).fetchBlock(cidString, signal);
     return { cid: cidString, resolvable: true, gateway: P2P_VERIFICATION_SOURCE };
   } catch (error) {
     return {
@@ -114,13 +84,17 @@ export async function verifyCid(
   gatewayUrls: readonly string[],
 ): Promise<CidVerification> {
   const abort = new AbortController();
+  const signal = AbortSignal.any([
+    abort.signal,
+    AbortSignal.timeout(VERIFICATION_TIMEOUT_MILLISECONDS),
+  ]);
   // Loaded on first use, so commands that never verify don't load the libp2p stack.
   const p2pClient = import("./heliaClient").then(
     ({ BulletinHeliaClient }) => new BulletinHeliaClient(),
   );
   const checks = [
-    verifyCidViaP2P(contentCid, p2pClient, abort.signal),
-    ...gatewayUrls.map((gatewayUrl) => verifyCidResolution(contentCid, gatewayUrl, abort.signal)),
+    verifyCidViaP2P(contentCid, p2pClient, signal),
+    ...gatewayUrls.map((gatewayUrl) => verifyCidResolution(contentCid, gatewayUrl, signal)),
   ];
 
   try {
@@ -149,12 +123,4 @@ export function describeVerificationFailures(failures: readonly VerificationResu
   return failures
     .map((failure) => `${failure.gateway}: ${failure.errorMessage ?? `HTTP ${failure.statusCode}`}`)
     .join("; ");
-}
-
-// Checks P2P and `gatewayBaseUrl`, which defaults to the active environment's gateway.
-export function verifySingleFileCid(
-  contentCid: string,
-  gatewayBaseUrl: string | undefined = activeGateways()[0],
-): Promise<CidVerification> {
-  return verifyCid(contentCid, gatewayBaseUrl ? [gatewayBaseUrl] : []);
 }
