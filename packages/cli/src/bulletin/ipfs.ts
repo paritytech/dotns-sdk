@@ -9,8 +9,8 @@ export const P2P_VERIFICATION_SOURCE = "p2p/bitswap";
 
 const PUBLIC_FALLBACK_GATEWAYS = [
   "https://dweb.link",
-  "https://cloudflare-ipfs.com",
-  "https://w3s.link",
+  "https://ipfs.io",
+  "https://4everland.io",
 ] as const;
 
 export type CidVerification = { success: VerificationResult } | { failures: VerificationResult[] };

@@ -77,8 +77,8 @@ test("--json reports method none with every failure, P2P first", async () => {
       { gateway: "p2p/bitswap", resolvable: false, errorMessage: "no Bulletin peer has the block" },
       { gateway: PASEO_GATEWAY, resolvable: false, statusCode: 404 },
       { gateway: "https://dweb.link", resolvable: false, statusCode: 404 },
-      { gateway: "https://cloudflare-ipfs.com", resolvable: false, statusCode: 404 },
-      { gateway: "https://w3s.link", resolvable: false, statusCode: 404 },
+      { gateway: "https://ipfs.io", resolvable: false, statusCode: 404 },
+      { gateway: "https://4everland.io", resolvable: false, statusCode: 404 },
     ],
   });
 });
