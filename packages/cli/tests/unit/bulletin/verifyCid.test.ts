@@ -10,6 +10,7 @@ import { DOTNS_ENVIRONMENTS, setActiveDotnsEnvironment } from "../../../src/util
 const CID = "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy";
 const GATEWAY = "https://gateway-one.test";
 const SECOND_GATEWAY = "https://gateway-two.test";
+const PUBLIC_GATEWAY = "https://public-gateway.test";
 const BLOCK = new Uint8Array([1]);
 
 const helia: MockHeliaClientBehaviour = {
@@ -21,7 +22,7 @@ let gatewayFetch: (url: string, init: RequestInit) => Promise<Response>;
 
 mockHeliaClient(helia);
 
-const { describeVerificationFailures, verificationGateways, verifyCid } =
+const { describeVerificationFailures, publicFallbackGateways, verificationGateways, verifyCid } =
   await import("../../../src/bulletin/ipfs");
 const { verifyUploadedCid } = await import("../../../src/commands/bulletin");
 
@@ -171,10 +172,56 @@ test("a failure to stop the node is reported and the result kept", async () => {
   warn.mockRestore();
 });
 
-test("verification gateways put the environment gateway before the public ones", () => {
+// An answer from a public gateway doesn't show the content is on the Bulletin chain,
+// so it counts only when P2P and the network's own gateway have both failed.
+test("public gateways are not queried while P2P or the network gateway can resolve", async () => {
+  const fetchedUrls: string[] = [];
+  helia.fetchBlock = async () => {
+    await waitForNextMacrotask();
+    return BLOCK;
+  };
+  gatewayFetch = async (url) => {
+    fetchedUrls.push(url);
+    return new Response(null, { status: url.startsWith(PUBLIC_GATEWAY) ? 200 : 404 });
+  };
+
+  const verification = await verifyCid(CID, [GATEWAY], [PUBLIC_GATEWAY]);
+
+  expect("success" in verification && verification.success.gateway).toBe("p2p/bitswap");
+  expect(fetchedUrls).toEqual([`${GATEWAY}/ipfs/${CID}`]);
+});
+
+test("public gateways resolve once P2P and the network gateway fail", async () => {
+  helia.fetchBlock = async () => {
+    throw new Error("no Bulletin peer has the block");
+  };
+  gatewayFetch = async (url) =>
+    new Response(null, { status: url.startsWith(SECOND_GATEWAY) ? 200 : 404 });
+
+  const verification = await verifyCid(CID, [GATEWAY], [PUBLIC_GATEWAY, SECOND_GATEWAY]);
+
+  expect(verification).toEqual({
+    success: { cid: CID, resolvable: true, gateway: SECOND_GATEWAY, statusCode: 200 },
+  });
+});
+
+test("failures list P2P, then the network gateways, then the public ones", async () => {
+  helia.fetchBlock = async () => {
+    throw new Error("no Bulletin peer has the block");
+  };
+  gatewayFetch = async () => new Response(null, { status: 404 });
+
+  const verification = await verifyCid(CID, [GATEWAY], [PUBLIC_GATEWAY, SECOND_GATEWAY]);
+
+  expect(
+    "failures" in verification && verification.failures.map((failure) => failure.gateway),
+  ).toEqual(["p2p/bitswap", GATEWAY, PUBLIC_GATEWAY, SECOND_GATEWAY]);
+});
+
+test("public gateways back up only an environment that has its own gateway", () => {
   setActiveDotnsEnvironment("paseo-v2");
-  expect(verificationGateways()).toEqual([
-    DOTNS_ENVIRONMENTS["paseo-v2"].ipfsGatewayUrl!,
+  expect(verificationGateways()).toEqual([DOTNS_ENVIRONMENTS["paseo-v2"].ipfsGatewayUrl!]);
+  expect(publicFallbackGateways()).toEqual([
     "https://dweb.link",
     "https://cloudflare-ipfs.com",
     "https://w3s.link",
@@ -182,6 +229,7 @@ test("verification gateways put the environment gateway before the public ones",
 
   setActiveDotnsEnvironment("polkadot");
   expect(verificationGateways()).toEqual([]);
+  expect(publicFallbackGateways()).toEqual([]);
 });
 
 async function collectUploadPhases(gateways: readonly string[]): Promise<BulletinProgressEvent[]> {

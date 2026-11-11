@@ -53,6 +53,7 @@ import {
 import {
   describeVerificationFailures,
   P2P_VERIFICATION_SOURCE,
+  publicFallbackGateways,
   verificationGateways,
   verifyCid,
 } from "../../bulletin/ipfs";
@@ -928,7 +929,13 @@ export function attachBulletinCommands(root: Command): void {
         // storeDirectory verifies directories; chunked uploads verify here, after the upload
         // timing above, so the timing and profile cover the upload alone.
         if (!isDirectory) {
-          await verifyUploadedCid(onPhase, "CID", cid, verificationGateways());
+          await verifyUploadedCid(
+            onPhase,
+            "CID",
+            cid,
+            verificationGateways(),
+            publicFallbackGateways(),
+          );
         }
 
         const contenthash = generateContenthash(cid);
@@ -1288,7 +1295,7 @@ export function attachBulletinCommands(root: Command): void {
         console.log(chalk.gray("  cid: ") + chalk.cyan(cid));
       }
 
-      const verification = await verifyCid(cid, verificationGateways());
+      const verification = await verifyCid(cid, verificationGateways(), publicFallbackGateways());
       const success = "success" in verification ? verification.success : null;
       const results = "success" in verification ? [verification.success] : verification.failures;
 

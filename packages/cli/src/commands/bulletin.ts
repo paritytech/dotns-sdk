@@ -9,7 +9,12 @@ import { bulletin } from "@polkadot-api/descriptors";
 import { importer } from "ipfs-unixfs-importer";
 import type { CID } from "multiformats/cid";
 import { encodeIpfsContenthash } from "../bulletin/cid";
-import { describeVerificationFailures, verificationGateways, verifyCid } from "../bulletin/ipfs";
+import {
+  describeVerificationFailures,
+  publicFallbackGateways,
+  verificationGateways,
+  verifyCid,
+} from "../bulletin/ipfs";
 import { completedBlocksFromManifest, loadManifestForResume } from "../bulletin/uploadManifest";
 import {
   isRetryableUploadError,
@@ -110,16 +115,18 @@ function emitPhase(
   onPhase?.({ phase, state, message });
 }
 
-// Reports through `onPhase` whether Bulletin P2P or one of `gateways` resolves `cid`.
+// Reports through `onPhase` whether Bulletin P2P, one of `gateways` or, after those
+// fail, one of `fallbackGateways` resolves `cid`.
 // Never throws: the content is already stored, so a failed check must not retry the upload.
 export async function verifyUploadedCid(
   onPhase: BulletinPhaseHandler | undefined,
   label: string,
   cid: string,
   gateways: readonly string[],
+  fallbackGateways: readonly string[] = [],
 ): Promise<void> {
   emitPhase(onPhase, "verify", "start", `Verifying ${label} on Bulletin P2P and IPFS gateways`);
-  const verification = await verifyCid(cid, gateways);
+  const verification = await verifyCid(cid, gateways, fallbackGateways);
   if ("success" in verification) {
     emitPhase(
       onPhase,
@@ -806,7 +813,13 @@ export async function uploadSingleBlock(
 
           emitPhase(onPhase, "upload", "success", "Stored");
 
-          await verifyUploadedCid(onPhase, "CID", storeResult.cid, verificationGateways());
+          await verifyUploadedCid(
+            onPhase,
+            "CID",
+            storeResult.cid,
+            verificationGateways(),
+            publicFallbackGateways(),
+          );
 
           return storeResult.cid;
         } catch (error) {

@@ -45,12 +45,15 @@ test("--json reports method p2p with only the P2P entry when P2P resolves first"
   });
 });
 
-test("--json reports method gateway with only that gateway when it resolves first", async () => {
+// A public gateway answering first must not count while the network's gateway can resolve.
+test("--json reports the network gateway over a faster public gateway", async () => {
   helia.fetchBlock = (_cid, signal) => waitForAbort(signal);
-  gatewayFetch = (url, init) =>
-    url.startsWith(PASEO_GATEWAY)
-      ? Promise.resolve(new Response(null, { status: 200 }))
-      : waitForAbort(init.signal!);
+  gatewayFetch = async (url) => {
+    if (url.startsWith(PASEO_GATEWAY)) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    return new Response(null, { status: 200 });
+  };
 
   expect(await runVerifyJson()).toEqual({
     cid: CID,

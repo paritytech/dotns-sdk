@@ -15,12 +15,15 @@ const PUBLIC_FALLBACK_GATEWAYS = [
 
 export type CidVerification = { success: VerificationResult } | { failures: VerificationResult[] };
 
-// Public gateways back up the environment's own gateway; on their own, an answer
-// from them says nothing about the content being on the Bulletin chain. Without an
-// environment gateway the list is empty and only P2P runs.
 export function verificationGateways(): string[] {
   const { ipfsGatewayUrl } = getActiveDotnsEnvironment();
-  return ipfsGatewayUrl ? [ipfsGatewayUrl, ...PUBLIC_FALLBACK_GATEWAYS] : [];
+  return ipfsGatewayUrl ? [ipfsGatewayUrl] : [];
+}
+
+// Public gateways back up the environment's own gateway; on their own, an answer
+// from them says nothing about the content being on the Bulletin chain.
+export function publicFallbackGateways(): readonly string[] {
+  return verificationGateways().length ? PUBLIC_FALLBACK_GATEWAYS : [];
 }
 
 function createIpfsGatewayUrl(gatewayBaseUrl: string, cid: string): string {
@@ -72,31 +75,10 @@ async function verifyCidViaP2P(
   }
 }
 
-/**
- * Checks the CID over Bulletin P2P and every gateway in `gatewayUrls` at once.
- * Resolves with the first check that resolves the CID, aborting the others, or
- * with every check's failure, P2P first, once all have failed. Never rejects.
- * The P2P node stops after this returns, once its peer dials finish; a failure
- * to stop it is logged as a warning.
- */
-export async function verifyCid(
-  contentCid: string,
-  gatewayUrls: readonly string[],
+// Resolves with the first check that resolves the CID, or with every failure in `checks` order.
+async function findFirstResolution(
+  checks: Promise<VerificationResult>[],
 ): Promise<CidVerification> {
-  const abort = new AbortController();
-  const signal = AbortSignal.any([
-    abort.signal,
-    AbortSignal.timeout(VERIFICATION_TIMEOUT_MILLISECONDS),
-  ]);
-  // Loaded on first use, so commands that never verify don't load the libp2p stack.
-  const p2pClient = import("./heliaClient").then(
-    ({ BulletinHeliaClient }) => new BulletinHeliaClient(),
-  );
-  const checks = [
-    verifyCidViaP2P(contentCid, p2pClient, signal),
-    ...gatewayUrls.map((gatewayUrl) => verifyCidResolution(contentCid, gatewayUrl, signal)),
-  ];
-
   try {
     const success = await Promise.any(
       checks.map((check) =>
@@ -106,6 +88,49 @@ export async function verifyCid(
     return { success };
   } catch (error) {
     return { failures: (error as AggregateError).errors as VerificationResult[] };
+  }
+}
+
+function createVerificationSignal(abort: AbortController): AbortSignal {
+  return AbortSignal.any([abort.signal, AbortSignal.timeout(VERIFICATION_TIMEOUT_MILLISECONDS)]);
+}
+
+/**
+ * Checks the CID over Bulletin P2P and every gateway in `gatewayUrls` at once, then,
+ * only when all of those fail, over every gateway in `fallbackGatewayUrls` at once.
+ * Resolves with the first check that resolves the CID, aborting the others, or with
+ * every check's failure, P2P first, once all have failed. Never rejects.
+ * The P2P node stops after this returns, once its peer dials finish; a failure
+ * to stop it is logged as a warning.
+ */
+export async function verifyCid(
+  contentCid: string,
+  gatewayUrls: readonly string[],
+  fallbackGatewayUrls: readonly string[] = [],
+): Promise<CidVerification> {
+  const abort = new AbortController();
+  // Loaded on first use, so commands that never verify don't load the libp2p stack.
+  const p2pClient = import("./heliaClient").then(
+    ({ BulletinHeliaClient }) => new BulletinHeliaClient(),
+  );
+
+  try {
+    const signal = createVerificationSignal(abort);
+    const verification = await findFirstResolution([
+      verifyCidViaP2P(contentCid, p2pClient, signal),
+      ...gatewayUrls.map((gatewayUrl) => verifyCidResolution(contentCid, gatewayUrl, signal)),
+    ]);
+    if ("success" in verification || fallbackGatewayUrls.length === 0) return verification;
+
+    const fallbackSignal = createVerificationSignal(abort);
+    const fallbackVerification = await findFirstResolution(
+      fallbackGatewayUrls.map((gatewayUrl) =>
+        verifyCidResolution(contentCid, gatewayUrl, fallbackSignal),
+      ),
+    );
+    return "success" in fallbackVerification
+      ? fallbackVerification
+      : { failures: [...verification.failures, ...fallbackVerification.failures] };
   } finally {
     abort.abort();
     void p2pClient
