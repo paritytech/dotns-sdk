@@ -31,7 +31,8 @@
     "prepare": "bunx papi generate"
   },
   "engines": {
-    "bun": ">=1.2.6"
+    "bun": ">=1.2.6",
+    "node": ">=21"
   },
   "publishConfig": {
     "access": "public"
