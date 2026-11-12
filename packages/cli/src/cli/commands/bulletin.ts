@@ -58,18 +58,23 @@ import {
   verifyCid,
 } from "../../bulletin/ipfs";
 import { normalizeUploadMaxRetries } from "../../bulletin/uploadRetry";
-import { addAuthOptions } from "./authOptions";
+import { addAuthOptions, addNetworkOptions } from "./authOptions";
 import { assertExpectedChain, assertSupportedProtocolVersion, prepareContext } from "../context";
-import { ENV, resolveBulletinRpc, resolveDotnsEnvironment, resolveRpc } from "../env";
+import { resolveBulletinRpc, resolveRpc } from "../env";
 import {
   DEFAULT_CHUNK_SIZE_BYTES,
   DEFAULT_UPLOAD_MAX_RETRIES,
   DEFAULT_BULLETIN_AUTHORIZER_KEY_URI,
   DEFAULT_AUTHORIZATION_TRANSACTIONS,
   DEFAULT_AUTHORIZATION_BYTES,
-  getActiveDotnsEnvironment,
 } from "../../utils/constants";
-import { getJsonFlag, getMergedOptions, withCapturedConsole } from "./jsonHelpers";
+import { getActiveDotnsEnvironment } from "../../utils/environments";
+import {
+  getJsonFlag,
+  getMergedOptions,
+  withCapturedConsole,
+  writeJsonErrorsToStdout,
+} from "./jsonHelpers";
 import { clampChunkSizeBytes } from "../../bulletin/store";
 import {
   createCliReporter,
@@ -103,44 +108,6 @@ export function buildDefaultProfileOutputPath(sourcePath: string, fingerprint: s
     "upload-profiles",
     `${timestamp}-${basename}-${fingerprint}.json`,
   );
-}
-
-export function resolveBulletinCacheAssetHubRpc(options: {
-  rpc?: string;
-  env?: string;
-  network?: string;
-  bulletinRpc?: string;
-}): string {
-  const bulletinOverridden = Boolean(
-    (options.bulletinRpc != null && String(options.bulletinRpc).trim().length > 0) ||
-    (process.env[ENV.BULLETIN_RPC] != null &&
-      String(process.env[ENV.BULLETIN_RPC]).trim().length > 0),
-  );
-  const hasExplicitAssetHubRpc = options.rpc != null && String(options.rpc).trim().length > 0;
-  const hasExplicitEnvironment = Boolean(
-    (options.env != null && String(options.env).trim().length > 0) ||
-    (options.network != null && String(options.network).trim().length > 0) ||
-    (process.env[ENV.DOTNS_ENV] != null && String(process.env[ENV.DOTNS_ENV]).trim().length > 0),
-  );
-
-  if (bulletinOverridden && !hasExplicitAssetHubRpc && !hasExplicitEnvironment) {
-    throw new Error(
-      "bulletin upload --cache with a custom Bulletin RPC requires --env, DOTNS_ENV, or --rpc " +
-        "so the on-chain Store write targets the matching dotNS Asset Hub environment.",
-    );
-  }
-
-  if (bulletinOverridden && hasExplicitEnvironment && !hasExplicitAssetHubRpc) {
-    const environment = resolveDotnsEnvironment(options.env ?? options.network);
-    if (!environment.rpc) {
-      throw new Error(
-        `Environment '${environment.id}' has no Asset Hub RPC configured. Set --rpc for the Store write.`,
-      );
-    }
-    return environment.rpc;
-  }
-
-  return resolveRpc(options.rpc, options.env ?? options.network);
 }
 
 export function createUploadProfiler(options: UploadProfilerOptions): UploadProfiler {
@@ -444,9 +411,14 @@ function createChunkedUploadMonitor(
 }
 
 export function attachBulletinCommands(root: Command): void {
-  const bulletinCommand = addReporterOption(
-    root.command("bulletin").description("Bulletin storage utilities"),
-  ).option("--json", "Write machine-readable JSON to stdout", false);
+  // The bulletin GitHub action reads `--json` results and errors from stdout.
+  const bulletinCommand = writeJsonErrorsToStdout(
+    addReporterOption(root.command("bulletin").description("Bulletin storage utilities")).option(
+      "--json",
+      "Write machine-readable JSON to stdout",
+      false,
+    ),
+  );
 
   addAuthOptions(bulletinCommand);
   const authorizeCommand = addReporterOption(
@@ -477,10 +449,7 @@ export function attachBulletinCommands(root: Command): void {
         const reporter = createCliReporter(mergedOptions.reporter as BulletinReporterMode);
         const onPhase = createPhaseHandler(reporter);
 
-        const bulletinRpc = resolveBulletinRpc(
-          mergedOptions.bulletinRpc,
-          mergedOptions.env ?? mergedOptions.network,
-        );
+        const bulletinRpc = resolveBulletinRpc(mergedOptions.bulletinRpc);
         const transactions = clampU32(
           BigInt(mergedOptions.transactions || DEFAULT_AUTHORIZATION_TRANSACTIONS),
           "--transactions",
@@ -489,8 +458,7 @@ export function attachBulletinCommands(root: Command): void {
         const force = Boolean(options.force);
         const signerKeyUri = await resolveAuthorizerKeyUri(mergedOptions.keyUri, bulletinRpc);
 
-        const environment = resolveDotnsEnvironment(mergedOptions.env ?? mergedOptions.network);
-        if (!jsonOutput) warnIfDevKeyOnTestnet(signerKeyUri, environment.id);
+        if (!jsonOutput) warnIfDevKeyOnTestnet(signerKeyUri, getActiveDotnsEnvironment().id);
 
         const targetAddress = await resolveTargetAddress(
           positionalAddress,
@@ -503,8 +471,6 @@ export function attachBulletinCommands(root: Command): void {
             keyUri: signerKeyUri,
             useBulletin: true,
             bulletinRpc,
-            env: mergedOptions.env,
-            network: mergedOptions.network,
           }),
         );
 
@@ -599,15 +565,11 @@ export function attachBulletinCommands(root: Command): void {
       const jsonOutput = Boolean(mergedOptions.json);
 
       try {
-        const bulletinRpc = resolveBulletinRpc(
-          mergedOptions.bulletinRpc,
-          mergedOptions.env ?? mergedOptions.network,
-        );
+        const bulletinRpc = resolveBulletinRpc(mergedOptions.bulletinRpc);
         const signerKeyUri = await resolveAuthorizerKeyUri(mergedOptions.keyUri, bulletinRpc);
         const reporterMode = resolveReporterMode(mergedOptions.reporter as BulletinReporterMode);
 
-        const environment = resolveDotnsEnvironment(mergedOptions.env ?? mergedOptions.network);
-        if (!jsonOutput) warnIfDevKeyOnTestnet(signerKeyUri, environment.id);
+        if (!jsonOutput) warnIfDevKeyOnTestnet(signerKeyUri, getActiveDotnsEnvironment().id);
 
         const targetAddress = await resolveTargetAddress(
           addressArgument,
@@ -625,8 +587,6 @@ export function attachBulletinCommands(root: Command): void {
           keyUri: signerKeyUri,
           useBulletin: true,
           bulletinRpc,
-          env: mergedOptions.env,
-          network: mergedOptions.network,
         });
 
         const result = await refreshAccountAuthorization({
@@ -710,7 +670,7 @@ export function attachBulletinCommands(root: Command): void {
   addAuthOptions(uploadCommand).action(
     async (
       inputPath: string,
-      options: BulletinUploadOptions & { history?: boolean },
+      options: BulletinUploadOptions & { history?: boolean; rpc?: string },
       command: any,
     ) => {
       try {
@@ -732,10 +692,7 @@ export function attachBulletinCommands(root: Command): void {
         );
         const { bytes, isDirectory, resolvedPath, fileSize, fileMtimeMs } = validatedPath;
 
-        const bulletinRpc = resolveBulletinRpc(
-          mergedOptions.bulletinRpc,
-          mergedOptions.env ?? mergedOptions.network,
-        );
+        const bulletinRpc = resolveBulletinRpc(mergedOptions.bulletinRpc);
         const chunkSizeBytes = clampChunkSizeBytes(
           Number(mergedOptions.chunkSize || DEFAULT_CHUNK_SIZE_BYTES),
         );
@@ -1006,7 +963,7 @@ export function attachBulletinCommands(root: Command): void {
             const { paseo } = await import("@polkadot-api/descriptors");
             const { ReviveClientWrapper, getChainTokenInfo } =
               await import("../../client/polkadotClient");
-            const rpc = resolveBulletinCacheAssetHubRpc(mergedOptions);
+            const rpc = resolveRpc(mergedOptions.rpc);
             const cacheClient = createClient(getWsProvider(rpc));
             await assertExpectedChain(cacheClient);
             const typedApi = cacheClient.getTypedApi(paseo);
@@ -1014,11 +971,11 @@ export function attachBulletinCommands(root: Command): void {
             const tokenInfo = await getChainTokenInfo(cacheClient);
             assetHubTokenSymbol = tokenInfo.nativeTokenSymbol;
             const clientWrapper = new ReviveClientWrapper(typedApi as any, tokenInfo);
-            const environmentId = getActiveDotnsEnvironment().id;
+            const environment = getActiveDotnsEnvironment();
             await assertSupportedProtocolVersion(
               clientWrapper,
               context.substrateAddress,
-              environmentId,
+              environment,
             );
             const evmAddress = await clientWrapper.getEvmAddress(context.substrateAddress);
 
@@ -1028,7 +985,7 @@ export function attachBulletinCommands(root: Command): void {
               signer: context.signer,
               substrateAddress: context.substrateAddress,
               evmAddress,
-              environment: environmentId,
+              environment,
             });
             onPhase({ phase: "cache", state: "success", message: "CID cached to Store" });
           } catch (cacheError) {
@@ -1092,10 +1049,7 @@ export function attachBulletinCommands(root: Command): void {
         const jsonOutput = getJsonFlag(command);
         const reporterMode = resolveReporterMode(mergedOptions.reporter as BulletinReporterMode);
         const reporter = createCliReporter(mergedOptions.reporter as BulletinReporterMode);
-        const bulletinRpc = resolveBulletinRpc(
-          mergedOptions.bulletinRpc,
-          mergedOptions.env ?? mergedOptions.network,
-        );
+        const bulletinRpc = resolveBulletinRpc(mergedOptions.bulletinRpc);
 
         const targetAddress = await resolveTargetAddress(
           positionalAddress,
@@ -1178,19 +1132,19 @@ export function attachBulletinCommands(root: Command): void {
     },
   );
 
-  const historyCommand = addReporterOption(
-    bulletinCommand
-      .command("history")
-      .alias("list")
-      .description("List all uploaded CIDs")
-      .option("--json", "Write machine-readable JSON to stdout", false),
+  // Declares --stack so the preAction hook selects the network, which sets the preview links.
+  const historyCommand = addNetworkOptions(
+    addReporterOption(
+      bulletinCommand
+        .command("history")
+        .alias("list")
+        .description("List all uploaded CIDs")
+        .option("--json", "Write machine-readable JSON to stdout", false),
+    ),
   );
 
-  historyCommand.action(async (options: any, command: any) => {
+  historyCommand.action(async (_options: any, command: any) => {
     try {
-      const mergedOptions = getMergedOptions(command, options);
-      // Preview links come from the selected environment.
-      resolveDotnsEnvironment(mergedOptions.env ?? mergedOptions.network);
       const jsonOutput = getJsonFlag(command);
       const history = await readHistory();
 
@@ -1274,13 +1228,17 @@ export function attachBulletinCommands(root: Command): void {
     }
   });
 
-  addReporterOption(
-    bulletinCommand
-      .command("verify <cid>")
-      .description(
-        "Verify a CID over Bulletin P2P and the IPFS gateways together, reporting the first that resolves it",
-      )
-      .option("--json", "Write machine-readable JSON to stdout", false),
+  // Declares --stack so the preAction hook selects the network, which sets the P2P peers and
+  // the IPFS gateway.
+  addNetworkOptions(
+    addReporterOption(
+      bulletinCommand
+        .command("verify <cid>")
+        .description(
+          "Verify a CID over Bulletin P2P and the IPFS gateways together, reporting the first that resolves it",
+        )
+        .option("--json", "Write machine-readable JSON to stdout", false),
+    ),
   ).action(async (cid: string, options: any, command: any) => {
     const mergedOptions = getMergedOptions(command, options);
     const jsonOutput = getJsonFlag(command) || Boolean(options.json);
@@ -1288,8 +1246,6 @@ export function attachBulletinCommands(root: Command): void {
     const verifyTask = reporter.task("Verifying via Bulletin P2P and IPFS gateways");
 
     try {
-      // P2P peers and the IPFS gateway come from the selected environment.
-      resolveDotnsEnvironment(mergedOptions.env ?? mergedOptions.network);
       if (!jsonOutput) {
         console.log(chalk.blue("\n▶ Verifying CID"));
         console.log(chalk.gray("  cid: ") + chalk.cyan(cid));

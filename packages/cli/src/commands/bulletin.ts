@@ -11,10 +11,12 @@ import type { CID } from "multiformats/cid";
 import { encodeIpfsContenthash } from "../bulletin/cid";
 import {
   describeVerificationFailures,
+  formatPathStyleGateway,
   publicFallbackGateways,
   verificationGateways,
   verifyCid,
 } from "../bulletin/ipfs";
+import { getActiveDotnsEnvironment, type DotnsEnvironmentConfig } from "../utils/environments";
 import { completedBlocksFromManifest, loadManifestForResume } from "../bulletin/uploadManifest";
 import {
   isRetryableUploadError,
@@ -115,8 +117,8 @@ function emitPhase(
   onPhase?.({ phase, state, message });
 }
 
-// Reports through `onPhase` whether Bulletin P2P, one of `gateways` or, after those
-// fail, one of `fallbackGateways` resolves `cid`.
+// Reports through `onPhase` whether `environment`'s Bulletin P2P, one of `gateways` or, after
+// those fail, one of `fallbackGateways` resolves `cid`.
 // Never throws: the content is already stored, so a failed check must not retry the upload.
 export async function verifyUploadedCid(
   onPhase: BulletinPhaseHandler | undefined,
@@ -124,9 +126,10 @@ export async function verifyUploadedCid(
   cid: string,
   gateways: readonly string[],
   fallbackGateways: readonly string[] = [],
+  environment: DotnsEnvironmentConfig = getActiveDotnsEnvironment(),
 ): Promise<void> {
   emitPhase(onPhase, "verify", "start", `Verifying ${label} on Bulletin P2P and IPFS gateways`);
-  const verification = await verifyCid(cid, gateways, fallbackGateways);
+  const verification = await verifyCid(cid, gateways, fallbackGateways, environment);
   if ("success" in verification) {
     emitPhase(
       onPhase,
@@ -964,6 +967,7 @@ export async function storeDirectory(
     onPhase,
     onRetry,
     verificationGateway,
+    environment = getActiveDotnsEnvironment(),
     maxRetries = DEFAULT_UPLOAD_MAX_RETRIES,
     waitForFinalization = false,
   } = options;
@@ -1035,7 +1039,11 @@ export async function storeDirectory(
             onPhase,
             "Root CID",
             rootCidString,
-            verificationGateway ? [verificationGateway] : verificationGateways(),
+            verificationGateway
+              ? [formatPathStyleGateway(verificationGateway)]
+              : verificationGateways(environment),
+            [],
+            environment,
           );
 
           return { cid: rootCidString };

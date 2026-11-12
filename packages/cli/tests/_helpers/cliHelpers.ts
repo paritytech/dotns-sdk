@@ -27,11 +27,14 @@ import { paseo } from "@polkadot-api/descriptors";
 import { ReviveClientWrapper, type PolkadotApiClient } from "../../src/client/polkadotClient";
 import { createDotnsContext } from "../../src/core/context";
 import { resolveTldInfo } from "../../src/core/naming";
-import { ENV } from "../../src/cli/env";
-import { resolveRpc } from "../../src/cli/env";
+import { ENV, resolveRpc, selectDotnsEnvironment } from "../../src/cli/env";
+import { attachNetworkSelection } from "../../src/cli/program";
+import { getActiveDotnsEnvironment } from "../../src/utils/environments";
 
-// The suite signs with dev keys, so it targets a testnet unless DOTNS_ENV picks one.
-process.env[ENV.DOTNS_ENV] ??= "paseo-v2";
+// The suite signs with dev keys, so it targets a testnet unless DOTNS_ENV or DOTNS_STACK picks one.
+if (!process.env[ENV.STACK]) process.env[ENV.DOTNS_ENV] ??= "paseo-v2";
+// Tests that build contexts directly run on the network the CLI would select.
+await selectDotnsEnvironment({});
 
 export const HARNESS_SUCCESS_EXIT_CODE = 1;
 export const HARNESS_HELP_SUCCESS_EXIT_CODE = 0;
@@ -69,11 +72,7 @@ export function createDotnsTestProgram(): Command {
   rootCommand.name("dotns");
   rootCommand.exitOverride();
 
-  rootCommand
-    .option("--env <environment>")
-    .option("--network <environment>")
-    .option("--keystore-path <path>")
-    .option("--password <pw>");
+  attachNetworkSelection(rootCommand).option("--keystore-path <path>").option("--password <pw>");
   attachBulletinCommands(rootCommand);
   attachPopCommands(rootCommand);
   attachAuthCommands(rootCommand);
@@ -312,8 +311,8 @@ let cachedExpectedTld: string | undefined;
 
 export async function resolveExpectedTld(): Promise<string> {
   if (cachedExpectedTld !== undefined) return cachedExpectedTld;
-  const environment = process.env[ENV.DOTNS_ENV];
-  const rpc = resolveRpc(undefined, environment);
+  const environment = getActiveDotnsEnvironment();
+  const rpc = resolveRpc();
   const client = createClient(getWsProvider(rpc));
   try {
     const clientWrapper = new ReviveClientWrapper(client.getTypedApi(paseo) as PolkadotApiClient);

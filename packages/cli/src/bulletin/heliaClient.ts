@@ -13,7 +13,6 @@ import { blake2b256 } from "@multiformats/blake2/blake2b";
 import { sha256 } from "multiformats/hashes/sha2";
 import { from as hasherFrom } from "multiformats/hashes/hasher";
 import { keccak_256 } from "@noble/hashes/sha3.js";
-import { getActiveDotnsEnvironment } from "../utils/constants";
 import { formatErrorMessage } from "../utils/formatting";
 
 const keccak256Hasher = hasherFrom({
@@ -36,14 +35,11 @@ export function describeDialError(reason: unknown): string {
 // discovery, so it dials only the peer addresses passed to the constructor.
 // One node per client: after `destroy` the client is unusable.
 export class BulletinHeliaClient {
-  private readonly peerAddresses: readonly string[];
   private helia: Helia<Libp2p> | null = null;
   private connection: Promise<Helia<Libp2p>> | null = null;
   private dialResults: Promise<unknown> | null = null;
 
-  constructor(peerAddresses: readonly string[] = getActiveDotnsEnvironment().bulletinP2pPeers) {
-    this.peerAddresses = peerAddresses;
-  }
+  constructor(private readonly peerAddresses: readonly string[]) {}
 
   // Resolves once the first peer connects; rejects with every dial error when none does.
   private async connect(): Promise<Helia<Libp2p>> {

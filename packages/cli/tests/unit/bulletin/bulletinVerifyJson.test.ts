@@ -4,7 +4,7 @@ import {
   waitForAbort,
   type MockHeliaClientBehaviour,
 } from "../../_helpers/heliaClientMock";
-import { DOTNS_ENVIRONMENTS } from "../../../src/utils/constants";
+import { DOTNS_ENVIRONMENTS } from "../../../src/utils/environments";
 
 const CID = "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy";
 const PASEO_GATEWAY = DOTNS_ENVIRONMENTS["paseo-v2"].ipfsGatewayUrl!;
@@ -76,8 +76,8 @@ test("--json reports method none with every failure, P2P first", async () => {
     gateways: [
       { gateway: "p2p/bitswap", resolvable: false, errorMessage: "no Bulletin peer has the block" },
       { gateway: PASEO_GATEWAY, resolvable: false, statusCode: 404 },
-      { gateway: "https://gateway.pinata.cloud", resolvable: false, statusCode: 404 },
-      { gateway: "https://ipfs.filebase.io", resolvable: false, statusCode: 404 },
+      { gateway: "https://gateway.pinata.cloud/ipfs/", resolvable: false, statusCode: 404 },
+      { gateway: "https://ipfs.filebase.io/ipfs/", resolvable: false, statusCode: 404 },
     ],
   });
 });

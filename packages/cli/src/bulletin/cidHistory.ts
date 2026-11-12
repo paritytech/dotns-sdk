@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { getActiveDotnsEnvironment } from "../utils/constants";
+import { getActiveDotnsEnvironment, type DotnsEnvironmentId } from "../utils/environments";
 import type { UploadRecord } from "../types/types";
 
 const HISTORY_DIR = path.join(os.homedir(), ".dotns");
@@ -104,14 +104,17 @@ export function getHistoryPath(): string {
 
 function encodeForPreview(cid: string): string {
   const base64 = Buffer.from(cid).toString("base64");
-  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return base64.replace(/\+/g, "-").replace(/[/]/g, "_").replace(/=+$/, "");
 }
 
-// Null when the active environment has no web app (e.g. previewnet): callers omit
-// the preview link rather than emit a wrong-network or broken URL.
+// Where the dotNS app is deployed, which no stack descriptor records. Other networks, and any
+// `--stack` stack, have no known deployment.
+const PREVIEW_BASE_URLS: Partial<Record<string, string>> = {
+  "paseo-v2": "https://dotns.paseo.li/#/preview",
+} satisfies Partial<Record<DotnsEnvironmentId, string>>;
+
+/** The dotNS web app's preview link for `record`, or `null` where the app is not deployed. */
 export function getPreviewUrl(record: UploadRecord): string | null {
-  const { previewBaseUrl } = getActiveDotnsEnvironment();
-  if (!previewBaseUrl) return null;
-  const encoded = encodeForPreview(record.cid);
-  return `${previewBaseUrl}/${encoded}`;
+  const previewBaseUrl = PREVIEW_BASE_URLS[getActiveDotnsEnvironment().id];
+  return previewBaseUrl ? `${previewBaseUrl}/${encodeForPreview(record.cid)}` : null;
 }

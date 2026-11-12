@@ -6,7 +6,7 @@ import { addAuthOptions } from "./authOptions";
 import { buildDotnsContext, prepareContext } from "../context";
 import { prepareReadOnlyContext } from "./lookup";
 import { makeOnStatus } from "../txStatus";
-import { dotliViewUrls } from "../../utils/constants";
+import { webGatewayUrl } from "../../utils/environments";
 import {
   getMergedOptions,
   getJsonFlag,
@@ -103,13 +103,9 @@ export function attachContentCommands(root: Command) {
           console.log(chalk.gray("  cid:    ") + chalk.cyan(result.cid));
           console.log(chalk.gray("  tx:     ") + chalk.blue(result.txHash));
           console.log(chalk.green("\n✓ Complete\n"));
-          const viewUrls = dotliViewUrls(result.label);
-          if (viewUrls.length > 0) {
-            console.log(chalk.gray("  View on dot.li:"));
-            for (const url of viewUrls) {
-              console.log("    " + chalk.cyan(url));
-            }
-            console.log();
+          const viewUrl = webGatewayUrl(result.label);
+          if (viewUrl) {
+            console.log(chalk.gray("  View in a browser: ") + chalk.cyan(viewUrl) + "\n");
           }
         }
         process.exit(0);

@@ -29,8 +29,7 @@ test(
   "register retry resumes after register domain is interrupted before reveal",
   async () => {
     const readOnly = await prepareReadOnlyContext({ keyUri: ALICE_KEY_URI });
-    const env = readOnly.environment;
-    if (!env) throw new Error("Test context is missing an environment id");
+    const env = readOnly.environment.id;
     const caller = readOnly.evmAddress as `0x${string}`;
     const label = generateRandomLabel(ProofOfPersonhoodStatus.NoStatus);
 

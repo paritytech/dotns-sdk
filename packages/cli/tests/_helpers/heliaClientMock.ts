@@ -7,7 +7,11 @@ export type MockHeliaClientBehaviour = {
 
 // Replaces BulletinHeliaClient for modules imported afterwards. Each call reads
 // `behaviour` at that moment, so tests can swap its functions between cases.
+// Peer resolution is replaced too, so it does not fetch a light spec through a mocked `fetch`.
 export function mockHeliaClient(behaviour: MockHeliaClientBehaviour): void {
+  mock.module("../../src/bulletin/bulletinPeers", () => ({
+    resolveBulletinPeers: async () => [],
+  }));
   mock.module("../../src/bulletin/heliaClient", () => ({
     BulletinHeliaClient: class {
       fetchBlock(cid: string, signal: AbortSignal) {

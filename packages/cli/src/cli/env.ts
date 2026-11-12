@@ -1,15 +1,22 @@
 import os from "node:os";
 import path from "node:path";
 
+import { chain } from "@parity/trinity-stack/reader";
 import {
+  checkStackCurrent,
+  DOTNS_ENVIRONMENTS,
+  findDotnsEnvironmentId,
   getActiveDotnsEnvironment,
+  loadDotnsStack,
   setActiveDotnsEnvironment,
+  StackExpiredError,
   type DotnsEnvironmentConfig,
-  type DotnsEnvironmentId,
-} from "../utils/constants";
+} from "../utils/environments";
+import type { AuthOptionValues } from "../types/types";
 
 export const ENV = {
   DOTNS_ENV: "DOTNS_ENV",
+  STACK: "DOTNS_STACK",
   RPC: "DOTNS_RPC",
   BULLETIN_RPC: "DOTNS_BULLETIN_RPC",
   MNEMONIC: "DOTNS_MNEMONIC",
@@ -38,22 +45,7 @@ export const DEFAULT_QR_APP_ID = "dotns";
 
 // People-chain statement-store relays the pairing handshake rendezvous on. The CLI and
 // the wallet must share one, or the wallet's response never reaches the CLI and pairing
-// hangs. A raw comma-separated wss list overrides the named stages.
-const QR_PEOPLE_STAGES = {
-  polkadot: ["wss://polkadot-people-rpc.polkadot.io"],
-  paseo: ["wss://paseo-people-next-system-rpc.polkadot.io"],
-  preview: ["wss://previewnet.substrate.dev/people"],
-  stable: ["wss://pop3-testnet.parity-lab.parity.io/people"],
-} as const;
-
-export type QrPeopleStage = keyof typeof QR_PEOPLE_STAGES;
-
-// Without a flag or env var, pairing uses the relay of the network the command signs on.
-const ENVIRONMENT_QR_PEOPLE_STAGES: Record<DotnsEnvironmentId, QrPeopleStage> = {
-  polkadot: "polkadot",
-  "paseo-v2": "paseo",
-  previewnet: "preview",
-};
+// hangs. A stage is an `--env` value; a raw comma-separated wss list overrides.
 
 export function resolveSignerKind(maybeKind?: string): SignerKind {
   const value = (maybeKind || process.env[ENV.SIGNER] || "keystore").toLowerCase();
@@ -64,22 +56,22 @@ export function resolveQrAppId(maybeAppId?: string): string {
   return maybeAppId || process.env[ENV.QR_APP_ID] || DEFAULT_QR_APP_ID;
 }
 
+// Without a flag or env var, pairing uses the People chain of the network the command signs on.
 export function resolveQrPeopleEndpoints(maybeStageOrUrls?: string): string[] {
-  const value = (
-    maybeStageOrUrls ||
-    process.env[ENV.QR_PEOPLE_RPC] ||
-    ENVIRONMENT_QR_PEOPLE_STAGES[getActiveDotnsEnvironment().id]
-  ).trim();
-  if (value in QR_PEOPLE_STAGES) {
-    return [...QR_PEOPLE_STAGES[value as QrPeopleStage]];
+  const stageOrUrls = maybeStageOrUrls || process.env[ENV.QR_PEOPLE_RPC];
+  if (!stageOrUrls) {
+    return [...chain(getActiveDotnsEnvironment().descriptor, "People").rpc];
   }
+  const value = stageOrUrls.trim();
+  const stage = findDotnsEnvironmentId(value);
+  if (stage) return [...chain(DOTNS_ENVIRONMENTS[stage].descriptor, "People").rpc];
   const urls = value
     .split(",")
     .map((url) => url.trim())
     .filter(Boolean);
   if (urls.length === 0) {
     throw new Error(
-      `No QR pairing relay resolved from "${value}". Use a stage (polkadot|paseo|preview|stable) or wss URLs.`,
+      `No QR pairing relay resolved from "${value}". Use an --env value or wss URLs.`,
     );
   }
   for (const url of urls) {
@@ -139,36 +131,70 @@ function getDefaultKeystoreDir(): string {
   return path.join(os.homedir(), ".dotns", "keystore");
 }
 
-export function resolveDotnsEnvironment(maybeEnvironment?: string): DotnsEnvironmentConfig {
-  return setActiveDotnsEnvironment(maybeEnvironment || process.env[ENV.DOTNS_ENV]);
+export type NetworkSelection = Pick<AuthOptionValues, "stack" | "env" | "network">;
+
+export type NetworkChoice = { environment: DotnsEnvironmentConfig; warning?: string };
+
+/** Where to run instead of a bundled copy that is outdated: its published link, for `--stack`. */
+export function formatPublishedStackHint(publishedLink: string): string {
+  return `Run with the published one: --stack '${publishedLink}'`;
 }
 
-export function resolveRpc(maybeRpc?: string, maybeEnvironment?: string): string {
-  const environment = resolveDotnsEnvironment(maybeEnvironment);
-  const resolved = maybeRpc || process.env[ENV.RPC] || environment.rpc;
-  if (!resolved) {
-    throw new Error(
-      `Environment '${environment.id}' has no Asset Hub RPC configured. Set --rpc, ${ENV.RPC}, or use --env paseo-v2.`,
-    );
+function formatStackProblem(message: string, publishedLink: string | null): string {
+  return publishedLink ? `${message} ${formatPublishedStackHint(publishedLink)}` : message;
+}
+
+/**
+ * Selects and activates the network a command runs on: a flag (`--stack` or `--env`/`--network`),
+ * else `DOTNS_STACK` or `DOTNS_ENV`, else polkadot. Returns the environment and, when its stack is
+ * past `validUntil`, the warning to show. Fails when `--stack` is combined with `--env`/`--network`,
+ * when both `DOTNS_STACK` and `DOTNS_ENV` are set, when the stack cannot be loaded, or when it is
+ * past `expiresAt`; the active network then stays as it was.
+ */
+export async function selectDotnsEnvironment(options: NetworkSelection): Promise<NetworkChoice> {
+  const environmentFlag = options.env ?? options.network;
+  if (options.stack && environmentFlag) {
+    throw new Error("--stack replaces the whole network, so it cannot be combined with --env.");
   }
-  return resolved;
+  const fromFlags = Boolean(options.stack || environmentFlag);
+  if (!fromFlags && process.env[ENV.STACK] && process.env[ENV.DOTNS_ENV]) {
+    throw new Error(`Set either ${ENV.STACK} or ${ENV.DOTNS_ENV}, not both.`);
+  }
+  const stack = fromFlags ? options.stack : process.env[ENV.STACK];
+  const environmentId = fromFlags ? environmentFlag : process.env[ENV.DOTNS_ENV];
+  let environment: DotnsEnvironmentConfig;
+  try {
+    environment = setActiveDotnsEnvironment(stack ? await loadDotnsStack(stack) : environmentId);
+  } catch (error) {
+    if (error instanceof StackExpiredError) {
+      throw new Error(formatStackProblem(error.message, error.publishedLink));
+    }
+    throw error;
+  }
+  const currency = checkStackCurrent(environment);
+  const warning =
+    currency.status === "stale"
+      ? formatStackProblem(currency.message, currency.publishedLink)
+      : undefined;
+  return { environment, warning };
+}
+
+export function resolveRpc(maybeRpc?: string): string {
+  return maybeRpc || process.env[ENV.RPC] || getActiveDotnsEnvironment().rpc;
 }
 
 /**
  * Resolve the bulletin WebSocket RPC endpoint.
  *
- * Precedence: explicit argument => `DOTNS_BULLETIN_RPC` env var => active
- * environment's `bulletinRpc`.
+ * Precedence: explicit argument => `DOTNS_BULLETIN_RPC` env var => the active stack's Bulletin
+ * chain. Fails when none is set and the stack has no Bulletin chain.
  */
-export function resolveBulletinRpc(maybeRpc?: string, maybeEnvironment?: string): string {
-  const environment = resolveDotnsEnvironment(maybeEnvironment);
-  const resolved = maybeRpc || process.env[ENV.BULLETIN_RPC] || environment.bulletinRpc;
-  if (!resolved) {
-    throw new Error(
-      `Environment '${environment.id}' has no bulletin RPC configured. Set --bulletin-rpc, ${ENV.BULLETIN_RPC}, or use --env paseo-v2.`,
-    );
-  }
-  return resolved;
+export function resolveBulletinRpc(maybeRpc?: string): string {
+  return (
+    maybeRpc ||
+    process.env[ENV.BULLETIN_RPC] ||
+    chain(getActiveDotnsEnvironment().descriptor, "Bulletin").rpc[0]!
+  );
 }
 
 /**

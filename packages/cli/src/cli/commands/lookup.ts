@@ -10,7 +10,8 @@ import {
 } from "../../client/polkadotClient";
 import { performDomainLookup, performOwnerOfLookup } from "../../commands/lookup";
 import { verifyDomainOwnership } from "../../commands/register";
-import { ENV, resolveDotnsEnvironment, resolveRpc } from "../env";
+import { ENV, resolveRpc } from "../env";
+import { getActiveDotnsEnvironment } from "../../utils/environments";
 import { formatErrorMessage } from "../../utils/formatting";
 import {
   resolveAuthSourceReadOnly,
@@ -123,10 +124,10 @@ function renderBaseNameReservation(
   console.log();
 }
 
-async function createReadOnlyChainContext(rpc: string, environmentId: string) {
+async function createReadOnlyChainContext(rpc: string, network: string) {
   const rawClient = createClient(getWsProvider(rpc));
   await assertExpectedChain(rawClient);
-  const client = getAssetHubTypedApi(rawClient, environmentId);
+  const client = getAssetHubTypedApi(rawClient, network);
   const tokenInfo = await getChainTokenInfo(rawClient);
   return {
     clientWrapper: new ReviveClientWrapper(client, tokenInfo),
@@ -182,11 +183,11 @@ export async function prepareReadOnlyContext(
   options: AuthSource & { rpc?: string },
   { reportsOnCaller = false }: ReadOnlyContextOptions = {},
 ): Promise<ReadOnlyContext> {
-  const environment = resolveDotnsEnvironment(options.env ?? options.network);
-  const rpc = resolveRpc(options.rpc, environment.id);
+  const environment = getActiveDotnsEnvironment();
+  const rpc = resolveRpc(options.rpc);
 
   const readOnlyContext = await step(`Connecting RPC ${rpc}`, async () =>
-    createReadOnlyChainContext(rpc, environment.id),
+    createReadOnlyChainContext(rpc, environment.descriptor.network),
   );
   const { clientWrapper, nativeTokenDecimals, nativeTokenSymbol } = readOnlyContext;
 
@@ -216,7 +217,7 @@ export async function prepareReadOnlyContext(
     createAccountFromSource(auth.source, auth.isKeyUri),
   );
 
-  await enforceProtocolVersion(clientWrapper, keypair.address, environment.id);
+  await enforceProtocolVersion(clientWrapper, keypair.address, environment);
 
   // Only a read that reports on the caller needs the caller's mapping: the other
   // reads take the name or address passed in, and the dev account they fall back
@@ -239,7 +240,7 @@ export async function prepareReadOnlyContext(
     clientWrapper,
     account: { address: keypair.address },
     rpc,
-    environment: environment.id,
+    environment,
     nativeTokenDecimals,
     nativeTokenSymbol,
     evmAddress,

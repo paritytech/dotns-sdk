@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import { printHumanLine, printHumanSuccess } from "./reporter";
 import { version } from "../../package.json";
-import { getActiveDotnsEnvironment } from "../utils/constants";
+import { getActiveDotnsEnvironment } from "../utils/environments";
 
 // One contextual line per command: identity
 // (version), the operation, an optional target, and the active network. Greppable

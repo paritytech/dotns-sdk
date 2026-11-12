@@ -8,6 +8,7 @@ import {
 } from "../../../src/core/protocolVersion";
 import * as realContext from "../../../src/core/context";
 import { assertSupportedProtocolVersion, enforceProtocolVersion } from "../../../src/cli/context";
+import { DOTNS_ENVIRONMENTS } from "../../../src/utils/environments";
 import { ENV } from "../../../src/cli/env";
 import type { ReviveClientWrapper } from "../../../src/client/polkadotClient";
 
@@ -77,7 +78,7 @@ describe("enforceProtocolVersion", () => {
         },
       },
     ) as ReviveClientWrapper;
-    await enforceProtocolVersion(untouchable, "unused", "paseo-v2");
+    await enforceProtocolVersion(untouchable, "unused", DOTNS_ENVIRONMENTS["paseo-v2"]);
   });
 });
 
@@ -152,7 +153,11 @@ describe("checkProtocolVersion", () => {
 describe("assertSupportedProtocolVersion", () => {
   test("names the CLI escape hatch, which core leaves out", async () => {
     declared = "0.7.0";
-    const error = await assertSupportedProtocolVersion(wrapper, ORIGIN, "paseo-v2").catch((e) => e);
+    const error = await assertSupportedProtocolVersion(
+      wrapper,
+      ORIGIN,
+      DOTNS_ENVIRONMENTS["paseo-v2"],
+    ).catch((e) => e);
     expect(error).toBeInstanceOf(UnsupportedProtocolVersionError);
     expect(error.message).toContain(`Set ${ENV.SKIP_VERSION_CHECK}=1`);
     expect(new UnsupportedProtocolVersionError("0.7.0").message).not.toContain(

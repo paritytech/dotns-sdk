@@ -18,7 +18,7 @@ import {
   ReviveClientWrapper,
   type PolkadotApiClient,
 } from "../../../src/core";
-import { DOTNS_ENVIRONMENTS, resolveDotnsEnvironmentId } from "../../../src/utils/constants";
+import { resolveDotnsEnvironment } from "../../../src/utils/environments";
 import { assertExpectedChain } from "../../../src/cli/context";
 
 // Builds a PolkadotSigner with no dependency on @polkadot/keyring or the CLI auth
@@ -64,9 +64,8 @@ describe("custom signer injection", () => {
 
   test("reads run end-to-end against the chain via the injected signer's context", async () => {
     const { signer, origin } = createCustomSigner();
-    const environment =
-      DOTNS_ENVIRONMENTS[resolveDotnsEnvironmentId(process.env.DOTNS_ENV ?? "paseo-v2")];
-    const rpc = process.env.DOTNS_RPC ?? environment.rpc!;
+    const environment = resolveDotnsEnvironment(process.env.DOTNS_ENV ?? "paseo-v2");
+    const rpc = process.env.DOTNS_RPC ?? environment.rpc;
     const rawClient = createClient(getWsProvider(rpc));
     try {
       await assertExpectedChain(rawClient, "asset-hub", environment);
@@ -75,7 +74,7 @@ describe("custom signer injection", () => {
         clientWrapper: new ReviveClientWrapper(client),
         origin,
         signer,
-        environment: environment.id,
+        environment,
       });
       const classification = await classifyDomainName(ctx, "alice");
       expect(classification).toBeDefined();

@@ -142,8 +142,19 @@ export type { PrimaryNameResult } from "../commands/reverseRecord";
 
 export { checkAccountMapped } from "../commands/accountChecks";
 
-export { DOTNS_ENVIRONMENTS } from "../utils/constants";
-export type { DotnsEnvironmentId, DotnsContractAddresses } from "../utils/constants";
+export {
+  DOTNS_ENVIRONMENTS,
+  StackExpiredError,
+  checkStackCurrent,
+  loadDotnsStack,
+} from "../utils/environments";
+export type {
+  BundledEnvironment,
+  StackCurrency,
+  DotnsEnvironmentId,
+  DotnsEnvironmentConfig,
+  DotnsContractAddresses,
+} from "../utils/environments";
 export { ReviveClientWrapper, getChainTokenInfo } from "../client/polkadotClient";
 export type { PolkadotApiClient, NativeTokenInfo } from "../client/polkadotClient";
 export { ProofOfPersonhoodStatus } from "../types/types";

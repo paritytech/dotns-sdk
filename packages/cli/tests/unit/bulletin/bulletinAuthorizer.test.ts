@@ -3,8 +3,8 @@ import { warnIfDevKeyOnTestnet } from "../../../src/cli/commands/bulletin";
 import {
   DEFAULT_BULLETIN_AUTHORIZER_KEY_URI,
   DEFAULT_SUDO_KEY_URI,
-  setActiveDotnsEnvironment,
 } from "../../../src/utils/constants";
+import { DOTNS_ENVIRONMENTS, setActiveDotnsEnvironment } from "../../../src/utils/environments";
 import { getPreviewUrl } from "../../../src/bulletin/cidHistory";
 import type { UploadRecord } from "../../../src/types/types";
 
@@ -67,14 +67,19 @@ describe("getPreviewUrl", () => {
     setActiveDotnsEnvironment("paseo-v2");
   });
 
-  test("returns an https preview link on the environment that has a web app", () => {
+  test("opens the CID preview in the dotNS app deployed for paseo-v2", () => {
     setActiveDotnsEnvironment("paseo-v2");
-    const url = getPreviewUrl(record);
-    expect(url?.startsWith("https://dotns.paseo.li/#/preview/")).toBe(true);
+    expect(getPreviewUrl(record)).toBe("https://dotns.paseo.li/#/preview/YmFmeWZvbw");
   });
 
-  test("returns null (never throws) on an environment with no web app", () => {
-    setActiveDotnsEnvironment("previewnet");
-    expect(getPreviewUrl(record)).toBeNull();
-  });
+  // Neither network has a `dotns` name serving the app, so a link would lead nowhere.
+  for (const id of ["previewnet", "polkadot"] as const) {
+    test(`omits the link on ${id}, though its stack lists a web gateway`, () => {
+      setActiveDotnsEnvironment(id);
+      expect(DOTNS_ENVIRONMENTS[id].descriptor.services.map(({ kind }) => kind)).toContain(
+        "web-gateway",
+      );
+      expect(getPreviewUrl(record)).toBeNull();
+    });
+  }
 });
