@@ -564,7 +564,7 @@ dotns --key-uri //Alice bulletin refresh 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92U
 
 ### Bulletin Verify
 
-Check that a CID is resolvable through the IPFS gateways.
+Check a CID over Bulletin P2P and the IPFS gateways together. The command reports the first that resolves it, or every error when none does.
 
 ```bash
 dotns bulletin verify bafy...cid

@@ -1,4 +1,12 @@
-import { createHelia, type Helia } from "helia";
+import { Helia } from "@helia/utils";
+import { bitswap } from "@helia/block-brokers";
+import { createLibp2p, type Libp2p } from "libp2p";
+import { webSockets } from "@libp2p/websockets";
+import { noise } from "@chainsafe/libp2p-noise";
+import { yamux } from "@chainsafe/libp2p-yamux";
+import { identify } from "@libp2p/identify";
+import { MemoryBlockstore } from "blockstore-core";
+import { MemoryDatastore } from "datastore-core";
 import { CID } from "multiformats/cid";
 import { multiaddr } from "@multiformats/multiaddr";
 import { blake2b256 } from "@multiformats/blake2/blake2b";
@@ -6,6 +14,7 @@ import { sha256 } from "multiformats/hashes/sha2";
 import { from as hasherFrom } from "multiformats/hashes/hasher";
 import { keccak_256 } from "@noble/hashes/sha3.js";
 import { getActiveDotnsEnvironment } from "../utils/constants";
+import { formatErrorMessage } from "../utils/formatting";
 
 const keccak256Hasher = hasherFrom({
   name: "keccak-256",
@@ -15,127 +24,81 @@ const keccak256Hasher = hasherFrom({
 
 const FETCH_TIMEOUT_MS = 30_000;
 
-export interface HeliaFetchResult {
-  data: Uint8Array;
-  size: number;
+// Returns a readable reason for a failed peer dial. A failed WebSocket dial rejects with
+// the socket's error event instead of an Error, and under Node its message is empty.
+export function describeDialError(reason: unknown): string {
+  if (!(reason instanceof Event)) return formatErrorMessage(reason);
+  const event = reason as Event & { message?: string; error?: { message?: string } };
+  return event.message || event.error?.message || `WebSocket ${event.type}`;
 }
 
-function resolveDefaultPeers(): readonly string[] {
-  const environment = getActiveDotnsEnvironment();
-  if (environment.bulletinP2pPeers.length === 0) {
-    throw new Error(
-      `P2P verification has no peers configured for environment '${environment.id}'; falling back to gateway or skip with --no-verify.`,
-    );
-  }
-  return environment.bulletinP2pPeers;
-}
-
-function extractAllowedPeerIds(peerAddresses: string[]): Set<string> {
-  const peerIds = new Set<string>();
-  for (const address of peerAddresses) {
-    const match = address.match(/\/p2p\/([^/]+)/);
-    if (match?.[1]) {
-      peerIds.add(match[1]);
-    }
-  }
-  return peerIds;
-}
-
-async function collectAsyncBytes(
-  source: AsyncIterable<Uint8Array>,
-  timeoutMs: number,
-): Promise<Uint8Array> {
-  const chunks: Uint8Array[] = [];
-  const timeout = new Promise<never>((_, reject) => {
-    setTimeout(
-      () => reject(new Error(`P2P fetch timed out after ${timeoutMs / 1000}s`)),
-      timeoutMs,
-    );
-  });
-
-  const iterator = (source as AsyncIterable<Uint8Array>)[Symbol.asyncIterator]();
-  let done = false;
-
-  while (!done) {
-    const result = await Promise.race([iterator.next(), timeout]);
-    if (result.done) {
-      done = true;
-    } else {
-      chunks.push(result.value);
-    }
-  }
-
-  if (chunks.length === 0) {
-    throw new Error("No data received from Bulletin peers");
-  }
-
-  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-  const merged = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const chunk of chunks) {
-    merged.set(chunk, offset);
-    offset += chunk.length;
-  }
-  return merged;
-}
-
-let sharedInstance: BulletinHeliaClient | null = null;
-
+// A Helia node that fetches blocks over Bitswap. It has no routers or peer
+// discovery, so it dials only the peer addresses passed to the constructor.
+// One node per client: after `destroy` the client is unusable.
 export class BulletinHeliaClient {
-  private helia: Helia | null = null;
-  private peerAddresses: string[];
+  private readonly peerAddresses: readonly string[];
+  private helia: Helia<Libp2p> | null = null;
+  private connection: Promise<Helia<Libp2p>> | null = null;
+  private dialResults: Promise<unknown> | null = null;
 
-  constructor(peerAddresses?: readonly string[]) {
-    this.peerAddresses = peerAddresses ? [...peerAddresses] : [...resolveDefaultPeers()];
+  constructor(peerAddresses: readonly string[] = getActiveDotnsEnvironment().bulletinP2pPeers) {
+    this.peerAddresses = peerAddresses;
   }
 
-  async initialize(): Promise<void> {
-    if (this.helia) return;
-
-    const allowedPeerIds = extractAllowedPeerIds(this.peerAddresses);
-
-    this.helia = await createHelia({
-      hashers: [blake2b256, sha256, keccak256Hasher],
-      routers: [],
-      libp2p: {
-        connectionGater: {
-          denyDialMultiaddr: async (maAddr) => {
-            const address = maAddr.toString();
-            const match = address.match(/\/p2p\/([^/]+)/);
-            if (match?.[1] && allowedPeerIds.has(match[1])) {
-              return false;
-            }
-            return true;
-          },
-        },
-      },
+  // Resolves once the first peer connects; rejects with every dial error when none does.
+  private async connect(): Promise<Helia<Libp2p>> {
+    if (this.peerAddresses.length === 0) {
+      throw new Error("no Bulletin P2P peers are configured for this environment");
+    }
+    const datastore = new MemoryDatastore();
+    const libp2p = await createLibp2p({
+      datastore,
+      transports: [webSockets()],
+      connectionEncrypters: [noise()],
+      streamMuxers: [yamux()],
+      services: { identify: identify() },
     });
+    const helia = new Helia({
+      libp2p,
+      datastore,
+      blockstore: new MemoryBlockstore(),
+      blockBrokers: [bitswap()],
+      hashers: [blake2b256, sha256, keccak256Hasher],
+    });
+    this.helia = helia;
+    await helia.start();
 
-    for (const address of this.peerAddresses) {
-      try {
-        await this.helia.libp2p.dial(multiaddr(address));
-      } catch {
-        continue;
-      }
+    const dials = this.peerAddresses.map((address) => helia.libp2p.dial(multiaddr(address)));
+    this.dialResults = Promise.allSettled(dials);
+    try {
+      await Promise.any(dials);
+    } catch (error) {
+      const dialErrors = (error as AggregateError).errors.map(
+        (reason, index) => `${this.peerAddresses[index]}: ${describeDialError(reason)}`,
+      );
+      throw new Error(`could not connect to any Bulletin peer: ${dialErrors.join("; ")}`);
     }
+    return helia;
   }
 
-  async fetchBlock(cidString: string): Promise<HeliaFetchResult> {
-    await this.initialize();
-
+  // Rejects once `signal` aborts (by default after FETCH_TIMEOUT_MS). An already aborted
+  // signal starts no node; an abort during the peer dials takes effect once the first peer
+  // connects or every dial fails.
+  async fetchBlock(
+    cidString: string,
+    signal: AbortSignal = AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  ): Promise<Uint8Array> {
     const cid = CID.parse(cidString);
-    const blockData = await this.helia!.blockstore.get(cid);
+    signal.throwIfAborted();
+    this.connection ??= this.connect();
+    const helia = await this.connection;
+    signal.throwIfAborted();
 
-    let data: Uint8Array;
-    if (blockData instanceof Uint8Array && blockData.length > 0) {
-      data = blockData;
-    } else if (typeof blockData === "object" && Symbol.asyncIterator in Object(blockData)) {
-      data = await collectAsyncBytes(blockData as AsyncIterable<Uint8Array>, FETCH_TIMEOUT_MS);
-    } else {
-      throw new Error("Unexpected response type from Bulletin peer");
+    const chunks: Uint8Array[] = [];
+    for await (const chunk of helia.blockstore.get(cid, { signal })) {
+      chunks.push(chunk);
     }
-
-    return { data, size: data.length };
+    return Buffer.concat(chunks);
   }
 
   async verifyCid(cidString: string): Promise<boolean> {
@@ -147,24 +110,13 @@ export class BulletinHeliaClient {
     }
   }
 
+  // Stops the node once every peer dial finishes. Stopping or aborting a dial midway leaves
+  // its WebSocket open, since neither @libp2p/websockets nor the libp2p upgrader closes
+  // the connection of a dial that fails partway, and an open socket prevents the process
+  // from exiting.
   async destroy(): Promise<void> {
-    if (this.helia) {
-      await this.helia.stop();
-      this.helia = null;
-    }
-  }
-}
-
-export function getSharedHeliaClient(): BulletinHeliaClient {
-  if (!sharedInstance) {
-    sharedInstance = new BulletinHeliaClient();
-  }
-  return sharedInstance;
-}
-
-export async function destroySharedHeliaClient(): Promise<void> {
-  if (sharedInstance) {
-    await sharedInstance.destroy();
-    sharedInstance = null;
+    await this.connection?.catch(() => null);
+    await this.dialResults;
+    await this.helia?.stop();
   }
 }

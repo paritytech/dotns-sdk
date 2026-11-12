@@ -162,7 +162,9 @@ test("bulletin list alias works", async () => {
 test("bulletin verify help shows usage", async () => {
   const result = await runDotnsCli(["bulletin", "verify", "--help"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
-  expect(result.combinedOutput).toContain("Verify a CID is resolvable via IPFS gateways");
+  expect(collapseWhitespace(result.combinedOutput)).toContain(
+    "Verify a CID over Bulletin P2P and the IPFS gateways together, reporting the first that resolves it",
+  );
   expect(result.combinedOutput).toContain("<cid>");
   expect(result.combinedOutput).toContain("--reporter");
   expect(result.combinedOutput).toContain("--json");
@@ -171,5 +173,7 @@ test("bulletin verify help shows usage", async () => {
 test("bulletin help verify shows verify help", async () => {
   const result = await runDotnsCli(["bulletin", "help", "verify"]);
   expect(result.exitCode).toBe(HARNESS_HELP_SUCCESS_EXIT_CODE);
-  expect(result.combinedOutput).toContain("Verify a CID is resolvable via IPFS gateways");
+  expect(collapseWhitespace(result.combinedOutput)).toContain(
+    "Verify a CID over Bulletin P2P and the IPFS gateways together, reporting the first that resolves it",
+  );
 });

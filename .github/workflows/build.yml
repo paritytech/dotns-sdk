@@ -26,6 +26,10 @@ jobs:
           bun-version: "1.2.19"
           no-cache: true
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - name: Install dependencies
         shell: bash
         run: |
@@ -49,7 +53,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          bun run build 2>&1 | tee "$GITHUB_WORKSPACE/build-output.txt"
+          { bun run build && bun run verify:bundle; } 2>&1 | tee "$GITHUB_WORKSPACE/build-output.txt"
 
       - name: Process results
         id: result

@@ -9,7 +9,12 @@ import { bulletin } from "@polkadot-api/descriptors";
 import { importer } from "ipfs-unixfs-importer";
 import type { CID } from "multiformats/cid";
 import { encodeIpfsContenthash } from "../bulletin/cid";
-import { verifySingleFileCid } from "../bulletin/ipfs";
+import {
+  describeVerificationFailures,
+  publicFallbackGateways,
+  verificationGateways,
+  verifyCid,
+} from "../bulletin/ipfs";
 import { completedBlocksFromManifest, loadManifestForResume } from "../bulletin/uploadManifest";
 import {
   isRetryableUploadError,
@@ -108,6 +113,35 @@ function emitPhase(
   message: string,
 ): void {
   onPhase?.({ phase, state, message });
+}
+
+// Reports through `onPhase` whether Bulletin P2P, one of `gateways` or, after those
+// fail, one of `fallbackGateways` resolves `cid`.
+// Never throws: the content is already stored, so a failed check must not retry the upload.
+export async function verifyUploadedCid(
+  onPhase: BulletinPhaseHandler | undefined,
+  label: string,
+  cid: string,
+  gateways: readonly string[],
+  fallbackGateways: readonly string[] = [],
+): Promise<void> {
+  emitPhase(onPhase, "verify", "start", `Verifying ${label} on Bulletin P2P and IPFS gateways`);
+  const verification = await verifyCid(cid, gateways, fallbackGateways);
+  if ("success" in verification) {
+    emitPhase(
+      onPhase,
+      "verify",
+      "success",
+      `${label} verified via ${verification.success.gateway}`,
+    );
+  } else {
+    emitPhase(
+      onPhase,
+      "verify",
+      "warning",
+      `${label} not yet resolvable: ${describeVerificationFailures(verification.failures)}`,
+    );
+  }
 }
 
 function emitRetry(
@@ -779,18 +813,13 @@ export async function uploadSingleBlock(
 
           emitPhase(onPhase, "upload", "success", "Stored");
 
-          emitPhase(onPhase, "verify", "start", "Connecting to Bulletin P2P");
-          const verificationResult = await verifySingleFileCid(storeResult.cid);
-          if (verificationResult.resolvable) {
-            emitPhase(
-              onPhase,
-              "verify",
-              "success",
-              `CID verified via ${verificationResult.gateway}`,
-            );
-          } else {
-            emitPhase(onPhase, "verify", "warning", "Could not verify CID");
-          }
+          await verifyUploadedCid(
+            onPhase,
+            "CID",
+            storeResult.cid,
+            verificationGateways(),
+            publicFallbackGateways(),
+          );
 
           return storeResult.cid;
         } catch (error) {
@@ -1002,21 +1031,12 @@ export async function storeDirectory(
 
           const rootCidString = rootCid.toString();
 
-          emitPhase(onPhase, "verify", "start", "Verifying content resolution");
-          const rootVerification = await verifySingleFileCid(rootCidString, verificationGateway);
-
-          if (rootVerification.resolvable) {
-            emitPhase(
-              onPhase,
-              "verify",
-              "success",
-              `Root CID verified via ${rootVerification.gateway}`,
-            );
-          } else {
-            emitPhase(onPhase, "verify", "warning", "Root CID not yet resolvable");
-            console.log(chalk.gray("  checked:  ") + chalk.white(rootVerification.gateway));
-            console.log(chalk.yellow("  Content may take time to propagate through the network"));
-          }
+          await verifyUploadedCid(
+            onPhase,
+            "Root CID",
+            rootCidString,
+            verificationGateway ? [verificationGateway] : verificationGateways(),
+          );
 
           return { cid: rootCidString };
         } catch (error) {
@@ -1033,8 +1053,6 @@ export async function storeDirectory(
     throw error;
   }
 }
-
-export { verifySingleFileCid } from "../bulletin/ipfs";
 
 export function generateContenthash(contentCid: string): string {
   return encodeIpfsContenthash(contentCid);
