@@ -1,7 +1,7 @@
 {
   "name": "@parity/dotns-cli",
   "module": "index.ts",
-  "version": "1.1.1",
+  "version": "2.0.0",
   "type": "module",
   "private": true,
   "license": "MIT",
@@ -22,17 +22,19 @@
     "test:e2e": "bun tests/e2e/run.ts",
     "benchmark": "bun benchmarks/benchmark.ts",
     "benchmark:dashboard": "bun benchmarks/generate-dashboard.ts",
-    "build": "rm -rf dist && bun run build:cli && bun run build:lib",
-    "build:cli": "bun build src/cli/index.ts --outfile dist/cli.tmp.js --target node --format esm && echo '#!/usr/bin/env node' | cat - dist/cli.tmp.js > dist/cli.js && rm dist/cli.tmp.js && chmod +x dist/cli.js",
-    "build:lib": "bun build src/core/index.ts --outfile dist/core/index.js --target node --format esm && bun build src/core/keyring.ts --outfile dist/core/keyring.js --target node --format esm && bun build src/core/bulletin.ts --outfile dist/core/bulletin.js --target node --format esm && bunx tsc -p tsconfig.build.json --emitDeclarationOnly",
+    "build": "rm -rf dist && bun run check:stacks && bun run build:cli && bun run build:lib",
+    "build:cli": "bun build src/cli/index.ts --outfile dist/cli.tmp.js --target node --format esm --external @parity/trinity-stack && echo '#!/usr/bin/env node' | cat - dist/cli.tmp.js > dist/cli.js && rm dist/cli.tmp.js && chmod +x dist/cli.js",
+    "build:lib": "bun build src/core/index.ts --outfile dist/core/index.js --target node --format esm --external @parity/trinity-stack && bun build src/core/keyring.ts --outfile dist/core/keyring.js --target node --format esm --external @parity/trinity-stack && bun build src/core/bulletin.ts --outfile dist/core/bulletin.js --target node --format esm --external @parity/trinity-stack && bunx tsc -p tsconfig.build.json --emitDeclarationOnly",
+    "check:stacks": "bunx --bun trinity-stack generate && bun scripts/checkStacks.ts",
+    "stacks:update": "bunx --bun trinity-stack update",
     "verify:pack": "node ../../scripts/verifyPackExports.mjs",
     "verify:bundle": "node ../../scripts/checkBundledP2P.mjs",
     "prepublishOnly": "bun run build",
-    "prepare": "bunx papi generate"
+    "prepare": "bunx papi generate && bunx --bun trinity-stack generate"
   },
   "engines": {
     "bun": ">=1.2.6",
-    "node": ">=21"
+    "node": ">=22.3"
   },
   "publishConfig": {
     "access": "public"
@@ -80,6 +82,7 @@
     "@multiformats/multiaddr": "^13.0.1",
     "@noble/hashes": "^2.0.1",
     "@parity/product-sdk-terminal": "^0.5.3",
+    "@parity/trinity-stack": "^0.2.0",
     "@polkadot-labs/hdkd": "^0.0.26",
     "@polkadot-labs/hdkd-helpers": "^0.0.27",
     "@polkadot/keyring": "^14.0.1",

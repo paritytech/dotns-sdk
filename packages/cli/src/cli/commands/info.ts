@@ -9,7 +9,7 @@ import {
   buildReadOnlyDotnsContext,
 } from "../context";
 import { makeOnStatus } from "../txStatus";
-import { addAuthOptions } from "./authOptions";
+import { addAuthOptions, addKeystoreOptions } from "./authOptions";
 import { resolveKeystorePath } from "../env";
 import { formatErrorMessage } from "../../utils/formatting";
 import { resolveAuthSource, createAccountFromSource } from "../../commands/auth";
@@ -27,7 +27,8 @@ export function attachAccountCommands(root: Command) {
     .command("address")
     .description("Print the substrate address for the configured account (offline, no RPC)");
 
-  addAuthOptions(addressCommand).action(async (options: CommandOptions, command: Command) => {
+  // Offline: without --stack, the network selection hook skips it.
+  addKeystoreOptions(addressCommand).action(async (options: CommandOptions, command: Command) => {
     try {
       const mergedOptions = getMergedOptions(command, options);
       const keystorePath = resolveKeystorePath(mergedOptions.keystorePath);

@@ -19,7 +19,7 @@ import {
 import { formatDomainName } from "../../core/naming";
 import type { DotnsContext } from "../../core/context";
 import { formatNativeBalance } from "../../utils/formatting";
-import { getActiveDotnsEnvironment } from "../../utils/constants";
+import { getActiveDotnsEnvironment } from "../../utils/environments";
 import {
   GOVERNANCE_TRACKS,
   assessGrant,

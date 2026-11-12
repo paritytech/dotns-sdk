@@ -9,12 +9,10 @@ import { DEFAULT_NATIVE_TOKEN_DECIMALS, DEFAULT_NATIVE_TOKEN_SYMBOL } from "../u
 export type PolkadotApiClient = TypedApi<Paseo>;
 
 // Each network's own metadata backs PAPI's runtime checks; Polkadot shares Paseo's call
-// shapes for everything the SDK uses, so one compile-time type serves both.
-export function getAssetHubTypedApi(
-  rawClient: PolkadotClient,
-  environmentId: string,
-): PolkadotApiClient {
-  if (environmentId === "polkadot") {
+// shapes for everything the SDK uses, so one compile-time type serves both. `network` is
+// the stack descriptor's `network`.
+export function getAssetHubTypedApi(rawClient: PolkadotClient, network: string): PolkadotApiClient {
+  if (network === "polkadot") {
     return rawClient.getTypedApi(polkadotAssetHub) as unknown as PolkadotApiClient;
   }
   return rawClient.getTypedApi(paseo);

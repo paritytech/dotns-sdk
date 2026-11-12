@@ -9,7 +9,8 @@ import type { CommandOptions } from "../../types/types";
  * JSON envelope convention:
  * - Mutations (register, set, etc.) return { ok: true, ...fields }
  * - Reads (view, info, lookup) return the data directly (no ok field)
- * - Errors always return { error: "message" } on stderr with exit code 1
+ * - Errors return { error: "message" } with exit code 1, on stderr except for command groups
+ *   registered with `writeJsonErrorsToStdout`
  */
 
 /**
@@ -77,10 +78,32 @@ export function emitJsonResult(jsonOutput: boolean, result: unknown): boolean {
  * Handle a command error, formatting as JSON or human-readable depending
  * on the --json flag. Always exits with code 1.
  */
-export function handleCommandError(jsonOutput: boolean, error: unknown): never {
+// Command groups whose `--json` errors go to stdout with their results.
+const stdoutJsonErrorCommands = new WeakSet<Command>();
+
+/** Makes `handleCommandError` write `command`'s and its subcommands' JSON errors to stdout. */
+export function writeJsonErrorsToStdout(command: Command): Command {
+  stdoutJsonErrorCommands.add(command);
+  return command;
+}
+
+function hasStdoutJsonErrors(command: Command | undefined): boolean {
+  for (let current = command ?? null; current; current = current.parent) {
+    if (stdoutJsonErrorCommands.has(current)) return true;
+  }
+  return false;
+}
+
+/**
+ * Reports `error` and exits 1. Under `--json` the error is `{ "error": … }` on stderr, or on
+ * stdout for a `command` registered with `writeJsonErrorsToStdout`.
+ */
+export function handleCommandError(jsonOutput: boolean, error: unknown, command?: Command): never {
   const message = formatErrorMessage(error);
 
-  if (jsonOutput) {
+  if (jsonOutput && hasStdoutJsonErrors(command)) {
+    process.stdout.write(`${JSON.stringify({ error: message })}\n`);
+  } else if (jsonOutput) {
     console.error(JSON.stringify({ error: message }));
   } else {
     console.error(chalk.red(`\n✗ Error: ${message}\n`));

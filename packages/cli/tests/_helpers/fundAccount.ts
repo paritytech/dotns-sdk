@@ -4,7 +4,6 @@ import { paseo } from "@polkadot-api/descriptors";
 import { Keyring } from "@polkadot/keyring";
 import { cryptoWaitReady, mnemonicGenerate } from "@polkadot/util-crypto";
 import { createSubstrateSigner } from "../../src/commands/auth";
-import { RPC_ENDPOINTS } from "../../src/utils/constants";
 import { resolveRpc } from "../../src/cli/env";
 import { ALICE_KEY_URI } from "./cliHelpers";
 
@@ -52,5 +51,3 @@ export async function fundAccountFromAlice(recipientSubstrateAddress: string): P
     client.destroy();
   }
 }
-
-export { RPC_ENDPOINTS };

@@ -4,7 +4,13 @@ import prettier from "eslint-config-prettier";
 
 export default [
   {
-    ignores: ["**/.papi/**", "**/dist/**", "**/coverage/**", "**/node_modules/**"],
+    ignores: [
+      "**/.papi/**",
+      "**/.trinity/**",
+      "**/dist/**",
+      "**/coverage/**",
+      "**/node_modules/**",
+    ],
   },
   {
     files: ["**/*.ts"],

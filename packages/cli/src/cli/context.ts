@@ -2,6 +2,7 @@ import chalk from "chalk";
 import { createClient, type PolkadotClient } from "polkadot-api";
 import { getWsProvider } from "polkadot-api/ws-provider/node";
 import { bulletin } from "@polkadot-api/descriptors";
+import { chain } from "@parity/trinity-stack/reader";
 import { type Address } from "viem";
 import {
   getAssetHubTypedApi,
@@ -14,12 +15,12 @@ import {
   resolveRpc,
   resolveBulletinRpc,
   resolveKeystorePath,
-  resolveDotnsEnvironment,
   resolveSignerKind,
   resolveQrAppId,
   resolveQrPeopleEndpoints,
   assertSignerOptions,
   ENV,
+  formatPublishedStackHint,
 } from "./env";
 import { writeSecurityWarning } from "./commands/jsonHelpers";
 import { createQrSigner } from "./qrSigner";
@@ -35,13 +36,12 @@ import type {
   ChainContext,
   ReadOnlyContext,
 } from "../types/types";
+import { DEFAULT_NATIVE_TOKEN_DECIMALS, DEFAULT_NATIVE_TOKEN_SYMBOL } from "../utils/constants";
 import {
-  DEFAULT_NATIVE_TOKEN_DECIMALS,
-  DEFAULT_NATIVE_TOKEN_SYMBOL,
   DOTNS_ENVIRONMENTS,
   getActiveDotnsEnvironment,
   type DotnsEnvironmentConfig,
-} from "../utils/constants";
+} from "../utils/environments";
 import { createDotnsContext, type DotnsContext, type OperationStatus } from "../core/context";
 import { checkProtocolVersion, UnsupportedProtocolVersionError } from "../core/protocolVersion";
 
@@ -80,10 +80,6 @@ export function buildReadOnlyDotnsContext(
     onStatus: opts?.onStatus,
     signal: opts?.signal,
   });
-}
-
-function resolveRpcEnvironment(options: any): string | undefined {
-  return options.env ?? options.network;
 }
 
 // Nothing but the built-in default resolved, so the run would sign with the
@@ -137,22 +133,19 @@ export type ExpectedChainKind = "asset-hub" | "bulletin";
 function describeKnownChain(genesisHash: string): string | undefined {
   const needle = genesisHash.toLowerCase();
   for (const environment of Object.values(DOTNS_ENVIRONMENTS)) {
-    if (environment.genesisHash?.toLowerCase() === needle) {
+    if (environment.genesisHash.toLowerCase() === needle) {
       return `${environment.id}'s Asset Hub`;
     }
-    if (environment.bulletinGenesisHash?.toLowerCase() === needle) {
+    if (chain(environment.descriptor, "Bulletin").genesisHash.toLowerCase() === needle) {
       return `${environment.id}'s bulletin chain`;
     }
   }
   return undefined;
 }
 
-// Fails when the connected chain is not the one the selected environment's
-// address book belongs to. `--rpc`/`DOTNS_RPC` override the endpoint without
-// touching the environment, and paseo-v2 and previewnet even share contract
-// addresses, so without this check a mismatch answers (and signs) confidently
-// on the wrong chain. `DOTNS_SKIP_CHAIN_CHECK=1` bypasses it, for the window
-// right after an intentional chain relaunch.
+// Fails when the connected chain is not the one the selected environment's addresses
+// belong to. When the environment runs from a bundled copy and no bundled stack lists the
+// genesis, the error carries its published `--stack` link. `DOTNS_SKIP_CHAIN_CHECK=1` skips it.
 export async function assertExpectedChain(
   rawClient: PolkadotClient,
   chainKind: ExpectedChainKind = "asset-hub",
@@ -160,8 +153,9 @@ export async function assertExpectedChain(
 ): Promise<void> {
   if (process.env[ENV.SKIP_CHAIN_CHECK] === "1") return;
   const expected =
-    chainKind === "bulletin" ? environment.bulletinGenesisHash : environment.genesisHash;
-  if (!expected) return;
+    chainKind === "bulletin"
+      ? chain(environment.descriptor, "Bulletin").genesisHash
+      : environment.genesisHash;
   const actual = (await rawClient.getChainSpecData()).genesisHash;
   if (typeof actual === "string" && actual.toLowerCase() === expected.toLowerCase()) return;
   const chainName = chainKind === "bulletin" ? "bulletin chain" : "Asset Hub";
@@ -175,9 +169,15 @@ export async function assertExpectedChain(
       `Selected environment: ${environment.id} (expects ${chainName} genesis ${expected})`,
       `Connected endpoint:   ${actualLine}`,
       chainKind === "bulletin"
-        ? `Check --env, --bulletin-rpc and DOTNS_BULLETIN_RPC. If the chain was intentionally relaunched,`
-        : `Check --env, --rpc and DOTNS_RPC. If the chain was intentionally relaunched,`,
-      `set DOTNS_SKIP_CHAIN_CHECK=1 and update the environment's genesis hash.`,
+        ? `Check --env, --stack, --bulletin-rpc and DOTNS_BULLETIN_RPC.`
+        : `Check --env, --stack, --rpc and DOTNS_RPC.`,
+      ...(environment.publishedLink && !known
+        ? [
+            `If ${environment.label} restarted, the copy of its stack in this CLI is outdated.`,
+            formatPublishedStackHint(environment.publishedLink),
+          ]
+        : []),
+      `Set ${ENV.SKIP_CHAIN_CHECK}=1 to skip this check.`,
     ].join("\n  "),
   );
 }
@@ -191,7 +191,7 @@ export async function assertExpectedChain(
 export async function assertSupportedProtocolVersion(
   clientWrapper: ReviveClientWrapper,
   origin: string,
-  environment: string,
+  environment: DotnsEnvironmentConfig,
 ): Promise<void> {
   if (process.env[ENV.SKIP_VERSION_CHECK] === "1") return;
   try {
@@ -209,7 +209,7 @@ export async function assertSupportedProtocolVersion(
 export async function enforceProtocolVersion(
   clientWrapper: ReviveClientWrapper,
   origin: string,
-  environment: string,
+  environment: DotnsEnvironmentConfig,
 ): Promise<void> {
   if (process.env[ENV.SKIP_VERSION_CHECK] === "1") return;
   await step("Checking dotNS protocol version", async () =>
@@ -389,18 +389,18 @@ export async function prepareAssetHubContext(
   options: any,
   { mapAccount = true }: AssetHubContextOptions = {},
 ): Promise<AssetHubContext> {
-  const environment = resolveDotnsEnvironment(resolveRpcEnvironment(options));
-  const rpc = resolveRpc(options.rpc, environment.id);
+  const environment = getActiveDotnsEnvironment();
+  const rpc = resolveRpc(options.rpc);
   const { keystorePath, rawClient, tokenInfo, auth, account, substrateAddress, signer } =
     await connectAndAuthenticate(options, rpc);
 
-  const client = getAssetHubTypedApi(rawClient, environment.id);
+  const client = getAssetHubTypedApi(rawClient, environment.descriptor.network);
   const clientWrapper = new ReviveClientWrapper(client, tokenInfo);
   const evmAddress = await step("Resolving EVM address", async () =>
     clientWrapper.getEvmAddress(substrateAddress),
   );
 
-  await enforceProtocolVersion(clientWrapper, substrateAddress, environment.id);
+  await enforceProtocolVersion(clientWrapper, substrateAddress, environment);
 
   // Idempotent: submits map_account only when unmapped, so a mapped account incurs no signature.
   const accountAlreadyMapped = mapAccount
@@ -412,7 +412,8 @@ export async function prepareAssetHubContext(
   logConfiguration({
     environmentLabel: environment.label,
     rpc,
-    chainLabel: environment.id === "polkadot" ? "Polkadot Hub" : "Polkadot Hub TestNet",
+    chainLabel:
+      environment.descriptor.network === "polkadot" ? "Polkadot Hub" : "Polkadot Hub TestNet",
     tokenInfo,
     substrateAddress,
     evmAddress,
@@ -428,7 +429,7 @@ export async function prepareAssetHubContext(
 
   return {
     useBulletin: false,
-    environment: environment.id,
+    environment,
     rpc,
     keystorePath,
     auth,
@@ -445,8 +446,8 @@ export async function prepareAssetHubContext(
 }
 
 async function prepareBulletinContext(options: any): Promise<BulletinContext> {
-  const environment = resolveDotnsEnvironment(resolveRpcEnvironment(options));
-  const rpc = resolveBulletinRpc(options.bulletinRpc ?? options.rpc, environment.id);
+  const environment = getActiveDotnsEnvironment();
+  const rpc = resolveBulletinRpc(options.bulletinRpc ?? options.rpc);
   const { keystorePath, rawClient, tokenInfo, auth, account, substrateAddress, signer } =
     await connectAndAuthenticate(options, rpc, "bulletin");
 
@@ -470,7 +471,7 @@ async function prepareBulletinContext(options: any): Promise<BulletinContext> {
 
   return {
     useBulletin: true,
-    environment: environment.id,
+    environment,
     rpc,
     keystorePath,
     auth,

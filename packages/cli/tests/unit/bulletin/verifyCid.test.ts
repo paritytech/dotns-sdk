@@ -1,17 +1,18 @@
-import { afterEach, beforeEach, expect, mock, spyOn, test } from "bun:test";
+import { afterAll, afterEach, beforeEach, expect, mock, spyOn, test } from "bun:test";
 import {
   mockHeliaClient,
   waitForAbort,
   type MockHeliaClientBehaviour,
 } from "../../_helpers/heliaClientMock";
 import type { BulletinProgressEvent } from "../../../src/types/types";
-import { DOTNS_ENVIRONMENTS, setActiveDotnsEnvironment } from "../../../src/utils/constants";
+import { DOTNS_ENVIRONMENTS, setActiveDotnsEnvironment } from "../../../src/utils/environments";
 
 const CID = "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy";
-const GATEWAY = "https://gateway-one.test";
-const SECOND_GATEWAY = "https://gateway-two.test";
-const PUBLIC_GATEWAY = "https://public-gateway.test";
+const GATEWAY = "https://gateway-one.test/ipfs/";
+const SECOND_GATEWAY = "https://gateway-two.test/ipfs/";
+const PUBLIC_GATEWAY = "https://public-gateway.test/ipfs/";
 const BLOCK = new Uint8Array([1]);
+const WITHOUT_GATEWAY = { ...DOTNS_ENVIRONMENTS.polkadot, ipfsGatewayUrl: null };
 
 const helia: MockHeliaClientBehaviour = {
   fetchBlock: async () => BLOCK,
@@ -20,10 +21,15 @@ const helia: MockHeliaClientBehaviour = {
 let nodeStopCount: number;
 let gatewayFetch: (url: string, init: RequestInit) => Promise<Response>;
 
-mockHeliaClient(helia);
+const restoreHeliaClient = mockHeliaClient(helia);
 
-const { describeVerificationFailures, publicFallbackGateways, verificationGateways, verifyCid } =
-  await import("../../../src/bulletin/ipfs");
+const {
+  describeVerificationFailures,
+  formatPathStyleGateway,
+  publicFallbackGateways,
+  verificationGateways,
+  verifyCid,
+} = await import("../../../src/bulletin/ipfs");
 const { verifyUploadedCid } = await import("../../../src/commands/bulletin");
 
 // A macrotask starts only after every queued promise callback has run, so the
@@ -53,6 +59,8 @@ afterEach(() => {
   mock.restore();
   setActiveDotnsEnvironment("paseo-v2");
 });
+
+afterAll(restoreHeliaClient);
 
 test("P2P resolving first wins, aborts every gateway check and stops the node", async () => {
   const gatewaySignals: AbortSignal[] = [];
@@ -188,7 +196,7 @@ test("public gateways are not queried while P2P or the network gateway can resol
   const verification = await verifyCid(CID, [GATEWAY], [PUBLIC_GATEWAY]);
 
   expect("success" in verification && verification.success.gateway).toBe("p2p/bitswap");
-  expect(fetchedUrls).toEqual([`${GATEWAY}/ipfs/${CID}`]);
+  expect(fetchedUrls).toEqual([`${GATEWAY}${CID}`]);
 });
 
 test("public gateways resolve once P2P and the network gateway fail", async () => {
@@ -222,13 +230,49 @@ test("public gateways back up only an environment that has its own gateway", () 
   setActiveDotnsEnvironment("paseo-v2");
   expect(verificationGateways()).toEqual([DOTNS_ENVIRONMENTS["paseo-v2"].ipfsGatewayUrl!]);
   expect(publicFallbackGateways()).toEqual([
-    "https://gateway.pinata.cloud",
-    "https://ipfs.filebase.io",
+    "https://gateway.pinata.cloud/ipfs/",
+    "https://ipfs.filebase.io/ipfs/",
   ]);
 
-  setActiveDotnsEnvironment("polkadot");
+  setActiveDotnsEnvironment(WITHOUT_GATEWAY);
   expect(verificationGateways()).toEqual([]);
   expect(publicFallbackGateways()).toEqual([]);
+});
+
+// A stack may lack an ipfs-gateway; public gateways say nothing about Bulletin without it.
+test("a stack without a gateway is verified over P2P alone, without fetching any gateway", async () => {
+  helia.fetchBlock = async () => {
+    throw new Error("no Bulletin peer has the block");
+  };
+  setActiveDotnsEnvironment(WITHOUT_GATEWAY);
+
+  const verification = await verifyCid(CID, verificationGateways(), publicFallbackGateways());
+
+  expect(
+    "failures" in verification && verification.failures.map((failure) => failure.gateway),
+  ).toEqual(["p2p/bitswap"]);
+  expect(globalThis.fetch).not.toHaveBeenCalled();
+});
+
+// The stack descriptor RFC defines `ipfs-gateway` as path-style.
+test("a stack gateway without an /ipfs/ path is probed as listed", async () => {
+  const fetchedUrls: string[] = [];
+  helia.fetchBlock = (_cid, signal) => waitForAbort(signal);
+  gatewayFetch = async (url) => {
+    fetchedUrls.push(url);
+    return new Response(null, { status: 200 });
+  };
+
+  await verifyCid(CID, ["https://gateway.example/"]);
+
+  expect(fetchedUrls).toEqual([`https://gateway.example/${CID}`]);
+});
+
+// `StoreDirectoryOptions.verificationGateway` takes a base URL, with or without `/ipfs`.
+test("a verification gateway base URL with or without /ipfs is checked at /ipfs/<cid>", () => {
+  for (const baseUrl of ["https://ipfs.io", "https://ipfs.io/ipfs", "https://ipfs.io/ipfs/"]) {
+    expect(formatPathStyleGateway(baseUrl)).toBe("https://ipfs.io/ipfs/");
+  }
 });
 
 async function collectUploadPhases(gateways: readonly string[]): Promise<BulletinProgressEvent[]> {

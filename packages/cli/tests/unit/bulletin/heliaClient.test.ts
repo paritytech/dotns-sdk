@@ -1,23 +1,56 @@
 import { afterEach, expect, spyOn, test } from "bun:test";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { once } from "node:events";
 import net from "node:net";
 import path from "node:path";
 import readline from "node:readline";
+import { lightSpecGenesis } from "@parity/trinity-stack";
+import { chain } from "@parity/trinity-stack/reader";
 import { BulletinHeliaClient, describeDialError } from "../../../src/bulletin/heliaClient";
-import { verificationGateways, verifyCid } from "../../../src/bulletin/ipfs";
-import { DOTNS_ENVIRONMENTS, setActiveDotnsEnvironment } from "../../../src/utils/constants";
+import {
+  publicFallbackGateways,
+  verificationGateways,
+  verifyCid,
+} from "../../../src/bulletin/ipfs";
+import { DOTNS_ENVIRONMENTS, setActiveDotnsEnvironment } from "../../../src/utils/environments";
 
 const CID = "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy";
 const PEER_ID = "12D3KooWDGdPBWpytPdNAXDT2KJWwmPXkxvxyQLGc7pRdFWeZnyB";
-const GATEWAY = "https://gateway.test";
+const GATEWAY = "https://gateway.test/ipfs/";
+const SPEC_URL = "https://specs.test/bulletin/light.json";
 const polkadot = DOTNS_ENVIRONMENTS.polkadot;
-const polkadotPeers = polkadot.bulletinP2pPeers;
 
 afterEach(() => {
-  polkadot.bulletinP2pPeers = polkadotPeers;
   setActiveDotnsEnvironment("paseo-v2");
 });
+
+// Polkadot with a Bulletin chain that does not have a light spec to read peers from.
+function createEnvironmentWithoutPeers() {
+  const descriptor = structuredClone(polkadot.descriptor);
+  delete descriptor.chains.find((entry) => entry.role === "Bulletin")!.lightSpec;
+  return { ...polkadot, descriptor };
+}
+
+// Polkadot with a Bulletin light spec at SPEC_URL that lists only `peerAddress`, and the
+// bytes to serve there.
+function createEnvironmentWithPeer(peerAddress: string) {
+  const specBytes = new TextEncoder().encode(
+    JSON.stringify({
+      id: peerAddress,
+      bootNodes: [peerAddress],
+      genesis: { stateRootHash: `0x${"11".repeat(32)}` },
+    }),
+  );
+  const descriptor = structuredClone(polkadot.descriptor);
+  const bulletin = descriptor.chains.find((entry) => entry.role === "Bulletin")!;
+  bulletin.genesisHash = lightSpecGenesis(specBytes);
+  bulletin.lightSpec = {
+    url: SPEC_URL,
+    sha256: `0x${createHash("sha256").update(specBytes).digest("hex")}`,
+  };
+  return { environment: { ...polkadot, descriptor }, specBytes };
+}
 
 async function listen(server: net.Server): Promise<number> {
   const { promise, resolve } = Promise.withResolvers<void>();
@@ -26,18 +59,17 @@ async function listen(server: net.Server): Promise<number> {
   return (server.address() as net.AddressInfo).port;
 }
 
-test("polkadot verifies over the Bulletin boot nodes", () => {
-  expect(polkadot.ipfsGatewayUrl).toBeNull();
-  expect(polkadot.bulletinP2pPeers.length).toBeGreaterThan(0);
-  for (const peer of polkadot.bulletinP2pPeers) expect(peer).toMatch(/\/wss\/p2p\/12D3KooW/);
+test("polkadot verifies over the boot nodes of its Bulletin light spec", () => {
+  expect(chain(polkadot.descriptor, "Bulletin").lightSpec).toBeDefined();
 });
 
+// Public gateways say nothing about Bulletin without the stack's own, and a stack may lack one.
 test("an environment without peers or a gateway fails P2P without probing anything", async () => {
   const fetchSpy = spyOn(globalThis, "fetch");
-  setActiveDotnsEnvironment("polkadot");
-  polkadot.bulletinP2pPeers = [];
+  const environment = { ...createEnvironmentWithoutPeers(), ipfsGatewayUrl: null };
+  setActiveDotnsEnvironment(environment);
 
-  const verification = await verifyCid(CID, verificationGateways());
+  const verification = await verifyCid(CID, verificationGateways(), publicFallbackGateways());
 
   expect(verification).toEqual({
     failures: [
@@ -45,12 +77,32 @@ test("an environment without peers or a gateway fails P2P without probing anythi
         cid: CID,
         resolvable: false,
         gateway: "p2p/bitswap",
-        errorMessage: "no Bulletin P2P peers are configured for this environment",
+        errorMessage: `stack ${environment.descriptor.id} does not have a Bulletin light spec to read P2P peers from`,
       },
     ],
   });
   expect(fetchSpy).not.toHaveBeenCalled();
   fetchSpy.mockRestore();
+});
+
+// `storeDirectory` uploads to the network it is passed, which SDK callers cannot make active.
+test("verification uses the peers and gateway of the environment it is passed, not the active one", async () => {
+  setActiveDotnsEnvironment("paseo-v2");
+  const environment = createEnvironmentWithoutPeers();
+  const fetchSpy = spyOn(globalThis, "fetch").mockResolvedValue(new Response(null));
+
+  try {
+    const verification = await verifyCid(CID, verificationGateways(environment), [], environment);
+
+    expect(verification).toEqual({
+      success: { cid: CID, resolvable: true, gateway: polkadot.ipfsGatewayUrl!, statusCode: 200 },
+    });
+    expect(fetchSpy.mock.calls.map(([url]) => String(url))).toEqual([
+      `${polkadot.ipfsGatewayUrl}${CID}`,
+    ]);
+  } finally {
+    fetchSpy.mockRestore();
+  }
 });
 
 // Without the dial errors the fetch would wait out its whole timeout for peers
@@ -112,15 +164,17 @@ test("a gateway answer returns while a peer dial is still pending", async () => 
     firstConnection.resolve();
   });
   const port = await listen(server);
-  setActiveDotnsEnvironment("polkadot");
-  polkadot.bulletinP2pPeers = [`/ip4/127.0.0.1/tcp/${port}/ws/p2p/${PEER_ID}`];
-  const fetchSpy = spyOn(globalThis, "fetch").mockImplementation((async () => {
+  const { environment, specBytes } = createEnvironmentWithPeer(
+    `/ip4/127.0.0.1/tcp/${port}/ws/p2p/${PEER_ID}`,
+  );
+  const fetchSpy = spyOn(globalThis, "fetch").mockImplementation((async (url: string) => {
+    if (url === SPEC_URL) return new Response(specBytes);
     await firstConnection.promise;
     return new Response(null, { status: 200 });
   }) as unknown as typeof fetch);
 
   try {
-    expect(await verifyCid(CID, [GATEWAY])).toEqual({
+    expect(await verifyCid(CID, [GATEWAY], [], environment)).toEqual({
       success: { cid: CID, resolvable: true, gateway: GATEWAY, statusCode: 200 },
     });
   } finally {

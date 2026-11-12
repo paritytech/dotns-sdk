@@ -2,19 +2,33 @@ import type { Command } from "commander";
 import { ENV } from "../env";
 import type { AuthOptionValues } from "../../types/types";
 
-export function addAuthOptions(cmd: Command): Command {
+export function addNetworkOptions(cmd: Command): Command {
   return cmd
     .option(
       "--env <environment>",
       `dotNS environment: polkadot (default), paseo-v2 or previewnet (env: ${ENV.DOTNS_ENV})`,
     )
     .option("--network <environment>", "Alias for --env")
-    .option("--rpc <wsUrl>", `WebSocket RPC endpoint (env: ${ENV.RPC})`)
+    .option(
+      "--stack <stack>",
+      `Run on a stack descriptor instead of a bundled one: a polkadotapp://stack link, a descriptor URL or a file (env: ${ENV.STACK})`,
+    );
+}
+
+/** The flags that pick a local account, for a command that signs nothing on a network. */
+export function addKeystoreOptions(cmd: Command): Command {
+  return cmd
     .option("--keystore-path <path>", `Keystore path (env: ${ENV.KEYSTORE_PATH})`)
     .option("--account <name>", "Keystore account name (default: keystore default)")
     .option("--password <pw>", `Keystore password (env: ${ENV.KEYSTORE_PASSWORD})`)
     .option("-m, --mnemonic <phrase>", `BIP39 mnemonic phrase (env: ${ENV.MNEMONIC})`)
-    .option("-k, --key-uri <uri>", `Substrate key URI (env: ${ENV.KEY_URI})`)
+    .option("-k, --key-uri <uri>", `Substrate key URI (env: ${ENV.KEY_URI})`);
+}
+
+export function addAuthOptions(cmd: Command): Command {
+  return addKeystoreOptions(
+    addNetworkOptions(cmd).option("--rpc <wsUrl>", `WebSocket RPC endpoint (env: ${ENV.RPC})`),
+  )
     .option(
       "--signer <kind>",
       `Signer: keystore (default) or qr [experimental] (env: ${ENV.SIGNER})`,
@@ -22,7 +36,7 @@ export function addAuthOptions(cmd: Command): Command {
     .option("--qr-app-id <id>", `App id for QR pairing (env: ${ENV.QR_APP_ID})`)
     .option(
       "--qr-people-rpc <stageOrUrls>",
-      `QR pairing relay: polkadot|paseo|preview|stable or wss URLs (env: ${ENV.QR_PEOPLE_RPC})`,
+      `QR pairing relay: an --env value or wss URLs (env: ${ENV.QR_PEOPLE_RPC})`,
     )
     .option("--qr-fresh", "Force a fresh QR pairing, ignoring any cached session")
     .option(

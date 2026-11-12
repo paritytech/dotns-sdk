@@ -3,6 +3,7 @@ import type { StoredAuth } from "../cli/keystore/types";
 import type { PolkadotClient, PolkadotSigner, TypedApi } from "polkadot-api";
 import type { ReviveClientWrapper, PolkadotApiClient } from "../client/polkadotClient";
 import type { Bulletin } from "@polkadot-api/descriptors";
+import type { DotnsEnvironmentConfig } from "../utils/environments";
 
 export enum ProofOfPersonhoodStatus {
   NoStatus = 0,
@@ -119,6 +120,8 @@ export type AuthOptionValues = {
   env?: string;
   /** Alias for env */
   network?: string;
+  /** Stack link, descriptor URL or file that replaces the environment */
+  stack?: string;
   /** WebSocket RPC endpoint URL */
   rpc?: string;
   /** Path to keystore directory */
@@ -135,7 +138,7 @@ export type AuthOptionValues = {
   signer?: "keystore" | "qr";
   /** App id used when pairing a QR mobile wallet */
   qrAppId?: string;
-  /** QR pairing relay: a stage name (polkadot|paseo|preview|stable) or wss URLs */
+  /** QR pairing relay: an `--env` value (polkadot|paseo|preview, ...) or wss URLs */
   qrPeopleRpc?: string;
   /** Force a fresh QR pairing instead of reusing the cached session */
   qrFresh?: boolean;
@@ -417,7 +420,14 @@ export type StoreDirectoryOptions = UploadRetryOptions & {
   concurrency?: number;
   chunkSizeBytes?: number;
   onPhase?: BulletinPhaseHandler;
+  /**
+   * IPFS gateway base URL to verify the upload against, such as `https://ipfs.io` or
+   * `https://ipfs.io/ipfs`, both checked at `https://ipfs.io/ipfs/<cid>`. Defaults to the
+   * `environment`'s gateway.
+   */
   verificationGateway?: string;
+  /** The network uploaded to, whose Bulletin peers and gateway verify the upload; the active one by default. */
+  environment?: DotnsEnvironmentConfig;
   waitForFinalization?: boolean;
 };
 
@@ -594,8 +604,8 @@ export type ReadOnlyContext = {
   account: ReadOnlyContextAccount;
   /** RPC endpoint used to connect to the chain */
   rpc: string;
-  /** dotNS environment selector */
-  environment?: string;
+  /** The network the context connected to */
+  environment: DotnsEnvironmentConfig;
   /** Native token decimals read from chain metadata */
   nativeTokenDecimals: number;
   /** Native token symbol read from chain metadata */
@@ -625,8 +635,8 @@ export type LoadedAccount = {
 };
 
 type BaseChainContext = {
-  /** dotNS environment selector */
-  environment?: string;
+  /** The network the context connected to */
+  environment: DotnsEnvironmentConfig;
   /** WebSocket RPC endpoint URL */
   rpc: string;
   /** Path to keystore directory */
@@ -1010,7 +1020,7 @@ export type WaveBlock = {
 export type CacheCidToStoreOptions = {
   cid: string;
   // The environment the command selected, whose address book the Store write uses.
-  environment: string;
+  environment: DotnsEnvironmentConfig;
   clientWrapper: ReviveClientWrapper;
   signer: PolkadotSigner;
   substrateAddress: string;

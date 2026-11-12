@@ -1,0 +1,92 @@
+name: Update Stacks
+
+on:
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: stacks-update
+  cancel-in-progress: false
+
+# The pull request is opened with the default token, so CI does not start on it by itself;
+# the copies are checked here before it opens.
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    name: Update stack copies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.19"
+          no-cache: true
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Read the values the CLI uses before the update
+        working-directory: packages/cli
+        run: bun scripts/stackValues.ts > "$RUNNER_TEMP/stack-values-before.json"
+
+      # `trinity-stack update` exits 2 when a copy changed and 1 when a stack failed; the
+      # copies that did change are written either way.
+      - name: Update stack copies
+        id: update
+        working-directory: packages/cli
+        shell: bash
+        run: |
+          set +e
+          bun run stacks:update
+          status=$?
+          set -e
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+          if [ -n "$(git status --porcelain -- .trinity)" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Prepare the pull request
+        if: steps.update.outputs.changed == 'true'
+        working-directory: packages/cli
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The release guard requires a CLI change to lead the latest release.
+          version=$(jq -r .version package.json)
+          if git rev-parse -q --verify "refs/tags/v${version}" >/dev/null; then
+            npm version patch --no-git-tag-version --no-workspaces-update >/dev/null
+          fi
+          bun scripts/stackValues.ts --compare "$RUNNER_TEMP/stack-values-before.json" > "$RUNNER_TEMP/body.md"
+
+      # Fails on an expired copy; one past its validUntil only warns, as it does at runtime.
+      - name: Check the stack copies
+        id: check
+        if: always() && steps.update.outcome != 'skipped'
+        working-directory: packages/cli
+        run: bun run check:stacks
+
+      - name: Open pull request
+        if: always() && steps.update.outputs.changed == 'true' && steps.check.outcome == 'success'
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          branch: chore/update-stacks
+          base: main
+          title: "chore(cli): update bundled stack copies"
+          commit-message: "chore(cli): update bundled stack copies"
+          body-path: ${{ runner.temp }}/body.md
+          add-paths: |
+            packages/cli/.trinity
+            packages/cli/package.json
+
+      - name: Fail if a stack failed to update
+        if: always() && steps.update.outputs.status != '0' && steps.update.outputs.status != '2'
+        run: |
+          echo "::error::Updating the stacks failed; see the Update stack copies step."
+          exit 1

@@ -13,7 +13,7 @@
     },
     "packages/cli": {
       "name": "@parity/dotns-cli",
-      "version": "1.1.1",
+      "version": "2.0.0",
       "bin": {
         "dotns": "./dist/cli.js",
       },
@@ -31,6 +31,7 @@
         "@multiformats/multiaddr": "^13.0.1",
         "@noble/hashes": "^2.0.1",
         "@parity/product-sdk-terminal": "^0.5.3",
+        "@parity/trinity-stack": "^0.2.0",
         "@polkadot-labs/hdkd": "^0.0.26",
         "@polkadot-labs/hdkd-helpers": "^0.0.27",
         "@polkadot/keyring": "^14.0.1",
@@ -479,6 +480,8 @@
     "@parity/product-sdk-tx": ["@parity/product-sdk-tx@0.2.8", "", { "dependencies": { "@parity/product-sdk-keys": "0.3.4", "@parity/product-sdk-logger": "0.1.1", "@polkadot-labs/hdkd-helpers": "^0.0.30", "polkadot-api": "^2.1.5" } }, "sha512-fbDi38R1YVdvs1vcbOq53vYR5XodyPQS8yjYFY9xUehu1A10ym/d96n5749bBneO1oBVgzPfKk7D4z6YACIDvg=="],
 
     "@parity/product-sdk-utils": ["@parity/product-sdk-utils@0.1.1", "", { "dependencies": { "@noble/hashes": "^1.7.1", "@parity/product-sdk-logger": "0.1.1" } }, "sha512-vu/af1K7k7p0/aLKALrGVxz7K94xnY800DxmhnOhu6Hy4+y+8e9WHPecMjbYBBJby4FPMOkWLqEVRN/sk3Ucgw=="],
+
+    "@parity/trinity-stack": ["@parity/trinity-stack@0.2.1", "", { "bin": { "trinity-stack": "dist/cli.js" } }, "sha512-X6bWZ0qOOj0n+AwkLpYv5C9axTvRLXJxEbuLdP+bLHtpTJ1gvRDhUbC7k4SAqpigBfLXKgHmYGXkst1fA4015A=="],
 
     "@pkgr/core": ["@pkgr/core@0.2.9", "", {}, "sha512-QNqXyfVS2wm9hweSYD2O7F0G06uurj9kZ96TRQE5Y9hU7+tgdZwIkbAKc5Ocy1HxEY2kuDQa6cQ1WRs/O5LFKA=="],
 

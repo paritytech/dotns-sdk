@@ -83,13 +83,6 @@ type RegistrationSession = {
   nativeTokenDecimals: number;
 };
 
-function requireEnvironment(environment: string | undefined): string {
-  if (!environment) {
-    throw new Error("Could not resolve the dotNS environment for this command.");
-  }
-  return environment;
-}
-
 function buildSession(
   context: Awaited<ReturnType<typeof prepareAssetHubContext>>,
   operationName: string,
@@ -304,7 +297,7 @@ export async function executeRegistration(
     throw new Error("Could not resolve a credential for the registration retry cache.");
   }
   const persistContext: PersistContext = {
-    env: requireEnvironment(context.environment),
+    env: context.environment.id,
     caller: evmAddress as Address,
     credential,
   };
@@ -764,7 +757,7 @@ async function resumeRegistration(
   const session = buildSession(context, "Register");
   const { label } = record;
   const persistContext: PersistContext = {
-    env: requireEnvironment(context.environment),
+    env: context.environment.id,
     caller: session.caller,
     credential,
   };
@@ -886,7 +879,7 @@ export async function executeRetry(
   const context = await prepareAssetHubContext(options);
   const credential = requireManifestCredential(context, options);
   const caller = context.evmAddress as Address;
-  const env = requireEnvironment(context.environment);
+  const env = context.environment.id;
 
   const record = options.name
     ? findCommitmentRecord(env, caller, options.name)
@@ -944,7 +937,7 @@ export async function executeClear(
   const context = await prepareAssetHubContext(options);
   const session = buildSession(context, "Register");
   const caller = context.evmAddress as Address;
-  const env = requireEnvironment(context.environment);
+  const env = context.environment.id;
 
   const records = loadCommitmentRecordsForClear(env, caller, options.name);
 
@@ -1049,7 +1042,7 @@ export async function executeList(
 ): Promise<ListSummary> {
   const context = await prepareReadOnlyContext(options, { reportsOnCaller: true });
   const caller = context.evmAddress as Address;
-  const env = requireEnvironment(context.environment);
+  const env = context.environment.id;
   const ctx = buildDotnsContext(
     { ...context, substrateAddress: context.account.address, signer: undefined } as any,
     { onStatus: makeOnStatus(undefined, "Register") },

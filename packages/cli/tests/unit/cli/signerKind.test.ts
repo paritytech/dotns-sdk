@@ -7,7 +7,16 @@ import {
   DEFAULT_QR_APP_ID,
   ENV,
 } from "../../../src/cli/env";
-import { setActiveDotnsEnvironment } from "../../../src/utils/constants";
+import { chain } from "@parity/trinity-stack/reader";
+import {
+  DOTNS_ENVIRONMENTS,
+  setActiveDotnsEnvironment,
+  type DotnsEnvironmentId,
+} from "../../../src/utils/environments";
+
+function peopleRpc(id: DotnsEnvironmentId): string[] {
+  return chain(DOTNS_ENVIRONMENTS[id].descriptor, "People").rpc;
+}
 
 const SAVED_ENV = [ENV.SIGNER, ENV.QR_APP_ID, ENV.QR_PEOPLE_RPC, ENV.MNEMONIC] as const;
 const originalEnv = Object.fromEntries(SAVED_ENV.map((name) => [name, process.env[name]]));
@@ -54,27 +63,29 @@ describe("resolveQrAppId", () => {
 });
 
 describe("resolveQrPeopleEndpoints", () => {
-  test("defaults to the relay of the selected environment", () => {
+  test("defaults to the People chain of the selected environment", () => {
     delete process.env[ENV.QR_PEOPLE_RPC];
     try {
-      setActiveDotnsEnvironment("polkadot");
-      expect(resolveQrPeopleEndpoints()).toEqual(["wss://polkadot-people-rpc.polkadot.io"]);
-      setActiveDotnsEnvironment("paseo-v2");
-      expect(resolveQrPeopleEndpoints()).toEqual([
-        "wss://paseo-people-next-system-rpc.polkadot.io",
-      ]);
-      setActiveDotnsEnvironment("previewnet");
-      expect(resolveQrPeopleEndpoints()).toEqual(["wss://previewnet.substrate.dev/people"]);
+      for (const environment of Object.values(DOTNS_ENVIRONMENTS)) {
+        setActiveDotnsEnvironment(environment);
+        expect(resolveQrPeopleEndpoints()).toEqual(peopleRpc(environment.id));
+      }
     } finally {
       setActiveDotnsEnvironment("paseo-v2");
     }
   });
 
   test("resolves named stages", () => {
-    expect(resolveQrPeopleEndpoints("preview")).toEqual(["wss://previewnet.substrate.dev/people"]);
-    expect(resolveQrPeopleEndpoints("stable")).toEqual([
-      "wss://pop3-testnet.parity-lab.parity.io/people",
-    ]);
+    expect(resolveQrPeopleEndpoints("polkadot")).toEqual(peopleRpc("polkadot"));
+    expect(resolveQrPeopleEndpoints("paseo")).toEqual(peopleRpc("paseo-v2"));
+    expect(resolveQrPeopleEndpoints("preview")).toEqual(peopleRpc("previewnet"));
+  });
+
+  // Pairing and signing identify the network by the same values, so `--env` values are stages too.
+  test("resolves any --env value of a bundled stack as a stage", () => {
+    expect(resolveQrPeopleEndpoints("paseo-v2")).toEqual(peopleRpc("paseo-v2"));
+    expect(resolveQrPeopleEndpoints("ppn")).toEqual(peopleRpc("previewnet"));
+    expect(resolveQrPeopleEndpoints("mainnet")).toEqual(peopleRpc("polkadot"));
   });
 
   test("treats a non-stage value as a comma-separated wss list", () => {
@@ -85,11 +96,18 @@ describe("resolveQrPeopleEndpoints", () => {
   });
 
   test("rejects a non-wss URL", () => {
-    expect(() => resolveQrPeopleEndpoints("https://evil/people")).toThrow(/wss:\/\//);
+    expect(() => resolveQrPeopleEndpoints("https://evil/people")).toThrow(/wss:[/][/]/);
   });
 
   test("rejects an empty/blank value", () => {
     expect(() => resolveQrPeopleEndpoints(",,")).toThrow(/No QR pairing relay/);
+  });
+
+  // A blank flag or env var is a mistake, so it fails before the default relay is used.
+  test("rejects a whitespace-only flag or env var", () => {
+    expect(() => resolveQrPeopleEndpoints("   ")).toThrow(/No QR pairing relay/);
+    process.env[ENV.QR_PEOPLE_RPC] = " ";
+    expect(() => resolveQrPeopleEndpoints()).toThrow(/No QR pairing relay/);
   });
 
   test("rejects a wss URL with embedded credentials", () => {
@@ -98,10 +116,8 @@ describe("resolveQrPeopleEndpoints", () => {
 
   test("flag beats env beats default", () => {
     process.env[ENV.QR_PEOPLE_RPC] = "preview";
-    expect(resolveQrPeopleEndpoints()).toEqual(["wss://previewnet.substrate.dev/people"]);
-    expect(resolveQrPeopleEndpoints("stable")).toEqual([
-      "wss://pop3-testnet.parity-lab.parity.io/people",
-    ]);
+    expect(resolveQrPeopleEndpoints()).toEqual(peopleRpc("previewnet"));
+    expect(resolveQrPeopleEndpoints("polkadot")).toEqual(peopleRpc("polkadot"));
   });
 });
 

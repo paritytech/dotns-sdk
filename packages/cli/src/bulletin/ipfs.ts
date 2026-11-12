@@ -1,22 +1,25 @@
 import type { BulletinHeliaClient } from "./heliaClient";
 import type { VerificationResult } from "../types/types";
-import { getActiveDotnsEnvironment } from "../utils/constants";
+import { getActiveDotnsEnvironment, type DotnsEnvironmentConfig } from "../utils/environments";
 import { formatErrorMessage } from "../utils/formatting";
+import { resolveBulletinPeers } from "./bulletinPeers";
 
 const VERIFICATION_TIMEOUT_MILLISECONDS = 30000;
 
 export const P2P_VERIFICATION_SOURCE = "p2p/bitswap";
 
+// Path-style, like a stack's `ipfs-gateway`: content is at `${gateway}${cid}`.
 const PUBLIC_FALLBACK_GATEWAYS = [
-  "https://gateway.pinata.cloud",
-  "https://ipfs.filebase.io",
+  "https://gateway.pinata.cloud/ipfs/",
+  "https://ipfs.filebase.io/ipfs/",
 ] as const;
 
 export type CidVerification = { success: VerificationResult } | { failures: VerificationResult[] };
 
-export function verificationGateways(): string[] {
-  const { ipfsGatewayUrl } = getActiveDotnsEnvironment();
-  return ipfsGatewayUrl ? [ipfsGatewayUrl] : [];
+export function verificationGateways(
+  environment: DotnsEnvironmentConfig = getActiveDotnsEnvironment(),
+): string[] {
+  return environment.ipfsGatewayUrl ? [environment.ipfsGatewayUrl] : [];
 }
 
 // Public gateways back up the environment's own gateway; on their own, an answer
@@ -25,32 +28,33 @@ export function publicFallbackGateways(): readonly string[] {
   return verificationGateways().length ? PUBLIC_FALLBACK_GATEWAYS : [];
 }
 
-function createIpfsGatewayUrl(gatewayBaseUrl: string, cid: string): string {
-  const gateway = gatewayBaseUrl.replace(/\/+$/, "");
-  return gateway.endsWith("/ipfs") ? `${gateway}/${cid}` : `${gateway}/ipfs/${cid}`;
+/**
+ * The path-style form of a gateway base URL such as `https://ipfs.io` or `https://ipfs.io/ipfs`:
+ * `https://ipfs.io/ipfs/`, so content is at `${gateway}${cid}`.
+ */
+export function formatPathStyleGateway(baseUrl: string): string {
+  const gateway = baseUrl.replace(/[/]+$/, "");
+  return gateway.endsWith("/ipfs") ? `${gateway}/` : `${gateway}/ipfs/`;
 }
 
 async function verifyCidResolution(
   contentCid: string,
-  gatewayBaseUrl: string,
+  gatewayUrl: string,
   signal: AbortSignal,
 ): Promise<VerificationResult> {
   try {
-    const response = await fetch(createIpfsGatewayUrl(gatewayBaseUrl, contentCid), {
-      method: "HEAD",
-      signal,
-    });
+    const response = await fetch(`${gatewayUrl}${contentCid}`, { method: "HEAD", signal });
     return {
       cid: contentCid,
       resolvable: response.ok,
-      gateway: gatewayBaseUrl,
+      gateway: gatewayUrl,
       statusCode: response.status,
     };
   } catch (error) {
     return {
       cid: contentCid,
       resolvable: false,
-      gateway: gatewayBaseUrl,
+      gateway: gatewayUrl,
       errorMessage: formatErrorMessage(error),
     };
   }
@@ -95,8 +99,9 @@ function createVerificationSignal(abort: AbortController): AbortSignal {
 }
 
 /**
- * Checks the CID over Bulletin P2P and every gateway in `gatewayUrls` at once, then,
- * only when all of those fail, over every gateway in `fallbackGatewayUrls` at once.
+ * Checks the CID over P2P on the Bulletin boot nodes of `environment`'s stack and every
+ * gateway in `gatewayUrls` at once, then, only when all of those fail, over every gateway
+ * in `fallbackGatewayUrls` at once. Gateways are path-style: content is at `${gateway}${cid}`.
  * Resolves with the first check that resolves the CID, aborting the others, or with
  * every check's failure, P2P first, once all have failed. Never rejects.
  * The P2P node stops after this returns, once its peer dials finish; a failure
@@ -106,12 +111,15 @@ export async function verifyCid(
   contentCid: string,
   gatewayUrls: readonly string[],
   fallbackGatewayUrls: readonly string[] = [],
+  environment: DotnsEnvironmentConfig = getActiveDotnsEnvironment(),
 ): Promise<CidVerification> {
   const abort = new AbortController();
-  // Loaded on first use, so commands that never verify don't load the libp2p stack.
-  const p2pClient = import("./heliaClient").then(
-    ({ BulletinHeliaClient }) => new BulletinHeliaClient(),
-  );
+  // Peers resolve before the libp2p stack loads, and that loads on first use, so commands
+  // that never verify and stacks without usable peers don't load it.
+  const p2pClient = resolveBulletinPeers(environment.descriptor).then(async (peerAddresses) => {
+    const { BulletinHeliaClient } = await import("./heliaClient");
+    return new BulletinHeliaClient(peerAddresses);
+  });
 
   try {
     const signal = createVerificationSignal(abort);

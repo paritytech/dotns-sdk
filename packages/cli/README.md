@@ -25,7 +25,7 @@ npm install -g @parity/dotns-cli
 
 </details>
 
-Verify:
+Requires Node 22.3 or later, or Bun. Verify:
 
 ```bash
 dotns --version
@@ -97,7 +97,7 @@ existing keystores.
 
 > **Experimental:** the QR mobile-wallet signer is still in development and the CLI prints a warning
 > when it is used. The wallet must be on the same People-chain network as the pairing relay (see
-> `--qr-people-rpc`), which defaults to the relay of the selected environment.
+> `--qr-people-rpc`), which defaults to the People chain of the selected network.
 
 Instead of a local key, pair a Polkadot mobile wallet over a QR code with `--signer qr` (or
 `DOTNS_SIGNER=qr`). The CLI prints a QR code, you scan it with the app, and every transaction is
@@ -125,33 +125,33 @@ registering or transferring. The wallet pairs under a single product id (default
 also seeds the signing account; override it with `--qr-app-id` / `DOTNS_QR_APP_ID`.
 
 Pairing rendezvous happens on a People-chain relay, and the CLI and the wallet must be on the same
-one or the wallet's response never arrives and pairing hangs. By default the CLI uses the relay of
-the selected environment: `polkadot` on `polkadot`, `paseo` on `paseo-v2`, `preview` on
-`previewnet`. Select another to match the wallet's network with `--qr-people-rpc` /
-`DOTNS_QR_PEOPLE_RPC`: `polkadot`, `paseo`, `preview`, `stable`, or a comma-separated list of `wss`
-URLs. Set `DOTNS_QR_DEBUG=1` to print the verbose
-pairing handshake trace when diagnosing a stuck pairing.
+one or the wallet's response never arrives and pairing hangs. By default the CLI uses the People
+chain endpoints of the selected network's stack. Select another to match the wallet's network with
+`--qr-people-rpc` / `DOTNS_QR_PEOPLE_RPC`: any `--env` value, such as `polkadot`, `paseo` or `preview`
+(the People chain of that stack), or a comma-separated list of `wss` URLs.
+Set `DOTNS_QR_DEBUG=1` to print the verbose pairing handshake trace when diagnosing a stuck pairing.
 
 ## Environment Variables
 
-| Variable                    | Description                                                        |
-| --------------------------- | ------------------------------------------------------------------ |
-| `DOTNS_ENV`                 | dotNS environment: `polkadot` (default), `paseo-v2`, `previewnet`  |
-| `DOTNS_KEYSTORE_PATH`       | Path to keystore directory                                         |
-| `DOTNS_KEYSTORE_PASSWORD`   | Keystore password                                                  |
-| `DOTNS_RPC`                 | Asset Hub RPC endpoint                                             |
-| `DOTNS_BULLETIN_RPC`        | Bulletin chain RPC endpoint                                        |
-| `DOTNS_SKIP_CHAIN_CHECK`    | Set to `1` to skip the genesis check after connecting              |
-| `DOTNS_SKIP_VERSION_CHECK`  | Set to `1` to skip the dotNS protocol version check                |
-| `DOTNS_COMMITMENT_BUFFER`   | Extra seconds to wait after the minimum commitment age (default 6) |
-| `DOTNS_REGISTRATION_DIR`    | Directory for saved registration commitments                       |
-| `DOTNS_UPLOAD_MANIFEST_DIR` | Directory for bulletin upload manifests                            |
-| `DOTNS_MNEMONIC`            | BIP39 mnemonic phrase                                              |
-| `DOTNS_KEY_URI`             | Substrate key URI                                                  |
-| `DOTNS_SIGNER`              | Signer backend: `keystore` (default) or `qr`                       |
-| `DOTNS_QR_APP_ID`           | Product id for QR pairing (default `dotns`)                        |
-| `DOTNS_QR_PEOPLE_RPC`       | QR relay: `polkadot`/`paseo`/`preview`/`stable` or wss URLs        |
-| `DOTNS_QR_DEBUG`            | Set to print the verbose QR pairing trace                          |
+| Variable                    | Description                                                           |
+| --------------------------- | --------------------------------------------------------------------- |
+| `DOTNS_ENV`                 | dotNS environment: `polkadot` (default), `paseo-v2`, `previewnet`     |
+| `DOTNS_STACK`               | Stack link, descriptor URL or file to use instead of `DOTNS_ENV`      |
+| `DOTNS_KEYSTORE_PATH`       | Path to keystore directory                                            |
+| `DOTNS_KEYSTORE_PASSWORD`   | Keystore password                                                     |
+| `DOTNS_RPC`                 | Asset Hub RPC endpoint                                                |
+| `DOTNS_BULLETIN_RPC`        | Bulletin chain RPC endpoint                                           |
+| `DOTNS_SKIP_CHAIN_CHECK`    | Set to `1` to skip the genesis check after connecting                 |
+| `DOTNS_SKIP_VERSION_CHECK`  | Set to `1` to skip the dotNS protocol version check                   |
+| `DOTNS_COMMITMENT_BUFFER`   | Extra seconds to wait after the minimum commitment age (default 6)    |
+| `DOTNS_REGISTRATION_DIR`    | Directory for saved registration commitments                          |
+| `DOTNS_UPLOAD_MANIFEST_DIR` | Directory for bulletin upload manifests                               |
+| `DOTNS_MNEMONIC`            | BIP39 mnemonic phrase                                                 |
+| `DOTNS_KEY_URI`             | Substrate key URI                                                     |
+| `DOTNS_SIGNER`              | Signer backend: `keystore` (default) or `qr`                          |
+| `DOTNS_QR_APP_ID`           | Product id for QR pairing (default `dotns`)                           |
+| `DOTNS_QR_PEOPLE_RPC`       | QR relay: an `--env` value (`polkadot`/`paseo`/`preview`) or wss URLs |
+| `DOTNS_QR_DEBUG`            | Set to print the verbose QR pairing trace                             |
 
 Select an environment with either an environment variable or a per-command option:
 
@@ -167,15 +167,58 @@ dotns account is-mapped 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
 dotns --env paseo-v2 account grant somelabel 0x1234567890AbcdEF1234567890aBcdef12345678
 ```
 
-`--network` is an alias of `--env`, and each environment also accepts aliases (for example `preview` for `previewnet`, `mainnet` for `polkadot`). `--rpc` still overrides the endpoint URL, but it does not change the selected dotNS contract addresses. Use `--env`/`DOTNS_ENV` to select the dotNS deployment.
+`--network` is an alias of `--env`, and each environment also accepts aliases (for example `preview` for `previewnet`, `mainnet` for `polkadot`, `paseo-next-v2` for `paseo-v2`). `--rpc` still overrides the endpoint URL, but it does not change the selected dotNS contract addresses. Use `--env`/`DOTNS_ENV` to select the dotNS deployment.
+
+### Network stacks
+
+Each environment runs from a signed [Trinity stack descriptor](https://github.com/paritytech/trinity-user-agents/blob/main/docs/rfcs/trinity-stack-descriptor.md)
+bundled with the CLI: `polkadot`, `paseo-v2` (the `paseo-next-v2` stack) and `previewnet`. The
+stack provides the Asset Hub, Bulletin and People chain endpoints and genesis hashes, the IPFS and
+web gateways, the block explorer and the dotNS contract addresses. Commands never fetch a bundled
+stack; a new CLI release carries the newer copies.
+
+`bulletin upload` verifies an upload over P2P by dialing the `/ws` and `/wss` boot nodes of the
+stack's Bulletin light spec, fetched once per run and checked against its `sha256` and the Bulletin
+chain's genesis hash. When the stack does not have a light spec, the fetch fails, a check fails or
+none of the boot nodes is `/ws` or `/wss`, P2P verification fails, the CLI prints the reason, and
+the upload is checked through the IPFS gateways instead.
+On `paseo-v2`, `bulletin upload` and `bulletin history` print each CID's preview link in the dotNS
+app, `https://dotns.paseo.li/#/preview/…`. Other networks, and a stack passed with `--stack`, have
+no known deployment of the app, so they print no link.
+
+`--stack` (or `DOTNS_STACK`) replaces the whole stack for one run. It takes a `polkadotapp://stack`
+link, which is fetched and checked against the link's key, a descriptor URL, or a descriptor file:
+
+```bash
+dotns lookup name alice --stack 'polkadotapp://stack?key=0x…&url=https%3A%2F%2F…'
+dotns lookup name alice --stack ./local-stack.json
+```
+
+A descriptor URL or file is used as is, without a signature check; pass the link to have it
+verified. A document signed with a bundled stack's key runs as that environment, and is rejected
+when it is older than the bundled copy. Any other stack runs under its descriptor id with a suffix
+derived from the stack, so it never shares saved registrations with a bundled environment.
+
+Nothing is cached, so each run with a link fetches it again. A stack that lacks the Asset Hub chain
+or a dotNS contract address (`STACK_REQUIREMENTS`) is rejected before the command runs, listing the
+missing fields. A stack without a Bulletin or People chain runs the other commands, and a command
+that uses one fails naming the missing chain. Without an `ipfs-gateway`, uploads are verified over
+P2P only. `--stack` cannot be combined with `--env`; a flag takes precedence over `DOTNS_STACK` and
+`DOTNS_ENV`.
+
+A stack past its `expiresAt` stops the command, and one past its `validUntil` prints a warning on
+stderr, also under `--json`. For a bundled copy, both messages carry the stack's published link. When a
+chain reports a genesis that no bundled stack lists, as after a chain restart, the error also
+prints that link, so the run can be repeated with `--stack '<link>'` until a CLI release carries
+the new copy.
 
 ## Programmatic SDK
 
 The operations the CLI runs are exported from `@parity/dotns-cli/core` as typed functions you can
 call from your own TypeScript. You build a context with a chain client, an SS58 origin, and a
 `PolkadotSigner` you supply; every operation takes that context. There is no raw-contract surface:
-addresses come from `DOTNS_ENVIRONMENTS[id].contracts` and the ABI is applied internally, so callers
-never pass an ABI, address, or calldata.
+addresses come from `DOTNS_ENVIRONMENTS[id].contracts`, read from the bundled stacks, and the ABI is
+applied internally, so callers never pass an ABI, address, or calldata.
 
 ```ts
 import { createClient } from "polkadot-api";
@@ -183,6 +226,7 @@ import { getWsProvider } from "polkadot-api/ws-provider/node";
 import { paseo } from "@polkadot-api/descriptors";
 import {
   createDotnsContext,
+  DOTNS_ENVIRONMENTS,
   getChainTokenInfo,
   ReviveClientWrapper,
   registerName,
@@ -193,7 +237,7 @@ import {
   transferName,
 } from "@parity/dotns-cli/core";
 
-const client = createClient(getWsProvider("wss://paseo-asset-hub-next-rpc.polkadot.io"));
+const client = createClient(getWsProvider(DOTNS_ENVIRONMENTS["paseo-v2"].rpc));
 // Token decimals and symbol come from the chain, so deposit caps and amounts match it.
 const clientWrapper = new ReviveClientWrapper(
   client.getTypedApi(paseo),
@@ -216,6 +260,28 @@ await transferName(ctx, "aliceweb3", recipient);
 
 `paseo` comes from descriptors generated for the target chain; outside this repository, generate
 your own with `papi add`.
+
+To run on another stack, load it with `loadDotnsStack`, which takes the same link, URL or file as
+`--stack`, connect to its Asset Hub and pass it as `environment`. The SDK does not check which
+chain the client is connected to: compare the chain's genesis hash with `environment.genesisHash`
+before using the context, or the stack's contract addresses are read on another chain.
+`createDotnsContext` throws `StackExpiredError` for a stack past its `expiresAt`, and
+`checkStackCurrent` reports a stack past its `validUntil` as `stale`, with the published link of a
+bundled copy:
+
+```ts
+const environment = await loadDotnsStack("polkadotapp://stack?key=0x…&url=https%3A%2F%2F…");
+const client = createClient(getWsProvider(environment.rpc));
+const { genesisHash } = await client.getChainSpecData();
+if (genesisHash.toLowerCase() !== environment.genesisHash.toLowerCase()) {
+  throw new Error(`${environment.rpc} is not the Asset Hub of ${environment.label}`);
+}
+const clientWrapper = new ReviveClientWrapper(
+  client.getTypedApi(paseo),
+  await getChainTokenInfo(client),
+);
+const ctx = createDotnsContext({ clientWrapper, origin, signer, environment });
+```
 
 The SDK does not check the network's dotNS protocol version on its own: call
 `checkProtocolVersion(ctx)` once after creating the context. It returns the declared release, or
@@ -512,10 +578,10 @@ dotns --password test-password bulletin upload ./image.png --no-history --accoun
 ```
 
 `bulletin upload --cache` writes the uploaded CID to your on-chain Store on the selected dotNS
-Asset Hub environment. When overriding Bulletin with `--bulletin-rpc` or `DOTNS_BULLETIN_RPC`,
-also pass the matching `--env` or `DOTNS_ENV`, and, when needed, `--rpc` for the Asset Hub Store
-write. In this custom-Bulletin mode, `--env` / `DOTNS_ENV` uses that environment's configured
-Asset Hub RPC and ignores ambient `DOTNS_RPC`; pass `--rpc` to override it deliberately.
+Asset Hub environment, through `--rpc`, else `DOTNS_RPC`, else the stack's Asset Hub. When
+overriding Bulletin with `--bulletin-rpc` or `DOTNS_BULLETIN_RPC`, select the matching network with
+`--env` or `--stack`: the upload stops when the Bulletin endpoint, or the Asset Hub endpoint of the
+Store write, is not the selected network's chain.
 
 ### Bulletin History
 

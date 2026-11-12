@@ -3,3 +3,5 @@ dist
 .papi
 abis/
 benchmarks/results/
+.trinity
+tests/_files/stacks/

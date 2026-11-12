@@ -2,12 +2,12 @@ import type { Abi, Address, Hex } from "viem";
 import type { PolkadotSigner } from "polkadot-api";
 import type { ReviveClientWrapper } from "../client/polkadotClient";
 import type { TransactionStatus } from "../types/types";
+import { OPERATION_TIMEOUT_MILLISECONDS } from "../utils/constants";
 import {
-  DOTNS_ENVIRONMENTS,
-  resolveDotnsEnvironmentId,
-  OPERATION_TIMEOUT_MILLISECONDS,
+  resolveDotnsEnvironment,
   type DotnsContractAddresses,
-} from "../utils/constants";
+  type DotnsEnvironmentConfig,
+} from "../utils/environments";
 import { isValidSubstrateAddress } from "../utils/validation";
 import { performContractCall, submitContractTransaction } from "../utils/contractInteractions";
 import { withTimeout } from "../utils/formatting";
@@ -33,7 +33,8 @@ export type CreateDotnsContextOptions = {
   clientWrapper: ReviveClientWrapper;
   origin: string;
   signer?: PolkadotSigner;
-  environment?: string;
+  /** A bundled environment id or alias, or an environment from `loadDotnsStack`; polkadot by default. */
+  environment?: string | DotnsEnvironmentConfig;
   readTimeoutMs?: number;
   opTimeoutMs?: number;
   signal?: AbortSignal;
@@ -65,13 +66,10 @@ export function createDotnsContext(options: CreateDotnsContextOptions): DotnsCon
   if (!isValidSubstrateAddress(options.origin)) {
     throw new Error("createDotnsContext requires an SS58 origin address, not an EVM H160 address");
   }
-  const environment = DOTNS_ENVIRONMENTS[resolveDotnsEnvironmentId(options.environment)];
-  if (!environment.contracts) {
-    throw new Error(`Contract addresses for environment '${environment.id}' are not configured.`);
-  }
+  const { contracts } = resolveDotnsEnvironment(options.environment);
   return Object.freeze({
     clientWrapper: options.clientWrapper,
-    contracts: Object.freeze({ ...environment.contracts }),
+    contracts: Object.freeze({ ...contracts }),
     origin: options.origin,
     signer: options.signer,
     nativeTokenDecimals: options.clientWrapper.nativeTokenDecimals,
