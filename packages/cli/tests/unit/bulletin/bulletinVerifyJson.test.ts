@@ -76,9 +76,8 @@ test("--json reports method none with every failure, P2P first", async () => {
     gateways: [
       { gateway: "p2p/bitswap", resolvable: false, errorMessage: "no Bulletin peer has the block" },
       { gateway: PASEO_GATEWAY, resolvable: false, statusCode: 404 },
-      { gateway: "https://dweb.link", resolvable: false, statusCode: 404 },
-      { gateway: "https://ipfs.io", resolvable: false, statusCode: 404 },
-      { gateway: "https://4everland.io", resolvable: false, statusCode: 404 },
+      { gateway: "https://gateway.pinata.cloud", resolvable: false, statusCode: 404 },
+      { gateway: "https://ipfs.filebase.io", resolvable: false, statusCode: 404 },
     ],
   });
 });

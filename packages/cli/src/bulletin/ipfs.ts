@@ -8,9 +8,8 @@ const VERIFICATION_TIMEOUT_MILLISECONDS = 30000;
 export const P2P_VERIFICATION_SOURCE = "p2p/bitswap";
 
 const PUBLIC_FALLBACK_GATEWAYS = [
-  "https://dweb.link",
-  "https://ipfs.io",
-  "https://4everland.io",
+  "https://gateway.pinata.cloud",
+  "https://ipfs.filebase.io",
 ] as const;
 
 export type CidVerification = { success: VerificationResult } | { failures: VerificationResult[] };

@@ -222,9 +222,8 @@ test("public gateways back up only an environment that has its own gateway", () 
   setActiveDotnsEnvironment("paseo-v2");
   expect(verificationGateways()).toEqual([DOTNS_ENVIRONMENTS["paseo-v2"].ipfsGatewayUrl!]);
   expect(publicFallbackGateways()).toEqual([
-    "https://dweb.link",
-    "https://ipfs.io",
-    "https://4everland.io",
+    "https://gateway.pinata.cloud",
+    "https://ipfs.filebase.io",
   ]);
 
   setActiveDotnsEnvironment("polkadot");
