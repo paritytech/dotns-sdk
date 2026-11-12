@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, mock, spyOn, test } from "bun:test";
+import { afterAll, afterEach, beforeEach, expect, mock, spyOn, test } from "bun:test";
 import {
   mockHeliaClient,
   waitForAbort,
@@ -21,7 +21,7 @@ const helia: MockHeliaClientBehaviour = {
 let nodeStopCount: number;
 let gatewayFetch: (url: string, init: RequestInit) => Promise<Response>;
 
-mockHeliaClient(helia);
+const restoreHeliaClient = mockHeliaClient(helia);
 
 const {
   describeVerificationFailures,
@@ -59,6 +59,8 @@ afterEach(() => {
   mock.restore();
   setActiveDotnsEnvironment("paseo-v2");
 });
+
+afterAll(restoreHeliaClient);
 
 test("P2P resolving first wins, aborts every gateway check and stops the node", async () => {
   const gatewaySignals: AbortSignal[] = [];

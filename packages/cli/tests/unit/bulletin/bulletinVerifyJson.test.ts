@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, mock, spyOn, test } from "bun:test";
+import { afterAll, afterEach, beforeEach, expect, mock, spyOn, test } from "bun:test";
 import {
   mockHeliaClient,
   waitForAbort,
@@ -15,7 +15,7 @@ const helia: MockHeliaClientBehaviour = {
 };
 let gatewayFetch: (url: string, init: RequestInit) => Promise<Response>;
 
-mockHeliaClient(helia);
+const restoreHeliaClient = mockHeliaClient(helia);
 
 const { runDotnsCli } = await import("../../_helpers/cliHelpers");
 
@@ -32,6 +32,8 @@ beforeEach(() => {
 afterEach(() => {
   mock.restore();
 });
+
+afterAll(restoreHeliaClient);
 
 test("--json reports method p2p with only the P2P entry when P2P resolves first", async () => {
   helia.fetchBlock = async () => new Uint8Array([1]);
